@@ -86,10 +86,10 @@ function onIntervalChange(event: Event) {
         <span class="field-label">仓库</span>
         <a
           class="field-link"
-          href="https://gitee.com/hiclaw_520/ai-marina"
+          href="https://gitee.com/hiclaw_520/ai-kabao"
           target="_blank"
           rel="noreferrer"
-        >gitee.com/hiclaw_520/ai-marina</a>
+        >gitee.com/hiclaw_520/ai-kabao</a>
       </div>
       <div class="field">
         <span class="field-label">接口文档</span>

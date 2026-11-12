@@ -41,11 +41,9 @@ Kabao（卡包）单一词汇体系，verify 七项全绿；UI = 「卡纸与墨
      A4-01 已定 `usage_samples` 独立时序表按天分区；A1-01 §3 L2 采集源三类；
      A3-01 记录页「积分/额度趋势曲线」前端锚点
    - 流程后段：方案对比 → 分节设计获批 → spec 落盘 → 自审 → 用户审阅 → 实施
-1. **远端改名待办**：Gitee 仓库改名 `kabao` 后本地
-   `git remote set-url origin https://gitee.com/hiclaw_520/kabao.git`
-   （改名完成前推送仍走现 URL）；改完同步 guides/01 与 conventions/00。
-2. **npm org 待验证**：`@kabao` scope 可用性未验；不可用回退未 scope 的 `kabao-sdk`（A1-03 §6）。
-3. **desktop 端 main.js 仍是脚手架态**：R2 托盘/sidecar 时接 `build_engine`。
+1. **npm org 待验证**：`@kabao` scope 可用性未验；不可用回退未 scope 的 `kabao-sdk`（A1-03 §6）。
+2. **desktop 端托盘/单实例锁未做**：main.js 双模式（在线/离线 sidecar 拉起 +
+   健康轮询）已实现，托盘常驻与单实例锁留待 R2 网关批次一并接入 `build_engine`。
 
 ## 已定关键决策（不再讨论，照做）
 
@@ -95,8 +93,9 @@ Kabao（卡包）单一词汇体系，verify 七项全绿；UI = 「卡纸与墨
 
 ## 环境备忘
 
-- 远端 origin = `https://gitee.com/hiclaw_520/ai-marina.git`（main；仓库改名 `kabao`
-  待办，见挂账 1。2026-11-11 由 SSH 改 HTTPS——Gitee SSH 22 端口间歇不可达；
+- 远端 origin = `https://gitee.com/hiclaw_520/ai-kabao.git`（main；2026-11-12
+  仓库已由 `ai-marina` 更名为 `ai-kabao`，本地 remote 与全库引用已同步）。
+  2026-11-11 由 SSH 改 HTTPS——Gitee SSH 22 端口间歇不可达；
   SSH 配置仍在 ~/.ssh/config 可切回）。
   **推送口径**：全局 `~/.gitconfig` 有空 `credential.helper=` 会禁用 GCM——
   非交互 shell 普通推送必挂，须用
