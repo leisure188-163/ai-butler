@@ -25,6 +25,7 @@ export type AccountItem = Omit<Contract["AccountOut"], "signal" | "credentials">
   credentials: CredentialItem[];
 };
 export type AppItem = Contract["AppOut"];
+export type ImportResult = Contract["ImportOut"];
 export type EvidenceItem = Contract["EvidenceOut"];
 export type RunItem = WithSignal<Contract["RunOut"]>;
 

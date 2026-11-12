@@ -312,6 +312,24 @@ class _StubRegistry:
         return [DockOutcome(target=target, accounts=list(self._accounts))]
 
 
+class _BatchRegistry:
+    """批量 dock 假件：逐 target 注册 {target}:main（import-all 的编排面专用）。"""
+
+    def __init__(self, targets):
+        self._targets = list(targets)
+
+    def apps(self):
+        from types import SimpleNamespace
+
+        return [SimpleNamespace(manifest=SimpleNamespace(id=t)) for t in self._targets]
+
+    def dock(self, ctx, *, target):
+        from kabao_connectors.registry import DockOutcome
+
+        ctx.register.execute(target, target)
+        return [DockOutcome(target=target, accounts=[f"{target}:main"])]
+
+
 def test_import_triggers_usage_collect_and_reports_errors(tmp_path):
     """R2-F dock 顺带采集：导入成功即产第一帧；采集失败如实进 issues，不打断导入。"""
     with _client(tmp_path) as client:
@@ -331,3 +349,50 @@ def test_import_triggers_usage_collect_and_reports_errors(tmp_path):
         out2 = client.post("/api/v1/apps/trae_cn/import").json()
         assert out2["accounts"] == ["trae_cn:main"]
         assert any("用量采集" in i and "本机客户端不在" in i for i in out2["issues"])
+
+
+# --- 一键批量（import-all / claim-all）：编排语义在 server，端零入参 ---
+
+
+def test_import_all_skips_docked_and_reports_collect_errors(tmp_path):
+    """一键导入：只泊未泊位的；顺带采集失败如实进 issues，不拖累别家。"""
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        client.app.state.registry = _BatchRegistry(["trae_cn", "qoder_cn", "doubao_cn"])
+        kit.register_account.execute("trae_cn", "Trae CN")  # 已泊位 → 跳过
+        kit.collect_usage.ports = {}  # 显式接管端口面：全部采集失败 → issues
+
+        rows = client.post("/api/v1/apps/import-all").json()
+        assert [r["target"] for r in rows] == ["qoder_cn", "doubao_cn"]
+        for row in rows:
+            assert row["accounts"] == [f"{row['target']}:main"]
+            assert any("用量采集" in i for i in row["issues"])
+
+
+def test_import_all_empty_when_nothing_to_dock(tmp_path):
+    with _client(tmp_path) as client:
+        client.app.state.registry = _BatchRegistry([])
+        assert client.post("/api/v1/apps/import-all").json() == []
+
+
+def test_claim_all_claims_docked_and_replays(tmp_path):
+    """一键领取：逐泊位发起；同窗口再点 → 幂等回放同 Run（不重复领取）。"""
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        kit.execute_action.ports = routing_ports(
+            {ActionKind.PROVISION_RUN: FakePort(RunResult(status=Status.CLAIMED))}, {}
+        )
+        kit.register_account.execute("trae_cn", "Trae CN")
+        kit.register_account.execute("doubao_cn", "Doubao CN")
+
+        rows = client.post("/api/v1/runs/claim-all").json()
+        assert {r["account_id"] for r in rows} == {"trae_cn:main", "doubao_cn:main"}
+        assert all(r["status"] == "CLAIMED" for r in rows)
+
+        again = client.post("/api/v1/runs/claim-all").json()
+        assert {r["id"] for r in again} == {r["id"] for r in rows}
+
+
+def test_claim_all_empty_when_no_accounts(tmp_path):
+    with _client(tmp_path) as client:
+        assert client.post("/api/v1/runs/claim-all").json() == []

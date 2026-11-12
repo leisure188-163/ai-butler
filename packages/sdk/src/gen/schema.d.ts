@@ -68,6 +68,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/apps/import-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import All Apps
+         * @description 一键导入：全部未泊位连接器逐家接入（结果如实分列，单家失败已在 dock 内收进 issues）。
+         *
+         *     选谁不选谁是编排语义，归 server（A1-02 编排层）；端零入参。
+         */
+        post: operations["import_all_apps_api_v1_apps_import_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -86,6 +108,28 @@ export interface paths {
          * @description 发起一次手动领取（provision.run）。窗口按 core 规则（claim_window 单源）。
          */
         post: operations["create_run_api_v1_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/claim-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim All Runs
+         * @description 一键领取：全部已泊位卡逐张发起领取（窗口按 core 时间表规则；同窗口幂等回放）。
+         *
+         *     只认已泊位的（卡包里有的卡才领）；端零入参，选卡语义归编排层。
+         */
+        post: operations["claim_all_runs_api_v1_runs_claim_all_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -477,6 +521,26 @@ export interface operations {
             };
         };
     };
+    import_all_apps_api_v1_apps_import_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportOut"][];
+                };
+            };
+        };
+    };
     list_runs_api_v1_runs_get: {
         parameters: {
             query?: {
@@ -537,6 +601,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_all_runs_api_v1_runs_claim_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"][];
                 };
             };
         };

@@ -180,6 +180,20 @@ def list_apps(request: Request) -> list[AppOut]:
     return out
 
 
+def _import_one(registry, kit, target: str) -> ImportOut:
+    """单家停靠 + 顺带采集（dock 内部扫描异常已被注册表转成 issues，编排层不重复设防）。"""
+    from kabao_connectors.registry import DockContext
+
+    [outcome] = registry.dock(
+        DockContext(vault=kit.vault, register=kit.register_account), target=target
+    )
+    for account_id in outcome.accounts:
+        collected = kit.collect_usage.execute(target, account_id)
+        if collected.error:
+            outcome.issues.append(f"用量采集：{collected.error}")
+    return ImportOut(target=outcome.target, accounts=outcome.accounts, issues=outcome.issues)
+
+
 @router.post("/apps/{target}/import", response_model=ImportOut)
 def import_app(target: str, request: Request) -> ImportOut:
     """导入（接入扫描）：扫本机客户端 → 注册卡位 → 凭据入库。
@@ -188,16 +202,23 @@ def import_app(target: str, request: Request) -> ImportOut:
     dock 顺带采集（R2-F）：新泊位立即产雷达第一帧；采集失败进 issues，
     绝不打断导入本身（CollectUsage 已把端口异常收进 outcome.error）。
     """
+    return _import_one(request.app.state.registry, request.app.state.kit, target)
+
+
+@router.post("/apps/import-all", response_model=list[ImportOut])
+def import_all_apps(request: Request) -> list[ImportOut]:
+    """一键导入：全部未泊位连接器逐家接入（结果如实分列，单家失败已在 dock 内收进 issues）。
+
+    选谁不选谁是编排语义，归 server（A1-02 编排层）；端零入参。
+    """
     registry = request.app.state.registry
     kit = request.app.state.kit
-    from kabao_connectors.registry import DockContext
-
-    [outcome] = registry.dock(DockContext(vault=kit.vault, register=kit.register_account), target=target)
-    for account_id in outcome.accounts:
-        collected = kit.collect_usage.execute(target, account_id)
-        if collected.error:
-            outcome.issues.append(f"用量采集：{collected.error}")
-    return ImportOut(target=outcome.target, accounts=outcome.accounts, issues=outcome.issues)
+    docked = {a.provider for a in kit.accounts.list_all()}
+    return [
+        _import_one(registry, kit, app.manifest.id)
+        for app in registry.apps()
+        if app.manifest.id not in docked
+    ]
 
 
 @router.post("/runs", response_model=RunOut)
@@ -228,6 +249,38 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
         )
     )
     return _run_out(run)
+
+
+@router.post("/runs/claim-all", response_model=list[RunOut])
+def claim_all_runs(request: Request) -> list[RunOut]:
+    """一键领取：全部已泊位卡逐张发起领取（窗口按 core 时间表规则；同窗口幂等回放）。
+
+    只认已泊位的（卡包里有的卡才领）；端零入参，选卡语义归编排层。
+    """
+    from kabao_core.application.usecases import RunRequest
+    from kabao_core.domain.action import Action, ActionKind
+    from kabao_core.domain.schedule import claim_window
+
+    registry = request.app.state.registry
+    kit = request.app.state.kit
+    docked = {a.provider: a.id for a in kit.accounts.list_all()}
+    refresh = {e["target"]: e["refresh_at"] for e in registry.schedule_entries()}
+    out: list[RunOut] = []
+    for app in registry.apps():
+        account_id = docked.get(app.manifest.id)
+        if account_id is None:
+            continue
+        window = claim_window(datetime.now(), refresh.get(app.manifest.id, "00:00"))
+        run = kit.execute_action.execute(
+            RunRequest(
+                action=Action(kind=ActionKind.PROVISION_RUN, target=app.manifest.id),
+                account_id=account_id,
+                window=window,
+                budget=timedelta(seconds=app.provision_budget("provision.run")),
+            )
+        )
+        out.append(_run_out(run))
+    return out
 
 
 @router.get("/runs", response_model=list[RunOut])

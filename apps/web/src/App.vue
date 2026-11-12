@@ -16,7 +16,7 @@ import RadarPage from "./pages/RadarPage.vue";
 import LogPage from "./pages/LogPage.vue";
 import AlertsPage from "./pages/AlertsPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
-import type { AccountItem, AppItem, PageName, RunItem, Settings, ThemeName } from "./types";
+import type { AccountItem, AppItem, ImportResult, PageName, RunItem, Settings, ThemeName } from "./types";
 
 const apiBase = "/api/v1";
 
@@ -157,6 +157,72 @@ async function claimApp(target: string) {
   }
 }
 
+/* 一键批量（R2 补）：导入全部未泊位 / 领取全部已泊位——选卡语义在 server，端只发起与转述 */
+async function importAllApps() {
+  busyTarget.value = "batch";
+  actionMsg.value = { text: "正在扫描本机客户端…", tone: "ok" };
+  try {
+    const resp = await fetch(`${apiBase}/apps/import-all`, { method: "POST" });
+    const body = (await resp.json()) as ImportResult[] | { detail?: string };
+    if (!resp.ok) {
+      actionMsg.value = {
+        text: (body as { detail?: string }).detail ?? `一键导入失败（HTTP ${resp.status}）`,
+        tone: "warn",
+      };
+      return;
+    }
+    const results = body as ImportResult[];
+    const imported = results.flatMap((r) => r.accounts);
+    const issues = results.flatMap((r) => r.issues.map((i) => `${r.target}：${i}`));
+    const empty = results
+      .filter((r) => !r.accounts.length && !r.issues.length)
+      .map((r) => r.target);
+    const text =
+      [
+        imported.length ? `已导入：${imported.join("、")}` : "",
+        empty.length ? `未发现卡：${empty.join("、")}` : "",
+        ...issues,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "没有待导入的应用。";
+    actionMsg.value = { text, tone: issues.length ? "warn" : "ok" };
+  } finally {
+    busyTarget.value = null;
+    await loadAll();
+  }
+}
+
+async function claimAllApps() {
+  busyTarget.value = "batch";
+  actionMsg.value = { text: "正在逐张领取…", tone: "ok" };
+  try {
+    const resp = await fetch(`${apiBase}/runs/claim-all`, { method: "POST" });
+    const body = (await resp.json()) as RunItem[] | { detail?: string };
+    if (!resp.ok) {
+      actionMsg.value = {
+        text: (body as { detail?: string }).detail ?? `一键领取失败（HTTP ${resp.status}）`,
+        tone: "warn",
+      };
+      return;
+    }
+    const rows = body as RunItem[];
+    const done = rows.filter((r) => r.signal === "ok").length;
+    const rest = rows
+      .filter((r) => r.signal !== "ok")
+      .map(
+        (r) =>
+          `${r.target}：${r.status ?? "未终态"}${r.repair_reason ? `（${r.repair_reason}）` : ""}`,
+      );
+    const text = rows.length
+      ? `共发起 ${rows.length} 张，完成 ${done} 张` + (rest.length ? ` · ${rest.join(" · ")}` : "")
+      : "还没有已泊位的卡——先导入应用。";
+    actionMsg.value = { text, tone: rest.length ? "warn" : "ok" };
+  } finally {
+    busyTarget.value = null;
+    await loadAll();
+  }
+}
+
 /* 设置：本机浏览器持久化 + 自动刷新轮询。
    注意：THEME_NAMES 必须先于 loadSettings() 调用点声明（函数声明提升、const 不提升，
    否则 has() 进 TDZ 抛错被 try/catch 静默吞掉，存档主题永远回退 system）。 */
@@ -272,6 +338,8 @@ onBeforeUnmount(() => {
         :msg="actionMsg"
         @import="importApp"
         @claim="claimApp"
+        @import-all="importAllApps"
+        @claim-all="claimAllApps"
       />
       <LogPage v-else-if="active === '记录'" :runs="runs" />
       <RadarPage v-else-if="active === '雷达'" />

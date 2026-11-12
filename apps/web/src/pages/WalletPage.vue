@@ -11,13 +11,21 @@ const props = defineProps<{
   msg: { text: string; tone: "ok" | "warn" } | null;
 }>();
 
-const emit = defineEmits<{ import: [target: string]; claim: [target: string] }>();
+const emit = defineEmits<{
+  import: [target: string];
+  claim: [target: string];
+  importAll: [];
+  claimAll: [];
+}>();
 
 const selectedId = ref<string | null>(null);
 const selected = computed(() => selectedId.value);
 const selectedAccount = computed(() =>
   selectedId.value ? props.accounts.find((a) => a.account_id === selectedId.value) ?? null : null,
 );
+
+const importableCount = computed(() => props.apps.filter((a) => !a.account_id).length);
+const claimableCount = computed(() => props.apps.filter((a) => a.account_id).length);
 
 function toggle(accountId: string) {
   selectedId.value = selectedId.value === accountId ? null : accountId;
@@ -38,7 +46,21 @@ function toggle(accountId: string) {
   >{{ msg.text }}</p>
 
   <section class="section" aria-label="应用">
-    <h2 class="section-title">应用</h2>
+    <div class="section-head">
+      <h2 class="section-title">应用</h2>
+      <span class="row-actions">
+        <button
+          class="btn"
+          :disabled="busyTarget !== null || !importableCount"
+          @click="emit('importAll')"
+        >一键导入{{ importableCount ? `（${importableCount}）` : "" }}</button>
+        <button
+          class="btn btn--primary"
+          :disabled="busyTarget !== null || !claimableCount"
+          @click="emit('claimAll')"
+        >一键领取{{ claimableCount ? `（${claimableCount}）` : "" }}</button>
+      </span>
+    </div>
     <ul v-if="apps.length" class="rows panel">
       <li v-for="app in apps" :key="app.id" class="row">
         <span
@@ -114,6 +136,15 @@ function toggle(accountId: string) {
 
 <style scoped>
 .head { padding-top: var(--space-2); }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.section-head .section-title { margin-bottom: 0; }
 
 .wall {
   display: grid;
