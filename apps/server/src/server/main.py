@@ -30,9 +30,9 @@ def _assemble_connectors(kit) -> None:
     kit.register_provision_ports(
         targets=registry.provision_ports(vault=kit.vault, transport=None)
     )
-    # 探针端口同走 target 路由（A2-03 §4）；单独一次挂载——target 撞车时
-    # register_provision_ports 显式拒绝（红线 5），合并 dict 会静默遮蔽
-    kit.register_provision_ports(
+    # 探针端口随 register_health_ports 挂载（同一条 target 路由 + 每日轮询名册，
+    # A2-03 §4）；target 撞车时显式拒绝（红线 5）
+    kit.register_health_ports(
         targets=registry.health_ports(vault=kit.vault, transport=None)
     )
     kit.register_usage_ports(
@@ -52,6 +52,7 @@ def _assemble_connectors(kit) -> None:
         kit.start_checkin_schedule(entries)
     if os.environ.get("KABAO_SCHEDULE", "1") != "0":
         kit.start_usage_scans()  # R2：每日用量采集（启动即补采第一帧，IntervalJob 语义）
+        kit.start_health_scans()  # R3-2：每日体检轮询（Run 进台账，连败升级走既有链）
     kit.start_expiry_scans()
 
 

@@ -27,11 +27,13 @@ from kabao_core.application.usecases import (
     ExecuteAction,
     ListPending,
     RegisterAccount,
+    RunRequest,
     ScanCredentialExpiry,
 )
 from kabao_core.bootstrap import execute_action as _assemble_execute_action
 from kabao_core.bootstrap import list_pending as _assemble_list_pending
 from kabao_core.bootstrap import register_account as _assemble_register_account
+from kabao_core.domain.action import Action, ActionKind
 
 from kabao_engine.accounts.sqlite import SqliteAccountRepository
 from kabao_engine.audit.sqlite import AuditSubscriber, SqliteAuditLog
@@ -91,6 +93,7 @@ SCAN_JOB_NAME = "kabao-expiry-scan"
 CHECKIN_TICK = timedelta(seconds=60)  # 导入触发 tick（实测粒度）——秒级不省预算
 CHECKIN_JOB_NAME = "kabao-checkin"
 USAGE_JOB_NAME = "kabao-usage-scan"  # R2：每日用量采集（雷达第二帧的定时来源）
+HEALTH_JOB_NAME = "kabao-health-scan"  # R3-2：每日体检轮询（A2-03 §3 定时批次）
 
 logger = logging.getLogger(__name__)
 
@@ -116,9 +119,11 @@ class EngineKit:
     checkin_schedule: CheckinSchedule | None = None
     checkin_job: IntervalJob | None = None
     usage_job: IntervalJob | None = None
+    health_job: IntervalJob | None = None
     _kind_ports: dict = field(default_factory=dict, init=False, repr=False)
     _target_ports: dict = field(default_factory=dict, init=False, repr=False)
     _usage_ports: dict = field(default_factory=dict, init=False, repr=False)
+    _health_ports: dict = field(default_factory=dict, init=False, repr=False)
 
     def register_provision_ports(
         self,
@@ -156,6 +161,31 @@ class EngineKit:
                     raise ValueError(f"用量端口重复挂载: {tid!r}（显式 replace=True 才可重装）")
             self._usage_ports[tid] = port
         self.collect_usage.ports = dict(self._usage_ports)
+
+    def register_health_ports(
+        self,
+        targets: Mapping[str, ProvisionPort] | None = None,
+        *,
+        replace: bool = False,
+    ) -> None:
+        """挂载探针端口（R3 health.check 通道，A2-03 §4）：随 register_provision_ports
+        同一条 target 路由进 ExecuteAction（routing_ports 不变），另记探针名册供每日
+        体检 job 选路——「有端口」与「该每日轮询」是同一份事实。
+
+        重复挂载同名 target（含与 provision 端口撞车）= 装配 bug，显式拒绝（红线 5）。
+        """
+        for tid, port in (targets or {}).items():
+            if tid in self._health_ports and self._health_ports[tid] is not port:
+                if not replace:
+                    raise ValueError(f"探针端口重复挂载: {tid!r}（显式 replace=True 才可重装）")
+            if tid in self._target_ports and self._target_ports[tid] is not port:
+                if not replace:
+                    raise ValueError(
+                        f"探针端口与连接器端口撞车: {tid!r}（一 target 一端口，红线 5）"
+                    )
+            self._health_ports[tid] = port
+            self._target_ports[tid] = port
+        self.execute_action.ports = self._selector()
 
     def attach_schedule(
         self, entries: list[ScheduleEntry], *, tick: timedelta = CHECKIN_TICK
@@ -234,9 +264,43 @@ class EngineKit:
             if outcome.error:
                 logger.warning("每日用量采集失败 %s: %s", account.id, outcome.error)
 
+    def start_health_scans(self, *, interval: timedelta = DAILY_SCAN_INTERVAL) -> None:
+        """启动每日体检轮询（R3-2，A2-03 §3 定时批次）：启动即补扫一轮（IntervalJob 语义）。幂等。"""
+        if self.health_job is None:
+            self.health_job = IntervalJob(
+                self._daily_health, interval=interval, name=HEALTH_JOB_NAME
+            )
+        if not self.health_job.running:
+            self.health_job.start()
+
+    def _daily_health(self) -> None:
+        """号册全账号体检一轮；无 provider 或未挂探针端口的跳过（轮询名册 = 探针名册）。
+
+        Run 照常落台账——EXPIRED/NO_AUTH 修复建议随 Run 出账，连败升级走
+        AssessAccountHealth 既有链（体检是这个反馈回路的输入）。外层预算走
+        RunRequest 默认（bridge 够不到连接器 manifest 的能力申报，手动发起
+        路径才由端按 budget_seconds 传）；探针端口内部按 deadline 收口。
+        单账号异常落 WARNING 不打断整轮（ExecuteAction 对适配器意外异常
+        落账后原样上抛，这里兜住）——不静默（红线 5）。
+        """
+        for account in self.accounts.list_all():
+            if not account.provider or account.provider not in self._health_ports:
+                continue
+            try:
+                self.execute_action.execute(
+                    RunRequest(
+                        action=Action(
+                            kind=ActionKind.HEALTH_CHECK, target=account.provider
+                        ),
+                        account_id=account.id,
+                    )
+                )
+            except Exception as e:  # noqa: BLE001 —— job 编排不被单账号打断
+                logger.warning("每日体检失败 %s: %s", account.id, e)
+
     def close(self) -> None:
         """排空事件、停定时 job 后关总线——关闭路径不丢账。"""
-        for job_name in ("checkin_job", "scan_job", "usage_job"):
+        for job_name in ("checkin_job", "scan_job", "usage_job", "health_job"):
             job: IntervalJob | None = getattr(self, job_name)
             if job is not None:
                 job.stop()
