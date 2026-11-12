@@ -53,6 +53,10 @@ capture 通道（Chrome cookie SQLite 直读，mac Keychain / win DPAPI 双链�
 Claude 未登录如实落榜；探针真机双态（chatgpt_web FAILED 探针不可达 60s 预算 /
 claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针端口 → 500 的
 真机抓修 + 回归测试）。
+**文件组织规范落地（2026-11-13）**：conventions/04 立规（一业务域一模块 + 代码文件
+600 行硬上限门禁机检 / 400 软警戒）——起因 = server 全部 API 单文件混堆 482 行
+（10 端点 / 4 业务域）；routes 已拆 accounts/apps/runs/usage 四域模块 + api.py
+纯聚合器（openapi 指纹零漂移实证），verify 门禁升八项结构检查 + 测试项。
 **接下来：R3-2 候选**——定时体检轮询（触发器模型现成）/ Claude 登录态补证
 （换有登录态环境）/ Windows cookie 真机验收。
 
@@ -169,6 +173,11 @@ claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针�
 - **docs 体系**：设计文档入 specs/ 分层子目录，强制规范入 conventions/
   （00-项目配置为唯一变量入口），决策入 adr/；STATUS.md 代替 TODO.md（避免双源）；
   specs 文件命名 `A{层级}-{NN}{分册字母}-{主题}.md`
+- **文件组织与长度**（conventions/04）：一业务域 = 一模块 = 一文件（路由按
+  accounts/apps/runs/usage 分域，api.py 纯聚合器）；代码文件软警戒 400 行 /
+  **硬上限 600 行门禁机检**（verify 第八项，packages/apps/scripts 下
+  py/ts/tsx/vue/js/mjs，gen 等派生物除外；文档不进机检）；
+  存量 400+（decl/usecases/dockio）不强制立即拆，新代码不得堆入
 
 ## 环境备忘
 

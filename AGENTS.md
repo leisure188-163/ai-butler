@@ -18,7 +18,9 @@ apps/* 全是薄壳，OpenAPI 契约生成 TS SDK。
 6. **改 UI**：读 `docs/specs/application/A3-01-信息架构与核心页面.md` + `docs/design-decisions.md`
 7. **想参考旧项目 auto-signin-kit**：先读 `docs/specs/legacy/A0-01-旧系统知识资产.md`（**必读**）
 8. **任何编码/review 前**：读 `docs/conventions/02-开发红线.md`（七条红线，违反 = 打回）；
-   起名/写文案 → `docs/conventions/03-命名与文案规范.md`
+   起名/写文案 → `docs/conventions/03-命名与文案规范.md`；
+   新增/改路由端点、新建代码文件 → `docs/conventions/04-代码文件组织与长度约束.md`
+   （一业务域一模块，600 行硬上限门禁机检）
 9. **生成任何 git 提交信息前**：读 `docs/conventions/08-提交信息规范.md`
    （格式 `<type>:[<需求单号>]: <中文主题>`，钩子 `.githooks/commit-msg` 强制校验）
 10. **环境与命令**：读 `docs/guides/01-环境与命令.md`
