@@ -24,9 +24,9 @@
 .btn--primary {
   background: var(--color-ink);
   border-color: var(--color-ink);
-  color: #fff;
+  color: var(--color-on-ink);
 }
-.btn--primary:hover { background: #223743; border-color: #223743; }
+.btn--primary:hover { background: var(--color-ink-strong); border-color: var(--color-ink-strong); }
 .btn--ghost {
   border-color: transparent;
   background: none;

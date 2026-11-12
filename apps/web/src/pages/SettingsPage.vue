@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Settings } from "../types";
+import type { Settings, ThemeName } from "../types";
 
 defineProps<{
   settings: Settings;
@@ -10,6 +10,10 @@ const emit = defineEmits<{ update: [patch: Partial<Settings>] }>();
 
 function onIntervalChange(event: Event) {
   emit("update", { intervalSec: Number((event.target as HTMLSelectElement).value) });
+}
+
+function onThemeChange(event: Event) {
+  emit("update", { theme: (event.target as HTMLSelectElement).value as ThemeName });
 }
 </script>
 
@@ -22,6 +26,15 @@ function onIntervalChange(event: Event) {
   <section class="section" aria-label="通用">
     <h2 class="section-title">通用</h2>
     <div class="panel">
+      <div class="field">
+        <label class="field-label" for="set-theme">主题</label>
+        <select id="set-theme" class="input" :value="settings.theme" @change="onThemeChange">
+          <option value="system">跟随系统</option>
+          <option value="paper">卡纸与墨（浅）</option>
+          <option value="dark">墨夜（深）</option>
+          <option value="warm">暖纸（浅）</option>
+        </select>
+      </div>
       <div class="field">
         <label class="field-label" for="set-autorefresh">自动刷新</label>
         <button

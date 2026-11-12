@@ -137,7 +137,7 @@ const emit = defineEmits<{ activate: [] }>();
   border-radius: 5px;
   position: relative;
   flex: none;
-  background: linear-gradient(135deg, #ecd28f, #b98a2e);
+  background: linear-gradient(135deg, var(--chip-gold-hi), var(--chip-gold-lo));
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
 .bc-chip::before {

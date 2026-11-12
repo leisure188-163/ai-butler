@@ -1,9 +1,11 @@
-/* 设计 token 唯一来源（红线 6）——「卡纸与墨 Cardstock & Ink」(design-decisions D2 v3)
+/* 设计 token 唯一来源（红线 6）——「卡纸与墨 Cardstock & Ink」(design-decisions D2 v4)
    流程：frontend-design 定调（主体锚定=实体卡；大胆只花在首页卡扇一处）
    → theme-factory 定制主题（10 预设无一适配，专属生成）
    → ui-ux-pro-max 查规校验（对比度/焦点/触达/空态，检索未命中方向处以通用回退落地）。
    纸墨观：案面=冷纸灰，卡=真比例彩色卡面+压印卡号+金箔芯片，结果=墨印章。
-   语义五色只消费 core 出产的 signal 分类（红线 2），填充用 base、正文用 ink 档（白底 ≥4.5:1）。 */
+   语义五色只消费 core 出产的 signal 分类（红线 2），填充用 base、正文用 ink 档（白底 ≥4.5:1）。
+   多主题（D2 v4）：:root = 卡纸与墨（浅，默认），[data-theme="dark"] = 墨夜，[data-theme="warm"] = 暖纸；
+   覆盖块只覆写颜色类令牌，字体/字号/尺寸/动效天然继承。主题偏好由 App.vue 挂 <html data-theme>。 */
 :root {
   /* 纸与墨 */
   --color-bg: #f1f3f4;            /* 案面：冷纸灰 */
@@ -17,6 +19,10 @@
   --color-accent: #8a5d14;        /* 卡面金·文本级（白底 ≈4.9:1）——品牌与激活态唯一彩 */
   --color-accent-bright: #c89b3c; /* 金箔——仅卡面芯片/品牌符等装饰 */
   --color-accent-weak: rgba(200, 155, 60, 0.14);
+  --color-on-ink: #ffffff;        /* 墨底（主按钮/徽标）上的文字色，随主题翻转 */
+  --color-ink-strong: #223743;    /* 墨底 hover：再压一档 */
+  --chip-gold-hi: #ecd28f;        /* 金箔芯片渐变·亮端（品牌符/卡芯片共用） */
+  --chip-gold-lo: #b98a2e;        /* 金箔芯片渐变·暗端 */
 
   /* 语义五色（ok/notice/attention/danger/quiet） */
   --color-ok: #1f8a5d;
@@ -103,4 +109,100 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---- 墨夜（深色）：墨青夜底 + 纸白文字 + 金箔提亮；语义五色整体提亮一档保深底对比 ---- */
+[data-theme="dark"] {
+  --color-bg: #10181e;            /* 墨青夜底 */
+  --color-surface: #17222a;       /* 夜里卡纸 */
+  --color-surface-2: #1d2b34;     /* 凹槽层 */
+  --color-border: #2b3b46;        /* 纸绳线 */
+  --color-ink: #e8edf0;           /* 纸白——主文本与主按钮 */
+  --color-text: var(--color-ink);
+  --color-text-muted: #9db0ba;    /* 深底 ≥4.5:1 */
+  --color-text-faint: #6d808b;    /* 仅装饰/占位 */
+  --color-accent: #d6ac52;        /* 金箔·文本级（深底提亮） */
+  --color-accent-bright: #e2c06a;
+  --color-accent-weak: rgba(226, 192, 106, 0.16);
+  --color-on-ink: #10181e;        /* 纸白按钮上的墨字 */
+  --color-ink-strong: #f5f8fa;    /* 墨底 hover：再亮一档 */
+  --chip-gold-hi: #f2dfa6;
+  --chip-gold-lo: #c89b3c;
+
+  --color-ok: #4ec48f;
+  --color-ok-ink: #6bd6a5;
+  --color-ok-weak: rgba(78, 196, 143, 0.16);
+  --color-notice: #d9a844;
+  --color-notice-ink: #e6bc60;
+  --color-notice-weak: rgba(217, 168, 68, 0.16);
+  --color-attention: #e28e55;
+  --color-attention-ink: #eda36c;
+  --color-attention-weak: rgba(226, 142, 85, 0.16);
+  --color-danger: #e26b6b;
+  --color-danger-ink: #ec8585;
+  --color-danger-weak: rgba(226, 107, 107, 0.16);
+  --color-quiet: #7f939e;
+  --color-quiet-ink: #95a8b2;
+  --color-quiet-weak: rgba(127, 147, 158, 0.2);
+
+  /* 卡面身份色：夜色下微提亮（白字对比仍 ≥6:1） */
+  --card-face-1: #2f5580;
+  --card-face-2: #28584a;
+  --card-face-3: #4a4670;
+  --card-face-4: #3d4f60;
+  --card-face-5: #6b5836;
+  --card-face-6: #196269;
+
+  /* 深处阴影更重 */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.5);
+  --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.5), 0 16px 36px rgba(0, 0, 0, 0.55);
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- 暖纸（浅色护眼）：米黄纸底 + 暖墨；语义五色向暖压深半档保米底对比 ---- */
+[data-theme="warm"] {
+  --color-bg: #f4ecdd;            /* 案面：米黄纸 */
+  --color-surface: #fbf6ea;       /* 暖卡纸 */
+  --color-surface-2: #ece1cb;     /* 凹槽层 */
+  --color-border: #ded1b6;        /* 纸绳线 */
+  --color-ink: #3a3226;           /* 暖墨——主文本与主按钮 */
+  --color-text: var(--color-ink);
+  --color-text-muted: #6e6049;    /* 暖雾墨（暖纸底 ≥4.5:1） */
+  --color-text-faint: #9c8b6f;    /* 仅装饰/占位 */
+  --color-accent: #8a5d14;        /* 卡面金·文本级（暖纸底 ≈5:1） */
+  --color-accent-bright: #b98a2e;
+  --color-accent-weak: rgba(185, 138, 46, 0.16);
+  --color-on-ink: #fbf6ea;        /* 暖墨底上的暖纸白 */
+  --color-ink-strong: #55482f;    /* 墨底 hover：再压一档 */
+  --chip-gold-hi: #ecd28f;
+  --chip-gold-lo: #a9781f;
+
+  --color-ok: #1f7a52;
+  --color-ok-ink: #166240;
+  --color-ok-weak: rgba(31, 138, 93, 0.12);
+  --color-notice: #a87817;
+  --color-notice-ink: #875e0e;
+  --color-notice-weak: rgba(192, 138, 30, 0.13);
+  --color-attention: #c05c22;
+  --color-attention-ink: #9a4614;
+  --color-attention-weak: rgba(217, 106, 43, 0.13);
+  --color-danger: #c4413f;
+  --color-danger-ink: #a02d2c;
+  --color-danger-weak: rgba(217, 72, 72, 0.12);
+  --color-quiet: #8b7d63;
+  --color-quiet-ink: #6d6148;
+  --color-quiet-weak: rgba(148, 131, 106, 0.16);
+
+  /* 卡面身份色：跨主题保持一致 */
+  --card-face-1: #24466b;
+  --card-face-2: #1f4a3d;
+  --card-face-3: #3e3a5c;
+  --card-face-4: #33424e;
+  --card-face-5: #5c4a2f;
+  --card-face-6: #14535a;
+
+  /* 暖调阴影 */
+  --shadow-card: 0 1px 2px rgba(93, 72, 38, 0.08), 0 10px 28px rgba(93, 72, 38, 0.12);
+  --shadow-lift: 0 2px 4px rgba(93, 72, 38, 0.1), 0 16px 36px rgba(93, 72, 38, 0.16);
+  --shadow-panel: 0 1px 2px rgba(93, 72, 38, 0.07);
 }

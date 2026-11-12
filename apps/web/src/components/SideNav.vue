@@ -87,7 +87,7 @@ const overviewItems: PageName[] = ["首页", "卡包", "记录"];
   height: 15px;
   border-radius: 4px;
   align-self: center;
-  background: linear-gradient(135deg, #ecd28f, #b98a2e);
+  background: linear-gradient(135deg, var(--chip-gold-hi), var(--chip-gold-lo));
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
 .brand-name { font-size: var(--text-lg); font-weight: 650; }
@@ -137,7 +137,7 @@ const overviewItems: PageName[] = ["首页", "卡包", "记录"];
   min-width: 20px;
   text-align: center;
   background: var(--color-ink);
-  color: #fff;
+  color: var(--color-on-ink);
   font-size: var(--text-xs);
   line-height: 1;
   padding: 4px 6px;
