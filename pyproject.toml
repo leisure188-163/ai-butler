@@ -8,6 +8,7 @@ dependencies = [
     "kabao-connectors",
     "kabao-server",
     "kabao-cli",
+    "kabao-mcp",
 ]
 
 [dependency-groups]
@@ -19,6 +20,7 @@ testpaths = [
     "packages/engine/tests",
     "packages/connectors/tests",
     "apps/server/tests",
+    "apps/mcp/tests",
 ]
 
 [tool.uv.workspace]
@@ -28,6 +30,7 @@ members = [
     "packages/connectors",
     "apps/server",
     "apps/cli",
+    "apps/mcp",
 ]
 
 [tool.uv.sources]
@@ -36,3 +39,4 @@ kabao-engine = { workspace = true }
 kabao-connectors = { workspace = true }
 kabao-server = { workspace = true }
 kabao-cli = { workspace = true }
+kabao-mcp = { workspace = true }

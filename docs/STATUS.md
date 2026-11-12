@@ -29,7 +29,12 @@ postgres/JWT_SECRET 残留（与 SQLite 单机架构漂移，Dockerfile 保留�
 翻页 / workbuddy get-user-resource）；server /usage/collect + /usage/radar
 （契约派生）；web 额度雷达页（六页 IA：活跃包平铺 + 历史耗尽折叠）；engine
 每日用量 job（启动补采）+ dock 顺带采集（失败进 issues 不打断导入）。
-**接下来：R2 收尾 = MCP stdio 薄壳（查额度/查用量/触发签到，走 server API）**。
+**R2 收官（2026-11-12）：MCP stdio 薄壳落地（apps/mcp，ADR-008）**——官方 mcp 2.x
+MCPServer（v1 FastMCP 已更名）；三工具 query_quota/query_usage/claim_now 纯 HTTP
+投影 server 契约 API（零 core/engine import，server 零改动无契约再生成）；server
+不可达显式报错附启动命令（红线 5）；stdio 真客户端冒烟（握手/列工具/无 server
+调用）全过；门禁八项绿（396 passed）。
+**接下来：真机 LLM 客户端验收 → R3（网页会话捕获）**。
 
 ## 里程碑
 
@@ -38,28 +43,20 @@ postgres/JWT_SECRET 残留（与 SQLite 单机架构漂移，Dockerfile 保留�
 | 设计 + M0 + M1 | 定位/架构/详细设计；一核多端骨架；四连接器真机验收 | ✅ 完成（详见 git 历史与各 PROTOCOL.md） |
 | **R1 品牌重塑** | Kabao 更名 + 词表 + 数据自动迁移（ADR-007 / A1-03） | **✅ 完成（2026-11-12，批①②③）** |
 | **UI 重设计** | 「卡纸与墨」主题 + 五页落地（设计能力包流程，A3-01/D2） | **✅ 完成（2026-11-12）** |
-| R2 | 用量采集 + 额度雷达 + MCP Server | **用量采集+雷达 ✅ 完成（2026-11-12，真机四家实测）**；剩 MCP stdio 薄壳 |
+| R2 | 用量采集 + 额度雷达 + MCP Server | **✅ 收官（2026-11-12）**：用量采集+雷达（真机四家实测）+ MCP stdio 薄壳（ADR-008） |
 | R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | 未开始（广度定位关键一步，竞品空白） |
 | R4 | 网关独立进程（账号池/反代/规则引擎） | 未开始 |
 | R5 | 会话三级迁移 | 未开始 |
 
 ## 当前挂账
 
-0. **R2 收尾（用量采集全链已完成，剩 MCP stdio 薄壳）**：
-   - **已完成（2026-11-12）**：core 三实体（UsageSnapshot/UsageAggregate/
-     QuotaLedgerEntry）+ 谓词单源 / engine 三表 + 耗尽预测 / 四家连接器用量
-     适配（真机全通）/ server 用量路由（契约派生）/ web 额度雷达页（六页 IA）/
-     每日用量 job + dock 顺带采集。真机回归三修复：doubao amount 形状变迁
-     收编数字串（16/16 实证，§7.2 回填）；is_quota_low 排除 remaining≤0
-     历史耗尽包（终态无行动价值）；forecast_exhaustion 最小帧距 1h（差分
-     外推防爆炸，帧距不足诚实显「采集中」）
-   - **接下来 = MCP stdio 薄壳**：已裁②③④——宿主 stdio 走 server 契约 API；
-     工具集查额度/查用量/触发签到；范围不含领取扩展
-   - **既有 spec 锚点（写 spec 直接引用）**：A2-01 UsageSample（字段已按
-     三型重定义落库）+ QUOTA_LOW 事件；A2-02 manifest `usage.read` 能力位；
-     A4-01 usage_samples 表；A3-01 记录页趋势曲线锚点
-   - **待补**：R2 spec 落盘 docs/superpowers/specs/（设计与实现已获用户批准
-     直做，spec 可后补归档）
+0. **R2 收官待办（实现全绿，剩验收与归档）**：
+   - **MCP stdio 薄壳（apps/mcp，ADR-008）已完成（2026-11-12）**：官方 mcp 2.x
+     MCPServer；三工具 query_quota/query_usage/claim_now = server 契约 API 纯投影
+     （GET /usage/radar 拆额度面/用量面 + POST /runs 直传）；可选 provider 过滤；
+     server 不可达显式报错附启动命令（红线 5）；门禁八项绿 + stdio 真客户端冒烟
+   - 待办：①真机 LLM 客户端验收（注册命令 `uv run kabao-mcp`）
+     ②R2 spec 落盘 docs/superpowers/specs/（设计与实现已批，可后补归档）
 1. **npm org 待验证**：`@kabao` scope 可用性未验；不可用回退未 scope 的 `kabao-sdk`（A1-03 §6）。
 2. **desktop 端托盘/单实例锁未做**：main.js 双模式（在线/离线 sidecar 拉起 +
    健康轮询）已实现，托盘常驻与单实例锁留待 R2 网关批次一并接入 `build_engine`。
@@ -121,7 +118,11 @@ postgres/JWT_SECRET 残留（与 SQLite 单机架构漂移，Dockerfile 保留�
 - **uv.lock 口径**：macOS 开发机全局 uv 配置走阿里云镜像，`uv sync` 会把锁源
   重写为镜像——**用 `uv lock --default-index https://pypi.org/simple` 直锁官方源**
   （R1 批①重锁已验证，0 污染）；提交前 `git diff uv.lock | grep -c aliyun` 自检，
-  脏了就重出
+  脏了就重出。**2026-11-12 复发实证**：库内旧锁混入 744 行 aliyun（MCP 薄壳批次
+  重锁清零）——自检看新增行 `git diff uv.lock | grep -c '^+.*aliyun'` 才准
+- **macOS 前端门禁**：系统 node 20 + pnpm 7 打不开 lockfile v9——shell 先
+  `eval "$(fnm env --shell zsh)"` 走 node 24 + pnpm 9；apps/web/node_modules
+  缺失时报 vue-tsc ENOENT，`pnpm install --frozen-lockfile` 即愈
 - pnpm-lock.yaml 已提交，CI 用 `--frozen-lockfile`
 - 提交信息规范接入提交钩子三件套 `.githooks/commit-msg` +
   `scripts/install_hooks.py` + `scripts/setup_hooks.cjs`（pnpm postinstall 自动
