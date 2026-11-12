@@ -6,11 +6,11 @@
 ## 1. 包结构
 
 ```
-packages/connectors/<id>/
+packages/connectors/src/kabao_connectors/<id>/
 ├── manifest.yaml      # 身份 + 能力矩阵声明（唯一入口，注册表据此发现）
 ├── PROTOCOL.md        # 协议字典（版本化）：端点/加密/幂等/业务码——逆向结论的归宿
 ├── declarative/       # 三级扩展之一：声明式能力（仅 L1）
-│   └── provision.checkin.yaml
+│   └── provision.run.yaml
 └── adapter.py         # 三级扩展之二：Python 适配器（实现 core 端口）
 ```
 
@@ -22,16 +22,16 @@ packages/connectors/<id>/
 id: trae_cn
 display: Trae CN
 capabilities:
-  provision.checkin:              # 能力 id：动词.名词（provision/usage/session/health）
+  provision.run:                  # 能力 id：动词.名词（provision/usage/session/health）
     kind: declarative             # declarative | adapter | gateway
-    entry: declarative/provision.checkin.yaml
+    entry: declarative/provision.run.yaml
   usage.read:
     kind: adapter                 # 复杂能力用代码
 credential:
   kinds: [ss_aes]                 # 支持的凭据类型
   unlock: local-client            # 解锁方式: local-client | vault | manual
 schedule:                         # 调度声明（cron 缺省值，用户可在 UI 改）
-  provision.checkin: ["09:05", "13:05", "19:05", "23:05"]
+  provision.run: ["09:05", "13:05", "19:05", "23:05"]
 ```
 
 规则：
@@ -61,7 +61,7 @@ domains/trae 与 domains/qoder 各写一份 service/api/auth，同一签到逻�
 ## 4. 声明式 schema（升级自旧 STD-07：从"只能声明签到"到能力矩阵）
 
 ```yaml
-# declarative/provision.checkin.yaml
+# declarative/provision.run.yaml
 auth:
   kind: session-file              # 凭据来源（vault 负责解锁）
   paths: ["%APPDATA%/Trae CN/User/globalStorage/storage.json"]
@@ -105,8 +105,8 @@ schema 外字段直接报错（`extra=forbid`，继承旧仓库"显式报错不�
 
 ## 7. 实现顺序（M1，由简到繁验证底座）
 
-1. trae_cn（纯声明式）→ 2. qoder（声明式 + 设备风控头）→
-3. doubao_cn（CDP 编排）→ 4. workbuddy_cn（成长中心全链路）
+1. trae_cn（纯声明式）→ 2. qoder_cn（声明式 + 设备风控头）→
+3. doubao_cn（CDP 编排）→ 4. workbuddy_cn（签到最小集，ADR-006 收敛）
 
 **硬标准**：每个 Connector 不加特殊分支接入新模型；某个必须写例外 →
 停下来改模型。每个完成后跑行为一致性对照（见 `../legacy/A0-01-旧系统知识资产.md` §4）。

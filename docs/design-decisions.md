@@ -52,4 +52,6 @@
 ## D5 · 桌面端
 
 - Electron（非 skill 默认 pywebview）：需要托盘常驻 + 单实例锁 + 自动拉起 sidecar；
-  旧仓库的 Electron 壳验证过这条路线（只作可行性依据），新壳按本仓库结构重写
+  旧仓库的 Electron 壳验证过这条路线（只作可行性依据），新壳按本仓库结构重写。
+  现状（2026-11-12）：双模式（在线 WEB_URL / 离线 sidecar 拉起 + 健康轮询）已实现
+  （apps/desktop/main.js）；托盘常驻与单实例锁 R2 落地

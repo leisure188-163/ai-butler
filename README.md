@@ -32,7 +32,7 @@
 ```
 apps/cli | apps/web | apps/desktop | apps/uniapp     ← 壳（薄，零业务规则）
                 ↓ OpenAPI 契约（packages/sdk 自动生成 TS）
-apps/server（主控）→ packages/core（唯一业务规则出处）→ engines/（适配器）
+apps/server（主控）→ packages/core（唯一业务规则出处）→ packages/engine（出站适配器）
 apps/gateway（反代独立进程，R4）
 packages/connectors/（三级扩展：声明式 YAML / Python / 独立进程）
 ```
