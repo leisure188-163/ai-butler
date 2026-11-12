@@ -9,6 +9,8 @@
 Kabao（卡包）单一词汇体系，verify 七项全绿；UI = 「卡纸与墨」主题（frontend-design
 → theme-factory → ui-ux-pro-max 流程产出）+ 五页全落地（首页卡扇/卡包/记录/提醒/设置，
 提醒与设置不再是占位）。M0/M1 收官（一核多端骨架 + L0 四件 + 四连接器真机验收）。
+**历史已重塑（2026-11-12）**：main = 单根奠基提交起步，Kabao 前 56 笔 Marina 时代
+提交不保留（旧史入 bundle 备份，见环境备忘）；提交规范升级 v2.0.0 单号必填严格版。
 **接下来：R2 用量立项（取证清单待 Windows 会话执行）**。
 
 ## 里程碑
@@ -94,7 +96,7 @@ Kabao（卡包）单一词汇体系，verify 七项全绿；UI = 「卡纸与墨
 ## 环境备忘
 
 - 远端 origin = `https://gitee.com/hiclaw_520/ai-marina.git`（main；仓库改名 `kabao`
-  待办，见挂账 2。2026-11-11 由 SSH 改 HTTPS——Gitee SSH 22 端口间歇不可达；
+  待办，见挂账 1。2026-11-11 由 SSH 改 HTTPS——Gitee SSH 22 端口间歇不可达；
   SSH 配置仍在 ~/.ssh/config 可切回）。
   **推送口径**：全局 `~/.gitconfig` 有空 `credential.helper=` 会禁用 GCM——
   非交互 shell 普通推送必挂，须用
@@ -106,7 +108,14 @@ Kabao（卡包）单一词汇体系，verify 七项全绿；UI = 「卡纸与墨
 - pnpm-lock.yaml 已提交，CI 用 `--frozen-lockfile`
 - 提交信息规范接入提交钩子三件套 `.githooks/commit-msg` +
   `scripts/install_hooks.py` + `scripts/setup_hooks.cjs`（pnpm postinstall 自动
-  启用），规范正文 `conventions/08-提交信息规范.md`。**历史提交不重写**
+  启用），规范正文 `conventions/08-提交信息规范.md`。**v2.0.0 严格版（2026-11-12
+  起，与 cross-platform-arch skill 同源）**：单号必填（无关联占位 `[0]`），
+  超长/句号结尾钩子强制拒绝
+- **历史重塑（2026-11-12）**：main 重写为单根奠基提交 `1909978`（feat:[0]:
+  落地 Kabao 初版）；其前 69 笔旧史（Marina 全程 + Kabao 批①②③，终态 42e18e6）
+  备份于 `D:/codes/opensoure/kabao-history-20261112.bundle` + 本地 tag
+  `archive/marina-full-history`（仅本地，不推送）。旧提交哈希自此全部悬空，
+  文档一律不再引用
 - 契约指纹：`generate.mjs` 与 verify 都是
   `sha256(json.dumps(app.openapi()) + "\n")`；改 API 后照常 `pnpm gen:sdk` 即可
 - **CodeGraph**（2026-11-11）：CLI 已装 1.5.0-sl.1（npm -g）；前代项目
