@@ -316,9 +316,17 @@ def _ensure_running(env: LocalEnv, channel: CdpChannel) -> list[str]:
     调度触发的 run() 绝不杀进程——不可达即 PENDING）。"""
     exe = env.locate_exe()
     if exe is None:
+        import sys
+
+        if sys.platform == "darwin":
+            return [
+                f"{CONN_ID}: 调试端口不可达——mac 分支未实现自动拉起。手动带 "
+                "--remote-debugging-port 启动豆包客户端后重扫（probe 可达即全链可用；"
+                "或用 DOUBAO_EXE 指定客户端主程序走自动拉起，mac 路径待取证）"
+            ]
         return [
             f"{CONN_ID}: 调试端口不可达且未定位到客户端 exe——手动带 "
-            "--remote-debugging-port 启动豆包后重扫（mac 自动拉起 M1 未实现）"
+            "--remote-debugging-port 启动豆包后重扫"
         ]
     for pid in env.process_pids():
         env.kill_pid(pid)  # probe 已失败 = 端口没开，现存实例都是无端口实例

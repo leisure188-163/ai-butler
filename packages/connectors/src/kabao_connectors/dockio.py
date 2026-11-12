@@ -37,6 +37,11 @@ def scan_storage(
     except ManifestInvalid as exc:  # 采集器/扫描器的显式事故 → 如实出账
         return DockOutcome(target=app.manifest.id, issues=[str(exc)])
 
+    if "_issue" in facts:
+        # 主扫描出的账在这里如实落榜：不注册账号（免孤儿）、不走异常路径
+        # （store 期 raise 曾逃出本函数，靠 registry 兜底成「停靠扫描异常」）
+        return DockOutcome(target=app.manifest.id, issues=[facts["_issue"]])
+
     account = ctx.register.execute(app.manifest.id, app.display)
     _store_credentials(ctx, account.id, facts, kinds, auth.kind)
     return DockOutcome(target=app.manifest.id, accounts=[account.id])
@@ -54,7 +59,9 @@ def _scan_kind(
         return _scan_ss_aes(auth, conn_id, candidates)
     if auth.kind == "dpapi_gcm_v10":
         facts = _scan_dpapi_gcm_v10(conn_id, candidates)
-        _collect_extra_kinds(facts, conn_id, candidates, kinds)
+        if "_issue" not in facts:  # 主扫描已如实出账就不再附加采集——否则采集器的
+            # 定位失败会顶掉真因（真机 mac 抓过：DPAPI 解锁失败被 umid 定位失败掩盖）
+            _collect_extra_kinds(facts, conn_id, candidates, kinds)
         return facts
     raise ManifestInvalid(f"{conn_id}: dock 扫描器不支持凭据 kind {auth.kind!r}")
 
@@ -84,12 +91,14 @@ def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> dict[str, str]:
                 envelope = _dpapi_envelope(dat, state)
                 session = session_from_dpapi_gcm_v10(envelope)  # 形状校验（明文即丢）
             except (OSError, ValueError, RuntimeError) as exc:
-                return {
-                    "_issue": (
-                        f"{data_dir}: 登录态解不开（{exc}）——"
-                        "请在桌面端重新登录后重扫"
-                    )
-                }
+                import sys
+
+                tail = (
+                    "重新登录不解决——mac 解锁分支待取证，导入暂不可用"
+                    if sys.platform == "darwin"
+                    else "请在桌面端重新登录后重扫"
+                )
+                return {"_issue": f"{data_dir}: 登录态解不开（{exc}）——{tail}"}
             facts = {"dpapi_gcm_v10": envelope, "_auth_dir": str(data_dir)}
             expires = session.get("expiresAt")
             if isinstance(expires, str) and expires:
@@ -159,9 +168,16 @@ def _collect_umid_cosy(
 
     exe = _locate_umid()
     if exe is None:
+        import sys
+
+        order = (
+            "QODER_UMID_EXE 环境变量 → /Applications（或 ~/Applications）下的 Qoder.app"
+            if sys.platform == "darwin"
+            else "QODER_UMID_EXE 环境变量 → 常见安装目录 → 卸载注册表"
+        )
         raise ManifestInvalid(
-            f"{conn_id}: 未定位到客户端 runtime-info 组件（定位顺序: QODER_UMID_EXE "
-            "环境变量 → 常见安装目录 → 卸载注册表）——确认桌面客户端已安装后重扫"
+            f"{conn_id}: 未定位到客户端 runtime-info 组件（定位顺序: {order}）"
+            "——确认桌面客户端已安装后重扫"
         )
     identity = _run_runtime_info(exe)
     payload = {
@@ -187,12 +203,18 @@ def _collect_umid_cosy(
 
 _COLLECTORS["umid_cosy"] = _collect_umid_cosy
 
-_UMID_REL = ("resources", "umid", "runtime-info.exe")
+_UMID_REL_WIN = ("resources", "umid", "runtime-info.exe")
+_UMID_REL_MAC = ("Contents", "Resources", "umid", "runtime-info")
+#: mac 应用查找根（~/Applications 兜用户级安装）；2026-11-12 本机取证：
+#/Applications/Qoder.app/Contents/Resources/umid/runtime-info 存在且可运行
+_MAC_APP_ROOTS = ("/Applications", "~/Applications")
+_MAC_APP_NAMES = ("Qoder.app", "Qoder CN.app")
 
 
 def _locate_umid():
-    """runtime-info 定位（PROTOCOL qoder_cn §1）：环境覆盖 → 常见目录 → 卸载注册表。"""
+    """runtime-info 定位：环境覆盖 → 平台默认位置（win: 常见目录+卸载注册表；mac: .app 束）。"""
     import os
+    import sys
 
     override = os.environ.get("QODER_UMID_EXE")
     if override:
@@ -200,13 +222,22 @@ def _locate_umid():
         if path.is_file():
             return path
     roots: list[Path] = []
-    for var in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
-        base = os.environ.get(var)
-        if base:
-            roots.extend(Path(base) / name for name in ("Qoder CN", "Qoder"))
-    roots.extend(_registry_install_roots())
+    rel = _UMID_REL_WIN
+    if sys.platform == "darwin":
+        rel = _UMID_REL_MAC
+        roots.extend(
+            Path(os.path.expanduser(base)) / name
+            for base in _MAC_APP_ROOTS
+            for name in _MAC_APP_NAMES
+        )
+    else:
+        for var in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
+            base = os.environ.get(var)
+            if base:
+                roots.extend(Path(base) / name for name in ("Qoder CN", "Qoder"))
+        roots.extend(_registry_install_roots())
     for root in roots:
-        candidate = root.joinpath(*_UMID_REL)
+        candidate = root.joinpath(*rel)
         if candidate.is_file():
             return candidate
     return None
@@ -420,8 +451,6 @@ def _store_credentials(
     main_kind: str,
 ) -> None:
     """凭据入库：只入 manifest 申报的 kinds（最小授权），先校验后入库。"""
-    if "_issue" in facts:
-        raise ManifestInvalid(f"{account_id}: {facts['_issue']}")
     scanned = {k for k in facts if not k.startswith("_")}
     missing = [k for k in kinds if k not in scanned]
     if missing:

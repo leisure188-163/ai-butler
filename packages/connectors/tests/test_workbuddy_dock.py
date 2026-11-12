@@ -106,6 +106,19 @@ def test_envelope_without_runtime_issue(tmp_path, monkeypatch):
     assert "WORKBUDDY_EXE" in outcome.issues[0]
 
 
+def test_envelope_without_runtime_mac_message(tmp_path, monkeypatch):
+    """mac runtime 缺位：如实报 mac 解锁链待取证 + WORKBUDDY_EXE 逃生口（不误导重装）。"""
+    import sys
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    write_auth(tmp_path, monkeypatch, envelope_token())
+    outcome = adapter.kabao.dock(FakeCtx(), env=env_with([]))
+    assert outcome.accounts == []
+    assert "mac 解锁链待真机取证" in outcome.issues[0]
+    assert "安装 WorkBuddy 客户端" not in outcome.issues[0]  # 客户端可能已装：不误导
+    assert "WORKBUDDY_EXE" in outcome.issues[0]
+
+
 def test_invalid_override_issue(tmp_path, monkeypatch):
     write_auth(tmp_path, monkeypatch, envelope_token())
 

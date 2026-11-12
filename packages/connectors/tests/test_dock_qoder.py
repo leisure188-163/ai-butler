@@ -153,6 +153,35 @@ def test_dock_qoder_missing_umid_component(data_dir, monkeypatch):
     assert outcome.issues and "runtime-info" in outcome.issues[0]
 
 
+def test_dock_qoder_missing_umid_component_mac_order(data_dir, monkeypatch):
+    """mac 定位失败文案按平台报定位顺序（不指向卸载注册表）。"""
+    monkeypatch.setattr(dockio, "_locate_umid", lambda: None)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.app*")), MemVault())
+    assert outcome.issues and "/Applications" in outcome.issues[0]
+    assert "卸载注册表" not in outcome.issues[0]
+
+
+def test_dock_qoder_unlock_failure_not_masked_by_umid(data_dir, monkeypatch):
+    """主扫描解锁失败 = 唯一真因，附加采集器不得运行/掩盖（真机 mac 抓过）。"""
+
+    def boom(_blob):
+        raise RuntimeError("DPAPI 仅 Windows 可用")
+
+    monkeypatch.setattr(unlock, "dpapi_unprotect", boom)
+    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.app*")), MemVault())
+    assert outcome.accounts == []
+    assert len(outcome.issues) == 1
+    tail = (
+        "重新登录不解决——mac 解锁分支待取证，导入暂不可用"
+        if sys.platform == "darwin"
+        else "请在桌面端重新登录后重扫"
+    )
+    assert outcome.issues[0] == (
+        f"{data_dir}: 登录态解不开（DPAPI 仅 Windows 可用）——{tail}"
+    )
+
+
 def test_dock_qoder_no_data_dir(tmp_path, umid_ready):
     outcome = _dock(make_qoder_spec(str(tmp_path / "com.qodercn.app*")), MemVault())
     assert outcome.accounts == []
@@ -249,3 +278,15 @@ def test_locate_umid_env_override(tmp_path, monkeypatch):
     from kabao_connectors.dockio import _locate_umid
 
     assert _locate_umid() == fake_exe  # 覆盖优先，且不做存在性宽容
+
+
+def test_locate_umid_mac_app_bundle(tmp_path, monkeypatch):
+    """mac .app 束定位（2026-11-12 本机取证：Contents/Resources/umid/runtime-info）。"""
+    umid_dir = tmp_path / "Qoder.app" / "Contents" / "Resources" / "umid"
+    umid_dir.mkdir(parents=True)
+    exe = umid_dir / "runtime-info"
+    exe.write_bytes(b"x")
+    monkeypatch.delenv("QODER_UMID_EXE", raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(dockio, "_MAC_APP_ROOTS", (str(tmp_path),))
+    assert dockio._locate_umid() == exe

@@ -358,10 +358,16 @@ class _Kabao:
         except InvalidOverride as exc:
             return [f"{CONN_ID}: {exc}"]
         if not candidates:
-            return [
-                f"{CONN_ID}: 凭据为加密信封但未找到客户端 runtime——"
+            import sys
+
+            detail = (
+                "凭据为加密信封但未定位到客户端 runtime（mac 解锁链待真机取证）——"
+                "确认 WorkBuddy 桌面端已安装后重扫，或用 WORKBUDDY_EXE 指定其主程序"
+                if sys.platform == "darwin"
+                else "凭据为加密信封但未找到客户端 runtime——"
                 "安装 WorkBuddy 客户端，或用 WORKBUDDY_EXE 指定其 exe"
-            ]
+            )
+            return [f"{CONN_ID}: {detail}"]
         return []
 
 

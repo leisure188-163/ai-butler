@@ -15,7 +15,7 @@
 | 凭据文件 | `auth.v1.dat`：**DPAPI（CryptUnprotectData）+ AES-256-GCM（CNG BCrypt）双层**；密钥在 `Local State` | 2026-10-21 |
 | token 有效期 | 解密产物 `expiresAt` ISO 时间——入 vault.expires_at；**过期直接 NO_AUTH 提醒重登，不碰 refresh token**（不与桌面端争抢令牌轮换） | 2026-10-21 |
 | 机器身份 | 客户端自带 `resources/umid/runtime-info` 组件产出 8 头组：`Cosy-Version / ClientType / MachineOS / MachineToken / MachineCode / MachineType / MachineId / MachineHostname` | 2026-10-21 |
-| 组件定位 | Windows：`QODER_UMID_EXE` 环境变量 → `{LOCALAPPDATA,ProgramFiles,ProgramFiles(x86)}/Qoder CN|Qoder` → 卸载注册表 `Qoder*` 条目（**子键为 GUID 型**；`InstallLocation` 常缺失，`DisplayIcon` 指向安装目录的 .ico——取其父目录）。macOS：`/Applications/Qoder*.app/Contents/Resources/umid/runtime-info`（M1 暂缓） | 2026-11-11 |
+| 组件定位 | Windows：`QODER_UMID_EXE` 环境变量 → `{LOCALAPPDATA,ProgramFiles,ProgramFiles(x86)}/Qoder CN|Qoder` → 卸载注册表 `Qoder*` 条目（**子键为 GUID 型**；`InstallLocation` 常缺失，`DisplayIcon` 指向安装目录的 .ico——取其父目录）。macOS：`QODER_UMID_EXE` 环境变量 → `{/Applications,~/Applications}/Qoder.app|Qoder CN.app/Contents/Resources/umid/runtime-info`（**2026-11-12 mac 本机取证**：组件在且无参可运行，输出键与 Windows 同形 `{machineCode, machineToken, machineType, vmInfo}`） | 2026-11-11 |
 
 ### 1.1 真机取证补记（2026-11-11，客户端 0.4.8 / Windows）
 
