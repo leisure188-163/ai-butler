@@ -57,8 +57,14 @@ claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针�
 600 行硬上限门禁机检 / 400 软警戒）——起因 = server 全部 API 单文件混堆 482 行
 （10 端点 / 4 业务域）；routes 已拆 accounts/apps/runs/usage 四域模块 + api.py
 纯聚合器（openapi 指纹零漂移实证），verify 门禁升八项结构检查 + 测试项。
-**接下来：R3-2 候选**——定时体检轮询（触发器模型现成）/ Claude 登录态补证
-（换有登录态环境）/ Windows cookie 真机验收。
+**R3-2 定时体检轮询落地（2026-11-13）**：engine `register_health_ports`（探针端口
+挂载 + 轮询名册同一份事实，与 provision 端口撞车显式拒绝）+ `start_health_scans`
+每日 job（启动即补扫；`_daily_health` 号册全账号逐个体检，Run 照常落台账，
+单账号异常 WARNING 隔离不打断整轮）；server 组合层接线（`KABAO_SCHEDULE=0` 可关）。
+体检从「手动按钮」升级为「每日巡检」：EXPIRED/NO_AUTH 修复建议随 Run 出账，
+连败升级走 AssessAccountHealth 既有反馈回路。门禁九项绿（含新文件长度机检）。
+**接下来：R3-2 候选**——Claude 登录态补证（换有登录态环境）/ Windows cookie
+真机验收 / R2 收官待办两件。
 
 ## 里程碑
 
@@ -69,7 +75,7 @@ claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针�
 | **UI 重设计** | 「卡纸与墨」主题 + 五页落地（设计能力包流程，A3-01/D2） | **✅ 完成（2026-11-12）** |
 | R2 | 用量采集 + 额度雷达 + MCP Server | **✅ 收官（2026-11-12）**：用量采集+雷达（真机四家实测）+ MCP stdio 薄壳（ADR-008） |
 | **UI 钱包视觉语言** | 去 AI 化重设计：真实卡面+墨印+账本行+钱包架（spec 2026-11-12） | **✅ 完成（2026-11-12）** |
-| R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | **实现批①完成（2026-11-13）**：A1-04 开篇两裁决 + A2-03 细案 + `browser_cookie`/capture/探针全链 + 两家连接器 + 体检 UI（真机验收过）；余项见挂账 3 |
+| R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | **实现批①+R3-2 完成（2026-11-13）**：A1-04 开篇两裁决 + A2-03 细案 + `browser_cookie`/capture/探针全链 + 两家连接器 + 体检 UI + 每日体检轮询 job（真机验收过）；余项见挂账 3 |
 | R4 | 网关独立进程（账号池/反代/规则引擎） | 未开始 |
 | R5 | 会话三级迁移 | 未开始 |
 
@@ -99,7 +105,8 @@ claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针�
    - **挂账**：①Claude 最小 cookie 名单补证（本机无登录态，换环境取证）；
      ②Windows Chrome cookie 真机验收（GCM 链只有单测假 DPAPI）；③mac v10
      密文前 16B 段结构未定论（确定性相关、非 sha256/hmac，完整性验证挂账）；
-     ④定时体检轮询批次（手动触发已上线，触发器模型现成）；⑤A1-04 §8.3/8.4
+     ④~~定时体检轮询批次~~（已落地 R3-2，2026-11-13：register_health_ports +
+     start_health_scans，轮询名册=探针名册，启动补扫+单账号隔离）；⑤A1-04 §8.3/8.4
      待裁照旧
    **A-档轻活已清（2026-11-12）**：locate 链与 issue 文案按 sys.platform 分流——
    mac 上如实报「分支未实现/待取证」+ 本平台逃生口（DOUBAO_EXE/WORKBUDDY_EXE），
