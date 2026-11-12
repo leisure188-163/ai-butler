@@ -56,7 +56,8 @@ def check_manifest(root: Path, pkg: str) -> list[str]:
         ".githooks/commit-msg",        # 提交信息强制校验钩子（README 提交与协作节）
         "scripts/install_hooks.py",    # 钩子启用器（sync.py/setup_hooks.cjs 之外的纯 Python 入口）
         "scripts/setup_hooks.cjs",     # pnpm install 自动启用钩子的 Node 收尾脚本
-        "docker-compose.yml", ".env.example",
+        ".env.example",  # docker-compose.yml 已删（2026-11-12）：postgres/JWT_SECRET
+                         # 与 SQLite 单机架构漂移（M2 取证清单顺手项），非必需产物
     ]
     missing = [p for p in required if not (root / p).exists()]
     # 测试目录至少要有一个测试文件(具体文件名随业务命名,不硬编码)
