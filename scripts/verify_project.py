@@ -17,7 +17,8 @@
   6. 契约新鲜度 —— 重算 server openapi 指纹与 packages/sdk 记录比对
   7. 无空包残留 —— 改名/重构遗留的空包目录当场报错
   8. 测试通过性 —— (--test) uv run pytest 跑根 pyproject testpaths 全量
-     (core/engine/connectors/server)
+     (core/engine/connectors/server) + web 端 vue-tsc 类型检查
+     (2026-11-12 起: types.ts 派生自 packages/sdk 契约, 字段漂移当场拦截)
 """
 from __future__ import annotations
 
@@ -240,7 +241,23 @@ def check_tests(root: Path) -> list[str]:
     except FileNotFoundError:
         return ["uv 不可用（未安装或不在 PATH）: 无法运行核心测试，请安装 uv 或去掉 --test"]
     tail = (r.stdout + r.stderr).strip().splitlines()[-1:] or [""]
-    return [] if r.returncode == 0 else [f"核心测试未通过: {tail[0]}"]
+    if r.returncode != 0:
+        return [f"核心测试未通过: {tail[0]}"]
+    # 本仓定制（2026-11-12）：web 端类型检查收编进门禁——types.ts 派生自
+    # packages/sdk 契约（红线 2/4），server 改字段后 vue-tsc 必须当场报错；
+    # pytest 只覆盖 Python 侧。shell=True 与契约指纹检查同款（Windows 下
+    # pnpm 是 .cmd shim，list 形式解析不到）。
+    probe = subprocess.run("pnpm --version", shell=True, capture_output=True, text=True)
+    if probe.returncode != 0:
+        return ["pnpm 不可用（未安装或不在 PATH）: 无法运行 web 端 vue-tsc 类型检查"]
+    wt = subprocess.run(
+        "pnpm --dir apps/web exec vue-tsc --noEmit",
+        shell=True, cwd=root, capture_output=True, text=True, timeout=300,
+    )
+    if wt.returncode != 0:
+        tails = (wt.stdout + wt.stderr).strip().splitlines()[-5:]
+        return ["web 端类型检查未通过（契约漂移?）: " + " | ".join(tails)]
+    return []
 
 
 def check_empty_packages(root: Path) -> list[str]:

@@ -2,6 +2,7 @@
   "name": "@kabao/sdk",
   "private": true,
   "type": "module",
+  "types": "./src/gen/schema.d.ts",
   "scripts": {
     "generate": "node generate.mjs"
   },
