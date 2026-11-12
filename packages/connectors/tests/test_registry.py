@@ -15,7 +15,14 @@ def registry():
 
 
 def test_trae_loaded_with_shape(registry):
-    assert registry.ids() == ["doubao_cn", "qoder_cn", "trae_cn", "workbuddy_cn"]  # 按目录名排序
+    assert registry.ids() == [
+        "chatgpt_web",  # R3 网页会话通道（A2-03）：仅 session.import + health.check
+        "claude_web",
+        "doubao_cn",
+        "qoder_cn",
+        "trae_cn",
+        "workbuddy_cn",
+    ]  # 按目录名排序
     app = registry.get("trae_cn")
     assert app.display == "Trae CN"
     assert app.manifest.capabilities[ActionKind.PROVISION_RUN.value].kind == "declarative"
@@ -26,6 +33,9 @@ def test_trae_loaded_with_shape(registry):
     assert workbuddy.display == "WorkBuddy CN"
     assert workbuddy.manifest.capabilities[ActionKind.PROVISION_RUN.value].kind == "adapter"
     assert workbuddy.manifest.credential is None  # 现用现取零 vault：不申报 kind
+    web = registry.get("chatgpt_web")  # A2-03：网页连接器无 provision.run，无调度
+    assert "provision.run" not in web.manifest.capabilities
+    assert web.manifest.credential.kinds == ["browser_cookie"]
 
 
 def test_capability_ids_constrained_to_actionkind():

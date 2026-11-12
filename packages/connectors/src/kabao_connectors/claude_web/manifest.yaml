@@ -1,0 +1,13 @@
+id: claude_web
+display: Claude
+capabilities:
+  session.import:
+    kind: declarative
+    entry: declarative/session.import.yaml
+  health.check:
+    kind: declarative
+    entry: declarative/health.check.yaml
+    budget_seconds: 60
+credential:
+  kinds: [browser_cookie]
+  unlock: browser

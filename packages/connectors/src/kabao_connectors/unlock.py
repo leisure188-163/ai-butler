@@ -219,6 +219,95 @@ def load_umid_cosy(secret: Secret) -> dict[str, str]:
     return fields
 
 
+# --- browser_cookie（A2-03 §1，R3 网页捕获）：Chromium cookie 解链 + 信封 loader ---
+
+
+def chromium_cookie_key(secret: bytes) -> bytes:
+    """Chrome mac cookie 钥匙派生：safeStorage 口令 → PBKDF2-HMAC-SHA1 → 16B 密钥。
+
+    与 qoder safeStorage 同链（saltysalt/1003 轮，A1-04 §4.1 本机取证 528 条零失败）。
+    """
+    import hashlib
+
+    return hashlib.pbkdf2_hmac("sha1", secret, _PBKDF2_SALT, _PBKDF2_ITERS, _CBC_KEY_LEN)
+
+
+def decrypt_chromium_cookie(blob: bytes, key: bytes, *, gcm: bool) -> bytes:
+    """v10 cookie 密文 → 明文。平台显式分派：mac=CBC（密钥 16B）、win=GCM（32B）。
+
+    mac 链双形状自识别（经典 / 16B 段+IV 前缀，见函数体取证注）；win 链 =
+    nonce(12) + AES-256-GCM（Chromium v80+ 标准形状，真机验收挂账 A2-03 §7）。
+    密文非 v10 头显式爆。
+    """
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    if not blob.startswith(_V10_MAGIC):
+        raise ValueError(f"cookie 密文头未知: {blob[:3]!r}")
+    body = blob[3:]
+    if gcm:
+        from cryptography.exceptions import InvalidTag
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        if len(key) != 32:
+            raise ValueError(f"Windows cookie 钥匙应为 32 字节，得 {len(key)}")
+        if len(body) < _GCM_NONCE_LEN + 16:
+            raise ValueError("cookie 密文过短（nonce+tag 放不下）")
+        try:
+            return AESGCM(key).decrypt(body[:_GCM_NONCE_LEN], body[_GCM_NONCE_LEN:], None)
+        except InvalidTag as exc:
+            raise ValueError(f"cookie GCM 解密失败（钥匙或密文不符）: {exc}") from exc
+    if len(key) != _CBC_KEY_LEN:
+        raise ValueError(f"mac cookie 钥匙应为 16 字节，得 {len(key)}")
+    # mac CBC 双形状（A2-03 §1 真机取证 2026-11-13）：
+    # - 经典：体 = 密文，IV 固定 16 空格（Chromium 旧版文档形状）
+    # - 前缀：体 = 16B 未定论段 + 16B 真 IV + 密文（本机 Chrome 全量 528/528 实证；
+    #   首段与明文值呈确定性相关，结构未定论，完整性验证挂账）
+    # 两种形状补位都可能有效（CBC 链尾数学一致），只有明文可 UTF-8 能区分。
+    fallback: bytes | None = None
+    for iv, ct in ((b" " * _CBC_KEY_LEN, body), (body[16 : 2 * _CBC_KEY_LEN], body[2 * _CBC_KEY_LEN :])):
+        if not ct or len(ct) % _CBC_KEY_LEN != 0:
+            continue
+        decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()
+        try:
+            padded = decryptor.update(ct) + decryptor.finalize()
+        except ValueError:
+            continue
+        pad = padded[-1]
+        if not 1 <= pad <= _CBC_KEY_LEN or padded[-pad:] != bytes([pad]) * pad:
+            continue
+        plain = padded[:-pad]
+        try:
+            plain.decode("utf-8")
+            return plain
+        except UnicodeDecodeError:
+            fallback = plain
+    if fallback is not None:
+        return fallback
+    raise ValueError("cookie 解密失败（经典/前缀两种形状均不符——钥匙或形状已变）")
+
+
+def load_browser_cookie(secret: Secret) -> dict[str, str]:
+    """网页会话信封 → Cookie 头字段（fill_auth_headers 按 kind 装配，A2-03 §1）。"""
+    import json
+
+    try:
+        envelope = json.loads(secret.expose())
+    except ValueError as exc:
+        raise ValueError(f"browser_cookie 信封形状不符: {exc}") from exc
+    cookies = envelope.get("cookies") if isinstance(envelope, dict) else None
+    if not isinstance(cookies, list) or not cookies:
+        raise ValueError("browser_cookie 信封缺 cookies（捕获事故?）")
+    pairs: list[str] = []
+    for item in cookies:
+        if not isinstance(item, dict):
+            raise ValueError("browser_cookie cookies 项形状非法（应为 {name, value}）")
+        name, value = item.get("name"), item.get("value")
+        if not isinstance(name, str) or not name or not isinstance(value, str):
+            raise ValueError(f"browser_cookie cookie 项 {name!r} 形状非法（name/value 必填）")
+        pairs.append(f"{name}={value}")
+    return {"cookie": "; ".join(pairs)}
+
+
 def unlock(kind: str, secret: Secret) -> dict[str, str]:
     """kind 分发。未知 kind 显式爆——不静默当原样读（防止误把密文当明文用）。"""
     if kind == "ss_aes":
@@ -227,6 +316,8 @@ def unlock(kind: str, secret: Secret) -> dict[str, str]:
         return load_dpapi_gcm_v10(secret)
     if kind == "umid_cosy":
         return load_umid_cosy(secret)
+    if kind == "browser_cookie":
+        return load_browser_cookie(secret)
     _RAW_KINDS = frozenset({"device_dn", "app_version"})
     if kind in _RAW_KINDS:
         return load_raw(kind, secret)

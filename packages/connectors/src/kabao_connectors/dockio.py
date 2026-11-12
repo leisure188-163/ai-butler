@@ -484,7 +484,9 @@ def _store_credentials(
 
 
 def _expires_for(kind: str, value: str):
-    """主凭据有效期：ss_aes = JWT exp；dpapi_gcm_v10 = 会话 expiresAt（ISO）。"""
+    """主凭据有效期：ss_aes = JWT exp；dpapi_gcm_v10 = 会话 expiresAt（ISO）；
+    browser_cookie = 名单内各 cookie 最早者（A2-03 §1）。"""
+    import json
     from datetime import UTC, datetime
 
     from kabao_connectors._jwt import jwt_exp
@@ -506,6 +508,14 @@ def _expires_for(kind: str, value: str):
                 parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
                 return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
             return None
+        if kind == "browser_cookie":
+            envelope = json.loads(value)
+            dates = [
+                datetime.fromisoformat(item["expires_at"])
+                for item in envelope.get("cookies", [])
+                if isinstance(item, dict) and item.get("expires_at")
+            ]
+            return min(dates) if dates else None
     except (ValueError, RuntimeError):
         return None  # 扫描阶段已形状校验过；此处失败只是有效期未知——如实
     return None

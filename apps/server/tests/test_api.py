@@ -137,6 +137,36 @@ def test_post_runs_unknown_target_is_404(tmp_path):
         assert "未接入" in resp.json()["detail"]
 
 
+# --- R3 体检探针（health.check 走 /runs 通道，A2-03）---
+
+
+def test_assembly_mounts_health_ports(tmp_path):
+    """R3 接线：lifespan 装配探针端口（2026-11-13 真机抓到漏挂 → UnsupportedAction 500）。"""
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        action = Action(kind=ActionKind.HEALTH_CHECK, target="chatgpt_web")
+        assert kit.execute_action.ports(action) is not None  # 只验路由面，不触真网
+
+
+def test_post_runs_health_check_window_free(tmp_path):
+    """体检免窗口（非领取类写动作，无幂等键）；预算读能力 budget_seconds。"""
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        kit.execute_action.ports = routing_ports(
+            {}, {"chatgpt_web": FakePort(RunResult(status=Status.ALREADY))}
+        )
+        row = client.post(
+            "/api/v1/runs", json={"target": "chatgpt_web", "kind": "health.check"}
+        ).json()
+        assert row["status"] == "ALREADY"  # core 出产字面量原样传递
+        assert row["signal"] == "ok"
+
+        resp = client.post(
+            "/api/v1/runs", json={"target": "trae_cn", "kind": "health.check"}
+        )
+        assert resp.status_code == 422  # 未申报 health.check 能力，显式拒绝
+
+
 # --- R2 用量雷达 ---
 
 

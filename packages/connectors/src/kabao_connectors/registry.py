@@ -27,11 +27,21 @@ from kabao_core.domain.results import Status, register_dialect
 
 from kabao_connectors.manifest import (
     MANIFEST_NAME,
+    CaptureSpec,
     ConnectorManifest,
     DeclarativeSpec,
     ManifestInvalid,
+    ProbeSpec,
 )
 from kabao_connectors.paths import package_root
+
+
+#: 声明式能力 → 声明形状（A2-03 §4）：按能力 id 分型，装载期显式爆未知组合
+_DECLARATIVE_SPECS: dict[str, type] = {
+    "provision.run": DeclarativeSpec,
+    "session.import": CaptureSpec,
+    "health.check": ProbeSpec,
+}
 
 
 @dataclass(frozen=True)
@@ -40,7 +50,7 @@ class ConnectorApp:
 
     manifest: ConnectorManifest
     root: Path
-    declarative: dict[str, DeclarativeSpec] = field(default_factory=dict)
+    declarative: dict[str, Any] = field(default_factory=dict)  # 能力 id → 声明形状（分型见 _DECLARATIVE_SPECS）
 
     @property
     def display(self) -> str:
@@ -96,10 +106,16 @@ class Registry:
     def provision_ports(
         self, vault: Any, transport: Any = None
     ) -> dict[str, ProvisionPort]:
-        """target → ProvisionPort。声明式 → 共享运行时；adapter → 动态 import。"""
+        """target → ProvisionPort。声明式 → 共享运行时；adapter → 动态 import。
+
+        未申报 provision.run 的连接器跳过（如 R3 网页连接器只申报
+        session.import/health.check——A2-03 §4），不视为装配事故。
+        """
         ports: dict[str, ProvisionPort] = {}
         for target, app in self._apps.items():
-            cap = app.manifest.capabilities["provision.run"]
+            cap = app.manifest.capabilities.get("provision.run")
+            if cap is None:
+                continue
             kinds = tuple(app.manifest.credential.kinds) if app.manifest.credential else ()
             if cap.kind == "declarative":
                 ports[target] = _build_decl_port(
@@ -111,6 +127,35 @@ class Registry:
                 )
             else:  # pragma: no cover - schema 已限定枚举
                 raise ManifestInvalid(f"{target}: 未知能力类型 {cap.kind}")
+        return ports
+
+    def health_ports(self, vault: Any, transport: Any = None) -> dict[str, ProvisionPort]:
+        """target → 探针端口（R3 health.check 通道，A2-03 §3）。仅装载申报者。
+
+        与 provision 端口同走 register_provision_ports 的 target 路由挂载
+        （bridge 零改动）；探针端口对非 health.check 动作显式拒绝。
+        """
+        from kabao_connectors.decl import DeclarativeHealthPort
+        from kabao_connectors.transport import httpx_transport
+
+        ports: dict[str, ProvisionPort] = {}
+        for target, app in self._apps.items():
+            cap = app.manifest.capabilities.get("health.check")
+            if cap is None:
+                continue
+            if cap.kind != "declarative":
+                raise ManifestInvalid(
+                    f"{target}: health.check 仅支持 declarative（探针形状 A2-03 §3），got {cap.kind!r}"
+                )
+            kinds = tuple(app.manifest.credential.kinds) if app.manifest.credential else ()
+            ports[target] = DeclarativeHealthPort(
+                conn_id=target,
+                display=app.display,
+                spec=app.declarative["health.check"],
+                vault=vault,
+                transport=transport if transport is not None else httpx_transport(),
+                kinds=kinds,
+            )
         return ports
 
     def usage_ports(self, vault: Any, transport: Any = None) -> dict[str, Any]:
@@ -161,20 +206,47 @@ class Registry:
     # --- 停靠（dock 分发）---
 
     def dock(self, ctx: DockContext, target: str | None = None) -> list[DockOutcome]:
-        """接入扫描：target=None = 全家族逐个停靠（单点失败不拖累别家）。"""
+        """接入扫描：target=None = 全家族逐个停靠（单点失败不拖累别家）。
+
+        分发键回落（A2-03 §4）：优先 provision.run（客户端连接器），缺省取
+        session.import（R3 网页捕获）；两者皆无 = 无可停靠能力，如实出账。
+        """
         targets = [target] if target else self.ids()
         outcomes: list[DockOutcome] = []
         for tid in targets:
             app = self.get(tid)
-            cap = app.manifest.capabilities["provision.run"]
+            cap = app.manifest.capabilities.get("provision.run")
+            cap_id = "provision.run"
+            if cap is None:
+                cap = app.manifest.capabilities.get("session.import")
+                cap_id = "session.import"
+            if cap is None:
+                outcomes.append(
+                    DockOutcome(
+                        target=tid,
+                        issues=[f"{tid}: 未申报可停靠能力（provision.run / session.import）"],
+                    )
+                )
+                continue
             try:
-                if cap.kind == "declarative":
+                if cap.kind == "declarative" and cap_id == "provision.run":
                     outcome = _onboard_declarative(
                         app,
                         app.declarative["provision.run"],
                         tuple(app.manifest.credential.kinds) if app.manifest.credential else (),
                         ctx,
                     )
+                elif cap.kind == "declarative" and cap_id == "session.import":
+                    from kabao_connectors.browser import capture_cookies
+
+                    outcome = capture_cookies(
+                        app,
+                        app.declarative["session.import"],
+                        tuple(app.manifest.credential.kinds) if app.manifest.credential else (),
+                        ctx,
+                    )
+                elif cap.kind == "declarative":
+                    raise ManifestInvalid(f"{tid}: 声明式能力 {cap_id} 无停靠语义（A2-03 §2）")
                 else:
                     outcome = _load_entry(app, cap.entry).dock(ctx)
             except Exception as exc:  # 单家失败显式出账，不拖累其余
@@ -208,29 +280,34 @@ def load_registry() -> Registry:
                 # 装载即 import：adapter 模块自注册业务码方言（ADR-002 装载期），
                 # 坏 entry 也在装载期显式爆，不留到首次 run（红线 5）
                 _load_entry_module(manifest.id, spec.entry)
-        declarative = {
-            cap: _load_declarative(manifest.id, spec.entry)
-            for cap, spec in manifest.capabilities.items()
-            if spec.kind == "declarative"
-        }
-        for data in declarative.values():
-            register_dialect(
-                manifest.id,
-                {code: Status[name] for code, name in data.business_codes.items()},
-            )
+        declarative: dict[str, Any] = {}
+        for cap, spec in manifest.capabilities.items():
+            if spec.kind == "declarative":
+                declarative[cap] = _load_declarative(manifest.id, cap, spec.entry)
+        for cap, data in declarative.items():
+            codes = getattr(data, "business_codes", None) or getattr(data, "codes", None)
+            if codes:
+                register_dialect(
+                    manifest.id, {code: Status[name] for code, name in codes.items()}
+                )
         apps[manifest.id] = ConnectorApp(
             manifest=manifest, root=child, declarative=declarative
         )
     return Registry(apps)
 
 
-def _load_declarative(conn_id: str, entry: str) -> DeclarativeSpec:
+def _load_declarative(conn_id: str, cap_id: str, entry: str) -> Any:
+    spec_cls = _DECLARATIVE_SPECS.get(cap_id)
+    if spec_cls is None:
+        raise ManifestInvalid(
+            f"{conn_id}: 声明式能力 {cap_id!r} 无声明形状（{sorted(_DECLARATIVE_SPECS)}）"
+        )
     path = package_root(conn_id) / entry
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ManifestInvalid(f"{conn_id}/{entry}: 声明式 YAML 应为映射")
     try:
-        return DeclarativeSpec.model_validate(data)
+        return spec_cls.model_validate(data)
     except Exception as exc:
         raise ManifestInvalid(f"{conn_id}/{entry} 声明非法: {exc}") from exc
 

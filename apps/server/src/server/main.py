@@ -30,6 +30,11 @@ def _assemble_connectors(kit) -> None:
     kit.register_provision_ports(
         targets=registry.provision_ports(vault=kit.vault, transport=None)
     )
+    # 探针端口同走 target 路由（A2-03 §4）；单独一次挂载——target 撞车时
+    # register_provision_ports 显式拒绝（红线 5），合并 dict 会静默遮蔽
+    kit.register_provision_ports(
+        targets=registry.health_ports(vault=kit.vault, transport=None)
+    )
     kit.register_usage_ports(
         targets=registry.usage_ports(vault=kit.vault, transport=None)
     )

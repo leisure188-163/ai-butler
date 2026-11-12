@@ -15,6 +15,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   import: [target: string];
   claim: [target: string];
+  health: [target: string];
   importAll: [];
   claimAll: [];
 }>();
@@ -30,7 +31,11 @@ const selectedApp = computed(() => {
 
 const emptyApps = computed(() => props.apps.filter((a) => !a.account_id));
 const importableCount = computed(() => emptyApps.value.length);
-const claimableCount = computed(() => props.apps.filter((a) => a.account_id).length);
+/* 一键领取只数申报了 provision.run 的已泊位应用——网页连接器无领取概念
+   （A1-04 §6），server 一键领取同样跳过（计数与行为一致，不虚报） */
+const claimableCount = computed(
+  () => props.apps.filter((a) => a.account_id && a.capabilities.includes("provision.run")).length,
+);
 
 const stats = computed(() => {
   const unwell = props.accounts.filter((a) => a.signal !== "ok").length;
@@ -107,6 +112,7 @@ function toggle(accountId: string) {
         :app="selectedApp"
         :busy="busyTarget !== null"
         @claim="emit('claim', $event)"
+        @health="emit('health', $event)"
       />
     </aside>
   </div>

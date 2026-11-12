@@ -1,15 +1,21 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { AccountItem, AppItem } from "../types";
 import { earliestExpiry, faceOf, fmtTime, signalSeal } from "../utils";
 import BizCard from "./BizCard.vue";
 
-defineProps<{
+const props = defineProps<{
   account: AccountItem | null;
   app: AppItem | null;
   busy: boolean;
 }>();
 
-const emit = defineEmits<{ claim: [target: string] }>();
+const emit = defineEmits<{ claim: [target: string]; health: [target: string] }>();
+
+/* 动作按钮按能力矩阵渲染（AppOut.capabilities，端零映射）：
+   provision.run = 领取；health.check = 体检（R3 网页通道） */
+const hasClaim = computed(() => props.app?.capabilities.includes("provision.run") ?? false);
+const hasHealth = computed(() => props.app?.capabilities.includes("health.check") ?? false);
 </script>
 
 <template>
@@ -37,9 +43,21 @@ const emit = defineEmits<{ claim: [target: string] }>();
       {{ account.evidence.join("；") }}
     </p>
     <p v-if="account.repair_hint" class="row-fix">建议：{{ account.repair_hint }}</p>
-    <button class="btn btn--primary detail-claim" :disabled="busy" @click="emit('claim', app.id)">
-      领取
-    </button>
+    <span class="row-actions detail-claim">
+      <button
+        v-if="hasClaim"
+        class="btn btn--primary"
+        :disabled="busy"
+        @click="emit('claim', app.id)"
+      >领取</button>
+      <button
+        v-if="hasHealth"
+        class="btn"
+        :class="hasClaim ? 'btn--ghost' : 'btn--primary'"
+        :disabled="busy"
+        @click="emit('health', app.id)"
+      >体检</button>
+    </span>
   </div>
   <p v-else class="detail-empty">点一张卡，看它的内里。</p>
 </template>

@@ -1,0 +1,12 @@
+# Claude 会话体检探针（A2-03 §3）：受限网络恒 403 region（A2-03 §7.2）——
+# 探针价值在可达网络；真凭证判级靠 cookie expires_at 元数据
+auth:
+  kind: browser_cookie
+probe:
+  request:
+    method: GET
+    url: "https://claude.ai/api/auth/session"
+  ok_status: 200
+codes:
+  "401": "EXPIRED"
+  "403": "NO_AUTH"

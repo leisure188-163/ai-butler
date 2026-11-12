@@ -221,13 +221,14 @@ class EngineKit:
             self.usage_job.start()
 
     def _daily_usage(self) -> None:
-        """号册全账号采集一轮；vault-only（无 provider）无通道可采，跳过。
+        """号册全账号采集一轮；无 provider 或装配里没有该目标用量端口的跳过
+        （R3 网页连接器无采集通道——job 不为它们天天报错）。
 
         单账号失败收进 outcome.error（编排不中断）；job 语境无人消费 outcome，
         落 WARNING 日志留痕——不静默（红线 5）。
         """
         for account in self.accounts.list_all():
-            if not account.provider:
+            if not account.provider or account.provider not in self._usage_ports:
                 continue
             outcome = self.collect_usage.execute(account.provider, account.id)
             if outcome.error:

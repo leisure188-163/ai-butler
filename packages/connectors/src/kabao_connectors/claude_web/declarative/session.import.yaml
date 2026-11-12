@@ -1,0 +1,11 @@
+# Claude 网页会话声明（A2-03 §2）：名单待登录态环境补证（A1-04 §8.3 挂账），
+# 首批按 next-auth Secure 惯例声明——真名以有登录态真机取证为准
+auth:
+  kind: browser_cookie
+  browser: chrome
+  domain: claude.ai
+  cookies:
+    - __Secure-next-auth.session-token
+  storage:
+    - "~/Library/Application Support/Google/Chrome/*/Cookies"
+    - "%LOCALAPPDATA%/Google/Chrome/User Data/*/Cookies"

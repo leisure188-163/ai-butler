@@ -62,9 +62,11 @@ class ImportOut(BaseModel):
 
 
 class RunIn(BaseModel):
-    """手动领取入参：target 必填；账号缺省 = 该连接器卡位；窗口缺省 = core 规则。"""
+    """手动动作入参：target 必填；kind 缺省 = provision.run（领取）；
+    health.check = 体检探针（R3 网页通道，A2-03 §3，免窗口）。"""
 
     target: str
+    kind: str = "provision.run"
     account_id: str | None = None
     dry_run: bool = False
 
@@ -223,7 +225,11 @@ def import_all_apps(request: Request) -> list[ImportOut]:
 
 @router.post("/runs", response_model=RunOut)
 def create_run(payload: RunIn, request: Request) -> RunOut:
-    """发起一次手动领取（provision.run）。窗口按 core 规则（claim_window 单源）。"""
+    """发起一次手动动作：provision.run（领取）/ health.check（体检探针，R3）。
+
+    kind ∈ ActionKind 词表校验；health.check 免窗口（非领取类写动作，无幂等键），
+    预算取连接器 health.check 能力申报的 budget_seconds。
+    """
     from kabao_core.application.usecases import RunRequest
     from kabao_core.domain.action import Action, ActionKind
     from kabao_core.domain.schedule import claim_window
@@ -234,6 +240,30 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
         app = registry.get(payload.target)  # 未接入连接器 → 404（显式不静默）
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        kind = ActionKind(payload.kind)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"未知动作 kind: {payload.kind!r}") from exc
+
+    if kind is ActionKind.HEALTH_CHECK:
+        if app.manifest.capabilities.get("health.check") is None:
+            raise HTTPException(
+                status_code=422, detail=f"{payload.target} 未申报 health.check 能力"
+            )
+        run = kit.execute_action.execute(
+            RunRequest(
+                action=Action(kind=kind, target=payload.target),
+                account_id=payload.account_id or f"{payload.target}:main",
+                budget=timedelta(seconds=app.provision_budget("health.check")),
+            )
+        )
+        return _run_out(run)
+    if kind is not ActionKind.PROVISION_RUN:
+        raise HTTPException(
+            status_code=422,
+            detail=f"动作 {kind.value} 不支持手动发起（仅 provision.run / health.check）",
+        )
+
     entry = next(
         (e for e in registry.schedule_entries() if e["target"] == payload.target), None
     )
@@ -267,6 +297,8 @@ def claim_all_runs(request: Request) -> list[RunOut]:
     refresh = {e["target"]: e["refresh_at"] for e in registry.schedule_entries()}
     out: list[RunOut] = []
     for app in registry.apps():
+        if app.manifest.capabilities.get("provision.run") is None:
+            continue  # 网页连接器无领取概念（A1-04 §6），一键领取跳过
         account_id = docked.get(app.manifest.id)
         if account_id is None:
             continue

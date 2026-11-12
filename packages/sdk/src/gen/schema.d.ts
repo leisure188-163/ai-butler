@@ -105,7 +105,10 @@ export interface paths {
         put?: never;
         /**
          * Create Run
-         * @description 发起一次手动领取（provision.run）。窗口按 core 规则（claim_window 单源）。
+         * @description 发起一次手动动作：provision.run（领取）/ health.check（体检探针，R3）。
+         *
+         *     kind ∈ ActionKind 词表校验；health.check 免窗口（非领取类写动作，无幂等键），
+         *     预算取连接器 health.check 能力申报的 budget_seconds。
          */
         post: operations["create_run_api_v1_runs_post"];
         delete?: never;
@@ -387,11 +390,17 @@ export interface components {
         };
         /**
          * RunIn
-         * @description 手动领取入参：target 必填；账号缺省 = 该连接器卡位；窗口缺省 = core 规则。
+         * @description 手动动作入参：target 必填；kind 缺省 = provision.run（领取）；
+         *     health.check = 体检探针（R3 网页通道，A2-03 §3，免窗口）。
          */
         RunIn: {
             /** Target */
             target: string;
+            /**
+             * Kind
+             * @default provision.run
+             */
+            kind: string;
             /** Account Id */
             account_id?: string | null;
             /**

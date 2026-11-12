@@ -1,0 +1,11 @@
+# ChatGPT 会话体检探针（A2-03 §3）：端点待登录态补证（本机直连不通，A2-03 §7.1）
+auth:
+  kind: browser_cookie
+probe:
+  request:
+    method: GET
+    url: "https://chatgpt.com/api/auth/session"
+  ok_status: 200
+codes:
+  "401": "EXPIRED"
+  "403": "NO_AUTH"

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import time as _time
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
@@ -24,12 +25,13 @@ from kabao_core.application.ports import (
     ProvisionRequest,
     VaultPort,
 )
+from kabao_core.domain.action import ActionKind
 from kabao_core.domain.errors import DomainError
 from kabao_core.domain.results import Status, UnknownEngineCode, from_engine
 from kabao_core.domain.run import Evidence, RepairHint, RunResult
 from kabao_core.domain.vault import Secret
 
-from kabao_connectors.manifest import AuthSpec, DeclarativeSpec, RequestSpec
+from kabao_connectors.manifest import AuthSpec, DeclarativeSpec, ProbeSpec, RequestSpec
 from kabao_connectors.transport import HttpRequest, Transport, TransportError
 from kabao_connectors.unlock import unlock_all
 
@@ -89,16 +91,73 @@ def _matches(item: dict, filter_: dict[str, str]) -> bool:
 def fill_auth_headers(auth: AuthSpec, fields: Mapping[str, str]) -> dict[str, str]:
     """解锁字段 → 鉴权头组（token 头 + 静态头 + 动态模板）。
 
-    声明式 provision 与用量适配（R2）共用的拼装单源：缺字段显式爆（红线 5）。
+    声明式 provision、用量适配（R2）与探针（R3）共用的拼装单源：缺字段显式爆
+    （红线 5）。browser_cookie kind 的字段 cookie 整体进 Cookie 头（A2-03 §1）。
     """
     merged = dict(auth.static_headers)
-    if auth.token_header is not None:
+    if auth.kind == "browser_cookie":
+        if "cookie" not in fields:
+            raise TemplateFieldMissing("cookie（browser_cookie 解锁产物缺失，凭据事故）")
+        merged["Cookie"] = fields["cookie"]
+    elif auth.token_header is not None:
         if "token" not in fields:
             raise TemplateFieldMissing("token（解锁产物无 token，凭据事故）")
         merged[auth.token_header.name] = auth.token_header.prefix + fields["token"]
     for name, template in auth.dynamic_headers.items():
         merged[name] = template.format_map(_FieldMap(fields))
     return merged
+
+
+#: 主凭据缺失 / 凭据被拒时的修复文案（按通道分流；kind 形态扩展，非 per-app）
+_NO_AUTH_TAIL = {
+    "browser_cookie": "重新导入：浏览器登录后重扫（dock）",
+}
+_NO_AUTH_TAIL_DEFAULT = "重新停靠（dock）本机客户端后重试"
+
+
+def _no_auth_note(kind: str) -> str:
+    return _NO_AUTH_TAIL.get(kind, _NO_AUTH_TAIL_DEFAULT)
+
+
+def _resolve_auth_headers(
+    auth: AuthSpec, vault: VaultPort, account_id: str, kinds: tuple[str, ...]
+) -> dict[str, str]:
+    """按申报 kinds 解锁并拼鉴权头（provision 与探针共用；缺主凭据 = NO_AUTH 态）。"""
+    secrets: dict[str, Secret] = {}
+    for kind in kinds:
+        try:
+            secrets[kind] = vault.load(account_id, [kind])[0]
+        except CredentialMissing as exc:
+            if kind == auth.kind:
+                # 主凭据（登录态）缺失 = 无鉴权 → NO_AUTH（修复 = 重登 + 停靠/重扫）
+                raise _Verdict(
+                    Status.NO_AUTH, kind, note=f"缺凭据 kind={kind}——{_no_auth_note(auth.kind)}"
+                ) from exc
+            # 辅凭据（机器身份等）缺失 = 登录态在但头组不全——ADR-004 §4：
+            # 缺机器身份 → FAILED + repair_hint（重新停靠），绝不静默空列表
+            raise _Verdict(
+                Status.FAILED,
+                kind,
+                note=f"缺凭据 kind={kind}（登录态在，身份未停靠）——{_no_auth_note(auth.kind)}",
+            ) from exc
+    fields = unlock_all(kinds, secrets)
+    return fill_auth_headers(auth, fields)
+
+
+def _verdict_to_result(display: str, verdict: _Verdict, *, default_no_auth: str) -> RunResult:
+    evidence = Evidence(
+        summary=f"{display} 业务码 {verdict.raw_code}"
+        + (f"（{verdict.note}）" if verdict.note else ""),
+        raw_code=verdict.raw_code,
+    )
+    hint = None
+    if verdict.status is Status.NO_AUTH:
+        hint = RepairHint(reason=verdict.note or default_no_auth, action_id="dock")
+    elif verdict.status is Status.FAILED and verdict.note:
+        # 带 note 的 FAILED = 缺辅凭据（机器身份）等"停靠可修"态（ADR-004 §4）；
+        # 无 note 的 FAILED（方言业务码事故）维持无 hint 原语义
+        hint = RepairHint(reason=verdict.note, action_id="dock")
+    return RunResult(status=verdict.status, evidence=(evidence,), repair_hint=hint)
 
 
 class DeclarativeProvisionPort(ProvisionPort):
@@ -188,29 +247,7 @@ class DeclarativeProvisionPort(ProvisionPort):
     # --- 解锁与拼头 ---
 
     def _headers(self, req: ProvisionRequest) -> dict[str, str]:
-        auth: AuthSpec = self._spec.auth
-        secrets: dict[str, Secret] = {}
-        for kind in self._kinds:
-            try:
-                secrets[kind] = self._vault.load(req.account_id, [kind])[0]
-            except CredentialMissing as exc:
-                if kind == auth.kind:
-                    # 主凭据（登录态）缺失 = 无鉴权 → NO_AUTH（修复 = 重登 + 停靠）
-                    raise _Verdict(
-                        Status.NO_AUTH,
-                        kind,
-                        note=f"缺凭据 kind={kind}——重新停靠（dock）本机客户端后重试",
-                    ) from exc
-                # 辅凭据（机器身份等）缺失 = 登录态在但头组不全——ADR-004 §4：
-                # 缺机器身份 → FAILED + repair_hint（重新停靠），绝不静默空列表
-                raise _Verdict(
-                    Status.FAILED,
-                    kind,
-                    note=f"缺凭据 kind={kind}（登录态在，身份未停靠）——重新停靠（dock）本机客户端后重试",
-                ) from exc
-
-        fields = unlock_all(self._kinds, secrets)
-        return fill_auth_headers(auth, fields)
+        return _resolve_auth_headers(self._spec.auth, self._vault, req.account_id, self._kinds)
 
     # --- 请求与判定 ---
 
@@ -388,22 +425,127 @@ class DeclarativeProvisionPort(ProvisionPort):
         sleeper(seconds)
 
     def _verdict_result(self, verdict: _Verdict) -> RunResult:
-        evidence = Evidence(
-            summary=f"{self._display} 业务码 {verdict.raw_code}"
-            + (f"（{verdict.note}）" if verdict.note else ""),
-            raw_code=verdict.raw_code,
+        return _verdict_to_result(
+            self._display,
+            verdict,
+            default_no_auth="凭据被拒——打开客户端重新登录后重新停靠（dock）",
         )
-        hint = None
-        if verdict.status is Status.NO_AUTH:
-            hint = RepairHint(
-                reason=verdict.note or "凭据被拒——打开客户端重新登录后重新停靠（dock）",
-                action_id="dock",
-            )
-        elif verdict.status is Status.FAILED and verdict.note:
-            # 带 note 的 FAILED = 缺辅凭据（机器身份）等"停靠可修"态（ADR-004 §4）；
-            # 无 note 的 FAILED（方言业务码事故）维持无 hint 原语义
-            hint = RepairHint(reason=verdict.note, action_id="dock")
-        return RunResult(status=verdict.status, evidence=(evidence,), repair_hint=hint)
 
     def _failed(self, why: str) -> RunResult:
         return RunResult(status=Status.FAILED, evidence=(Evidence(summary=why),))
+
+
+def _response_digest(resp: object) -> str:
+    """响应摘要（探针 evidence 用，A2-03 §3）：取常见错误字段，截断脱敏。"""
+    payload = getattr(resp, "payload", None)
+    if not isinstance(payload, dict):
+        return ""
+    parts = [
+        found[1]
+        for path in ("error.type", "error.details.error_code", "error.message", "type")
+        if (found := _path_get(payload, path))[0] and isinstance(found[1], str) and found[1]
+    ]
+    digest = "/".join(dict.fromkeys(parts))[:160]  # 去重拼接 + 截断
+    return digest
+
+
+class DeclarativeHealthPort:
+    """声明式探针端口（A2-03 §3，R3 health.check 通道）。
+
+    实现 core ProvisionPort 协议结构（capabilities + run）——复用既有
+    路由/台账/事件机制，core 零改动。非 health.check 动作显式拒绝（网页通道
+    无领取概念，A1-04 §6）。七词映射：HTTP ok = ALREADY（期望态已达成，
+    healthy = silent）；映射码经 ADR-002 方言；未知码上抛给 ExecuteAction
+    （FAILED + PROTOCOL_CHANGED）。
+    """
+
+    def __init__(
+        self,
+        conn_id: str,
+        display: str,
+        spec: ProbeSpec,
+        vault: VaultPort,
+        transport: Transport,
+        kinds: tuple[str, ...],
+    ) -> None:
+        self._id = conn_id
+        self._display = display
+        self._spec = spec
+        self._vault = vault
+        self._call = transport
+        self._kinds = kinds
+
+    def capabilities(self) -> Capabilities:
+        return Capabilities(dry_run=False)
+
+    def run(self, req: ProvisionRequest) -> RunResult:
+        if req.kind is not ActionKind.HEALTH_CHECK:
+            return RunResult(
+                status=Status.FAILED,
+                evidence=(
+                    Evidence(
+                        summary=f"{self._display} 不支持动作 {req.kind.value}（网页通道仅体检探针）"
+                    ),
+                ),
+            )
+        try:
+            headers = _resolve_auth_headers(
+                self._spec.auth, self._vault, req.account_id, self._kinds
+            )
+        except _Verdict as verdict:
+            return self._verdict_result(verdict)
+        except (DomainError, KeyError, ValueError) as exc:
+            return RunResult(
+                status=Status.FAILED,
+                evidence=(Evidence(summary=f"凭据或声明事故：{exc}"),),
+            )
+
+        try:
+            resp = self._send(self._spec.probe.request, headers, req.deadline)
+        except TransportError as exc:
+            return RunResult(
+                status=Status.FAILED,
+                evidence=(Evidence(summary=f"探针不可达（网络/可达性，非会话结论）：{exc}"),),
+            )
+        code = str(resp.status_code)
+        if resp.status_code == self._spec.probe.ok_status:
+            return RunResult(
+                status=Status.ALREADY,
+                evidence=(Evidence(summary=f"探针 HTTP {code}：会话有效"),),
+            )
+        digest = _response_digest(resp)
+        verdict = _Verdict(
+            from_engine(code, dialect=self._id), code, note=digest
+        )
+        return self._verdict_result(verdict)
+
+    def _send(
+        self, request_spec: RequestSpec, headers: dict[str, str], deadline: datetime
+    ):
+        merged = {**headers, **request_spec.headers}
+        return self._call(
+            HttpRequest(
+                method=request_spec.method,
+                url=request_spec.url,
+                headers=merged,
+                body=dict(request_spec.body) if request_spec.body else None,
+            ),
+            deadline=deadline,
+        )
+
+    def _verdict_result(self, verdict: _Verdict) -> RunResult:
+        result = _verdict_to_result(
+            self._display,
+            verdict,
+            default_no_auth="会话失效或遇风控挑战——浏览器重新登录后重新导入（dock）",
+        )
+        if verdict.status is Status.EXPIRED and result.repair_hint is None:
+            # A2-03 §3：探针 EXPIRED 的修复同样是重新导入（provision 通道不带此 hint）
+            return replace(
+                result,
+                repair_hint=RepairHint(
+                    reason=verdict.note or "会话已过期——浏览器重新登录后重新导入（dock）",
+                    action_id="dock",
+                ),
+            )
+        return result

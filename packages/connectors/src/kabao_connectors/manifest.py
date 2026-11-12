@@ -45,6 +45,29 @@ class AuthSpec(_Strict):
     token_header: HeaderPair | None = None
     static_headers: dict[str, str] = Field(default_factory=dict)
     dynamic_headers: dict[str, str] = Field(default_factory=dict)  # "{field}" 模板
+    # --- browser_cookie 专用字段（A2-03 §2）：其余 kind 一律禁填 ---
+    browser: str = ""  # 浏览器 kind（首批唯一值 chrome）
+    domain: str = ""  # registrable domain（host 精确或点后缀匹配）
+    cookies: list[str] = Field(default_factory=list)  # 必需名单：全在才算登录
+
+    from pydantic import model_validator
+
+    @model_validator(mode="after")
+    def _kind_shape(self):
+        """字段集按 kind 互斥：browser 三件套只属 browser_cookie。
+
+        三件套必填约束在 CaptureSpec（捕获要「捕什么」）；探针 auth 只需 kind
+        （拼 Cookie 头不读 domain/名单），storage 是发现候选（两类通道都可用）。
+        """
+        browser_fields = {"browser": self.browser, "domain": self.domain, "cookies": self.cookies}
+        filled_browser = {k for k, v in browser_fields.items() if v}
+        if self.kind != "browser_cookie" and filled_browser:
+            raise ManifestInvalid(
+                f"auth.kind={self.kind!r} 不接受浏览器字段 {sorted(filled_browser)}（browser 三件套只属 browser_cookie）"
+            )
+        if self.kind == "browser_cookie" and self.browser and self.browser != "chrome":
+            raise ManifestInvalid(f"browser {self.browser!r} 未接入（首批唯一值 chrome，A1-04 §4）")
+        return self
 
 
 class RequestSpec(_Strict):
@@ -116,6 +139,53 @@ class DeclarativeSpec(_Strict):
                 f"{self.status.list_path!r} 一致（逐项模式的项来自该段筛选）"
             )
         return self
+
+
+class CaptureSpec(_Strict):
+    """session.import 声明（A2-03 §2，R3 网页捕获）：捕获无 status/claim/window
+    语义（无领取概念，不发明），全部捕获语义承载在 auth 三件套里。"""
+
+    auth: AuthSpec
+
+    from pydantic import model_validator
+
+    @model_validator(mode="after")
+    def _capture_shape(self):
+        """捕获要「捕什么、去哪认」：browser_cookie 必须给全 browser/domain/cookies。"""
+        if self.auth.kind == "browser_cookie":
+            missing = sorted(
+                k
+                for k, v in {
+                    "browser": self.auth.browser,
+                    "domain": self.auth.domain,
+                    "cookies": self.auth.cookies,
+                }.items()
+                if not v
+            )
+            if missing:
+                raise ManifestInvalid(
+                    f"session.import auth 需要完整声明 browser/domain/cookies（缺 {missing}）"
+                )
+        return self
+
+
+class ProbeSection(_Strict):
+    """探针请求：HTTP status 即信号（网页会话没有 body 业务码外壳）。"""
+
+    request: RequestSpec
+    ok_status: int = 200
+
+
+class ProbeSpec(_Strict):
+    """health.check 声明（A2-03 §3，R3 探针）：auth + probe + HTTP 码字典。
+
+    codes 是 HTTP status → Status 字面量名——装载期注册方言（ADR-002 唯一
+    翻译点）；未声明的 status = 未知码，显式爆（协议变更探测）。
+    """
+
+    auth: AuthSpec
+    probe: ProbeSection
+    codes: dict[str, str]
 
 
 class CapabilitySpec(_Strict):

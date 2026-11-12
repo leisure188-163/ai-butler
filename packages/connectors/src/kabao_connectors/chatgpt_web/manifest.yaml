@@ -1,0 +1,13 @@
+id: chatgpt_web
+display: ChatGPT
+capabilities:
+  session.import:
+    kind: declarative
+    entry: declarative/session.import.yaml
+  health.check:
+    kind: declarative
+    entry: declarative/health.check.yaml
+    budget_seconds: 60
+credential:
+  kinds: [browser_cookie]
+  unlock: browser

@@ -157,6 +157,39 @@ async function claimApp(target: string) {
   }
 }
 
+/* 体检探针（R3 网页通道）：kind=health.check 走同一 /runs 通道，结论如实转述 */
+async function healthApp(target: string) {
+  busyTarget.value = target;
+  actionMsg.value = null;
+  try {
+    const resp = await fetch(`${apiBase}/runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target, kind: "health.check" }),
+    });
+    const body = (await resp.json()) as {
+      status?: string | null;
+      repair_reason?: string | null;
+      detail?: string;
+    };
+    if (!resp.ok) {
+      actionMsg.value = { text: body.detail ?? `体检失败（HTTP ${resp.status}）`, tone: "warn" };
+      return;
+    }
+    const ok = body.status === "ALREADY";
+    actionMsg.value = {
+      text: ok
+        ? "体检通过：会话有效"
+        : `体检结论：${body.status ?? "未终态"}` +
+          (body.repair_reason ? ` —— ${body.repair_reason}` : ""),
+      tone: ok ? "ok" : "warn",
+    };
+  } finally {
+    busyTarget.value = null;
+    await loadAll();
+  }
+}
+
 /* 一键批量（R2 补）：导入全部未泊位 / 领取全部已泊位——选卡语义在 server，端只发起与转述 */
 async function importAllApps() {
   busyTarget.value = "batch";
@@ -338,6 +371,7 @@ onBeforeUnmount(() => {
         :msg="actionMsg"
         @import="importApp"
         @claim="claimApp"
+        @health="healthApp"
         @import-all="importAllApps"
         @claim-all="claimAllApps"
       />
