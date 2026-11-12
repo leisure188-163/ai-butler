@@ -36,13 +36,23 @@ def load_raw(kind: str, secret: Secret) -> dict[str, str]:
     return {kind: secret.expose()}
 
 
-# --- dpapi_gcm_v10（qoder_cn，ADR-004）：DPAPI 包裹密钥 + AES-256-GCM ---
+# --- dpapi_gcm_v10（qoder_cn，ADR-004）：登录态信封解锁（双平台单 kind）---
+# Windows：DPAPI 包裹密钥（Local State os_crypt）+ AES-256-GCM；
+# macOS（2026-11-12 真机取证）：钥匙在 Keychain（safeStorage 惯例）+ AES-128-CBC。
 
 #: 会话信封与密钥块的协议常量（qoder PROTOCOL §1，2026-11-11 真机取证）
 _DPAPI_MAGIC = b"DPAPI"  # Local State os_crypt.encrypted_key 解 base64 后的前缀
 _V10_MAGIC = b"v10"  # auth.v1.dat 文件头 3 字节
 _GCM_NONCE_LEN = 12  # raw[3:15] = nonce；raw[15:] = 密文+tag
 _GCM_MIN_LEN = 3 + 12 + 16  # 前缀 + nonce + 最短 tag
+#: mac 侧常量：auth.v1.dat 同为 ``v10`` 头，但内容 = AES-128-CBC（固定 16 空格 IV、
+#: PKCS7 补位），钥匙 = Keychain 口令经 PBKDF2-HMAC-SHA1 派生（Chromium safeStorage
+#: 惯例 salt/迭代数，与本机 Chrome mac 取证同链）。密文块长恰为 16 的倍数已实证。
+_CBC_IV = b" " * 16
+_PBKDF2_SALT = b"saltysalt"
+_PBKDF2_ITERS = 1003
+_CBC_KEY_LEN = 16
+_MACOS_KEYCHAIN_SERVICE = "Qoder App Safe Storage"  # 实测名（dump-keychain 元数据取证）
 
 
 def dpapi_unprotect(blob: bytes) -> bytes:
@@ -75,32 +85,72 @@ def dpapi_unprotect(blob: bytes) -> bytes:
     return out
 
 
-def session_from_dpapi_gcm_v10(envelope_b64: str, *, dpapi=None) -> dict:
+def macos_safe_storage_password(service: str = _MACOS_KEYCHAIN_SERVICE) -> bytes:
+    """mac Keychain safeStorage 口令（security CLI 读；口令只进内存，不落盘不进日志）。"""
+    import subprocess
+    import sys
+
+    if sys.platform != "darwin":
+        raise RuntimeError("safeStorage Keychain 读取仅 macOS 可用")
+    proc = subprocess.run(
+        ["security", "find-generic-password", "-w", "-s", service],
+        capture_output=True,
+        timeout=30,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Keychain 未取到 {service!r}——确认 Qoder 客户端在本机登录过一次、"
+            "未拒绝 Keychain 访问"
+        )
+    return proc.stdout.rstrip(b"\n")
+
+
+def session_from_dpapi_gcm_v10(
+    envelope_b64: str, *, dpapi=None, key_provider=None
+) -> dict:
     """解 dpapi_gcm_v10 自包含信封 → 会话 JSON dict（dock 验形与 loader 共用单源）。
 
-    信封（dock 组装，自包含才有 vault 最小授权——运行时解锁不依赖本机文件布局）：
-    ``base64(JSON{dat, key_b64})``，dat = base64(auth.v1.dat 原始字节)，
-    key_b64 = Local State ``os_crypt.encrypted_key`` 原文。
-    解链：key_b64 → b64decode → 剥 DPAPI 前缀 → CryptUnprotectData → AES 密钥；
-    dat → b64decode → ``v10``+nonce+密文 → AES-256-GCM → JSON。
-    dpapi 参数可注入（测试 / 非 Windows 离线验证解链逻辑）。
+    信封（dock 组装）：``base64(JSON{dat, key_b64?})``，dat = base64(auth.v1.dat 原始字节)。
+    Windows 信封自包含：key_b64 = Local State ``os_crypt.encrypted_key`` 原文 →
+    b64decode → 剥 DPAPI 前缀 → CryptUnprotectData → AES 密钥；dat → ``v10``+nonce+密文
+    → AES-256-GCM。
+    mac 信封只带 dat（2026-11-12 取证：mac 的 Local State 无 os_crypt）——钥匙解锁时
+    从 Keychain 现取（ADR-006 决策 3 同款：现用现取，密钥绝不入 vault），dat → ``v10``
+    +CBC 密文 → AES-128-CBC → PKCS7。
+    dpapi / key_provider 参数可注入（测试 / 非 Windows 离线验证解链逻辑）。
     """
+    import base64
+    import json
+
+    try:
+        envelope = json.loads(base64.b64decode(envelope_b64))
+        raw = base64.b64decode(envelope["dat"])
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ValueError(f"dpapi_gcm_v10 信封形状不符: {exc}") from exc
+    if not raw.startswith(_V10_MAGIC):
+        raise ValueError(f"auth.v1.dat 文件头未知: {raw[:3]!r}")
+    key_b64 = envelope.get("key_b64")
+    if isinstance(key_b64, str) and key_b64:
+        return _session_from_win_gcm(raw, key_b64, dpapi=dpapi)
+    return _session_from_mac_cbc(raw, key_provider)
+
+
+def _require_session(session: object) -> dict:
+    if not isinstance(session, dict) or not session.get("token"):
+        raise ValueError("解密产物缺 token 字段（协议形状已变?）")
+    return session  # type: ignore[no-any-return]
+
+
+def _session_from_win_gcm(raw: bytes, key_b64: str, *, dpapi) -> dict:
     import base64
     import json
 
     from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-    try:
-        envelope = json.loads(base64.b64decode(envelope_b64))
-        key_blob = base64.b64decode(envelope["key_b64"])
-        raw = base64.b64decode(envelope["dat"])
-    except (ValueError, KeyError, TypeError) as exc:
-        raise ValueError(f"dpapi_gcm_v10 信封形状不符: {exc}") from exc
+    key_blob = base64.b64decode(key_b64)
     if not key_blob.startswith(_DPAPI_MAGIC):
         raise ValueError("密钥块缺 DPAPI 前缀（Local State 形状已变?）")
-    if not raw.startswith(_V10_MAGIC):
-        raise ValueError(f"auth.v1.dat 文件头未知: {raw[:3]!r}")
     if len(raw) < _GCM_MIN_LEN:
         raise ValueError("auth.v1.dat 过短——可能正被客户端改写，稍后重扫")
     decrypt = dpapi if dpapi is not None else dpapi_unprotect
@@ -112,9 +162,32 @@ def session_from_dpapi_gcm_v10(envelope_b64: str, *, dpapi=None) -> dict:
         session = json.loads(plain.decode("utf-8"))
     except (InvalidTag, UnicodeDecodeError, ValueError) as exc:
         raise ValueError(f"会话解密失败（密钥或密文不符）: {exc}") from exc
-    if not isinstance(session, dict) or not session.get("token"):
-        raise ValueError("解密产物缺 token 字段（协议形状已变?）")
-    return session
+    return _require_session(session)
+
+
+def _session_from_mac_cbc(raw: bytes, key_provider) -> dict:
+    import hashlib
+    import json
+
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    if len(raw) < 3 + _CBC_KEY_LEN:  # 最短 = 一个完整密文块
+        raise ValueError("auth.v1.dat 过短——可能正被客户端改写，稍后重扫")
+    secret = (key_provider or macos_safe_storage_password)()
+    key = hashlib.pbkdf2_hmac("sha1", secret, _PBKDF2_SALT, _PBKDF2_ITERS, _CBC_KEY_LEN)
+    decryptor = Cipher(algorithms.AES(key), modes.CBC(_CBC_IV)).decryptor()
+    try:
+        padded = decryptor.update(raw[3:]) + decryptor.finalize()
+    except ValueError as exc:  # 密文块长非 16 倍数等
+        raise ValueError(f"会话解密失败（密钥或密文不符）: {exc}") from exc
+    pad = padded[-1]
+    if not 1 <= pad <= _CBC_KEY_LEN or padded[-pad:] != bytes([pad]) * pad:
+        raise ValueError("会话解密失败（PKCS7 补位不符——密钥或密文不符）")
+    try:
+        session = json.loads(padded[:-pad].decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise ValueError(f"会话解密失败（密钥或密文不符）: {exc}") from exc
+    return _require_session(session)
 
 
 def load_dpapi_gcm_v10(secret: Secret) -> dict[str, str]:

@@ -1,8 +1,8 @@
 """豆包本机环境束（ADR-005 决策 2/5）：exe 定位 / 版本读取 / 进程操作 / 拉起。
 
 - 全部平台依赖收进 LocalEnv 数据类（A2-02 §8 工厂注入）：测试传假束离线测 dock
-- M1 自动拉起仅 Windows；mac 分支 locate_exe 返回 None（dock 出 issue 显式指引，
-  不静默——probe 可达时 mac 全链可用，只差自动拉起）
+- 自动拉起 win+mac 双平台（mac 分支 2026-11-12 真机取证落地：--remote-debugging-port
+  在 mac 实证生效，CDP 全链应答 Chrome/147）；Linux 无分支（不排期）
 - version_code = 主*10000+次*100+修订（PROTOCOL doubao_cn §1；写死版本在客户端
   升级后会回 710010702——版本必须运行时读）
 """
@@ -23,6 +23,12 @@ from pathlib import Path
 _DEFAULT_PORT = 9222
 _PROCESS_NAME = "Doubao.exe"
 _VERSION_RE = re.compile(r"^(\d{1,2})\.(\d{1,2})(?:\.(\d{1,2}))?$")
+#: mac .app 查找根（~ 兜用户级安装）；2026-11-12 本机取证：/Applications/Doubao.app
+_MAC_APP_BASES = ("/Applications", "~/Applications")
+_MAC_MAIN_REL = ("Doubao.app", "Contents", "MacOS", "Doubao")
+_MAC_PLIST_REL = ("Doubao.app", "Contents", "Info.plist")
+#: mac 主进程匹配串——helper 进程路径形如 `Doubao Browser.app/...`，不含本串不误中
+_MAC_PROC_PATTERN = "Doubao.app/Contents/MacOS/Doubao"
 
 
 def version_code(version: str) -> int | None:
@@ -69,11 +75,30 @@ def _resolve_port() -> int:
 
 
 def _read_version() -> str:
-    """版本：DOUBAO_VERSION 覆盖优先；否则卸载注册表 DisplayVersion（^Doubao）。"""
+    """版本：DOUBAO_VERSION 覆盖优先；否则 win = 卸载注册表 / mac = Info.plist。"""
     override = (os.environ.get("DOUBAO_VERSION") or "").strip()
     if override:
         return override
+    if sys.platform == "darwin":
+        return _mac_bundle_version()
     return _registry_display_version()
+
+
+def _mac_bundle_version() -> str:
+    """Info.plist CFBundleShortVersionString（PROTOCOL §1 mac 版本源；plistlib 纯标准库）。"""
+    import plistlib
+
+    for base in _MAC_APP_BASES:
+        plist = Path(os.path.expanduser(base)).joinpath(*_MAC_PLIST_REL)
+        try:
+            with open(plist, "rb") as fh:
+                data = plistlib.load(fh)
+        except (OSError, plistlib.InvalidFileException):
+            continue  # 未安装/非 plist：换下一个根（全落空返回空串，调用方显式爆）
+        version = data.get("CFBundleShortVersionString") if isinstance(data, dict) else None
+        if version:
+            return str(version)
+    return ""
 
 
 def _registry_display_version() -> str:
@@ -132,12 +157,18 @@ def _registry_entries() -> list[dict[str, str]]:
 
 
 def _locate_exe() -> Path | None:
-    """exe 定位（PROTOCOL §1）：DOUBAO_EXE 覆盖 → 卸载注册表 DisplayIcon 父目录
-    + app/Doubao.exe；非 Windows None（mac 自动拉起 M1 未实现，显式走 issue）。"""
+    """主程序定位（PROTOCOL §1）：DOUBAO_EXE 覆盖 → 平台默认位置
+    （win: 卸载注册表 DisplayIcon 父目录 + app/Doubao.exe；mac: .app 束主程序）。"""
     override = os.environ.get("DOUBAO_EXE")
     if override:
         path = Path(override)
         return path if path.is_file() else None
+    if sys.platform == "darwin":
+        for base in _MAC_APP_BASES:
+            candidate = Path(os.path.expanduser(base)).joinpath(*_MAC_MAIN_REL)
+            if candidate.is_file():
+                return candidate
+        return None
     if sys.platform != "win32":
         return None
     for root in _registry_install_roots():
@@ -163,7 +194,18 @@ def _registry_install_roots() -> list[Path]:
 
 
 def _process_pids() -> list[int]:
-    """Doubao.exe 进程 PID（tasklist CSV；非 Windows 返回空——拉起链路本就不可用）。"""
+    """主进程 PID：win = tasklist CSV；mac = pgrep 主程序路径（helper 路径不同形不误中）。"""
+    if sys.platform == "darwin":
+        proc = subprocess.run(
+            ["pgrep", "-f", _MAC_PROC_PATTERN], capture_output=True, timeout=15
+        )
+        pids: list[int] = []
+        for token in proc.stdout.decode("utf-8", "replace").split():
+            try:
+                pids.append(int(token))
+            except ValueError:
+                continue
+        return pids
     if sys.platform != "win32":
         return []
     proc = subprocess.run(
@@ -171,7 +213,7 @@ def _process_pids() -> list[int]:
         capture_output=True,
         timeout=15,
     )
-    pids: list[int] = []
+    pids = []
     for row in csv.reader(io.StringIO(proc.stdout.decode("utf-8", "replace"))):
         if len(row) >= 2 and row[0].strip() == _PROCESS_NAME:
             try:
@@ -182,6 +224,14 @@ def _process_pids() -> list[int]:
 
 
 def _kill_pid(pid: int) -> None:
+    if sys.platform == "darwin":
+        import signal
+
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # 已退出 = 杀净语义达成（probe 已失败才走到这，无端口实例杀尽即可）
+        return
     proc = subprocess.run(
         ["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, timeout=15
     )
@@ -194,6 +244,8 @@ def _spawn_detached(exe: Path) -> None:
     kwargs: dict = {"close_fds": True}
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        kwargs["start_new_session"] = True  # 脱离父进程组：server 退出/中断不牵连客户端
     subprocess.Popen(
         [str(exe), f"--remote-debugging-port={_resolve_port()}"], **kwargs
     )

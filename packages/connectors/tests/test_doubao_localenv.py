@@ -60,6 +60,7 @@ def test_process_pids_parses_tasklist(monkeypatch):
     assert "tasklist" in recorded["cmd"][0]
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="taskkill 仅 Windows（mac 走 SIGKILL 分支）")
 def test_kill_pid_uses_taskkill(monkeypatch):
     recorded = {}
 
@@ -72,6 +73,7 @@ def test_kill_pid_uses_taskkill(monkeypatch):
     assert recorded["cmd"][:3] == ["taskkill", "/F", "/T"]
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="taskkill 仅 Windows（mac 走 SIGKILL 分支）")
 def test_kill_pid_failure_raises(monkeypatch):
     monkeypatch.setattr(
         localenv.subprocess, "run",
@@ -96,6 +98,91 @@ def test_spawn_detached_passes_debug_port(monkeypatch):
     localenv.real_env().spawn_detached(exe)
     assert recorded["cmd"] == [str(exe), "--remote-debugging-port=9223"]
     assert "creationflags" in recorded["kwargs"]  # 脱离本进程生命周期
+
+
+# --- mac .app 束分支（2026-11-12 真机取证：CDP 全链应答 / Info.plist 2.35.8）---
+
+
+@pytest.fixture
+def mac_app(tmp_path, monkeypatch):
+    """假 .app 束 + darwin 平台面：Info.plist（plistlib 可读）与主程序。"""
+    app = tmp_path / "Doubao.app" / "Contents"
+    (app / "MacOS").mkdir(parents=True)
+    import plistlib
+
+    with open(app / "Info.plist", "wb") as fh:
+        plistlib.dump(
+            {"CFBundleShortVersionString": "2.35.8", "CFBundleIdentifier": "com.doubao"},
+            fh,
+        )
+    exe = app / "MacOS" / "Doubao"
+    exe.write_bytes(b"MZ")
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(localenv, "_MAC_APP_BASES", (str(tmp_path),))
+    monkeypatch.delenv("DOUBAO_VERSION", raising=False)
+    monkeypatch.delenv("DOUBAO_EXE", raising=False)
+    return app
+
+
+def test_mac_read_version_from_plist(mac_app):
+    assert localenv.real_env().read_version() == "2.35.8"
+
+
+def test_mac_locate_exe_from_bundle(mac_app):
+    assert localenv.real_env().locate_exe() == mac_app / "MacOS" / "Doubao"
+
+
+def test_mac_process_pids_parses_pgrep(monkeypatch):
+    recorded = {}
+
+    def fake_run(cmd, **kwargs):
+        recorded["cmd"] = cmd
+        return types.SimpleNamespace(returncode=0, stdout=b"2852\n2858\n")
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(localenv.subprocess, "run", fake_run)
+    assert localenv.real_env().process_pids() == [2852, 2858]
+    assert "pgrep" in recorded["cmd"][0]
+
+
+def test_mac_kill_pid_uses_sigkill(monkeypatch):
+    recorded = {}
+
+    def fake_kill(pid, sig):
+        recorded["call"] = (pid, sig)
+
+    import signal
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(localenv.os, "kill", fake_kill)
+    localenv.real_env().kill_pid(2852)
+    assert recorded["call"] == (2852, signal.SIGKILL)
+
+
+def test_mac_kill_pid_gone_is_success(monkeypatch):
+    """进程已退出 = 杀净语义达成，不报错（taskkill 侧无此宽容——注册表平台差异）。"""
+    import signal
+
+    def gone(pid, sig):
+        raise ProcessLookupError()
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(localenv.os, "kill", gone)
+    localenv.real_env().kill_pid(2852)  # 不抛即过
+
+
+def test_mac_spawn_detached_new_session(monkeypatch):
+    recorded = {}
+
+    def fake_popen(cmd, **kwargs):
+        recorded["kwargs"] = kwargs
+        return types.SimpleNamespace(pid=1)
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(localenv.subprocess, "Popen", fake_popen)
+    localenv.real_env().spawn_detached(Path("/Applications/Doubao.app/Contents/MacOS/Doubao"))
+    assert recorded["kwargs"].get("start_new_session") is True  # 脱离父进程组
+    assert "creationflags" not in recorded["kwargs"]
 
 
 # --- 卸载注册表口径（PROTOCOL §1 实测定稿：子键名 Doubao*；DisplayName=豆包；

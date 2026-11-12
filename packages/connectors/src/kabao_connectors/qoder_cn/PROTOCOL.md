@@ -12,7 +12,7 @@
 | 产品 | Qoder CN（阿里系 AI IDE，桌面端 Electron） | 2026-10-21 |
 | 积分面 | **只有 campaigns 一条领取链**——无签到/任务/抽奖/宠物接口（桌面宠物是纯 UI 玩偶） | 2026-10-21 |
 | 数据目录 | `%APPDATA%\com.qodercn.app*`（glob 扫描） | 2026-10-21 |
-| 凭据文件 | `auth.v1.dat`：**DPAPI（CryptUnprotectData）+ AES-256-GCM（CNG BCrypt）双层**；密钥在 `Local State` | 2026-10-21 |
+| 凭据文件 | `auth.v1.dat`：**Windows = DPAPI（CryptUnprotectData）+ AES-256-GCM（CNG BCrypt）双层**，密钥在 `Local State` 的 `os_crypt.encrypted_key`；**macOS = Keychain safeStorage + AES-128-CBC**（`v10` 头同形、固定 16 空格 IV、PKCS7 补位），钥匙 = Keychain 条目 `Qoder App Safe Storage`（**2026-11-12 dump-keychain 元数据实取证得**，比 Chrome 惯例多 "App"）口令（24B）经 PBKDF2-HMAC-SHA1(salt `saltysalt`, 1003 轮, 16B) 派生——mac 的 `Local State` 只有 `uninstall_metrics` 无 `os_crypt`；两平台信封解锁同 kind `dpapi_gcm_v10`（win 信封自包含 dat+key_b64；mac 信封只带 dat，钥匙现用现取不入 vault） | 2026-10-21 / 2026-11-12 |
 | token 有效期 | 解密产物 `expiresAt` ISO 时间——入 vault.expires_at；**过期直接 NO_AUTH 提醒重登，不碰 refresh token**（不与桌面端争抢令牌轮换） | 2026-10-21 |
 | 机器身份 | 客户端自带 `resources/umid/runtime-info` 组件产出 8 头组：`Cosy-Version / ClientType / MachineOS / MachineToken / MachineCode / MachineType / MachineId / MachineHostname` | 2026-10-21 |
 | 组件定位 | Windows：`QODER_UMID_EXE` 环境变量 → `{LOCALAPPDATA,ProgramFiles,ProgramFiles(x86)}/Qoder CN|Qoder` → 卸载注册表 `Qoder*` 条目（**子键为 GUID 型**；`InstallLocation` 常缺失，`DisplayIcon` 指向安装目录的 .ico——取其父目录）。macOS：`QODER_UMID_EXE` 环境变量 → `{/Applications,~/Applications}/Qoder.app|Qoder CN.app/Contents/Resources/umid/runtime-info`（**2026-11-12 mac 本机取证**：组件在且无参可运行，输出键与 Windows 同形 `{machineCode, machineToken, machineType, vmInfo}`） | 2026-11-11 |
@@ -31,6 +31,22 @@
   refreshTokenExpiresAt, expiresAt, schemaVersion, user}`——`token` **非 JWT**
   （`dt-` 前缀不透明串），有效期只认 `expiresAt`（ISO，真机样例 2026-12-04）；
   实现不碰 refreshToken（不与桌面端争抢轮换）
+
+### 1.2 真机取证补记（2026-11-12，客户端 0.4.9 / macOS arm64）
+
+- **解锁链端到端实证**：`auth.v1.dat`（547B）同为 `v10` 头，密文块长恰为 16 的倍数
+  （AES-128-CBC 特征）；Keychain 24B 口令 → PBKDF2 → CBC 解出会话 JSON，键与
+  Windows 取证同形（`token` 亦 `dt-` 前缀）。dock 真机全链绿（`qoder_cn:main` 落册）
+- **token 轮换滞后（重要发现）**：客户端运行期**不回写** `auth.v1.dat`（本机客户端
+  已连跑 6 天，文件停在 11-06）——文件内 token 在服务端已被轮换作废，
+  usage/campaigns 双端点齐报 `HTTP 401 {"code":"TOKEN_EXPIRE","message":"token is not
+  active"}`（`expiresAt` 在未来也拦不住：服务端主动失效优先）。**处置**：401
+  TOKEN_EXPIRE = 重启 Qoder 客户端（启动时重写凭据文件）后重扫；不是解锁链缺陷，
+  Windows 侧未撞上只因取证时客户端刚登录过。全 8 头组齐发亦 401（排除了头组嫌疑）
+- Keychain 服务名实测定稿：`Qoder App Safe Storage`（genp 条目；按
+  `Qoder/Qoder CN/com.qodercn.app + Safe Storage` 组合穷举均 miss，
+  dump-keychain 元数据过滤命中）——`security find-generic-password -w -s` 即读，
+  首读无弹窗
 
 ## 2. 端点族
 

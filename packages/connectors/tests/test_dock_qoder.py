@@ -20,7 +20,7 @@ from kabao_connectors.dockio import scan_storage
 from kabao_connectors.manifest import DeclarativeSpec
 from kabao_connectors.registry import DockContext, load_registry
 
-from test_unlock_qoder import TEST_KEY, seal_envelope
+from test_unlock_qoder import MAC_SECRET, TEST_KEY, seal_envelope, seal_mac_envelope
 
 MACHINE_ID = "0123456789abcdef0123456789abcdef0123"  # 36 字符（取证口径）
 assert len(MACHINE_ID) == 36
@@ -82,7 +82,8 @@ def make_qoder_spec(storage_glob: str) -> DeclarativeSpec:
 
 @pytest.fixture
 def data_dir(tmp_path, monkeypatch):
-    """协议同形的 Qoder 数据目录：auth.v1.dat + Local State + auth.machine-id。"""
+    """Windows 侧同形数据目录：auth.v1.dat + Local State + auth.machine-id（平台面钉 win32）。"""
+    monkeypatch.setattr(sys, "platform", "win32")
     root = tmp_path / "com.qodercn.app.stable"
     root.mkdir()
     envelope = seal_envelope({"token": "T-1", "expiresAt": "2026-11-17T00:59:05.212Z"})
@@ -100,6 +101,21 @@ def data_dir(tmp_path, monkeypatch):
     )
     (root / "auth.machine-id").write_text(MACHINE_ID, encoding="utf-8")
     monkeypatch.setattr(unlock, "dpapi_unprotect", lambda blob: TEST_KEY)
+    return root
+
+
+@pytest.fixture
+def mac_data_dir(tmp_path, monkeypatch):
+    """mac 同形数据目录（2026-11-12 取证）：dat-only + machine-id；Local State 无 os_crypt。"""
+    monkeypatch.setattr(sys, "platform", "darwin")
+    root = tmp_path / "com.qoder.app.stable"
+    root.mkdir()
+    envelope = seal_mac_envelope({"token": "T-M", "expiresAt": "2026-12-02T13:37:13Z"})
+    dat = base64.b64decode(json.loads(base64.b64decode(envelope))["dat"])
+    (root / "auth.v1.dat").write_bytes(dat)
+    (root / "auth.machine-id").write_text(MACHINE_ID, encoding="utf-8")
+    (root / "Local State").write_text('{"uninstall_metrics": {}}', encoding="utf-8")
+    monkeypatch.setattr(unlock, "macos_safe_storage_password", lambda: MAC_SECRET)
     return root
 
 
@@ -153,11 +169,10 @@ def test_dock_qoder_missing_umid_component(data_dir, monkeypatch):
     assert outcome.issues and "runtime-info" in outcome.issues[0]
 
 
-def test_dock_qoder_missing_umid_component_mac_order(data_dir, monkeypatch):
+def test_dock_qoder_missing_umid_component_mac_order(mac_data_dir, monkeypatch):
     """mac 定位失败文案按平台报定位顺序（不指向卸载注册表）。"""
     monkeypatch.setattr(dockio, "_locate_umid", lambda: None)
-    monkeypatch.setattr(sys, "platform", "darwin")
-    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.app*")), MemVault())
+    outcome = _dock(make_qoder_spec(str(mac_data_dir.parent / "com.qoder.app*")), MemVault())
     assert outcome.issues and "/Applications" in outcome.issues[0]
     assert "卸载注册表" not in outcome.issues[0]
 
@@ -166,26 +181,73 @@ def test_dock_qoder_unlock_failure_not_masked_by_umid(data_dir, monkeypatch):
     """主扫描解锁失败 = 唯一真因，附加采集器不得运行/掩盖（真机 mac 抓过）。"""
 
     def boom(_blob):
-        raise RuntimeError("DPAPI 仅 Windows 可用")
+        raise RuntimeError("CryptUnprotectData 失败")
 
     monkeypatch.setattr(unlock, "dpapi_unprotect", boom)
     outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.app*")), MemVault())
     assert outcome.accounts == []
     assert len(outcome.issues) == 1
-    tail = (
-        "重新登录不解决——mac 解锁分支待取证，导入暂不可用"
-        if sys.platform == "darwin"
-        else "请在桌面端重新登录后重扫"
-    )
     assert outcome.issues[0] == (
-        f"{data_dir}: 登录态解不开（DPAPI 仅 Windows 可用）——{tail}"
+        f"{data_dir}: 登录态解不开（CryptUnprotectData 失败）——请在桌面端重新登录后重扫"
     )
+
+
+def test_dock_qoder_mac_keychain_failure_is_explicit(tmp_path, monkeypatch):
+    """mac 钥匙取不到 → 显式 issue 指向 Keychain 服务名，不静默停靠。"""
+    monkeypatch.setattr(sys, "platform", "darwin")
+    root = tmp_path / "com.qoder.app.stable"
+    root.mkdir()
+    envelope = seal_mac_envelope({"token": "T-M"})
+    dat = base64.b64decode(json.loads(base64.b64decode(envelope))["dat"])
+    (root / "auth.v1.dat").write_bytes(dat)
+
+    def no_key():
+        raise RuntimeError("Keychain 未取到 'Qoder App Safe Storage'——确认客户端登录过")
+
+    monkeypatch.setattr(unlock, "macos_safe_storage_password", no_key)
+    outcome = _dock(make_qoder_spec(str(root.parent / "com.qoder.app*")), MemVault())
+    assert outcome.accounts == []
+    assert outcome.issues and "Qoder App Safe Storage" in outcome.issues[0]
 
 
 def test_dock_qoder_no_data_dir(tmp_path, umid_ready):
     outcome = _dock(make_qoder_spec(str(tmp_path / "com.qodercn.app*")), MemVault())
     assert outcome.accounts == []
     assert outcome.issues and "未发现可解锁登录态" in outcome.issues[0]
+
+
+# --- mac 解锁链 dock 面（2026-11-12 真机取证：信封只带 dat，钥匙 Keychain 现取）---
+
+
+def test_dock_qoder_mac_full_chain(mac_data_dir, umid_ready):
+    vault = MemVault()
+    outcome = _dock(make_qoder_spec(str(mac_data_dir.parent / "com.qoder.app*")), vault)
+    assert outcome.issues == [], outcome.issues
+    assert outcome.accounts == ["qoder_cn:main"]
+
+    stored, expires = vault.items[("qoder_cn:main", "dpapi_gcm_v10")]
+    inner = json.loads(base64.b64decode(stored.expose()))
+    assert set(inner) == {"dat"}  # 钥匙不进信封（Keychain 现取，密钥绝不入 vault）
+    assert expires is not None and expires.year == 2026
+
+
+def test_dock_qoder_mac_win_envelope_never_docks_on_darwin(tmp_path, monkeypatch):
+    """mac 上拿到 Windows 形信封（有 key_b64）→ DPAPI 链显式爆，不静默走 mac 链。"""
+    monkeypatch.setattr(sys, "platform", "darwin")
+    root = tmp_path / "com.qoder.app.stable"
+    root.mkdir()
+    envelope = seal_envelope({"token": "T-1"})
+    dat = base64.b64decode(json.loads(base64.b64decode(envelope))["dat"])
+    (root / "auth.v1.dat").write_bytes(dat)
+    (root / "Local State").write_text(
+        json.dumps(
+            {"os_crypt": {"encrypted_key": base64.b64encode(b"DPAPI+w").decode()}}
+        ),
+        encoding="utf-8",
+    )
+    outcome = _dock(make_qoder_spec(str(root.parent / "com.qoder.app*")), MemVault())
+    assert outcome.accounts == []
+    assert outcome.issues and "登录态解不开" in outcome.issues[0]
 
 
 # --- 注册表定位的真形回归（2026-11-11 真机抓虫：GUID 子键 + 值缺失）---

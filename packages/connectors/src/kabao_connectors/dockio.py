@@ -70,12 +70,15 @@ def _scan_kind(
 
 
 def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> dict[str, str]:
-    """Qoder 数据目录（glob）：auth.v1.dat + Local State → 自包含信封。
+    """Qoder 数据目录（glob）：auth.v1.dat（Windows 另需 Local State）→ 自包含信封。
 
-    信封自包含（dat + key_b64，unlock.session_from_dpapi_gcm_v10 解链），
-    运行时解锁不再依赖本机文件布局；解码一次只为验形 + 取 expiresAt 元数据，
-    明文即刻丢弃，入库的是信封原文。
+    Windows 信封自包含（dat + key_b64，unlock.session_from_dpapi_gcm_v10 解链），
+    运行时解锁不再依赖本机文件布局；mac 信封只带 dat——钥匙在 Keychain
+    （"Qoder App Safe Storage"），解锁时现取（ADR-006 决策 3：现用现取，密钥不入 vault）。
+    解码一次只为验形 + 取 expiresAt 元数据，明文即刻丢弃，入库的是信封原文。
     """
+    import sys
+
     from kabao_connectors.unlock import session_from_dpapi_gcm_v10
 
     for pattern in candidates:
@@ -84,17 +87,22 @@ def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> dict[str, str]:
             continue  # 平台不适用：换下一个候选
         for data_dir in _glob_dirs(base):
             dat = data_dir / "auth.v1.dat"
-            state = data_dir / "Local State"
-            if not (dat.is_file() and state.is_file()):
+            if not dat.is_file():
                 continue
             try:
-                envelope = _dpapi_envelope(dat, state)
+                if sys.platform == "darwin":
+                    envelope = _mac_envelope(dat)
+                else:
+                    state = data_dir / "Local State"
+                    if not state.is_file():
+                        continue
+                    envelope = _dpapi_envelope(dat, state)
                 session = session_from_dpapi_gcm_v10(envelope)  # 形状校验（明文即丢）
             except (OSError, ValueError, RuntimeError) as exc:
-                import sys
-
                 tail = (
-                    "重新登录不解决——mac 解锁分支待取证，导入暂不可用"
+                    # mac 钥匙在 Keychain：登录态文件在而解锁失败 → 钥匙侧问题
+                    "mac 钥匙在 Keychain（Qoder App Safe Storage）——确认客户端"
+                    "登录过一次、未拒绝 Keychain 访问后重扫"
                     if sys.platform == "darwin"
                     else "请在桌面端重新登录后重扫"
                 )
@@ -133,6 +141,17 @@ def _dpapi_envelope(dat: Path, state: Path) -> str:
         "dat": base64.b64encode(dat.read_bytes()).decode("ascii"),
         "key_b64": key_b64,
     }
+    return base64.b64encode(
+        json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+
+
+def _mac_envelope(dat: Path) -> str:
+    """mac 信封：base64(JSON{dat})——钥匙不进信封（Keychain 现取，密钥绝不入 vault）。"""
+    import base64
+    import json
+
+    payload = {"dat": base64.b64encode(dat.read_bytes()).decode("ascii")}
     return base64.b64encode(
         json.dumps(payload, separators=(",", ":")).encode("utf-8")
     ).decode("ascii")

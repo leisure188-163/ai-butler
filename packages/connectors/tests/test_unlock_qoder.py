@@ -110,3 +110,89 @@ def test_umid_cosy_empty_rejected():
 def test_unknown_kind_still_rejected():
     with pytest.raises(UnknownCredentialKind):
         unlock.unlock("dpapi_gcm_v99", Secret("x"))
+
+
+# --- mac 分支（2026-11-12 真机取证：Keychain safeStorage + PBKDF2 + AES-128-CBC）---
+
+MAC_SECRET = b"t" * 24  # Keychain 口令替身（真机实测 24 字节）
+
+
+def fake_keychain() -> bytes:
+    return MAC_SECRET
+
+
+def seal_mac_envelope(
+    session: dict, *, secret: bytes = MAC_SECRET, file_magic: bytes = b"v10"
+) -> str:
+    """按 mac 协议同形组信封：base64(JSON{dat: b64(v10 + AES-128-CBC 密文)})，无 key_b64。"""
+    import hashlib
+
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    key = hashlib.pbkdf2_hmac(
+        "sha1", secret, unlock._PBKDF2_SALT, unlock._PBKDF2_ITERS, unlock._CBC_KEY_LEN
+    )
+    plain = json.dumps(session).encode("utf-8")
+    pad = unlock._CBC_KEY_LEN - len(plain) % unlock._CBC_KEY_LEN
+    encryptor = Cipher(algorithms.AES(key), modes.CBC(unlock._CBC_IV)).encryptor()
+    dat = file_magic + encryptor.update(plain + bytes([pad]) * pad) + encryptor.finalize()
+    payload = {"dat": base64.b64encode(dat).decode("ascii")}
+    return base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+
+
+def test_mac_envelope_roundtrip():
+    envelope = seal_mac_envelope({"token": "T-M", "expiresAt": "2026-12-02T13:37:13Z"})
+    session = session_from_dpapi_gcm_v10(envelope, key_provider=fake_keychain)
+    assert session["token"] == "T-M"
+    assert session["expiresAt"] == "2026-12-02T13:37:13Z"
+
+
+def test_mac_loader_uses_keychain_provider(monkeypatch):
+    monkeypatch.setattr(unlock, "macos_safe_storage_password", fake_keychain)
+    envelope = seal_mac_envelope({"token": "T-M"})
+    assert load_dpapi_gcm_v10(Secret(envelope)) == {"token": "T-M"}
+
+
+def test_mac_wrong_secret_rejected():
+    envelope = seal_mac_envelope({"token": "T-M"}, secret=b"x" * 24)
+    with pytest.raises(ValueError, match="解密失败"):
+        session_from_dpapi_gcm_v10(envelope, key_provider=fake_keychain)
+
+
+def test_mac_tampered_ciphertext_rejected():
+    envelope = seal_mac_envelope({"token": "T-M"})
+    raw = json.loads(base64.b64decode(envelope))
+    dat = bytearray(base64.b64decode(raw["dat"]))
+    dat[10] ^= 0xFF  # 篡改首密文块 → 解出乱码（CBC 无 tag，靠补位/JSON 验形兜住）
+    raw["dat"] = base64.b64encode(bytes(dat)).decode()
+    tampered = base64.b64encode(json.dumps(raw).encode()).decode()
+    with pytest.raises(ValueError, match="解密失败"):
+        session_from_dpapi_gcm_v10(tampered, key_provider=fake_keychain)
+
+
+def test_mac_short_dat_rejected():
+    payload = {"dat": base64.b64encode(b"v10abc").decode("ascii")}
+    envelope = base64.b64encode(json.dumps(payload).encode()).decode()
+    with pytest.raises(ValueError, match="过短"):
+        session_from_dpapi_gcm_v10(envelope, key_provider=fake_keychain)
+
+
+def test_keychain_failure_is_explicit(monkeypatch):
+    import subprocess
+    import types
+
+    def fake_run(cmd, **kwargs):
+        assert "Qoder App Safe Storage" in cmd  # 服务名来自常量（取证口径）
+        return types.SimpleNamespace(returncode=44, stdout=b"", stderr=b"denied")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match="Keychain"):
+        unlock.macos_safe_storage_password()
+
+
+def test_keychain_read_darwin_only(monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    with pytest.raises(RuntimeError, match="macOS"):
+        unlock.macos_safe_storage_password()

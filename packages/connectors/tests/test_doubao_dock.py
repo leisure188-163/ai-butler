@@ -98,21 +98,27 @@ def test_probe_fail_relaunches_and_registers():
 
 
 def test_probe_fail_no_exe_is_explicit_issue():
-    env = FakeDockEnv(exe=None)  # 未安装 / mac 自动拉起未实现
+    env = FakeDockEnv(exe=None)  # 未安装
     outcome = adapter.kabao.dock(FakeCtx(), env=env, channel=ScriptedChannel([CdpError("down")]))
     assert outcome.accounts == []
-    assert outcome.issues and "remote-debugging-port" in outcome.issues[0]
+    assert outcome.issues
+    import sys
+
+    if sys.platform == "win32":
+        assert "remote-debugging-port" in outcome.issues[0]
+    else:
+        assert "未定位到豆包客户端" in outcome.issues[0]
 
 
 def test_probe_fail_no_exe_mac_message(monkeypatch):
-    """mac 文案对本平台诚实：不指向 exe 定位，报 mac 分支未实现 + DOUBAO_EXE 逃生口。"""
+    """mac 未装客户端：文案报 mac 查找位置 + DOUBAO_EXE 逃生口，不指向 Windows 定位。"""
     import sys
 
     monkeypatch.setattr(sys, "platform", "darwin")
     env = FakeDockEnv(exe=None)
     outcome = adapter.kabao.dock(FakeCtx(), env=env, channel=ScriptedChannel([CdpError("down")]))
     assert outcome.accounts == []
-    assert "mac 分支未实现自动拉起" in outcome.issues[0]
+    assert "/Applications" in outcome.issues[0]
     assert "DOUBAO_EXE" in outcome.issues[0]
     assert "未定位到客户端 exe" not in outcome.issues[0]
 
