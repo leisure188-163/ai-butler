@@ -1,0 +1,62 @@
+"""Account 聚合 + RegisterAccount 用例（A2-01 §1）：名册幂等。"""
+
+from datetime import UTC, datetime
+from typing import Callable
+
+import pytest
+
+from kabao_core.application.ports import AccountRepository
+from kabao_core.application.usecases import RegisterAccount
+from kabao_core.domain.account import Account, main_account_id
+from kabao_core.domain.errors import DomainError
+from kabao_core.domain.run import now_utc
+
+
+class MemAccounts(AccountRepository):
+    def __init__(self) -> None:
+        self._rows: dict[str, Account] = {}
+
+    def save(self, account: Account) -> None:
+        self._rows[account.id] = account
+
+    def get(self, account_id: str) -> Account | None:
+        return self._rows.get(account_id)
+
+    def list_by_provider(self, provider: str) -> list[Account]:
+        return [a for a in self._rows.values() if a.provider == provider]
+
+    def list_all(self) -> list[Account]:
+        return list(self._rows.values())
+
+
+def test_main_account_id_policy():
+    assert main_account_id("trae_cn") == "trae_cn:main"
+    with pytest.raises(DomainError):
+        main_account_id(" ")
+
+
+def test_register_is_idempotent_same_id():
+    repo = MemAccounts()
+    uc = RegisterAccount(accounts=repo)
+    first = uc.execute("trae_cn", "Trae CN")
+    again = uc.execute("trae_cn", "Trae CN 改名也不应覆盖")
+    assert first is again  # 同名册位已存在 → 既有账号原样返回（display 冻结）
+    assert repo.get("trae_cn:main").display_name == "Trae CN"
+
+
+def test_register_invalid_display():
+    uc = RegisterAccount(accounts=MemAccounts())
+    with pytest.raises(DomainError):
+        uc.execute("trae_cn", "   ")
+
+
+def test_account_fields_shape():
+    account = Account(
+        id="trae_cn:main",
+        provider="trae_cn",
+        display_name="Trae CN",
+        created_at=datetime(2026, 11, 11, tzinfo=UTC),
+    )
+    assert account.provider == "trae_cn"
+    with pytest.raises(DomainError):
+        Account(id="", provider="trae_cn", display_name="x", created_at=now_utc())

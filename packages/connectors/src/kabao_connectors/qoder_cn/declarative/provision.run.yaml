@@ -1,0 +1,52 @@
+# Qoder CN 每日补给 · 声明式五段（A2-02 §4 + ADR-004 列表领取扩展）
+# 协议依据：PROTOCOL.md §2/§3（NOTE-02 取证 + 2026-11-11 真机只读取证回填）
+auth:
+  kind: dpapi_gcm_v10
+  storage:                       # 数据目录候选（glob；每目录含 auth.v1.dat + Local State）
+    - ~/Library/Application Support/com.qoder.app*
+    - "%APPDATA%/com.qodercn.app*"
+  token_header:
+    name: Authorization
+    prefix: "Bearer "
+  static_headers:
+    Accept: application/json
+    User-Agent: Qoder/claim
+    Cosy-ClientType: "10"        # 缺此头 → 服务端返回空活动列表（静默陷阱，PROTOCOL §2）
+  dynamic_headers:               # 机器身份 8 头组（kind=umid_cosy，dock 时 runtime-info 采集）——
+                                 # 头名全部显式列全，缺字段在拼装时显式爆，绝不静默少发
+    Cosy-Version: "{cosy_version}"
+    Cosy-MachineOS: "{cosy_machine_os}"
+    Cosy-MachineHostname: "{cosy_machine_hostname}"
+    Cosy-MachineToken: "{cosy_machine_token}"
+    Cosy-MachineCode: "{cosy_machine_code}"
+    Cosy-MachineType: "{cosy_machine_type}"
+    Cosy-MachineId: "{cosy_machine_id}"
+
+status:
+  request:
+    method: GET
+    url: https://openapi.qoder.com.cn/sash/api/v1/me/campaigns
+  code_path: ""                  # 真机取证 2026-11-11：响应无外壳业务码（顶层即
+                                 # uid/showCampaign/claimable/campaigns），HTTP 200 即 ok
+  expect_ok: "0"
+  list_path: campaigns           # 真机取证 2026-11-11：活动数组在顶层
+  item_filter:                   # 待领项等值筛选（_matches 全键 AND）
+    claimStatus: CLAIMABLE       # CLAIMABLE = 待领（真机实测值型：str）
+    actionType: CLAIM_BENEFIT    # 只领"领取型"活动——VIEW_DETAILS（促销详情）不可对它发 claim
+  done_filter: { claimStatus: CLAIMED }  # 真机实测：已领/已交互标记
+
+claim:
+  request:
+    method: POST
+    url: https://openapi.qoder.com.cn/sash/api/v1/me/campaigns/{campaignId}/claim
+    # 逐项领取：{campaignId} 引用列表项主键（真机取证 2026-11-11，字段名实证）；无请求体
+  each: campaigns                # 逐项模式：项 = status 筛选结果（幂等，HTTP ok 即受理）
+  confirm_by_status: true        # 以 status 复查定论（待领清空 → CLAIMED）
+  retry:
+    on_codes: []                 # 列表模式按 HTTP 状态退避（429/5xx），无业务码解析
+    backoff_seconds: [5, 15, 30]
+
+business_codes: {}               # 真机取证：响应无业务码外壳，方言无码可注册
+window:
+  refresh_at: "10:00"            # 服务端活动窗每日 10:00 开新窗（2026-11-11 真机取证，
+                                 # PROTOCOL §4）——结算点前触发属前一业务窗（回放）

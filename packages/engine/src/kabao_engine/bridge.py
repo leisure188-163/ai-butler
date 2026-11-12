@@ -1,0 +1,261 @@
+"""唯一出桥（ADR-001 / 规约 R4）：端只准 `from kabao_engine.bridge import ...`。
+
+装配：SQLite(WAL) → 台账 / 审计 / 号册适配器 → 事件总线 → 订阅（审计落账 /
+通知中心）→ Vault（秘密后端按平台选默认层）→ 健康扫描用例 → 到期/停靠定时 job。
+端拿 EngineKit 用，不许 import 引擎内部模块。
+
+连接器接入（ADR-003）：端把连接器注册表产出的 target→端口映射交给
+`register_provision_ports()`，用例层按 action.target 路由；engine 不 import
+连接器包（依赖方向恒指 core）。
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import shutil
+import sys
+from dataclasses import dataclass, field
+from datetime import timedelta
+from pathlib import Path
+from typing import Mapping
+
+from kabao_core.application.ports import ProvisionPort
+from kabao_core.application.usecases import (
+    AssessAccountHealth,
+    ExecuteAction,
+    ListPending,
+    RegisterAccount,
+    ScanCredentialExpiry,
+)
+from kabao_core.bootstrap import execute_action as _assemble_execute_action
+from kabao_core.bootstrap import list_pending as _assemble_list_pending
+from kabao_core.bootstrap import register_account as _assemble_register_account
+
+from kabao_engine.accounts.sqlite import SqliteAccountRepository
+from kabao_engine.audit.sqlite import AuditSubscriber, SqliteAuditLog
+from kabao_engine.events.bus import EventBus
+from kabao_engine.health.state import SqliteHealthStateStore
+from kabao_engine.ledger.sqlite import SqliteRunLedger
+from kabao_engine.notify.center import InAppChannel, NotificationCenter
+from kabao_engine.scheduling.checkin import CheckinSchedule, ScheduleEntry
+from kabao_engine.scheduling.interval_job import IntervalJob
+from kabao_engine.vault.backends import MemoryVaultBackend, SecretBackend
+from kabao_engine.vault.keychain_macos import KeychainBackend
+from kabao_engine.vault.layered import LayeredVault
+
+DEFAULT_DB = "kabao.db"
+
+
+def default_db_path() -> Path:
+    """平台标准用户数据根下的 kabao.db（A4-01 §5 数据布局）。
+
+    macOS ~/Library/Application Support/kabao · Windows %APPDATA%/kabao ·
+    Linux $XDG_DATA_HOME/kabao。**绝不落 CWD**；KABAO_DB 环境变量仍可整体覆盖
+    （测试/便携模式，显式指定时不做任何迁移）。
+    首次调用时把旧身份数据一次性搬入（A1-03 §8）：
+    ① 旧品牌目录 ai-marina/marina.db（R1 更名前的数据根）；
+    ② M0 遗留在 CWD 的 marina.db。
+    旧目录与搬剩文件保留不删（天然备份）；迁移幂等（kabao.db 已存在即跳过）。
+    """
+    if sys.platform == "darwin":
+        root = Path.home() / "Library" / "Application Support" / "kabao"
+    elif sys.platform.startswith("win"):
+        appdata = os.environ.get("APPDATA") or str(
+            Path.home() / "AppData" / "Roaming"
+        )
+        root = Path(appdata) / "kabao"
+    else:
+        xdg = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+        root = Path(xdg) / "kabao"
+    root.mkdir(parents=True, exist_ok=True)
+    target = root / "kabao.db"
+    if not target.exists():
+        brand_legacy = root.parent / "ai-marina" / "marina.db"
+        cwd_legacy = Path.cwd() / "marina.db"
+        for legacy in (brand_legacy, cwd_legacy):
+            if legacy.exists():
+                for suffix in ("", "-wal", "-shm"):
+                    src = Path(str(legacy) + suffix)
+                    if src.exists():
+                        shutil.move(str(src), str(target) + suffix)
+                logger.info("已迁移历史数据库 %s → %s", legacy, target)
+                break
+    return target
+
+
+DAILY_SCAN_INTERVAL = timedelta(days=1)  # A4-01 §1：每日 job 比对有效期
+SCAN_JOB_NAME = "kabao-expiry-scan"
+CHECKIN_TICK = timedelta(seconds=60)  # 导入触发 tick（实测粒度）——秒级不省预算
+CHECKIN_JOB_NAME = "kabao-checkin"
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EngineKit:
+    """端侧拿到的全部引擎能力（组合根产物）。用完 close()。"""
+
+    bus: EventBus
+    ledger: SqliteRunLedger
+    audit: SqliteAuditLog
+    notify: InAppChannel
+    accounts: SqliteAccountRepository
+    execute_action: ExecuteAction
+    register_account: RegisterAccount
+    list_pending: ListPending
+    vault: LayeredVault
+    scan_credential_expiry: ScanCredentialExpiry
+    assess_account_health: AssessAccountHealth
+    scan_job: IntervalJob | None = None
+    checkin_schedule: CheckinSchedule | None = None
+    checkin_job: IntervalJob | None = None
+    _kind_ports: dict = field(default_factory=dict, init=False, repr=False)
+    _target_ports: dict = field(default_factory=dict, init=False, repr=False)
+
+    def register_provision_ports(
+        self,
+        targets: Mapping[str, ProvisionPort] | None = None,
+        kinds: Mapping[str, ProvisionPort] | None = None,
+        *,
+        replace: bool = False,
+    ) -> None:
+        """挂载连接器端口（ADR-003）：target 精确路由优先，kind 兜底。
+
+        重复挂载同名 target = 注册表装配 bug，显式拒绝（红线 5）；
+        显式 replace=True = 重装配（测试/热替换），替换而非静默叠加。
+        """
+        for tid, port in (targets or {}).items():
+            if tid in self._target_ports and self._target_ports[tid] is not port:
+                if not replace:
+                    raise ValueError(f"连接器端口重复挂载: {tid!r}（显式 replace=True 才可重装）")
+            self._target_ports[tid] = port
+        self._kind_ports.update(kinds or {})
+        self.execute_action.ports = self._selector()
+
+    def attach_schedule(
+        self, entries: list[ScheduleEntry], *, tick: timedelta = CHECKIN_TICK
+    ) -> CheckinSchedule:
+        """装配停靠触发器（不启动）。时间表来自连接器 manifest（A2-02 §2）。"""
+        self.checkin_schedule = CheckinSchedule(
+            execute_action=self.execute_action,
+            accounts=self.accounts,
+            entries=tuple(entries),
+        )
+        return self.checkin_schedule
+
+    def start_checkin_schedule(
+        self,
+        entries: list[ScheduleEntry],
+        *,
+        tick: timedelta = CHECKIN_TICK,
+        run_now: bool = True,
+    ) -> None:
+        """启动停靠调度（幂等）。不启动显式跳过。"""
+        schedule = self.attach_schedule(entries, tick=tick)
+        if self.checkin_job is None:
+            self.checkin_job = IntervalJob(
+                schedule.tick, interval=tick, name=CHECKIN_JOB_NAME
+            )
+        if not self.checkin_job.running:
+            self.checkin_job.start()
+        if run_now:
+            schedule.tick()  # 启动补触发（与到期扫描 start 补扫同语义）
+
+    # --- 停止路径 ---
+
+    def _selector(self):
+        from kabao_core.application.ports import routing_ports
+
+        return routing_ports(self._kind_ports, self._target_ports)
+
+    def start_expiry_scans(self, *, interval: timedelta = DAILY_SCAN_INTERVAL) -> None:
+        """启动每日到期扫描（A4-01 §1 到期监控 job）。幂等。"""
+        if self.scan_job is None:
+            self.scan_job = IntervalJob(
+                self._daily_scan, interval=interval, name=SCAN_JOB_NAME
+            )
+        if not self.scan_job.running:
+            self.scan_job.start()
+
+    def _daily_scan(self) -> None:
+        """先扫凭据到期，再对名册全部账号重评健康（顺序即依赖方向）。"""
+        self.scan_credential_expiry.execute()
+        accounts = {hp.account_id for hp in self.vault.health()}
+        for account in self.accounts.list_all():
+            accounts.add(account.id)
+        for account_id in accounts:
+            self.assess_account_health.execute(account_id)
+
+    def close(self) -> None:
+        """排空事件、停定时 job 后关总线——关闭路径不丢账。"""
+        for job_name in ("checkin_job", "scan_job"):
+            job: IntervalJob | None = getattr(self, job_name)
+            if job is not None:
+                job.stop()
+                setattr(self, job_name, None)
+        self.bus.close()
+
+
+def _secret_backends() -> tuple[dict[str, SecretBackend], str]:
+    """平台 → 秘密后端装配。默认层：macOS=keychain，Windows=credman，其余=memory。
+
+    非 mac/win 平台显式降级为 memory（进程退出即消失）并大声日志告警——
+    桌面目标平台只有 macOS/Windows（A1-02），这里绝不静默（红线 5）。
+    """
+    backends: dict[str, SecretBackend] = {"memory": MemoryVaultBackend()}
+    if sys.platform == "darwin":
+        backends["keychain"] = KeychainBackend()
+        return backends, "keychain"
+    if sys.platform.startswith("win"):
+        from kabao_engine.vault.credman_windows import WindowsCredmanBackend
+
+        backends["credman"] = WindowsCredmanBackend()
+        return backends, "credman"
+    logger.warning(
+        "当前平台 %s 不支持持久凭据层，Vault 将只用 memory 层（数据不落盘）", sys.platform
+    )
+    return backends, "memory"
+
+
+def build_engine(db_path: str | Path = DEFAULT_DB) -> EngineKit:
+    """组装根：把适配器接到端口，构造用例（A1-02 §1：start 层职责）。
+
+    provision 类端口由端按 ADR-003 注册（连接器注册表 → register_provision_ports）；
+    未接入动作显式拒绝（UnsupportedAction）。每日扫描 job 默认不启动，由端
+    （server/desktop 组合层）显式 start_expiry_scans()。
+    """
+    bus = EventBus()
+    ledger = SqliteRunLedger(db_path)
+    audit = SqliteAuditLog(db_path)
+    in_app = InAppChannel()
+    notification_center = NotificationCenter(channels=[in_app])
+
+    bus.subscribe(AuditSubscriber(audit).on_event)     # 写操作审计（A4-01 §4）
+    bus.subscribe(notification_center.on_event)        # 通知中心 = 事件唯一通知出口（§3）
+
+    backends, default_backend = _secret_backends()
+    vault = LayeredVault(
+        db_path, backends, default_backend=default_backend, audit=audit
+    )
+    health_state = SqliteHealthStateStore(db_path)
+    accounts = SqliteAccountRepository(db_path)
+
+    expiry = ScanCredentialExpiry(vault=vault, sink=bus, states=health_state)
+    assess = AssessAccountHealth(
+        vault=vault, ledger=ledger, sink=bus, states=health_state
+    )
+
+    return EngineKit(
+        bus=bus,
+        ledger=ledger,
+        audit=audit,
+        notify=in_app,
+        accounts=accounts,
+        execute_action=_assemble_execute_action(ledger=ledger, sink=bus),
+        register_account=_assemble_register_account(accounts),
+        list_pending=_assemble_list_pending(ledger=ledger),
+        vault=vault,
+        scan_credential_expiry=expiry,
+        assess_account_health=assess,
+    )

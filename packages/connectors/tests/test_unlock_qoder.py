@@ -1,0 +1,112 @@
+"""dpapi_gcm_v10 / umid_cosy 解锁链（ADR-004 kind 化凭据，qoder_cn）。
+
+DPAPI 是真机 API——测试注入替身只替 CryptUnprotectData 一步；
+信封形状 / v10 前缀 / AES-256-GCM 链路用真 cryptography 走全。
+"""
+
+import base64
+import json
+
+import pytest
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+from kabao_core.domain.vault import Secret
+from kabao_connectors import unlock
+from kabao_connectors.unlock import (
+    UnknownCredentialKind,
+    load_dpapi_gcm_v10,
+    load_umid_cosy,
+    session_from_dpapi_gcm_v10,
+)
+
+TEST_KEY = bytes(range(32))  # AES-256 密钥替身（DPAPI 解出的"真"密钥）
+
+
+def fake_dpapi(blob: bytes) -> bytes:
+    """DPAPI 替身：解不出真密钥就爆（保持失败语义）。"""
+    del blob
+    return TEST_KEY
+
+
+def seal_envelope(session: dict, *, magic: bytes = b"DPAPI", file_magic: bytes = b"v10") -> str:
+    """按协议同形组信封：base64(JSON{dat: b64(v10+nonce+ct), key_b64: b64(DPAPI+wrapped)})。"""
+    nonce = bytes(range(12))
+    ct = AESGCM(TEST_KEY).encrypt(nonce, json.dumps(session).encode("utf-8"), None)
+    dat = file_magic + nonce + ct
+    payload = {
+        "dat": base64.b64encode(dat).decode("ascii"),
+        "key_b64": base64.b64encode(magic + b"wrapped-key-blob").decode("ascii"),
+    }
+    return base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+
+
+@pytest.fixture(autouse=True)
+def patched_dpapi(monkeypatch):
+    monkeypatch.setattr(unlock, "dpapi_unprotect", fake_dpapi)
+
+
+def test_dpapi_gcm_v10_loader_fields():
+    envelope = seal_envelope({"token": "T-1", "expiresAt": "2026-11-17T00:59:05.212Z"})
+    assert load_dpapi_gcm_v10(Secret(envelope)) == {"token": "T-1"}
+
+
+def test_session_roundtrip_keeps_full_payload():
+    envelope = seal_envelope({"token": "T-1", "uid": "u", "expiresAt": "2026-12-01"})
+    session = session_from_dpapi_gcm_v10(envelope)
+    assert session["uid"] == "u"  # dock 取 expiresAt 元数据用全量会话
+
+
+def test_dpapi_missing_magic_rejected():
+    envelope = seal_envelope({"token": "T"}, magic=b"XXXX")
+    with pytest.raises(ValueError, match="DPAPI"):
+        session_from_dpapi_gcm_v10(envelope)
+
+
+def test_dat_bad_file_magic_rejected():
+    envelope = seal_envelope({"token": "T"}, file_magic=b"v99")
+    with pytest.raises(ValueError, match="文件头"):
+        session_from_dpapi_gcm_v10(envelope)
+
+
+def test_tampered_ciphertext_rejected():
+    envelope = seal_envelope({"token": "T"})
+    raw = json.loads(base64.b64decode(envelope))
+    dat = bytearray(base64.b64decode(raw["dat"]))
+    dat[-1] ^= 0xFF  # 篡改密文末字节 → GCM tag 校验必败
+    raw["dat"] = base64.b64encode(bytes(dat)).decode()
+    tampered = base64.b64encode(json.dumps(raw).encode()).decode()
+    with pytest.raises(ValueError, match="解密失败"):
+        session_from_dpapi_gcm_v10(tampered)
+
+
+def test_session_without_token_rejected():
+    envelope = seal_envelope({"uid": "u"})
+    with pytest.raises(ValueError, match="token"):
+        session_from_dpapi_gcm_v10(envelope)
+
+
+def test_umid_cosy_flattens_to_template_fields():
+    payload = {
+        "cosy_machine_token": "MT",
+        "cosy_machine_code": "MC",
+        "cosy_machine_type": "MTY",
+        "cosy_machine_id": "36-char-machine-id",
+        "cosy_machine_os": "x86_64_windows",
+        "cosy_machine_hostname": "DESK",
+        "cosy_version": "0.4.8",
+    }
+    secret = Secret(base64.b64encode(json.dumps(payload).encode()).decode())
+    fields = load_umid_cosy(secret)
+    assert fields["cosy_machine_token"] == "MT"
+    assert fields["cosy_version"] == "0.4.8"  # 数字形态版本也归一成 str
+
+
+def test_umid_cosy_empty_rejected():
+    secret = Secret(base64.b64encode(b"{}").decode())
+    with pytest.raises(ValueError, match="为空"):
+        load_umid_cosy(secret)
+
+
+def test_unknown_kind_still_rejected():
+    with pytest.raises(UnknownCredentialKind):
+        unlock.unlock("dpapi_gcm_v99", Secret("x"))

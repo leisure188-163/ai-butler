@@ -1,0 +1,16 @@
+# WorkBuddy CN connector (ADR-006): encrypted-credential decryption-chain port implementation, dock = pure health check + guidance.
+# Protocol conclusions in same-directory PROTOCOL.md; behavior comparison oracle = old repo workbuddy domain (A0-01 §2.2).
+id: workbuddy_cn
+display: WorkBuddy CN
+capabilities:
+  provision.run:
+    kind: adapter
+    entry: adapter.kabao        # adapter.py's kabao object: build_port / dock hooks
+    budget_seconds: 120          # one decryption ≤10s + 2-3 requests (PROTOCOL §6)
+# Fetched on demand, zero vault (ADR-006 decision 3): credential file fetched/decrypted per run, discarded after use —
+# client auto-refreshes every 30 days and rewrites the file, any vault persistence would go stale; credential section omitted = no kind declared.
+schedule:
+  provision.run:
+    times: ["09:15", "13:15", "19:15", "23:15"]   # 4 shifts along doubao rhythm (PROTOCOL §6)
+    refresh_at: "00:00"          # sign-in settles by server-side calendar day (PROTOCOL §4); adapter must be explicit —
+                                 # schedule_entries's declarative fallback raises KeyError for adapters

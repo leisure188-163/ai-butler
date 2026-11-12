@@ -1,0 +1,19 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - name: 架构约束校验（结构/核心纯净/依赖方向）
+        run: python scripts/verify_project.py --project .
+      - run: uv run pytest
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      # pnpm-lock.yaml 已提交（2026-11-10），锁定依赖保持可复现构建
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:web

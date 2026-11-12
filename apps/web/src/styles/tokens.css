@@ -1,0 +1,106 @@
+/* 设计 token 唯一来源（红线 6）——「卡纸与墨 Cardstock & Ink」(design-decisions D2 v3)
+   流程：frontend-design 定调（主体锚定=实体卡；大胆只花在首页卡扇一处）
+   → theme-factory 定制主题（10 预设无一适配，专属生成）
+   → ui-ux-pro-max 查规校验（对比度/焦点/触达/空态，检索未命中方向处以通用回退落地）。
+   纸墨观：案面=冷纸灰，卡=真比例彩色卡面+压印卡号+金箔芯片，结果=墨印章。
+   语义五色只消费 core 出产的 signal 分类（红线 2），填充用 base、正文用 ink 档（白底 ≥4.5:1）。 */
+:root {
+  /* 纸与墨 */
+  --color-bg: #f1f3f4;            /* 案面：冷纸灰 */
+  --color-surface: #ffffff;       /* 卡纸白 */
+  --color-surface-2: #e8ebed;     /* 凹槽层 */
+  --color-border: #d9dee1;        /* 纸绳线 */
+  --color-ink: #182831;           /* 墨青——主文本与主按钮 */
+  --color-text: var(--color-ink);
+  --color-text-muted: #54646d;    /* 雾墨（白底 ≥4.5:1） */
+  --color-text-faint: #84939b;    /* 仅装饰/占位，不承载正文 */
+  --color-accent: #8a5d14;        /* 卡面金·文本级（白底 ≈4.9:1）——品牌与激活态唯一彩 */
+  --color-accent-bright: #c89b3c; /* 金箔——仅卡面芯片/品牌符等装饰 */
+  --color-accent-weak: rgba(200, 155, 60, 0.14);
+
+  /* 语义五色（ok/notice/attention/danger/quiet） */
+  --color-ok: #1f8a5d;
+  --color-ok-ink: #177a50;
+  --color-ok-weak: rgba(31, 138, 93, 0.12);
+  --color-notice: #c08a1e;
+  --color-notice-ink: #9a6a10;
+  --color-notice-weak: rgba(192, 138, 30, 0.13);
+  --color-attention: #d96a2b;
+  --color-attention-ink: #b44e17;
+  --color-attention-weak: rgba(217, 106, 43, 0.13);
+  --color-danger: #d94848;
+  --color-danger-ink: #bc3535;
+  --color-danger-weak: rgba(217, 72, 72, 0.12);
+  --color-quiet: #84939b;
+  --color-quiet-ink: #64737c;
+  --color-quiet-weak: rgba(132, 147, 155, 0.16);
+
+  /* 卡面身份色（按应用分配，白字对比全部 ≥6:1） */
+  --card-face-1: #24466b;
+  --card-face-2: #1f4a3d;
+  --card-face-3: #3e3a5c;
+  --card-face-4: #33424e;
+  --card-face-5: #5c4a2f;
+  --card-face-6: #14535a;
+
+  /* 字体（D4：系统栈零延迟；标识符/编号 mono，数字一律 tabular） */
+  --font-body: -apple-system, "Segoe UI", Inter, "PingFang SC",
+    "Microsoft YaHei", "Source Han Sans SC", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  /* 字号 */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+
+  /* 尺寸 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-chip: 999px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 48px;
+  --sidebar-w: 216px;
+
+  /* 深浅：唯一 indulgence 给卡，其余安静 */
+  --shadow-card: 0 1px 2px rgba(23, 38, 48, 0.06), 0 10px 28px rgba(23, 38, 48, 0.1);
+  --shadow-lift: 0 2px 4px rgba(23, 38, 48, 0.08), 0 16px 36px rgba(23, 38, 48, 0.14);
+  --shadow-panel: 0 1px 2px rgba(23, 38, 48, 0.05);
+
+  /* 动效（仅在卡扇揭示与按压反馈两处；prefers-reduced-motion 全归零） */
+  --motion-fast: 110ms;
+  --motion-base: 180ms;
+  --motion-reveal: 260ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: 1.6;
+}
+
+/* P1 可访问性：所有可交互控件焦点可见 */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

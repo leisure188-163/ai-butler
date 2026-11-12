@@ -1,0 +1,45 @@
+# Trae CN 每日补给 · 声明式五段（A2-02 §4）
+# 协议依据：PROTOCOL.md §2/§4（NOTE-03 取证，2026-10-21 复核）
+auth:
+  kind: ss_aes
+  storage:                       # 数据目录候选（按平台展开；首个现存文件获胜）
+    - ~/Library/Application Support/Trae CN/User/globalStorage/storage.json
+    - ~/Library/Application Support/Trae/User/globalStorage/storage.json
+    - "%APPDATA%/Trae CN/User/globalStorage/storage.json"
+    - "%APPDATA%/Trae/User/globalStorage/storage.json"
+    - ~/.config/Trae CN/User/globalStorage/storage.json
+  token_header:
+    name: Authorization
+    prefix: "Cloud-IDE-JWT "
+  static_headers:
+    X-User-Region: cn            # 与桌面端指纹对齐（缺省 UA/区域头是风控观察项）
+  dynamic_headers:
+    x-device-id: "{device_dn}"   # Aha 数字设备号（claim 必带；缺 → 9004）
+
+status:
+  request:
+    method: POST
+    url: https://api.trae.cn/trae/api/v2/ug/checkin_credits/status
+    body: { req_source: 1 }
+  code_path: code
+  expect_ok: "0"
+  checked_in_path: checked_in    # 顶层布尔（PROTOCOL §2 响应形状）
+
+claim:
+  request:
+    method: POST
+    url: https://api.trae.cn/trae/api/v2/ug/checkin_credits/claim
+    body: { req_source: 1 }
+  code_path: code
+  expect_ok: "0"
+  confirm_by_status: true        # claim 受理响应不回显结果，以 status 复查为准
+  retry:
+    on_codes: ["9074"]           # 活动期限流：可退避重试（30/60/120s）
+    backoff_seconds: [30, 60, 120]
+
+business_codes:                  # 未知码 → UnknownEngineCode → PROTOCOL_CHANGED（ADR-002）
+  "1001": NO_AUTH               # 服务端无法认证（桌面端令牌失效，重登录）
+  "9004": FAILED                # 缺 x-device-id 设备头（我们侧请求缺陷）
+  "9074": PENDING               # 活动期限流（退避耗尽 → 如实 PENDING，不算失败）
+window:
+  refresh_at: "00:00"           # 积分每日结算（本机墙钟；签到日≠自然日）

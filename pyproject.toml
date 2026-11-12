@@ -1,0 +1,38 @@
+[project]
+name = "kabao-workspace"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "kabao-core",
+    "kabao-engine",
+    "kabao-connectors",
+    "kabao-server",
+    "kabao-cli",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "packages/core/tests",
+    "packages/engine/tests",
+    "packages/connectors/tests",
+    "apps/server/tests",
+]
+
+[tool.uv.workspace]
+members = [
+    "packages/core",
+    "packages/engine",
+    "packages/connectors",
+    "apps/server",
+    "apps/cli",
+]
+
+[tool.uv.sources]
+kabao-core = { workspace = true }
+kabao-engine = { workspace = true }
+kabao-connectors = { workspace = true }
+kabao-server = { workspace = true }
+kabao-cli = { workspace = true }

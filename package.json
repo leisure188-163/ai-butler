@@ -1,0 +1,10 @@
+{
+  "name": "kabao-frontend",
+  "private": true,
+  "scripts": {
+    "postinstall": "node scripts/setup_hooks.cjs",
+    "dev:web": "pnpm --filter web dev",
+    "build:web": "pnpm --filter web build",
+    "gen:sdk": "pnpm --filter @kabao/sdk generate"
+  }
+}

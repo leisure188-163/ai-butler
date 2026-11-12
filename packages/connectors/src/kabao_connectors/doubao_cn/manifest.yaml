@@ -1,0 +1,16 @@
+# Doubao CN 连接器（ADR-005）：CDP 界面通道端口实现，dock = 环境体检零凭据。
+# 协议结论见同目录 PROTOCOL.md；行为对照 oracle = 旧仓库 doubao 域（A0-01 §2.2）。
+id: doubao_cn
+display: Doubao CN
+capabilities:
+  provision.run:
+    kind: adapter
+    entry: adapter.kabao        # adapter.py 的 kabao 对象：build_port / dock 两钩子
+    budget_seconds: 240
+# 零凭据（ADR-005 决策 2）：会话 = 运行中的客户端进程本身，无可注入凭据；
+# Cookie 运行时 CDP 现取现用，绝不入 vault——credential 整段缺省 = 不申报 kind。
+schedule:
+  provision.run:
+    times: ["09:15", "13:15", "19:15", "23:15"]   # 与 trae(09:05)/qoder(10:05) 错峰
+    refresh_at: "00:00"          # 签到按自然日结算（PROTOCOL §4）；adapter 必须显式——
+                                 # schedule_entries 的 declarative 回落对 adapter 会 KeyError

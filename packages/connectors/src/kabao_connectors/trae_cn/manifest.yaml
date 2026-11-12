@@ -1,0 +1,14 @@
+# Trae CN 连接器（A2-02 §2）：能力矩阵 + 凭据 + 调度缺省值
+# 协议结论见同目录 PROTOCOL.md；行为对照 oracle = 旧仓库 trae 域（A0-01 §2.2）
+id: trae_cn
+display: Trae CN
+capabilities:
+  provision.run:                # 每日补给（旧叙事词"签到"只存在于协议文档）
+    kind: declarative
+    entry: declarative/provision.run.yaml
+    budget_seconds: 240         # 9074 退避窗与 claim 幂等复查的余量
+credential:
+  kinds: [ss_aes, device_dn]    # 信封密文 + 键名中的 Aha 设备号（领取必需）
+  unlock: local-client          # 凭据来自本机桌面端 storage.json（SS_AES 信封）
+schedule:                       # 业务窗 00:00 结算（窗口见声明式 YAML）
+  provision.run: ["09:05", "13:05", "19:05", "23:05"]

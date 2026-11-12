@@ -1,0 +1,16 @@
+# Qoder CN 连接器（A2-02 §2 + ADR-004）：能力矩阵 + 凭据 + 调度缺省值
+# 协议结论见同目录 PROTOCOL.md（来源旧仓库 NOTE-02 + 2026-11-11 真机取证）；
+# 行为对照 oracle = 旧仓库 qoder 域（A0-01 §2.2）
+id: qoder_cn
+display: Qoder CN
+capabilities:
+  provision.run:                # 每日补给（活动积分逐项领取）
+    kind: declarative
+    entry: declarative/provision.run.yaml
+    budget_seconds: 240         # 逐项 claim + 复查确认的余量
+credential:
+  kinds: [dpapi_gcm_v10, umid_cosy]  # 双层加密登录态 + Cosy 机器身份头组（缺一领不动）
+  unlock: local-client          # 凭据来自本机桌面端数据目录（DPAPI+AES-GCM 自包含信封）
+schedule:                       # 活动窗每日 10:00 开新窗（PROTOCOL §4 真机取证）——
+                                # 首班对齐 10:05，10:00 前触发必然空跑（呈昨日 ALREADY 回放）
+  provision.run: ["10:05", "13:05", "19:05", "23:05"]
