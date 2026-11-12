@@ -1,7 +1,7 @@
 # STATUS · 进度卡（每次会话开始先读我）
 
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
-> 最后更新：2026-11-12
+> 最后更新：2026-11-13
 
 ## 一句话现状
 
@@ -43,8 +43,18 @@ MCPServer（v1 FastMCP 已更名）；三工具 query_quota/query_usage/claim_no
 真机三主题 + 双断点 + 选卡/空槽/详情/领取链路验证过（qoder FAILED 为已知协议
 发现，UI 显式转述 = 红线 5 生效）；墨印四色按暗主题 face-5 实测调亮至 ≥4.5:1；
 门禁八项绿两轮。
-**接下来：R3 网页会话通道——开篇已立（A1-04，两承重裁决已批：直读 cookie /
-Chrome·mac+Win），实现批待启动**。
+**R3-1 网页会话通道实现批完成（2026-11-13）**：`browser_cookie` 凭据 kind +
+capture 通道（Chrome cookie SQLite 直读，mac Keychain / win DPAPI 双链）+
+声明式探针通道（DeclarativeHealthPort 七词映射）+ ChatGPT/Claude 两家连接器
+（manifest+YAML+PROTOCOL）+ server RunIn.kind + web 体检按钮（能力申报驱动）。
+**真机取证修正（A1-04 §4.1）**：mac Chrome v10 密文 = 16B 未定论段 + 16B 真 IV
++ CBC 密文（非经典形状）——unlock.py 双形状自识别，358/358 可读明文；前 16B
+段结构未定论挂账。真机两态验收：ChatGPT 过期令牌照常出卡（EXPIRED 卡面），
+Claude 未登录如实落榜；探针真机双态（chatgpt_web FAILED 探针不可达 60s 预算 /
+claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针端口 → 500 的
+真机抓修 + 回归测试）。
+**接下来：R3-2 候选**——定时体检轮询（触发器模型现成）/ Claude 登录态补证
+（换有登录态环境）/ Windows cookie 真机验收。
 
 ## 里程碑
 
@@ -55,7 +65,7 @@ Chrome·mac+Win），实现批待启动**。
 | **UI 重设计** | 「卡纸与墨」主题 + 五页落地（设计能力包流程，A3-01/D2） | **✅ 完成（2026-11-12）** |
 | R2 | 用量采集 + 额度雷达 + MCP Server | **✅ 收官（2026-11-12）**：用量采集+雷达（真机四家实测）+ MCP stdio 薄壳（ADR-008） |
 | **UI 钱包视觉语言** | 去 AI 化重设计：真实卡面+墨印+账本行+钱包架（spec 2026-11-12） | **✅ 完成（2026-11-12）** |
-| R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | **开篇已立（2026-11-12，A1-04）**：双通道定位/捕获机制/平台矩阵/第一批边界两裁决已批；实现未开始 |
+| R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | **实现批①完成（2026-11-13）**：A1-04 开篇两裁决 + A2-03 细案 + `browser_cookie`/capture/探针全链 + 两家连接器 + 体检 UI（真机验收过）；余项见挂账 3 |
 | R4 | 网关独立进程（账号池/反代/规则引擎） | 未开始 |
 | R5 | 会话三级迁移 | 未开始 |
 
@@ -75,14 +85,18 @@ Chrome·mac+Win），实现批待启动**。
 1. **npm org 待验证**：`@kabao` scope 可用性未验；不可用回退未 scope 的 `kabao-sdk`（A1-03 §6）。
 2. **desktop 端托盘/单实例锁未做**：main.js 双模式（在线/离线 sidecar 拉起 +
    健康轮询）已实现，托盘常驻与单实例锁留待 R2 网关批次一并接入 `build_engine`。
-3. **R3 网页会话通道（开篇已立，A1-04）**：双通道战略——网页 = 广度主通道
-   （浏览器 × 系统矩阵，Chrome·mac+Win 首批），客户端 dock = 深度面（mac 分支
-   按需排优先级）。**mac Chrome Keychain 取证已完成（2026-11-12 本机，A1-04 §4.1）**：
-   解密链全通（PBKDF2 1003 轮 + AES-128-CBC + v10 前缀），一钥匙覆盖全 profile，
-   本机 528 cookie 全解零失败；本机 ChatGPT（令牌已过期）/ Claude（未登录）恰为
-   两类导入边缘态天然样本。下一步：`browser_cookie` 凭据 kind + capture 通道
-   （A2-03 细案）→ ChatGPT/Claude 两家连接器（Claude cookie 名单待补取证——
-   本机无登录态，需换有登录态的环境）→ 导入/体检 UI。待裁清单见 A1-04 §8。
+3. **R3 网页会话通道——实现批①已收官（2026-11-13），余项**：
+   - **已完成**：A2-03 细案 spec；`browser_cookie` kind + capture 通道
+     （browser.py：发现/拷贝/解密/信封/两态）+ 探针通道（DeclarativeHealthPort）；
+     ChatGPT/Claude 两家连接器（导入+体检）；server RunIn.kind + 契约再生成；
+     web CardDetail 体检按钮（能力申报驱动）；engine bridge 零改动（health 端口
+     随 register_provision_ports 挂载，server _assemble_connectors 补挂
+     health_ports——真机抓到漏挂 500 后加回归测试）
+   - **挂账**：①Claude 最小 cookie 名单补证（本机无登录态，换环境取证）；
+     ②Windows Chrome cookie 真机验收（GCM 链只有单测假 DPAPI）；③mac v10
+     密文前 16B 段结构未定论（确定性相关、非 sha256/hmac，完整性验证挂账）；
+     ④定时体检轮询批次（手动触发已上线，触发器模型现成）；⑤A1-04 §8.3/8.4
+     待裁照旧
    **A-档轻活已清（2026-11-12）**：locate 链与 issue 文案按 sys.platform 分流——
    mac 上如实报「分支未实现/待取证」+ 本平台逃生口（DOUBAO_EXE/WORKBUDDY_EXE），
    不再报 Windows 视角文案。顺手修两个真 bug：①dock 主扫描出的 `_issue` 会被
