@@ -3,8 +3,8 @@
 - 端只准经 bridge 触达引擎（规约 R4）；路由不写业务规则、不做状态语义映射
   （端零映射，红线 2）——响应里的 level/status/repair 文案全部由 core 产出
 - DB 路径经 KABAO_DB 环境变量覆盖；默认 = 平台数据根 kabao.db（A4-01 §5）
-- 连接器装配（ADR-003）：注册表装载 → 端口挂载 → 导入调度 + 到期扫描；
-  KABAO_SCHEDULE=0 显式关闭调度（测试/排障口）
+- 连接器装配（ADR-003）：注册表装载 → 端口挂载 → 导入调度 + 用量采集 + 到期扫描；
+  KABAO_SCHEDULE=0 显式关闭全部调度（测试/排障口）
 """
 
 from __future__ import annotations
@@ -30,6 +30,9 @@ def _assemble_connectors(kit) -> None:
     kit.register_provision_ports(
         targets=registry.provision_ports(vault=kit.vault, transport=None)
     )
+    kit.register_usage_ports(
+        targets=registry.usage_ports(vault=kit.vault, transport=None)
+    )
     entries = [
         ScheduleEntry(
             target=entry["target"],
@@ -42,6 +45,8 @@ def _assemble_connectors(kit) -> None:
     app.state.registry = registry  # 端读 manifest/导入分发用（server 自持装配面）
     if os.environ.get("KABAO_SCHEDULE", "1") != "0" and entries:
         kit.start_checkin_schedule(entries)
+    if os.environ.get("KABAO_SCHEDULE", "1") != "0":
+        kit.start_usage_scans()  # R2：每日用量采集（启动即补采第一帧，IntervalJob 语义）
     kit.start_expiry_scans()
 
 

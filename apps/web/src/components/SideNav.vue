@@ -10,7 +10,7 @@ defineProps<{
 
 const emit = defineEmits<{ navigate: [page: PageName]; refresh: [] }>();
 
-const overviewItems: PageName[] = ["首页", "卡包", "记录"];
+const overviewItems: PageName[] = ["首页", "卡包", "雷达", "记录"];
 </script>
 
 <template>

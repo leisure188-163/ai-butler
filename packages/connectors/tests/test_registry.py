@@ -146,6 +146,49 @@ def test_workbuddy_adapter_port_built_via_registry(registry):
     assert port.transport is sentinel
 
 
+def test_usage_ports_loaded_for_all_four(registry):
+    """R2：申报 usage.collect 的连接器装载为用量端口；auth/kinds 按主链透传。"""
+    from kabao_connectors.doubao_cn.usage import DoubaoUsagePort
+    from kabao_connectors.qoder_cn.usage import QoderUsagePort
+    from kabao_connectors.trae_cn.usage import TraeUsagePort
+    from kabao_connectors.workbuddy_cn.usage import WorkbuddyUsagePort
+
+    sentinel = object()
+    ports = registry.usage_ports(vault=None, transport=sentinel)
+    assert set(ports) == {"trae_cn", "qoder_cn", "doubao_cn", "workbuddy_cn"}
+    assert isinstance(ports["trae_cn"], TraeUsagePort)
+    assert isinstance(ports["qoder_cn"], QoderUsagePort)
+    assert isinstance(ports["doubao_cn"], DoubaoUsagePort)
+    assert isinstance(ports["workbuddy_cn"], WorkbuddyUsagePort)
+    # 复用 provision 鉴权链的通道拿到 auth 声明与 kinds；纯 adapter 通道为空
+    assert ports["trae_cn"].auth is not None
+    assert ports["trae_cn"].kinds == ("ss_aes", "device_dn")
+    assert ports["qoder_cn"].auth is not None
+    assert ports["qoder_cn"].kinds == ("dpapi_gcm_v10", "umid_cosy")
+    assert ports["doubao_cn"].auth is None and ports["doubao_cn"].kinds == ()
+    assert ports["workbuddy_cn"].transport is sentinel
+
+
+def test_usage_collect_declarative_rejected():
+    """usage.collect 只认 adapter（用量编排各家专属）——其他 kind 显式爆。"""
+    from pathlib import Path
+
+    from kabao_connectors.registry import ConnectorApp, Registry
+
+    manifest = ConnectorManifest.model_validate(
+        {
+            "id": "stub_boot",
+            "display": "Stub",
+            "capabilities": {
+                "usage.collect": {"kind": "declarative", "entry": "x.yaml"}
+            },
+        }
+    )
+    registry = Registry({"stub_boot": ConnectorApp(manifest=manifest, root=Path("."))})
+    with pytest.raises(ManifestInvalid, match="adapter"):
+        registry.usage_ports(vault=None, transport=None)
+
+
 def test_load_registry_imports_adapter_entry(monkeypatch, tmp_path):
     """装载即 import adapter entry：方言自注册生效 + 坏 entry 装载期显式爆。"""
     import sys

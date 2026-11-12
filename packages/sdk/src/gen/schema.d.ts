@@ -58,6 +58,8 @@ export interface paths {
          * @description 导入（接入扫描）：扫本机客户端 → 注册卡位 → 凭据入库。
          *
          *     单家失败不拖累全家族：结果如实分列（accounts/issues），不静默。
+         *     dock 顺带采集（R2-F）：新泊位立即产雷达第一帧；采集失败进 issues，
+         *     绝不打断导入本身（CollectUsage 已把端口异常收进 outcome.error）。
          */
         post: operations["import_app_api_v1_apps__target__import_post"];
         delete?: never;
@@ -102,6 +104,46 @@ export interface paths {
          * @description 待处理：attention 结果 Run 聚合——聚合谓词在 core（ListPending，红线 2）。
          */
         get: operations["list_pending_api_v1_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/usage/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect Usage
+         * @description 全账号用量采集（手动触发）：逐账号 CollectUsage，单账号失败不拖累其余。
+         */
+        post: operations["collect_usage_api_v1_usage_collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/usage/radar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Usage Radar
+         * @description 额度雷达：最新快照 + 相邻差分预测 + 聚合原话 + 最近流水（每账号一行）。
+         */
+        get: operations["usage_radar_api_v1_usage_radar_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -168,6 +210,23 @@ export interface components {
             /** Account Id */
             account_id: string | null;
         };
+        /** CollectOutcomeOut */
+        CollectOutcomeOut: {
+            /** Account Id */
+            account_id: string;
+            /** Target */
+            target: string;
+            /** Snapshot Saved */
+            snapshot_saved: boolean;
+            /** Aggregate Saved */
+            aggregate_saved: boolean;
+            /** Ledger Saved */
+            ledger_saved: number;
+            /** Quota Low */
+            quota_low: string[];
+            /** Error */
+            error: string | null;
+        };
         /** CredentialOut */
         CredentialOut: {
             /** Account Id */
@@ -188,6 +247,26 @@ export interface components {
             /** Raw Code */
             raw_code?: string | null;
         };
+        /**
+         * ForecastOut
+         * @description 耗尽预测（core forecast_exhaustion 出产）：不足两帧 = 空列表 → UI「采集中」。
+         */
+        ForecastOut: {
+            /** Package Id */
+            package_id: string;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /** Remaining */
+            remaining: number;
+            /** Per Day */
+            per_day: number;
+            /** Days Left */
+            days_left: number | null;
+            /** Exhausted On */
+            exhausted_on: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -201,6 +280,66 @@ export interface components {
             accounts: string[];
             /** Issues */
             issues: string[];
+        };
+        /** LedgerEntryOut */
+        LedgerEntryOut: {
+            /** Record Id */
+            record_id: string;
+            /** Amount */
+            amount: number;
+            /** Unit */
+            unit: string;
+            /** Kind */
+            kind: string;
+            /** Occurred At */
+            occurred_at: string | null;
+        };
+        /** PackageQuotaOut */
+        PackageQuotaOut: {
+            /** Package Id */
+            package_id: string;
+            /** Name */
+            name: string;
+            /** Total */
+            total: number;
+            /** Used */
+            used: number;
+            /** Remaining */
+            remaining: number;
+            /** Unit */
+            unit: string;
+            /** Cycle End */
+            cycle_end: string | null;
+            /** Status */
+            status: string;
+        };
+        /**
+         * RadarAccountOut
+         * @description 单账号雷达行：无快照 = packages 空（尚未采集）；doubao 只有流水。
+         */
+        RadarAccountOut: {
+            /** Account Id */
+            account_id: string;
+            /** Provider */
+            provider: string;
+            /** Display Name */
+            display_name: string;
+            /** Collected At */
+            collected_at: string | null;
+            /** Packages */
+            packages: components["schemas"]["PackageQuotaOut"][];
+            /** Forecasts */
+            forecasts: components["schemas"]["ForecastOut"][];
+            /** Quota Low */
+            quota_low: string[];
+            /** Aggregate Summary */
+            aggregate_summary: {
+                [key: string]: unknown;
+            } | null;
+            /** Aggregate Collected At */
+            aggregate_collected_at: string | null;
+            /** Recent Ledger */
+            recent_ledger: components["schemas"]["LedgerEntryOut"][];
         };
         /**
          * RunIn
@@ -429,6 +568,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    collect_usage_api_v1_usage_collect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectOutcomeOut"][];
+                };
+            };
+        };
+    };
+    usage_radar_api_v1_usage_radar_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RadarAccountOut"][];
                 };
             };
         };

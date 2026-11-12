@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import time as _time
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
@@ -83,6 +84,21 @@ class _FieldMap(dict):
 def _matches(item: dict, filter_: dict[str, str]) -> bool:
     """列表项等值筛选：声明的键值对全部命中才算（值经 str 归一，显式声明驱动）。"""
     return all(str(item.get(key)) == value for key, value in filter_.items())
+
+
+def fill_auth_headers(auth: AuthSpec, fields: Mapping[str, str]) -> dict[str, str]:
+    """解锁字段 → 鉴权头组（token 头 + 静态头 + 动态模板）。
+
+    声明式 provision 与用量适配（R2）共用的拼装单源：缺字段显式爆（红线 5）。
+    """
+    merged = dict(auth.static_headers)
+    if auth.token_header is not None:
+        if "token" not in fields:
+            raise TemplateFieldMissing("token（解锁产物无 token，凭据事故）")
+        merged[auth.token_header.name] = auth.token_header.prefix + fields["token"]
+    for name, template in auth.dynamic_headers.items():
+        merged[name] = template.format_map(_FieldMap(fields))
+    return merged
 
 
 class DeclarativeProvisionPort(ProvisionPort):
@@ -194,17 +210,7 @@ class DeclarativeProvisionPort(ProvisionPort):
                 ) from exc
 
         fields = unlock_all(self._kinds, secrets)
-
-        merged = dict(auth.static_headers)
-        if auth.token_header is not None:
-            if "token" not in fields:
-                raise TemplateFieldMissing("token（解锁产物无 token，凭据事故）")
-            merged[auth.token_header.name] = (
-                auth.token_header.prefix + fields["token"]
-            )
-        for name, template in auth.dynamic_headers.items():
-            merged[name] = template.format_map(_FieldMap(fields))
-        return merged
+        return fill_auth_headers(auth, fields)
 
     # --- 请求与判定 ---
 

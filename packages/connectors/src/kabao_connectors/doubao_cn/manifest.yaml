@@ -7,6 +7,10 @@ capabilities:
     kind: adapter
     entry: adapter.kabao        # adapter.py 的 kabao 对象：build_port / dock 两钩子
     budget_seconds: 240
+  usage.collect:                # R2 用量通道（PROTOCOL §7.2）：quota/records 入账流水裸读
+    kind: adapter
+    entry: usage.build_usage_port
+    budget_seconds: 60
 # 零凭据（ADR-005 决策 2）：会话 = 运行中的客户端进程本身，无可注入凭据；
 # Cookie 运行时 CDP 现取现用，绝不入 vault——credential 整段缺省 = 不申报 kind。
 schedule:

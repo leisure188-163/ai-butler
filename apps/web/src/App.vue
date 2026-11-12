@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Kabao 管理台 · 应用壳（A3-01：侧边栏 IA，总览 = 首页/卡包/记录；管理 = 提醒/设置）
+ * Kabao 管理台 · 应用壳（A3-01：侧边栏 IA，总览 = 首页/卡包/雷达/记录；管理 = 提醒/设置）
  *
  * 渲染纪律（A3-01，红线 2）：
  * - 状态染色只消费 core 出产的 signal 分类（ok/notice/attention/danger/quiet），
@@ -12,6 +12,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import SideNav from "./components/SideNav.vue";
 import HomePage from "./pages/HomePage.vue";
 import WalletPage from "./pages/WalletPage.vue";
+import RadarPage from "./pages/RadarPage.vue";
 import LogPage from "./pages/LogPage.vue";
 import AlertsPage from "./pages/AlertsPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
@@ -22,6 +23,7 @@ const apiBase = "/api/v1";
 const hashByPage: Record<PageName, string> = {
   首页: "home",
   卡包: "wallet",
+  雷达: "radar",
   记录: "log",
   提醒: "alerts",
   设置: "settings",
@@ -272,6 +274,7 @@ onBeforeUnmount(() => {
         @claim="claimApp"
       />
       <LogPage v-else-if="active === '记录'" :runs="runs" />
+      <RadarPage v-else-if="active === '雷达'" />
       <AlertsPage
         v-else-if="active === '提醒'"
         :pending="pending"

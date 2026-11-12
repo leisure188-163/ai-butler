@@ -113,6 +113,31 @@ class Registry:
                 raise ManifestInvalid(f"{target}: 未知能力类型 {cap.kind}")
         return ports
 
+    def usage_ports(self, vault: Any, transport: Any = None) -> dict[str, Any]:
+        """target → UsagePort（R2 用量通道）。仅装载申报了 usage.collect 的连接器。
+
+        kind 必须为 adapter：用量通道是各家专属编排（翻页/包映射/CDP 取数），
+        声明式五段表达不了。auth/kinds 透传给复用 provision 鉴权链的通道
+        （trae/qoder）；纯 adapter 连接器（doubao/workbuddy）无声明式主链，
+        两者为空，通道自备环境束。
+        """
+        ports: dict[str, Any] = {}
+        for target, app in self._apps.items():
+            cap = app.manifest.capabilities.get("usage.collect")
+            if cap is None:
+                continue
+            if cap.kind != "adapter":
+                raise ManifestInvalid(
+                    f"{target}: usage.collect 仅支持 adapter（用量编排各家专属），got {cap.kind!r}"
+                )
+            kinds = tuple(app.manifest.credential.kinds) if app.manifest.credential else ()
+            declarative = app.declarative.get("provision.run")
+            auth = declarative.auth if declarative is not None else None
+            ports[target] = _load_entry(app, cap.entry)(
+                vault=vault, transport=transport, auth=auth, kinds=kinds
+            )
+        return ports
+
     def schedule_entries(self) -> list[dict[str, Any]]:
         """调度条目（纯数据，engine 端组装层转 ScheduleEntry）。"""
         out: list[dict[str, Any]] = []

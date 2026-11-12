@@ -7,6 +7,10 @@ capabilities:
     kind: adapter
     entry: adapter.kabao        # adapter.py's kabao object: build_port / dock hooks
     budget_seconds: 120          # one decryption ≤10s + 2-3 requests (PROTOCOL §6)
+  usage.collect:                # R2 usage channel (PROTOCOL §7.1): get-user-resource 85-package ledger
+    kind: adapter
+    entry: usage.build_usage_port
+    budget_seconds: 60           # one decryption ≤10s + paging (≤5 pages)
 # Fetched on demand, zero vault (ADR-006 decision 3): credential file fetched/decrypted per run, discarded after use —
 # client auto-refreshes every 30 days and rewrites the file, any vault persistence would go stale; credential section omitted = no kind declared.
 schedule:

@@ -142,6 +142,9 @@ Base：`https://www.doubao.com`
 
 - 响应 `data{has_more, next_cursor, records[]}`，逐条
   `{amount, create_time_ms, record_id, task_code, task_name, unit: "POINT"}`
+- **amount 形状变迁（2026-11-12 真机复核）**：取证时为 JSON number，复检 16/16
+  全为**数字串**（如 `'200'`）——适配器收编数字串（workbuddy *Precise 同款先例），
+  非数字串仍显式拒绝
 - 本机全量 15 条（has_more=false）**全为正值** = **入账 ledger**，无消耗记录；
   消耗量（tokens/credits 消耗）双通道 UNSUPPORTED
 - 签到 +200 关系实证：`task_code: "daily_signin"` amount=200，

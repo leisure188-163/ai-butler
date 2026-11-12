@@ -7,6 +7,10 @@ capabilities:
     kind: declarative
     entry: declarative/provision.run.yaml
     budget_seconds: 240         # 9074 退避窗与 claim 幂等复查的余量
+  usage.collect:                # R2 用量通道（PROTOCOL §7.1）：聚合原话 + 包分账本
+    kind: adapter
+    entry: usage.build_usage_port
+    budget_seconds: 60
 credential:
   kinds: [ss_aes, device_dn]    # 信封密文 + 键名中的 Aha 设备号（领取必需）
   unlock: local-client          # 凭据来自本机桌面端 storage.json（SS_AES 信封）

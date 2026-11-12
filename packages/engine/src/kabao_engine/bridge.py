@@ -1,7 +1,7 @@
 """唯一出桥（ADR-001 / 规约 R4）：端只准 `from kabao_engine.bridge import ...`。
 
 装配：SQLite(WAL) → 台账 / 审计 / 号册适配器 → 事件总线 → 订阅（审计落账 /
-通知中心）→ Vault（秘密后端按平台选默认层）→ 健康扫描用例 → 到期/停靠定时 job。
+通知中心）→ Vault（秘密后端按平台选默认层）→ 健康扫描用例 → 到期/停靠/用量定时 job。
 端拿 EngineKit 用，不许 import 引擎内部模块。
 
 连接器接入（ADR-003）：端把连接器注册表产出的 target→端口映射交给
@@ -20,9 +20,10 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Mapping
 
-from kabao_core.application.ports import ProvisionPort
+from kabao_core.application.ports import ProvisionPort, UsagePort
 from kabao_core.application.usecases import (
     AssessAccountHealth,
+    CollectUsage,
     ExecuteAction,
     ListPending,
     RegisterAccount,
@@ -40,6 +41,7 @@ from kabao_engine.ledger.sqlite import SqliteRunLedger
 from kabao_engine.notify.center import InAppChannel, NotificationCenter
 from kabao_engine.scheduling.checkin import CheckinSchedule, ScheduleEntry
 from kabao_engine.scheduling.interval_job import IntervalJob
+from kabao_engine.usage.sqlite import SqliteUsageStore
 from kabao_engine.vault.backends import MemoryVaultBackend, SecretBackend
 from kabao_engine.vault.keychain_macos import KeychainBackend
 from kabao_engine.vault.layered import LayeredVault
@@ -88,6 +90,7 @@ DAILY_SCAN_INTERVAL = timedelta(days=1)  # A4-01 §1：每日 job 比对有效�
 SCAN_JOB_NAME = "kabao-expiry-scan"
 CHECKIN_TICK = timedelta(seconds=60)  # 导入触发 tick（实测粒度）——秒级不省预算
 CHECKIN_JOB_NAME = "kabao-checkin"
+USAGE_JOB_NAME = "kabao-usage-scan"  # R2：每日用量采集（雷达第二帧的定时来源）
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +110,15 @@ class EngineKit:
     vault: LayeredVault
     scan_credential_expiry: ScanCredentialExpiry
     assess_account_health: AssessAccountHealth
+    usage_store: SqliteUsageStore
+    collect_usage: CollectUsage
     scan_job: IntervalJob | None = None
     checkin_schedule: CheckinSchedule | None = None
     checkin_job: IntervalJob | None = None
+    usage_job: IntervalJob | None = None
     _kind_ports: dict = field(default_factory=dict, init=False, repr=False)
     _target_ports: dict = field(default_factory=dict, init=False, repr=False)
+    _usage_ports: dict = field(default_factory=dict, init=False, repr=False)
 
     def register_provision_ports(
         self,
@@ -132,6 +139,23 @@ class EngineKit:
             self._target_ports[tid] = port
         self._kind_ports.update(kinds or {})
         self.execute_action.ports = self._selector()
+
+    def register_usage_ports(
+        self,
+        targets: Mapping[str, UsagePort] | None = None,
+        *,
+        replace: bool = False,
+    ) -> None:
+        """挂载用量采集端口（R2）：target 精确路由（同 ADR-003 纪律）。
+
+        重复挂载同名 target = 注册表装配 bug，显式拒绝；replace=True 供重装配。
+        """
+        for tid, port in (targets or {}).items():
+            if tid in self._usage_ports and self._usage_ports[tid] is not port:
+                if not replace:
+                    raise ValueError(f"用量端口重复挂载: {tid!r}（显式 replace=True 才可重装）")
+            self._usage_ports[tid] = port
+        self.collect_usage.ports = dict(self._usage_ports)
 
     def attach_schedule(
         self, entries: list[ScheduleEntry], *, tick: timedelta = CHECKIN_TICK
@@ -187,9 +211,31 @@ class EngineKit:
         for account_id in accounts:
             self.assess_account_health.execute(account_id)
 
+    def start_usage_scans(self, *, interval: timedelta = DAILY_SCAN_INTERVAL) -> None:
+        """启动每日用量采集（R2：dock 顺带之外的第二条采集链，雷达两帧差的定时来源）。幂等。"""
+        if self.usage_job is None:
+            self.usage_job = IntervalJob(
+                self._daily_usage, interval=interval, name=USAGE_JOB_NAME
+            )
+        if not self.usage_job.running:
+            self.usage_job.start()
+
+    def _daily_usage(self) -> None:
+        """号册全账号采集一轮；vault-only（无 provider）无通道可采，跳过。
+
+        单账号失败收进 outcome.error（编排不中断）；job 语境无人消费 outcome，
+        落 WARNING 日志留痕——不静默（红线 5）。
+        """
+        for account in self.accounts.list_all():
+            if not account.provider:
+                continue
+            outcome = self.collect_usage.execute(account.provider, account.id)
+            if outcome.error:
+                logger.warning("每日用量采集失败 %s: %s", account.id, outcome.error)
+
     def close(self) -> None:
         """排空事件、停定时 job 后关总线——关闭路径不丢账。"""
-        for job_name in ("checkin_job", "scan_job"):
+        for job_name in ("checkin_job", "scan_job", "usage_job"):
             job: IntervalJob | None = getattr(self, job_name)
             if job is not None:
                 job.stop()
@@ -246,6 +292,9 @@ def build_engine(db_path: str | Path = DEFAULT_DB) -> EngineKit:
         vault=vault, ledger=ledger, sink=bus, states=health_state
     )
 
+    usage_store = SqliteUsageStore(db_path)
+    collect_usage = CollectUsage(ports={}, store=usage_store, sink=bus)
+
     return EngineKit(
         bus=bus,
         ledger=ledger,
@@ -258,4 +307,6 @@ def build_engine(db_path: str | Path = DEFAULT_DB) -> EngineKit:
         vault=vault,
         scan_credential_expiry=expiry,
         assess_account_health=assess,
+        usage_store=usage_store,
+        collect_usage=collect_usage,
     )

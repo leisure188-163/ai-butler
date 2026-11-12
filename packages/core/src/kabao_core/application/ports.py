@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable, Mapping, Protocol
@@ -18,6 +19,12 @@ from kabao_core.domain.errors import DomainError
 from kabao_core.domain.event import Event
 from kabao_core.domain.health import HealthLevel
 from kabao_core.domain.run import Run, RunResult
+from kabao_core.domain.usage import (
+    QuotaLedgerEntry,
+    UsageAggregate,
+    UsageResult,
+    UsageSnapshot,
+)
 from kabao_core.domain.vault import CredentialHealth, Secret
 
 
@@ -178,3 +185,56 @@ class HealthStateStore(ABC):
 
     @abstractmethod
     def set_account_level(self, account_id: str, level: HealthLevel) -> None: ...
+
+
+# --- R2 用量采集端口（块①设计）---
+
+
+class UsageRequestInvalid(DomainError):
+    """UsageRequest 形状非法（target / account_id 空白）。"""
+
+
+@dataclass(frozen=True)
+class UsageRequest:
+    """用量采集入参（AO）：deadline 是时间预算的硬边界（与 ProvisionRequest 同纪律）。"""
+
+    target: str  # connector id（路由键，同 ADR-003 target 精确选路）
+    account_id: str
+    deadline: datetime
+
+    def __post_init__(self) -> None:
+        if not self.target.strip() or not self.account_id.strip():
+            raise UsageRequestInvalid("UsageRequest 需要非空 target 与 account_id")
+
+
+class UsagePort(Protocol):
+    """用量采集端口（R2）：适配器取数并归一 PackageQuota，不做语义决策、不派生指标。
+
+    UsageResult 三段可空：通道不可得 = None（如实申报）；取到但空 = 空元组。
+    """
+
+    def collect(self, req: UsageRequest) -> UsageResult: ...
+
+
+class UsageStore(ABC):
+    """用量存储端口：三实体落库 + 账号维度读取（SQL 只在 engine 适配器，A4-01 §5 同纪律）。"""
+
+    @abstractmethod
+    def save_snapshot(self, snapshot: UsageSnapshot) -> None: ...
+
+    @abstractmethod
+    def list_snapshots(self, account_id: str, *, limit: int) -> list[UsageSnapshot]:
+        """该账号快照（新→旧）：耗尽预测与 QUOTA_LOW 变更检测取前两帧。"""
+
+    @abstractmethod
+    def save_aggregate(self, aggregate: UsageAggregate) -> None: ...
+
+    @abstractmethod
+    def latest_aggregate(self, account_id: str) -> UsageAggregate | None: ...
+
+    @abstractmethod
+    def append_ledger(self, entries: Iterable[QuotaLedgerEntry]) -> int:
+        """入账流水幂等落库（record_id 去重），返回新增条数。"""
+
+    @abstractmethod
+    def list_ledger(self, account_id: str, *, limit: int) -> list[QuotaLedgerEntry]: ...

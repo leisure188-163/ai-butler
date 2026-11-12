@@ -23,7 +23,13 @@ addOnQuota / doubao quota-records 入账流水 / workbuddy get-user-resource 85
 包分账本 remain 1894）；doubao CDP 读用量无增量价值（UI 只有累计获得，与
 detail 重复）——ADR-005 三选一裁决材料齐，倾向不做。顺手清 docker-compose
 postgres/JWT_SECRET 残留（与 SQLite 单机架构漂移，Dockerfile 保留）。
-**接下来：R2 方案对比 → 分节设计获批 → spec 落盘**。
+**R2 用量采集全链完成（2026-11-12）**：core 三实体 + 语义谓词单源（is_quota_low
+含耗尽排除 / forecast_exhaustion 含最小帧距）；引擎三表 + 耗尽预测；四家连接器
+用量适配真机全通（trae ent_usage / qoder me-usage / doubao quota-records 流水
+翻页 / workbuddy get-user-resource）；server /usage/collect + /usage/radar
+（契约派生）；web 额度雷达页（六页 IA：活跃包平铺 + 历史耗尽折叠）；engine
+每日用量 job（启动补采）+ dock 顺带采集（失败进 issues 不打断导入）。
+**接下来：R2 收尾 = MCP stdio 薄壳（查额度/查用量/触发签到，走 server API）**。
 
 ## 里程碑
 
@@ -32,31 +38,28 @@ postgres/JWT_SECRET 残留（与 SQLite 单机架构漂移，Dockerfile 保留�
 | 设计 + M0 + M1 | 定位/架构/详细设计；一核多端骨架；四连接器真机验收 | ✅ 完成（详见 git 历史与各 PROTOCOL.md） |
 | **R1 品牌重塑** | Kabao 更名 + 词表 + 数据自动迁移（ADR-007 / A1-03） | **✅ 完成（2026-11-12，批①②③）** |
 | **UI 重设计** | 「卡纸与墨」主题 + 五页落地（设计能力包流程，A3-01/D2） | **✅ 完成（2026-11-12）** |
-| R2 | 用量采集 + 额度雷达 + MCP Server | **立项中**（纸面裁决齐 + 真机取证 spike 完成 2026-11-12，待方案对比与 spec 落盘） |
+| R2 | 用量采集 + 额度雷达 + MCP Server | **用量采集+雷达 ✅ 完成（2026-11-12，真机四家实测）**；剩 MCP stdio 薄壳 |
 | R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | 未开始（广度定位关键一步，竞品空白） |
 | R4 | 网关独立进程（账号池/反代/规则引擎） | 未开始 |
 | R5 | 会话三级迁移 | 未开始 |
 
 ## 当前挂账
 
-0. **R2 立项（纸面裁决齐 + 取证 spike 完成，剩方案对比与 spec）**：
-   - **已裁四项**：①立项路径 = 先真机取证 spike；②MCP 宿主 = stdio 薄壳走
-     server 契约 API；③工具集 = 查额度/查用量/触发签到；④范围不含领取扩展
-   - **取证 spike 已完成（2026-11-12）**：docs/plans/M2-用量取证清单.md
-     §2-§5 全落 + §6 矩阵填实；结论入各连接器 PROTOCOL §7——四家逐调用
-     tokens 双通道 UNSUPPORTED，用量采集按「聚合 + 快照 + 流水」三型重定义；
-     额度雷达四家 API 全可得；doubao CDP 读用量无增量价值（裁决材料齐，
-     倾向 detail 裸读 + records 裸读，CDP 留给签到）
-   - **下一步 = 方案对比 → 分节设计获批 → spec 落盘**：A2-01 UsageSample
-     字段需按取证结论重定义（原 tokens_in/out 逐调用口径落空）；额度雷达
-     数据模型（entitlement 快照 + 耗尽日期）按各包 CycleEnd/ExpiredTime 设计
-   - **既有 spec 锚点（写 spec 直接引用）**：A2-01 已预留
-     `usage.collect`/`usage.query` ActionKind + UsageSample 实体
-     （tokens_in/out / model / ts / source(client|gateway|api)）+ QUOTA_LOW
-     事件；A2-02 manifest 已有 `usage.read: {kind: adapter}` 能力位；
-     A4-01 已定 `usage_samples` 独立时序表按天分区；A1-01 §3 L2 采集源三类；
-     A3-01 记录页「积分/额度趋势曲线」前端锚点
-   - 流程后段：方案对比 → 分节设计获批 → spec 落盘 → 自审 → 用户审阅 → 实施
+0. **R2 收尾（用量采集全链已完成，剩 MCP stdio 薄壳）**：
+   - **已完成（2026-11-12）**：core 三实体（UsageSnapshot/UsageAggregate/
+     QuotaLedgerEntry）+ 谓词单源 / engine 三表 + 耗尽预测 / 四家连接器用量
+     适配（真机全通）/ server 用量路由（契约派生）/ web 额度雷达页（六页 IA）/
+     每日用量 job + dock 顺带采集。真机回归三修复：doubao amount 形状变迁
+     收编数字串（16/16 实证，§7.2 回填）；is_quota_low 排除 remaining≤0
+     历史耗尽包（终态无行动价值）；forecast_exhaustion 最小帧距 1h（差分
+     外推防爆炸，帧距不足诚实显「采集中」）
+   - **接下来 = MCP stdio 薄壳**：已裁②③④——宿主 stdio 走 server 契约 API；
+     工具集查额度/查用量/触发签到；范围不含领取扩展
+   - **既有 spec 锚点（写 spec 直接引用）**：A2-01 UsageSample（字段已按
+     三型重定义落库）+ QUOTA_LOW 事件；A2-02 manifest `usage.read` 能力位；
+     A4-01 usage_samples 表；A3-01 记录页趋势曲线锚点
+   - **待补**：R2 spec 落盘 docs/superpowers/specs/（设计与实现已获用户批准
+     直做，spec 可后补归档）
 1. **npm org 待验证**：`@kabao` scope 可用性未验；不可用回退未 scope 的 `kabao-sdk`（A1-03 §6）。
 2. **desktop 端托盘/单实例锁未做**：main.js 双模式（在线/离线 sidecar 拉起 +
    健康轮询）已实现，托盘常驻与单实例锁留待 R2 网关批次一并接入 `build_engine`。

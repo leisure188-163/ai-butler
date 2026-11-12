@@ -13,7 +13,7 @@ type Contract = components["schemas"];
 
 export type Signal = "ok" | "notice" | "attention" | "danger" | "quiet";
 
-export type PageName = "首页" | "卡包" | "记录" | "提醒" | "设置";
+export type PageName = "首页" | "卡包" | "雷达" | "记录" | "提醒" | "设置";
 
 /** signal 窄化包装：除 signal 外的形状全部继承契约 */
 type WithSignal<T> = Omit<T, "signal"> & { signal: Signal };
@@ -27,6 +27,13 @@ export type AccountItem = Omit<Contract["AccountOut"], "signal" | "credentials">
 export type AppItem = Contract["AppOut"];
 export type EvidenceItem = Contract["EvidenceOut"];
 export type RunItem = WithSignal<Contract["RunOut"]>;
+
+/** 额度雷达（R2-E）：同样全部契约派生；quota_low 是 core 谓词出产的包名列表，UI 只做布尔渲染 */
+export type PackageRow = Contract["PackageQuotaOut"];
+export type ForecastRow = Contract["ForecastOut"];
+export type LedgerRow = Contract["LedgerEntryOut"];
+export type RadarRow = Contract["RadarAccountOut"];
+export type CollectOutcome = Contract["CollectOutcomeOut"];
 
 export type ThemeName = "system" | "paper" | "dark" | "warm";
 
