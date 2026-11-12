@@ -59,7 +59,9 @@ python scripts/verify_project.py --project . --test
 ## 免责声明
 
 L1/L2 仅操作用户本人账号；L3 反代定位「个人多账号聚合（仅本机）」，使用须遵守
-目标平台服务条款，风险自负。完整声明见 specs [A1-01](docs/specs/architecture/A1-01-产品定位与能力全景.md) §7。
+目标平台服务条款，风险自负。**本工具仅供个人学习与研究参考，严禁用于任何商业途径。**
+完整声明见 [DISCLAIMER.md](DISCLAIMER.md)，合规边界另见 specs
+[A1-01](docs/specs/architecture/A1-01-产品定位与能力全景.md) §6。
 
 ## License
 
