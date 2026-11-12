@@ -112,13 +112,12 @@ postgres/JWT_SECRET 残留（与 SQLite 单机架构漂移，Dockerfile 保留�
 
 ## 环境备忘
 
-- 远端 origin = `https://gitee.com/hiclaw_520/ai-kabao.git`（main；2026-11-12
-  仓库已由 `ai-marina` 更名为 `ai-kabao`，本地 remote 与全库引用已同步）。
-  2026-11-11 由 SSH 改 HTTPS——Gitee SSH 22 端口间歇不可达；
-  SSH 配置仍在 ~/.ssh/config 可切回）。
-  **推送口径**：全局 `~/.gitconfig` 有空 `credential.helper=` 会禁用 GCM——
-  非交互 shell 普通推送必挂，须用
-  `git -c credential.helper=manager push origin main`（凭据已缓存，不再弹窗）
+- 远端 origin = `git@gitee_hiclaw520_126:hiclaw_520/ai-kabao.git`（main；
+  2026-11-12 仓库已由 `ai-marina` 更名为 `ai-kabao`）。
+  **推送口径（2026-11-12 起 SSH 别名直推）**：远端 URL 必须用 `~/.ssh/config`
+  别名 `gitee_hiclaw520_126`（hiclaw_520 账号专用钥匙）——裸 `git@gitee.com:`
+  走默认钥匙（xiaoyaojiugui 账号）对 hiclaw_520 仓库报 Access denied；
+  HTTPS + `credential.helper=manager` 在非交互 shell 弹窗被取消必挂，均弃用
 - **uv.lock 口径**：macOS 开发机全局 uv 配置走阿里云镜像，`uv sync` 会把锁源
   重写为镜像——**用 `uv lock --default-index https://pypi.org/simple` 直锁官方源**
   （R1 批①重锁已验证，0 污染）；提交前 `git diff uv.lock | grep -c aliyun` 自检，
