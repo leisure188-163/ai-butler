@@ -14,7 +14,7 @@ packages/connectors/<id>/
 └── adapter.py         # 三级扩展之二：Python 适配器（实现 core 端口）
 ```
 
-三级扩展之三（独立进程 Adapter）放 `apps/gateway/` 的 provider 插件（M3）。
+三级扩展之三（独立进程 Adapter）放 `apps/gateway/` 的 provider 插件（R4）。
 
 ## 2. manifest.yaml
 
@@ -44,7 +44,7 @@ schedule:                         # 调度声明（cron 缺省值，用户可在
 |---|---|---|---|
 | 声明式 YAML | 纯 HTTP：登录态文件直读 + 接口签到（trae） | 用户/社区 | **仅限 L1**；五段式：auth / status / claim / business_codes / schedule |
 | Python 适配器 | 需解密/客户端交互/CDP（qoder、doubao、workbuddy） | 官方 | 实现 core 端口；按 PROTOCOL.md 重写，不抄旧代码 |
-| 独立进程 Adapter | 高并发反代 provider（M3） | 官方 | 禁止声明式；只做转发与计量 |
+| 独立进程 Adapter | 高并发反代 provider（R4） | 官方 | 禁止声明式；只做转发与计量 |
 
 **kind 收敛原则（扩展判据，2026-11-11 裁决）**：应用接入面 = **声明 + 可枚举
 kind 的组合**，一套运行时 + N 份数据——绝不 per-app 平行代码（历史项目教训：
