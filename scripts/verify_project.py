@@ -156,7 +156,7 @@ def check_hexagonal(root: Path) -> list[str]:
     return fails
 
 
-_VAR_REF = re.compile(r"var\(\s*(--[\w-]+)")
+_VAR_REF = re.compile(r"var\(\s*(--[\w-]+)\s*([,)])")
 _VAR_DEF = re.compile(r"^\s*(--[\w-]+)\s*:", re.MULTILINE)
 
 
@@ -165,6 +165,8 @@ def check_token_closure(root: Path) -> list[str]:
 
     背景: 该类破损不报错、不崩构建——页面只是"安静地变丑/残缺",
     人工 review 极易漏检,必须机器判定。
+    例外: `var(--x, 回退值)` 带显式回退 = 作者已显式声明缺定义时的行为,
+    CSS 语义自洽,不算"安静地残缺",放行(如逐卡 stagger 的 var(--i, 0))。
     """
     web_src = root / "apps/web/src"
     if not web_src.is_dir():
@@ -179,7 +181,9 @@ def check_token_closure(root: Path) -> list[str]:
             continue
         text = f.read_text(encoding="utf-8")
         local_defs = set(_VAR_DEF.findall(text))
-        for name in set(_VAR_REF.findall(text)):
+        for name, has_fallback in set(_VAR_REF.findall(text)):
+            if has_fallback == ",":
+                continue  # 带显式回退值：语义自洽，放行
             if name not in defined and name not in local_defs:
                 fails.append(
                     f"Token 引用未定义: {f.relative_to(root)} 引用 {name}"
