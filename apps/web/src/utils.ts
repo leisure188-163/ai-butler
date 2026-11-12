@@ -1,4 +1,4 @@
-import type { AccountItem } from "./types";
+import type { AccountItem, Signal } from "./types";
 
 const timeFmt = new Intl.DateTimeFormat("zh-CN", {
   month: "2-digit",
@@ -9,6 +9,15 @@ const timeFmt = new Intl.DateTimeFormat("zh-CN", {
 
 export function fmtTime(iso: string | null): string {
   return iso ? timeFmt.format(new Date(iso)) : "—";
+}
+
+/** signal 五分类 → 墨印短语（UI 谓词只消费分类，不认识 Status 字面量；quiet 尚无结论，以「—」如实留白） */
+export function signalSeal(signal: Signal): string {
+  if (signal === "ok") return "正常";
+  if (signal === "notice") return "注意";
+  if (signal === "attention") return "留意";
+  if (signal === "danger") return "异常";
+  return "—";
 }
 
 export function faceOf(id: string): number {

@@ -34,7 +34,17 @@ MCPServer（v1 FastMCP 已更名）；三工具 query_quota/query_usage/claim_no
 投影 server 契约 API（零 core/engine import，server 零改动无契约再生成）；server
 不可达显式报错附启动命令（红线 5）；stdio 真客户端冒烟（握手/列工具/无 server
 调用）全过；门禁八项绿（396 passed）。
-**接下来：真机 LLM 客户端验收 → R3（网页会话捕获）**。
+**UI 去AI化·钱包视觉语言落地（2026-11-12）**：brainstorm 流程（痛点小样=面板骨架/
+状态灯/均节奏 → 用户锚定腾讯卡包模式 → 桌面适配 A 钱包架获批）→ spec
+（docs/superpowers/specs/2026-11-12-kabao-wallet-visual-design.md）→ 实现全绿：
+卡=真实卡面（face 渐变对 + 首字圆章 + 等级徽 + 墨印角章），`.lamp`/`.panel` 全退役
+（`.sheet` 细线框 + 行尾墨印），卡包页=钱包架两栏（详情栏 sticky，≤900px 下沉），
+未导入=虚线空卡槽，雷达=face 色横幅节头；层叠按 M1 单账户契约裁掉（YAGNI）；
+真机三主题 + 双断点 + 选卡/空槽/详情/领取链路验证过（qoder FAILED 为已知协议
+发现，UI 显式转述 = 红线 5 生效）；墨印四色按暗主题 face-5 实测调亮至 ≥4.5:1；
+门禁八项绿两轮。
+**接下来：R3 网页会话通道——开篇已立（A1-04，两承重裁决已批：直读 cookie /
+Chrome·mac+Win），实现批待启动**。
 
 ## 里程碑
 
@@ -44,7 +54,8 @@ MCPServer（v1 FastMCP 已更名）；三工具 query_quota/query_usage/claim_no
 | **R1 品牌重塑** | Kabao 更名 + 词表 + 数据自动迁移（ADR-007 / A1-03） | **✅ 完成（2026-11-12，批①②③）** |
 | **UI 重设计** | 「卡纸与墨」主题 + 五页落地（设计能力包流程，A3-01/D2） | **✅ 完成（2026-11-12）** |
 | R2 | 用量采集 + 额度雷达 + MCP Server | **✅ 收官（2026-11-12）**：用量采集+雷达（真机四家实测）+ MCP stdio 薄壳（ADR-008） |
-| R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | 未开始（广度定位关键一步，竞品空白） |
+| **UI 钱包视觉语言** | 去 AI 化重设计：真实卡面+墨印+账本行+钱包架（spec 2026-11-12） | **✅ 完成（2026-11-12，待提交）** |
+| R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | **开篇已立（2026-11-12，A1-04）**：双通道定位/捕获机制/平台矩阵/第一批边界两裁决已批；实现未开始 |
 | R4 | 网关独立进程（账号池/反代/规则引擎） | 未开始 |
 | R5 | 会话三级迁移 | 未开始 |
 
@@ -57,9 +68,52 @@ MCPServer（v1 FastMCP 已更名）；三工具 query_quota/query_usage/claim_no
      server 不可达显式报错附启动命令（红线 5）；门禁八项绿 + stdio 真客户端冒烟
    - 待办：①真机 LLM 客户端验收（注册命令 `uv run kabao-mcp`）
      ②R2 spec 落盘 docs/superpowers/specs/（设计与实现已批，可后补归档）
+   - **一键批量（2026-11-12 增补）**：POST /apps/import-all + /runs/claim-all
+     （编排语义归 server，端零入参）；卡包页「一键导入（n）/一键领取（n）」，
+     结果如实分列（signal 计数 + 原文 issues）。真机实测过：导入对无客户端家
+     如实报修复建议；领取幂等回放当日班次 Run 不重打
 1. **npm org 待验证**：`@kabao` scope 可用性未验；不可用回退未 scope 的 `kabao-sdk`（A1-03 §6）。
 2. **desktop 端托盘/单实例锁未做**：main.js 双模式（在线/离线 sidecar 拉起 +
    健康轮询）已实现，托盘常驻与单实例锁留待 R2 网关批次一并接入 `build_engine`。
+3. **R3 网页会话通道（开篇已立，A1-04）**：双通道战略——网页 = 广度主通道
+   （浏览器 × 系统矩阵，Chrome·mac+Win 首批），客户端 dock = 深度面（mac 分支
+   按需排优先级）。**mac Chrome Keychain 取证已完成（2026-11-12 本机，A1-04 §4.1）**：
+   解密链全通（PBKDF2 1003 轮 + AES-128-CBC + v10 前缀），一钥匙覆盖全 profile，
+   本机 528 cookie 全解零失败；本机 ChatGPT（令牌已过期）/ Claude（未登录）恰为
+   两类导入边缘态天然样本。下一步：`browser_cookie` 凭据 kind + capture 通道
+   （A2-03 细案）→ ChatGPT/Claude 两家连接器（Claude cookie 名单待补取证——
+   本机无登录态，需换有登录态的环境）→ 导入/体检 UI。待裁清单见 A1-04 §8。
+   **A-档轻活已清（2026-11-12）**：locate 链与 issue 文案按 sys.platform 分流——
+   mac 上如实报「分支未实现/待取证」+ 本平台逃生口（DOUBAO_EXE/WORKBUDDY_EXE），
+   不再报 Windows 视角文案。顺手修两个真 bug：①dock 主扫描出的 `_issue` 会被
+   umid 采集器掩盖（真机 mac 实证：qoder DPAPI 解锁失败被定位失败顶掉）——
+   _issue 即落榜不跑附加采集；②`_issue` 走 store 期 raise 会逃出 scan_storage
+   且先注册孤儿账号——改为注册前如实落榜。qoder umid 定位链补真 mac 分支
+   （`/Applications/Qoder.app/Contents/Resources/umid/runtime-info` 本机取证
+   存在且可运行）。本机实证四家客户端全装（豆包/Qoder/Trae×3/WorkBuddy）——
+   客户端 mac 分支的取证优先级因此上调（B-档候选按数据增量排）。
+   **B-档已清（2026-11-12，三家 mac 分支全落地 + 真机验收）**：
+   ①豆包——真机实锤 `--remote-debugging-port` 在 mac 同样生效（9223 实例佐证），
+   localenv 补 mac 分支（Info.plist 版本 / `.app` 束定位 / pgrep / SIGKILL /
+   start_new_session 拉起），dock + 真签全链通（ALREADY「连签 5 天」）；
+   ②WorkBuddy——解密链与平台无关（helper.js 只要定制版 Electron 的
+   `electron_browser_workbuddy_storage` 绑定），mac 主程序 probe 通过
+   （Electron 37.10.3）+ 真机解密通（1472 字符 token 验形不落盘），localenv 补
+   `.app` 束定位（`Contents/MacOS/Electron`，CFBundleExecutable 即原生 Electron），
+   dock + 顺带采集真机绿（90 权益包入库）；③Qoder——mac 的 Local State 无
+   `os_crypt`，钥匙走 Keychain safeStorage（服务名实测定稿 `Qoder App Safe
+   Storage`），链 = PBKDF2(saltysalt,1003) + AES-128-CBC（密文块长 16 倍数实证），
+   kind 仍 `dpapi_gcm_v10` 双平台单源分流（mac 信封只带 dat，钥匙现取不入 vault），
+   dock 真机落册。**协议新发现（PROTOCOL §1.2）**：Qoder 客户端运行期不回写
+   auth.v1.dat（连跑 6 天文件停在 11-06）→ 文件内 token 已被服务端轮换作废，
+   usage/campaigns 齐 401 TOKEN_EXPIRE——处置 = 重启客户端后重扫，非解锁链缺陷。
+   门禁八项绿。**剩余缺口**：Trae×3 mac 取证未做（M1 记忆既有挂账）；qoder 需
+   重启客户端后重扫验证真数据面。
+4. **UI 钱包视觉语言已实现待提交**：apps/web 全量（tokens/ui/BizCard/CardDetail/
+   WalletPage/Home/Radar/Log/Alerts/Settings）+ spec 增补一行（.panel 删除与
+   .sheet 收编）；STATUS 本条与 B-档叙事同文件——提交时按意图拆分由提交方裁量。
+   实测记录：qoder 领取 FAILED 为 PROTOCOL §1.2 已知轮换滞留（重启客户端后重扫
+   即愈），UI 转述链显式无吞错。
 
 ## 已定关键决策（不再讨论，照做）
 

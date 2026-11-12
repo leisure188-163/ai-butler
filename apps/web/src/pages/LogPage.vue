@@ -12,7 +12,7 @@ defineProps<{ runs: RunItem[] }>();
   </header>
 
   <section class="section" aria-label="领取记录">
-    <div v-if="runs.length" class="log-wrap panel">
+    <div v-if="runs.length" class="log-wrap sheet">
       <table class="log">
         <thead>
           <tr><th>时间</th><th>动作</th><th>应用</th><th>账号</th><th>结果</th></tr>

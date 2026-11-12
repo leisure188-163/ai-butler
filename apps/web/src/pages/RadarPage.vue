@@ -10,7 +10,7 @@
  */
 import { onMounted, ref } from "vue";
 import type { CollectOutcome, PackageRow, RadarRow } from "../types";
-import { fmtTime } from "../utils";
+import { faceOf, fmtTime } from "../utils";
 
 const apiBase = "/api/v1";
 
@@ -143,18 +143,17 @@ onMounted(load);
   >{{ msg.text }}</p>
 
   <div v-if="rows.length" class="wall">
-    <article v-for="row in rows" :key="row.account_id" class="acct panel">
-      <header class="acct-head">
-        <p class="acct-name">
-          {{ row.display_name }}
-          <span class="row-sub mono">{{ row.account_id }}</span>
-        </p>
+    <article v-for="row in rows" :key="row.account_id" class="acct sheet">
+      <header class="acct-banner" :class="`acct-banner--${faceOf(row.account_id)}`">
+        <p class="acct-name">{{ row.display_name }}</p>
+        <p class="acct-id mono">{{ row.account_id }}</p>
+      </header>
+      <div class="acct-body">
         <p class="row-sub">
           {{ row.provider || "vault-only" }}
           <template v-if="row.collected_at"> · 采集于 {{ fmtTime(row.collected_at) }}</template>
           <template v-else> · 尚未采集</template>
         </p>
-      </header>
 
       <p v-if="!row.packages.length && !row.recent_ledger.length" class="quietline">
         暂无用量数据——点上方「立即采集」。
@@ -225,8 +224,10 @@ onMounted(load);
 
       <div v-if="row.recent_ledger.length" class="ledger">
         <p class="ledger-title">最近流水</p>
-        <ul class="rows panel">
-          <li v-for="e in row.recent_ledger" :key="e.record_id" class="row">
+        <ul class="rows">
+          <li
+            v-for="e in row.recent_ledger" :key="e.record_id" class="row"
+          >
             <span class="ledger-amount num">{{ fmtNum(e.amount) }} {{ e.unit }}</span>
             <span class="row-main">
               <p class="row-title">{{ e.kind }}</p>
@@ -235,6 +236,7 @@ onMounted(load);
             <span class="row-time">{{ fmtTime(e.occurred_at) }}</span>
           </li>
         </ul>
+      </div>
       </div>
     </article>
   </div>
@@ -264,19 +266,35 @@ onMounted(load);
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: var(--space-5);
 }
-.acct { padding: var(--space-4) var(--space-5); }
+.acct { overflow: hidden; }
+
+/* face 色节头横幅：卡面身份色 straight 取用，白字沿用卡面锚定 token */
+.acct-banner {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  color: var(--face-text);
+}
+.acct-banner--1 { background: var(--card-face-1); }
+.acct-banner--2 { background: var(--card-face-2); }
+.acct-banner--3 { background: var(--card-face-3); }
+.acct-banner--4 { background: var(--card-face-4); }
+.acct-banner--5 { background: var(--card-face-5); }
+.acct-banner--6 { background: var(--card-face-6); }
 .acct-name { margin: 0; font-size: var(--text-lg); font-weight: 650; }
+.acct-id { margin: 0; font-size: var(--text-xs); opacity: 0.8; }
+.acct-body { padding: var(--space-4) var(--space-5); }
 
 .pkgs {
   margin-top: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }
 .pkg {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
 }
 .pkg-name {
   margin: 0;

@@ -41,13 +41,37 @@
   --color-quiet-ink: #64737c;
   --color-quiet-weak: rgba(132, 147, 155, 0.16);
 
-  /* 卡面身份色（按应用分配，白字对比全部 ≥6:1） */
+  /* 卡面身份色（按应用分配，白字对比全部 ≥6:1）；hi/lo = 卡面 135deg 渐变对（亮端→暗端） */
   --card-face-1: #24466b;
   --card-face-2: #1f4a3d;
   --card-face-3: #3e3a5c;
   --card-face-4: #33424e;
   --card-face-5: #5c4a2f;
   --card-face-6: #14535a;
+  --card-face-1-hi: #2f5580;
+  --card-face-1-lo: #1a3757;
+  --card-face-2-hi: #28584a;
+  --card-face-2-lo: #173a2f;
+  --card-face-3-hi: #4a4670;
+  --card-face-3-lo: #322f4b;
+  --card-face-4-hi: #3d4f60;
+  --card-face-4-lo: #29353f;
+  --card-face-5-hi: #6b5836;
+  --card-face-5-lo: #4b3c25;
+  --card-face-6-hi: #196269;
+  --card-face-6-lo: #0f4247;
+
+  /* 空卡槽虚线（比 border 深一档，槽体透明底） */
+  --slot-dash: #9fadb4;
+
+  /* 卡面锚定色：卡上文字与墨印提亮档（face 跨主题一致，故只此一份、不随主题覆写）。
+     四色按暗主题 face-5 lo 端（最浅卡面）实测 ≥4.5:1 定值 */
+  --face-text: #ffffff;
+  --face-seal-ok: #8ceac0;
+  --face-seal-notice: #f7dd9d;
+  --face-seal-attention: #ffc9a3;
+  --face-seal-danger: #ffd0d0;
+  --face-seal-quiet: rgba(255, 255, 255, 0.78);
 
   /* 字体（D4：系统栈零延迟；标识符/编号 mono，数字一律 tabular） */
   --font-body: -apple-system, "Segoe UI", Inter, "PingFang SC",
@@ -80,7 +104,6 @@
   /* 深浅：唯一 indulgence 给卡，其余安静 */
   --shadow-card: 0 1px 2px rgba(23, 38, 48, 0.06), 0 10px 28px rgba(23, 38, 48, 0.1);
   --shadow-lift: 0 2px 4px rgba(23, 38, 48, 0.08), 0 16px 36px rgba(23, 38, 48, 0.14);
-  --shadow-panel: 0 1px 2px rgba(23, 38, 48, 0.05);
 
   /* 动效（仅在卡扇揭示与按压反馈两处；prefers-reduced-motion 全归零） */
   --motion-fast: 110ms;
@@ -145,18 +168,31 @@ body {
   --color-quiet-ink: #95a8b2;
   --color-quiet-weak: rgba(127, 147, 158, 0.2);
 
-  /* 卡面身份色：夜色下微提亮（白字对比仍 ≥6:1） */
+  /* 卡面身份色：夜色下微提亮（白字对比仍 ≥6:1）；渐变对在夜色下整体上移一档 */
   --card-face-1: #2f5580;
   --card-face-2: #28584a;
   --card-face-3: #4a4670;
   --card-face-4: #3d4f60;
   --card-face-5: #6b5836;
   --card-face-6: #196269;
+  --card-face-1-hi: #3a6494;
+  --card-face-1-lo: #2f5580;
+  --card-face-2-hi: #32695a;
+  --card-face-2-lo: #28584a;
+  --card-face-3-hi: #565189;
+  --card-face-3-lo: #4a4670;
+  --card-face-4-hi: #47596d;
+  --card-face-4-lo: #3d4f60;
+  --card-face-5-hi: #7a6640;
+  --card-face-5-lo: #6b5836;
+  --card-face-6-hi: #1f7078;
+  --card-face-6-lo: #196269;
+
+  --slot-dash: #4d6472;
 
   /* 深处阴影更重 */
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.5);
   --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.5), 0 16px 36px rgba(0, 0, 0, 0.55);
-  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 /* ---- 暖纸（浅色护眼）：米黄纸底 + 暖墨；语义五色向暖压深半档保米底对比 ---- */
@@ -200,9 +236,22 @@ body {
   --card-face-4: #33424e;
   --card-face-5: #5c4a2f;
   --card-face-6: #14535a;
+  --card-face-1-hi: #2f5580;
+  --card-face-1-lo: #1a3757;
+  --card-face-2-hi: #28584a;
+  --card-face-2-lo: #173a2f;
+  --card-face-3-hi: #4a4670;
+  --card-face-3-lo: #322f4b;
+  --card-face-4-hi: #3d4f60;
+  --card-face-4-lo: #29353f;
+  --card-face-5-hi: #6b5836;
+  --card-face-5-lo: #4b3c25;
+  --card-face-6-hi: #196269;
+  --card-face-6-lo: #0f4247;
+
+  --slot-dash: #b3a284;
 
   /* 暖调阴影 */
   --shadow-card: 0 1px 2px rgba(93, 72, 38, 0.08), 0 10px 28px rgba(93, 72, 38, 0.12);
   --shadow-lift: 0 2px 4px rgba(93, 72, 38, 0.1), 0 16px 36px rgba(93, 72, 38, 0.16);
-  --shadow-panel: 0 1px 2px rgba(93, 72, 38, 0.07);
 }

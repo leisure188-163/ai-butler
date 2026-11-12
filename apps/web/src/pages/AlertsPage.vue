@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { AccountItem, CredentialItem, PageName, RunItem } from "../types";
-import { fmtTime } from "../utils";
+import { fmtTime, signalSeal } from "../utils";
 
 const props = defineProps<{
   pending: RunItem[];
@@ -34,9 +34,8 @@ const total = computed(() => props.pending.length + expiring.value.length + unwe
   <template v-if="total > 0">
     <section v-if="pending.length" class="section" aria-label="待处理">
       <h2 class="section-title">待处理</h2>
-      <ul class="rows panel">
+      <ul class="rows sheet">
         <li v-for="item in pending" :key="item.id" class="row">
-          <span class="lamp" :class="`lamp--${item.signal}`" aria-hidden="true"></span>
           <div class="row-main">
             <p class="row-title">
               {{ item.account_id }}
@@ -52,6 +51,7 @@ const total = computed(() => props.pending.length + expiring.value.length + unwe
               </ul>
             </details>
           </div>
+          <span class="stamp" :class="`stamp--${item.signal}`">{{ signalSeal(item.signal) }}</span>
           <span class="row-time">{{ fmtTime(item.started_at) }}</span>
         </li>
       </ul>
@@ -59,15 +59,15 @@ const total = computed(() => props.pending.length + expiring.value.length + unwe
 
     <section v-if="expiring.length" class="section" aria-label="即将到期">
       <h2 class="section-title">即将到期</h2>
-      <ul class="rows panel">
+      <ul class="rows sheet">
         <li v-for="{ account, cred } in expiring" :key="`${account.account_id}-${cred.kind}`" class="row">
-          <span class="lamp lamp--notice" aria-hidden="true"></span>
           <div class="row-main">
             <p class="row-title">{{ account.account_id }}</p>
             <p class="row-sub">
               {{ cred.kind }} · 有效期至 <span class="num">{{ fmtTime(cred.expires_at) }}</span>
             </p>
           </div>
+          <span class="stamp stamp--notice">{{ signalSeal(cred.signal) }}</span>
           <span class="row-actions">
             <button class="btn btn--ghost" @click="emit('navigate', '卡包')">去卡包</button>
           </span>
@@ -77,14 +77,14 @@ const total = computed(() => props.pending.length + expiring.value.length + unwe
 
     <section v-if="unwell.length" class="section" aria-label="需要留意">
       <h2 class="section-title">需要留意</h2>
-      <ul class="rows panel">
+      <ul class="rows sheet">
         <li v-for="account in unwell" :key="account.account_id" class="row">
-          <span class="lamp" :class="`lamp--${account.signal}`" aria-hidden="true"></span>
           <div class="row-main">
             <p class="row-title">{{ account.account_id }}</p>
             <p v-if="account.evidence.length" class="row-sub">{{ account.evidence.join("；") }}</p>
             <p v-if="account.repair_hint" class="row-fix">建议：{{ account.repair_hint }}</p>
           </div>
+          <span class="stamp" :class="`stamp--${account.signal}`">{{ signalSeal(account.signal) }}</span>
           <span class="row-actions">
             <button class="btn btn--ghost" @click="emit('navigate', '卡包')">去卡包</button>
           </span>

@@ -25,7 +25,7 @@ function onThemeChange(event: Event) {
 
   <section class="section" aria-label="通用">
     <h2 class="section-title">通用</h2>
-    <div class="panel">
+    <div class="sheet">
       <div class="field">
         <label class="field-label" for="set-theme">主题</label>
         <select id="set-theme" class="input" :value="settings.theme" @change="onThemeChange">
@@ -65,7 +65,7 @@ function onThemeChange(event: Event) {
 
   <section class="section" aria-label="提醒规则">
     <h2 class="section-title">提醒规则</h2>
-    <div class="panel">
+    <div class="sheet">
       <div class="field">
         <span class="field-label">到期预警窗</span>
         <span class="field-value">3 天</span>
@@ -80,7 +80,7 @@ function onThemeChange(event: Event) {
 
   <section class="section" aria-label="关于">
     <h2 class="section-title">关于</h2>
-    <div class="panel">
+    <div class="sheet">
       <div class="field">
         <span class="field-label">产品</span>
         <span class="field-value">Kabao（卡包）· 本地优先的 AI 账号管家</span>

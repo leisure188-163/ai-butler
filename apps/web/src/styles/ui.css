@@ -34,20 +34,6 @@
 }
 .btn--ghost:hover { color: var(--color-ink); }
 
-/* ---- 航海……状态灯（色相只由 core signal 分类决定）---- */
-.lamp {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex: none;
-  align-self: center;
-}
-.lamp--ok { background: var(--color-ok); box-shadow: 0 0 0 3px var(--color-ok-weak); }
-.lamp--notice { background: var(--color-notice); box-shadow: 0 0 0 3px var(--color-notice-weak); }
-.lamp--attention { background: var(--color-attention); box-shadow: 0 0 0 3px var(--color-attention-weak); }
-.lamp--danger { background: var(--color-danger); box-shadow: 0 0 0 3px var(--color-danger-weak); }
-.lamp--quiet { background: var(--color-quiet); box-shadow: none; }
-
 /* ---- 页头 / 分区 ---- */
 .page-title {
   margin: 0;
@@ -65,12 +51,13 @@
   color: var(--color-text-muted);
 }
 
-/* ---- 面板与行 ---- */
-.panel {
+/* ---- 面板与行 ----
+   容器一律 .sheet 细线框（浮板退役）；列表也可裸账本行；
+   状态一律行尾墨印（.stamp），不再有圆点灯。 */
+.sheet {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-panel);
+  border-radius: var(--radius-sm);
 }
 .rows { list-style: none; margin: 0; padding: 0; }
 .row {
@@ -159,7 +146,7 @@
   border-bottom: 1px solid var(--color-border);
   font-size: var(--text-sm);
 }
-.panel .field:last-child { border-bottom: none; }
+.sheet .field:last-child { border-bottom: none; }
 .field-label { color: var(--color-ink); }
 .field-value { color: var(--color-ink); text-align: right; }
 .field-value--muted { color: var(--color-text-muted); }

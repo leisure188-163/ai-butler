@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import BizCard from "../components/BizCard.vue";
+import CardDetail from "../components/CardDetail.vue";
 import type { AccountItem, AppItem } from "../types";
-import { earliestExpiry, faceOf, fmtTime } from "../utils";
+import { earliestExpiry, faceOf } from "../utils";
 
 const props = defineProps<{
   apps: AppItem[];
@@ -19,13 +20,23 @@ const emit = defineEmits<{
 }>();
 
 const selectedId = ref<string | null>(null);
-const selected = computed(() => selectedId.value);
 const selectedAccount = computed(() =>
   selectedId.value ? props.accounts.find((a) => a.account_id === selectedId.value) ?? null : null,
 );
+const selectedApp = computed(() => {
+  const acc = selectedAccount.value;
+  return acc ? props.apps.find((x) => x.account_id === acc.account_id) ?? null : null;
+});
 
-const importableCount = computed(() => props.apps.filter((a) => !a.account_id).length);
+const emptyApps = computed(() => props.apps.filter((a) => !a.account_id));
+const importableCount = computed(() => emptyApps.value.length);
 const claimableCount = computed(() => props.apps.filter((a) => a.account_id).length);
+
+const stats = computed(() => {
+  const unwell = props.accounts.filter((a) => a.signal !== "ok").length;
+  const base = `${props.apps.length} 应用 · ${props.accounts.length} 卡`;
+  return unwell ? `${base} · ${unwell} 待留意` : base;
+});
 
 function toggle(accountId: string) {
   selectedId.value = selectedId.value === accountId ? null : accountId;
@@ -34,20 +45,11 @@ function toggle(accountId: string) {
 
 <template>
   <header class="head">
-    <h1 class="page-title">卡包</h1>
-    <p class="page-sub">应用接入与卡的体检明细。</p>
-  </header>
-
-  <p
-    v-if="msg"
-    class="action-msg"
-    :class="msg.tone === 'ok' ? 'action-msg--ok' : 'action-msg--warn'"
-    role="status"
-  >{{ msg.text }}</p>
-
-  <section class="section" aria-label="应用">
-    <div class="section-head">
-      <h2 class="section-title">应用</h2>
+    <div class="head-row">
+      <div>
+        <h1 class="page-title">卡包</h1>
+        <p class="page-sub">{{ stats }}</p>
+      </div>
       <span class="row-actions">
         <button
           class="btn"
@@ -61,116 +63,126 @@ function toggle(accountId: string) {
         >一键领取{{ claimableCount ? `（${claimableCount}）` : "" }}</button>
       </span>
     </div>
-    <ul v-if="apps.length" class="rows panel">
-      <li v-for="app in apps" :key="app.id" class="row">
-        <span
-          class="lamp"
-          :class="app.account_id ? 'lamp--ok' : 'lamp--quiet'"
-          aria-hidden="true"
-        ></span>
-        <div class="row-main">
-          <p class="row-title">
-            {{ app.display }}
-            <span class="row-sub mono">{{ app.id }}</span>
-          </p>
-          <p class="row-sub">
-            {{ app.account_id ? `已导入 · ${app.account_id}` : "未导入——先导入才能领取" }}
-            <template v-if="app.schedule_times.length">
-              · 时间表 {{ app.schedule_times.join(" ") }}
-            </template>
-          </p>
-        </div>
-        <span class="row-actions">
-          <button class="btn" :disabled="busyTarget !== null" @click="emit('import', app.id)">导入</button>
-          <button
-            class="btn btn--primary"
-            :disabled="busyTarget !== null || !app.account_id"
-            @click="emit('claim', app.id)"
-          >领取</button>
-        </span>
-      </li>
-    </ul>
-    <p v-else class="quietline">还没有接入任何应用。</p>
-  </section>
+  </header>
 
-  <section class="section" aria-label="卡">
-    <h2 class="section-title">卡</h2>
-    <div v-if="accounts.length" class="wall">
+  <p
+    v-if="msg"
+    class="action-msg"
+    :class="msg.tone === 'ok' ? 'action-msg--ok' : 'action-msg--warn'"
+    role="status"
+  >{{ msg.text }}</p>
+
+  <div class="rack">
+    <section class="stack" aria-label="卡">
       <BizCard
         v-for="account in accounts"
         :key="account.account_id"
         :issuer="apps.find((x) => x.account_id === account.account_id)?.display ?? '未关联应用'"
         :account-id="account.account_id"
+        :level="account.level"
         :signal="account.signal"
         :expires-at="earliestExpiry(account)"
         :face="faceOf(account.account_id)"
         :selected="selectedId === account.account_id"
         @activate="toggle(account.account_id)"
       />
-    </div>
-    <p v-else class="quietline">还没有卡——导入应用后自动生成。</p>
+      <button
+        v-for="app in emptyApps"
+        :key="app.id"
+        class="slot"
+        :disabled="busyTarget !== null"
+        @click="emit('import', app.id)"
+      >
+        <span class="slot-plus" aria-hidden="true">＋</span>
+        导入 {{ app.display }}
+      </button>
+      <p v-if="!accounts.length && !emptyApps.length" class="quietline">
+        还没有接入任何应用——有连接器装好后会出现在这里。
+      </p>
+    </section>
 
-    <div v-if="selected" class="detail panel">
-      <p class="detail-title">
-        {{ apps.find((x) => x.account_id === selected)?.display ?? "未关联应用" }}
-        <span class="row-sub mono">{{ selected }}</span>
-        <span class="row-sub">· {{ accounts.find((a) => a.account_id === selected)?.level }}</span>
-      </p>
-      <ul class="creds">
-        <li v-for="cred in selectedAccount?.credentials ?? []" :key="cred.kind" class="cred">
-          <span class="lamp lamp--mini" :class="`lamp--${cred.signal}`" aria-hidden="true"></span>
-          <span>{{ cred.kind }}</span>
-          <span class="row-sub num" v-if="cred.expires_at">有效期至 {{ fmtTime(cred.expires_at) }}</span>
-          <span class="row-sub">{{ cred.level }}</span>
-        </li>
-      </ul>
-      <p v-if="selectedAccount && selectedAccount.evidence.length" class="row-sub">
-        {{ selectedAccount.evidence.join("；") }}
-      </p>
-      <p v-if="selectedAccount?.repair_hint" class="row-fix">
-        建议：{{ selectedAccount.repair_hint }}
-      </p>
-    </div>
-  </section>
+    <aside class="side" aria-label="卡详情">
+      <CardDetail
+        :account="selectedAccount"
+        :app="selectedApp"
+        :busy="busyTarget !== null"
+        @claim="emit('claim', $event)"
+      />
+    </aside>
+  </div>
 </template>
 
 <style scoped>
 .head { padding-top: var(--space-2); }
-
-.section-head {
+.head-row {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-4);
   flex-wrap: wrap;
 }
-.section-head .section-title { margin-bottom: 0; }
 
-.wall {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: var(--space-5);
-  justify-items: center;
+/* 钱包架：左卡堆 + 右详情，细线分隔（不浮板） */
+.rack {
+  margin-top: var(--space-6);
+  display: flex;
+  align-items: flex-start;
 }
-
-.detail {
-  margin-top: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-}
-.detail-title { margin: 0; font-size: var(--text-md); }
-.creds {
-  list-style: none;
-  margin: var(--space-3) 0 0;
-  padding: 0;
+.stack {
+  flex: 1.6;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-right: var(--space-6);
 }
-.cred {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
+.side {
+  flex: 1;
+  min-width: 260px;
+  border-left: 1px solid var(--color-border);
+  padding-left: var(--space-6);
+  position: sticky;
+  top: var(--space-6);
+}
+
+.slot {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 1.586;
+  border: 1.5px dashed var(--slot-dash);
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
   font-size: var(--text-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-base),
+    color var(--motion-base);
 }
-.lamp--mini { width: 6px; height: 6px; align-self: center; }
+.slot:hover:not(:disabled) { border-color: var(--color-accent); color: var(--color-accent); }
+.slot:disabled { opacity: 0.45; cursor: not-allowed; }
+.slot-plus { font-size: var(--text-xl); line-height: 1; }
+
+/* 窄屏：详情下沉为卡堆之下的展开区 */
+@media (max-width: 900px) {
+  .rack { flex-direction: column; }
+  .stack { padding-right: 0; }
+  .side {
+    position: static;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+    padding-left: 0;
+    padding-top: var(--space-4);
+    margin-top: var(--space-2);
+  }
+}
 </style>

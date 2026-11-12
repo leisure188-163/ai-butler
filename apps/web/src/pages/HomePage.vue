@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import BizCard from "../components/BizCard.vue";
 import type { AccountItem, AppItem, PageName, RunItem } from "../types";
-import { earliestExpiry, faceOf, fmtTime } from "../utils";
+import { earliestExpiry, faceOf, fmtTime, signalSeal } from "../utils";
 
 const props = defineProps<{
   accounts: AccountItem[];
@@ -44,6 +44,7 @@ function issuerOf(account: AccountItem): string {
       :key="account.account_id"
       :issuer="issuerOf(account)"
       :account-id="account.account_id"
+      :level="account.level"
       :signal="account.signal"
       :expires-at="earliestExpiry(account)"
       :face="faceOf(account.account_id)"
@@ -59,9 +60,8 @@ function issuerOf(account: AccountItem): string {
 
   <section class="section" aria-label="待处理">
     <h2 class="section-title">待处理</h2>
-    <ul v-if="pending.length" class="rows panel">
+    <ul v-if="pending.length" class="rows sheet">
       <li v-for="item in pending" :key="item.id" class="row">
-        <span class="lamp" :class="`lamp--${item.signal}`" aria-hidden="true"></span>
         <div class="row-main">
           <p class="row-title">
             {{ item.account_id }}
@@ -77,6 +77,7 @@ function issuerOf(account: AccountItem): string {
             </ul>
           </details>
         </div>
+        <span class="stamp" :class="`stamp--${item.signal}`">{{ signalSeal(item.signal) }}</span>
         <span class="row-time">{{ fmtTime(item.started_at) }}</span>
       </li>
     </ul>

@@ -126,8 +126,8 @@ signal 五分类色相纪律、动效 token（`--motion-*`、reduced-motion 归�
 **ui.css**
 
 - 删除：`.lamp` 全系（含 `.lamp--mini`）。
-- 收窄：`.panel` 注释改为设置件/表件专用；账本行基准件（`.rows/.row`）保留并
-  补一条「行尾墨印」示例注释。
+- 收窄：新增 `.sheet` 细线框（各页容器统一用）；`.panel` 在全部页面改用 `.sheet`
+  后删除，连同 `--shadow-panel` token；账本行基准件（`.rows/.row`）保留为行尾墨印形态。
 
 **组件**
 
