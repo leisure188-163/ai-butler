@@ -217,7 +217,7 @@ def check_sdk_freshness(root: Path) -> list[str]:
     r = subprocess.run(probe, shell=True, cwd=root,
                        capture_output=True, text=True, timeout=300)
     if r.returncode != 0:
-        tail = (r.stderr.strip().splitlines() or ["导出失败"])[-1]
+        tail = ((r.stderr or "").strip().splitlines() or ["导出失败"])[-1]
         return [f"无法从 server.main 导出 openapi.json,契约新鲜度不可验证: {tail}"]
     current = hashlib.sha256(r.stdout.encode()).hexdigest()
     hash_file = gen_dir / "openapi.sha256"
@@ -240,7 +240,9 @@ def check_tests(root: Path) -> list[str]:
         )
     except FileNotFoundError:
         return ["uv 不可用（未安装或不在 PATH）: 无法运行核心测试，请安装 uv 或去掉 --test"]
-    tail = (r.stdout + r.stderr).strip().splitlines()[-1:] or [""]
+    # stdout/stderr 理论上 capture_output 必非 None，但实测瞬态环境（shell profile
+    # 部分初始化）下崩溃过一次 None + str——门禁崩溃 = 门禁失明，全部 or "" 设防
+    tail = ((r.stdout or "") + (r.stderr or "")).strip().splitlines()[-1:] or [""]
     if r.returncode != 0:
         return [f"核心测试未通过: {tail[0]}"]
     # 本仓定制（2026-11-12）：web 端类型检查收编进门禁——types.ts 派生自
@@ -255,7 +257,7 @@ def check_tests(root: Path) -> list[str]:
         shell=True, cwd=root, capture_output=True, text=True, timeout=300,
     )
     if wt.returncode != 0:
-        tails = (wt.stdout + wt.stderr).strip().splitlines()[-5:]
+        tails = ((wt.stdout or "") + (wt.stderr or "")).strip().splitlines()[-5:]
         return ["web 端类型检查未通过（契约漂移?）: " + " | ".join(tails)]
     return []
 
