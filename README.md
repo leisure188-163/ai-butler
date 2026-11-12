@@ -50,7 +50,7 @@ pnpm dev:web                                # Web
 cd apps/desktop && npm i && WEB_URL=http://localhost:5173 npm start   # Electron 壳
 ```
 
-架构自检（七项门禁，必须全绿）：
+架构自检（八项门禁，必须全绿）：
 
 ```bash
 python scripts/verify_project.py --project . --test

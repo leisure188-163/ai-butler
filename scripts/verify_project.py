@@ -10,9 +10,14 @@
      (fastapi/sqlalchemy/typer/uvicorn/httpx/requests/pydantic/flask/django/starlette/rich/click/aiohttp)
      这是"一核多端"的铁律: 核心只依赖标准库
   3. 依赖方向性 —— 各端依赖核心(core)，核心不得反向依赖任何端
-  4. Token 引用闭合 —— web 端引用的 var(--x) 必须在 tokens.css(或本文件)定义,
-     防止"样式残缺但不报错"的隐性破损(真实事故: tokens.css 缺 --space-5 等)
-  5. 测试通过性 —— (--test) 运行 uv run pytest packages/core/tests
+  4. 六边形桥闭合 —— 端只准经 packages/engine 的 bridge 触达引擎, 端间禁止互引
+  5. Token 引用闭合 —— web 端引用的 var(--x) 必须在 tokens.css(或本文件)定义,
+     防止"样式残缺但不报错"的隐性破损(真实事故: tokens.css 缺 --space-5 等);
+     带显式回退值的 var(--x, fallback) 视为语义自洽放行
+  6. 契约新鲜度 —— 重算 server openapi 指纹与 packages/sdk 记录比对
+  7. 无空包残留 —— 改名/重构遗留的空包目录当场报错
+  8. 测试通过性 —— (--test) uv run pytest 跑根 pyproject testpaths 全量
+     (core/engine/connectors/server)
 """
 from __future__ import annotations
 
