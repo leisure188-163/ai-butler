@@ -301,6 +301,11 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 
+/* 与 SideNav 的 900px 断点配套：侧栏变顶部横条，壳随之转纵向，否则 main 被挤出屏 */
+@media (max-width: 900px) {
+  .shell { flex-direction: column; }
+}
+
 @media (max-width: 640px) {
   .content { padding: var(--space-5) var(--space-4) var(--space-8); }
 }
