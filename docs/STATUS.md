@@ -15,7 +15,15 @@ Kabao（卡包）单一词汇体系，verify 八项全绿；UI = 「卡纸与墨
 （prefers-color-scheme 实时跟随，D2 v4 / A3-01）；web DTO 派生自 SDK 契约
 （types.ts 零手写字段清单），vue-tsc 类型检查收编门禁测试项；窄视口 ≤900px
 侧栏转横条后主区被挤出屏已修（.shell 配套转纵向）。
-**接下来：R2 用量立项（取证清单待 Windows 会话执行）**。
+**R2 用量取证 spike 完成（2026-11-12，Windows 真机只读）**：取证清单四家全落
+（结论回填各连接器 PROTOCOL §7 + 清单 §6 矩阵）。核心：四家逐调用 tokens
+双通道全 UNSUPPORTED，用量采集按「聚合用量 + 额度快照 + 入账流水」三型重定
+义；额度雷达输入四家 API 全可得（trae ent_usage 29 包 / qoder v2/me/usage
+addOnQuota / doubao quota-records 入账流水 / workbuddy get-user-resource 85
+包分账本 remain 1894）；doubao CDP 读用量无增量价值（UI 只有累计获得，与
+detail 重复）——ADR-005 三选一裁决材料齐，倾向不做。顺手清 docker-compose
+postgres/JWT_SECRET 残留（与 SQLite 单机架构漂移，Dockerfile 保留）。
+**接下来：R2 方案对比 → 分节设计获批 → spec 落盘**。
 
 ## 里程碑
 
@@ -24,20 +32,24 @@ Kabao（卡包）单一词汇体系，verify 八项全绿；UI = 「卡纸与墨
 | 设计 + M0 + M1 | 定位/架构/详细设计；一核多端骨架；四连接器真机验收 | ✅ 完成（详见 git 历史与各 PROTOCOL.md） |
 | **R1 品牌重塑** | Kabao 更名 + 词表 + 数据自动迁移（ADR-007 / A1-03） | **✅ 完成（2026-11-12，批①②③）** |
 | **UI 重设计** | 「卡纸与墨」主题 + 五页落地（设计能力包流程，A3-01/D2） | **✅ 完成（2026-11-12）** |
-| R2 | 用量采集 + 额度雷达 + MCP Server | **立项中**（纸面裁决齐，取证清单待执行，见「当前挂账」） |
+| R2 | 用量采集 + 额度雷达 + MCP Server | **立项中**（纸面裁决齐 + 真机取证 spike 完成 2026-11-12，待方案对比与 spec 落盘） |
 | R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | 未开始（广度定位关键一步，竞品空白） |
 | R4 | 网关独立进程（账号池/反代/规则引擎） | 未开始 |
 | R5 | 会话三级迁移 | 未开始 |
 
 ## 当前挂账
 
-0. **R2 立项（纸面裁决已齐，阻塞于真机取证）**：
+0. **R2 立项（纸面裁决齐 + 取证 spike 完成，剩方案对比与 spec）**：
    - **已裁四项**：①立项路径 = 先真机取证 spike；②MCP 宿主 = stdio 薄壳走
      server 契约 API；③工具集 = 查额度/查用量/触发签到；④范围不含领取扩展
-   - **当前动作 = Windows 会话执行取证清单**：docs/plans/M2-用量取证清单.md
-     （逐家三问 + 纪律 + 可得性矩阵）
-   - 取证后剩余待澄清（依赖取证结果）：额度雷达数据模型（entitlement 快照 +
-     消耗速率？）、doubao CDP 与用量采集结合（ADR-005 遗留「R2 另裁」）
+   - **取证 spike 已完成（2026-11-12）**：docs/plans/M2-用量取证清单.md
+     §2-§5 全落 + §6 矩阵填实；结论入各连接器 PROTOCOL §7——四家逐调用
+     tokens 双通道 UNSUPPORTED，用量采集按「聚合 + 快照 + 流水」三型重定义；
+     额度雷达四家 API 全可得；doubao CDP 读用量无增量价值（裁决材料齐，
+     倾向 detail 裸读 + records 裸读，CDP 留给签到）
+   - **下一步 = 方案对比 → 分节设计获批 → spec 落盘**：A2-01 UsageSample
+     字段需按取证结论重定义（原 tokens_in/out 逐调用口径落空）；额度雷达
+     数据模型（entitlement 快照 + 耗尽日期）按各包 CycleEnd/ExpiredTime 设计
    - **既有 spec 锚点（写 spec 直接引用）**：A2-01 已预留
      `usage.collect`/`usage.query` ActionKind + UsageSample 实体
      （tokens_in/out / model / ts / source(client|gateway|api)）+ QUOTA_LOW

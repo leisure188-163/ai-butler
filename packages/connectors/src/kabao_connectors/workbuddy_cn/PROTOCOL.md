@@ -104,3 +104,51 @@ NO_AUTH 演练走 :8011 第二实例 + `WORKBUDDY_AUTH_FILE` 覆盖，真凭据�
   + `refresh_at: "00:00"` **显式声明**（adapter 连接器必须显式——declarative
   回落分支对 adapter 会 KeyError）
 - 无 `credential` 段（现用现取零申报，ADR-006 决策 3）
+
+## 7. 用量取证（2026-11-12，M2 真机只读 spike，WorkBuddy 5.9.3 / CodeBuddy CN 4.12.3 / Windows）
+
+> M2-用量取证清单 §5 四项全落；只读取证（API 最小头试探，M1 凭据链原样
+> 复用——$wbEncrypted 信封解链一次通过），token/凭据未进任何记录。
+
+### 7.1 额度主通道：get-user-resource = 85 包分账本（额度雷达全量输入）
+
+`POST /v2/billing/meter/get-user-resource`——客户端 `getAccountUsage` 的
+个人分支（`getPersonalUsage`，enterpriseId 为空即走此分支；企业分支
+get-enterprise-user-usage 个人账号不适用未探）：
+
+- body `{PageNumber, PageSize, ProductCode: "p_tcaca", Status: [0, 3],
+  PackageEndTimeRangeBegin/End}`——**时间戳必须是字符串**（Go 结构体
+  string 类型，传数字 400 unmarshal 错误，首探踩坑实证）
+- 响应 `data.Response.Data{TotalCount: 85, TotalDosage, Accounts[]}`：
+  逐包 `CapacitySize/CapacityUsed/CapacityRemain` + `CycleCapacity*` 三件套
+  + `*Precise` 字符串版（JS number 精度防御）+ `CapacityUnit: "credits"` +
+  `CycleStartTime/CycleEndTime/ExpiredTime` + `PackageName/SubProductName`
+  （包来源）+ `Status`（0=在用 3=已耗尽）
+- **本机实况**：活跃 27 包 remain=1894 / used=31（裂变包 26 + 个人体验版 1，
+  TotalDosage 1894 = 活跃剩余合计）；耗尽 58 包 used=5112；活跃包
+  CycleEnd 2026-12-01 = **月度周期**
+- `POST /v2/billing/meter/get-payment-type` → `{paymentType: "free"}`（套餐形态）
+
+### 7.2 checkin-activity-status 全字段（M1 七字段之外新增 5）
+
+`active / today_checked_in / streak_days / is_streak_day / next_streak_day`（M1）+
+`daily_credit: 100` / `today_credit: 100` / `streak_bonus_days` /
+`streak_bonus_credit` / **`checkin_dates[]`（43 天逐日签到日历）**。
+
+### 7.3 成长中心 GET 三件语义（M1 §2.1 猜测定案）
+
+- `GET /v2/activity/growth/heatmap`：`cells[{date, score, has_new_buddy}]`
+  一年逐日——**活跃度日历，非用量图**（score 只认对话，与旧仓 NOTE-01 一致）
+- `GET /v2/activity/growth/energy`：`{balance: 5, total_consumed: 110,
+  total_earned: 115}` = **能量账本**（游戏化激励积分，非 API credits）
+- `GET /v2/activity/growth/buddy/quota`：`{affordable: 0, balance: 5,
+  cost_per_open: 10, max_open_count: 5}` = **盲盒配额**（cost 按 energy balance）
+- `GET /v2/activity/growth/streak`：连签 `streak{days, month_total_days,
+  month_consumed_days, next_tier…}` + `makeup_cards{balance, max}` +
+  `redemption_status{tier_*_count/status}` 全形状
+
+### 7.4 本地数据源：UNSUPPORTED（API 唯一通道）
+
+WorkBuddy logs（daemon/AgentModelResolver 生命周期，无用量数据）；
+CodeBuddyExtension Data = IDE 会话缓存（check-point/file-tree/history/
+genie-cache），无用量文件。逐调用 tokens 双通道 UNSUPPORTED。

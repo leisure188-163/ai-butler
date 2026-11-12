@@ -118,3 +118,48 @@ Base：`https://www.doubao.com`
   常量即可
 - 会话受限唯一恢复手段 = 重装客户端（新 session）；"手工点一次"是判别器
 - msToken 等 cookie 有时效——每次运行时 CDP 现取，绝不持久化（零凭据入 vault）
+
+## 7. 用量取证（2026-11-12，M2 真机只读 spike，客户端 2.36.6 / Windows）
+
+> M2-用量取证清单 §4 四项全落；只读取证（detail/quota-records 只读试探、
+> CDP DOM 只读、IndexedDB 拷读），Cookie 现取未持久化。注：取证当日客户端
+> 已从 2.35.8 自动更新至 2.36.6，请求形状无变化。
+
+### 7.1 额度余额：detail 无余额字段，UI 无余额展示
+
+- detail 全形状（data: campaign_code/example_cases/fission_campaign/
+  milestones/progress/tasks）里**只有奖励面额**：
+  tasks/milestones 的 `reward_summaries[]{reward_type: "quota_grant",
+  reward_amount}`（任务 100/项，里程碑 1300/500/200）+ 活动总额度池
+  `progress.total_amount`（= 累计可获得上限）——**无余额/已用量字段**
+- 资源串全族（ai-views bundle 13 端点）无 balance/剩余额度端点；
+  主聊天页 DOM 零额度元素；活动页 UI 只展示「累计获得额度 N 点」
+  （= detail.total_amount）
+
+### 7.2 新只读端点：quota/records = 入账流水
+
+`POST /alice/ug/campaign/quota/records/`，body `{cursor: "", page_size: N}`：
+
+- 响应 `data{has_more, next_cursor, records[]}`，逐条
+  `{amount, create_time_ms, record_id, task_code, task_name, unit: "POINT"}`
+- 本机全量 15 条（has_more=false）**全为正值** = **入账 ledger**，无消耗记录；
+  消耗量（tokens/credits 消耗）双通道 UNSUPPORTED
+- 签到 +200 关系实证：`task_code: "daily_signin"` amount=200，
+  **周一 400**（11-02/11-09 两个周一双实证），断签无补登记录
+- cursor 为 base64 JSON `{"create_time", "id"}`
+
+### 7.3 ADR-005 遗留三选一：裁决材料齐（倾向「detail 裸读，不做 CDP 读用量」）
+
+CDP DOM/截图实证（agent-explore 活动页 + doubao-chat 主聊天页）：界面能读到
+的额度信息只有「累计获得额度」（与 detail.total_amount 完全重复）——**CDP 读
+用量无增量价值**；用量通道建议 = detail 裸读（面额/活动池）+ quota/records
+裸读（入账流水），CDP 通道保留给签到点击（M1 既有）。
+
+### 7.4 本地数据源
+
+- IndexedDB `chrome_doubao-launcher_0.indexeddb.leveldb`：
+  `context_window_usage`（per-session 上下文占用：
+  `{system_prompt, messages, skills, tools, total_window_size: 256000}`）——
+  语义与 qoder 同款（上下文仪表非计费）
+- Local Storage 无结构化额度键（仅 `commerce_credit_config_enable` 开关、
+  `quota_exhausted` 零散碎片）；credits 余额无本地存储

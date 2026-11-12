@@ -119,3 +119,44 @@ Base：`https://openapi.qoder.com.cn`
   由 dock 重跑刷新，不做运行时缓存
 - `QODER_TOKEN` 环境变量手动供 token 的逃生门：**不迁移**——绕过 vault 的
   凭据注入路径违反最小授权（A2-02 §5）；手动场景 = 手动停靠
+
+## 7. 用量取证（2026-11-12，M2 真机只读 spike，客户端 0.4.8 / Windows）
+
+> M2-用量取证清单 §3 四项全落；只读取证（main.sqlite 拷副本只读、API 最小头
+> 一次），token/凭据未进任何记录。
+
+### 7.1 API 用量接口（主通道，鉴权复用 M1 凭据链验证通过）
+
+`GET https://openapi.qoder.com.cn/sash/api/v2/me/usage`（Bearer dt- token +
+Cosy-ClientType: "10" + 机器头组，缺机器头 → 静默空列表的老坑在此端点同样成立）：
+
+- `displayMode: "qoder"` + `qoderUsage{}`：
+  - `totalUsagePercentage: 0.78`（聚合用量比例）
+  - `userQuota{total/used/remaining: 全 0}` = 套餐配额（当前账号无）
+  - `addOnQuota{total: 2300, used: 1786, remaining: 514, unit: "credits",
+    detailUrl: "https://qoder.cn/account/usage"}` = **加量包额度快照**
+    （额度雷达「还剩多少」直采字段）
+  - `expiresAt/refreshAt: 253402214400000`（= 9999-12-31 占位）——当前形态
+    **无月度重置**；若账号将来带套餐配额，重置语义需重新取证
+  - `isPlanQuotaProrated / upgradeUrl` 升级引导字段
+- `v1/me/campaigns`（M1 既有）与 usage 端点相互独立
+
+### 7.2 桌面端用量 UI 数据源
+
+app.asar 内含 `totalUsagePercentage`/`expiresAt` 等字段解析代码（混淆 lookup
+形式）——桌面端用量页数据源 = v2/me/usage（detailUrl 指向网页版 qoder.cn/
+account/usage 旁证一致）。
+
+### 7.3 本地数据源（main.sqlite 拷副本只读）
+
+- `chat_session_context_usage` 表（88 行，per-session）：**上下文窗口占用
+  仪表**（snapshot_json：totalTokens/maxTokens/percentage/model/categories
+  [system_prompt/system_tools/messages/free_space]/sessionStats{messageCount/
+  toolCalls/linesChanged}）——语义是上下文占用，**非 credits 计费**
+- `chat_session_messages` 无 token/usage 列 → 逐调用本地 UNSUPPORTED
+- main.log：campaigns 响应痕迹（benefit kind=CREDITS amount=100，
+  validity RELATIVE_DAYS=30）——领取历史旁证；Local Storage 无 usage 键
+
+### 7.4 逐调用用量：双通道 UNSUPPORTED
+
+客户端不落逐调用 tokens，服务端只给聚合 percentage + 额度快照。

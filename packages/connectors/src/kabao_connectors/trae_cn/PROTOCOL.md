@@ -85,3 +85,38 @@ body  = 登录态 JSON：{ "token": <Cloud-IDE-JWT>, ... }
   声明式 `dynamic_headers`（改 YAML 不改代码——机制设计目标）
 - Linux 数据目录按惯例推定（`~/.config`），无取证——候选路径更长就用它
 - `req_source: 1` 的其他取值语义未取证（保持 1，与桌面端对齐）
+
+## 7. 用量取证（2026-11-12，M2 真机只读 spike，客户端 2.3.102035 / Windows）
+
+> M2-用量取证清单 §2 四项全落；只读取证（storage.json/state.vscdb 只读打开，
+> API 试探最小头一次），token/凭据未进任何记录。
+
+### 7.1 API 用量接口（主通道，鉴权复用 M1 凭据链验证通过）
+
+`POST https://api.trae.cn/trae/api/v2/pay/ide_user_ent_usage`，Cloud-IDE-JWT 头，
+body `{"require_usage": true, "req_source": 1}`：
+
+- `req_source` 是**数字枚举**（TS enum xYe）：OfficialSite=0 / IDE=1 / Lite=2 /
+  SoloWeb=3…——传字符串 "IDE" 得 400 Bad Request（首探踩坑实证）
+- 响应 `usage_summary{consumed_amount, consumption_ratio, total_amount}`：
+  **聚合用量**（已用/比例/总额度）
+- 响应 `user_entitlement_pack_list`：**29 包分账本**（逐包面额/余量/过期日）；
+  签到包 **31 天滚动过期、按最早过期优先消耗**；月度登录包 500/月
+
+### 7.2 本地数据源
+
+- `%APPDATA%\Trae CN\User\globalStorage\storage.json`：SS_AES 信封键（M1 凭据链）
+  + `iCubeServerData` entitlementInfo 旁证
+- `state.vscdb` ItemTable（347 键，只读拷副本）：`monthlyGranted` 横幅键
+  （8/9/10/11 月）= **月度重置实证**；`usageOver70` 横幅键 = 用量告警 UI 痕迹
+- logs/：只有 CPU 遥测，无用量数据
+
+### 7.3 逐调用用量：双通道 UNSUPPORTED
+
+UsageSample 本义字段（tokens_in/out / model / ts）本地与 API 均无——客户端
+不落逐调用痕迹，服务端只给聚合。M2 spec 需按聚合口径重定义。
+
+### 7.4 credits/extra_credits 语义（§2 清单首项）
+
+签到 status 响应字段 = **签到奖励包面额级**，非账户余额；账户余额看 7.1 的
+usage_summary / 包分账本。
