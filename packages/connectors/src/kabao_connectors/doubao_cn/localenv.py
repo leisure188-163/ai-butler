@@ -238,6 +238,10 @@ def _kill_pid(pid: int) -> None:
     proc = subprocess.run(
         ["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, timeout=15
     )
+    if proc.returncode == 128:
+        # 128 = 没有找到进程（2026-11-13 Windows 真机实证：探得与击杀间隙退出）——
+        # 杀净语义已达成，与 mac 分支 ProcessLookupError 宽容同事实同语义
+        return
     if proc.returncode != 0:
         raise RuntimeError(f"taskkill PID {pid} 失败（exit={proc.returncode}）")
 

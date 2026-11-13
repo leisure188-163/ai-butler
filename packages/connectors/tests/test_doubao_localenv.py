@@ -74,12 +74,24 @@ def test_kill_pid_uses_taskkill(monkeypatch):
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="taskkill 仅 Windows（mac 走 SIGKILL 分支）")
-def test_kill_pid_failure_raises(monkeypatch):
+def test_kill_pid_process_gone_is_success(monkeypatch):
+    """exit=128 = 没有找到进程（真机 2026-11-13：探得与击杀间隙退出）——
+    杀净语义已达成，不报错（与 mac 分支 ProcessLookupError 宽容同事实）。"""
     monkeypatch.setattr(
         localenv.subprocess, "run",
-        lambda cmd, **k: types.SimpleNamespace(returncode=128, stdout=b"", stderr=b"denied"),
+        lambda cmd, **k: types.SimpleNamespace(returncode=128, stdout=b"", stderr=b""),
     )
-    with pytest.raises(RuntimeError, match="128"):
+    localenv.real_env().kill_pid(123)  # 不抛即过
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="taskkill 仅 Windows（mac 走 SIGKILL 分支）")
+def test_kill_pid_failure_raises(monkeypatch):
+    """真失败（如 5 = 拒绝访问）照旧显式抛——宽容只限「已不在」这一事实。"""
+    monkeypatch.setattr(
+        localenv.subprocess, "run",
+        lambda cmd, **k: types.SimpleNamespace(returncode=5, stdout=b"", stderr=b"denied"),
+    )
+    with pytest.raises(RuntimeError, match="5"):
         localenv.real_env().kill_pid(123)
 
 
