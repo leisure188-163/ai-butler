@@ -1,0 +1,206 @@
+/**
+ * 账号域动作（conventions/04 §2.4，业务子域分包 2026-11-14）：
+ * 导入（本机接入扫描）/ 领取（手动）/ 体检（R3 网页通道）/ 一键批量 / 勾选批量。
+ *
+ * 纪律：busyTarget/actionMsg 归本域（collectUsage 用 collecting，无跨域共享）；
+ * 文案转述逐字保留（矩阵改版定稿文案）；CLAIMED/ALREADY 判定为既有先例，原样保留；
+ * refresh 由壳注入（动作完成后重拉全量）；ApiError 只管非 2xx，
+ * 网络异常原样传播（现状行为，不加兜底——红线 5）。
+ */
+import { ref } from "vue";
+import * as api from "../api";
+
+export function useAccountActions({ refresh }: { refresh: () => Promise<void> }) {
+  const busyTarget = ref<string | null>(null);
+  const actionMsg = ref<{ text: string; tone: "ok" | "warn" } | null>(null);
+
+  /* 应用动作：导入（本机接入扫描）/ 领取（手动领取）。结果如实展示，不造结论。 */
+  async function importApp(target: string) {
+    busyTarget.value = target;
+    actionMsg.value = null;
+    try {
+      const body = await api.importApp(target);
+      const issues = body.issues ?? [];
+      const imported = body.accounts ?? [];
+      actionMsg.value = {
+        text: imported.length
+          ? `已导入：${imported.join("、")}` + (issues.length ? ` · ${issues.join("；")}` : "")
+          : issues.length
+            ? issues.join("；")
+            : "没有发现可导入的卡。",
+        tone: imported.length ? "ok" : "warn",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `导入失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e; /* 网络异常原样传播（现状行为） */
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  async function claimApp(target: string) {
+    busyTarget.value = target;
+    actionMsg.value = null;
+    try {
+      const body = await api.createRun({ target });
+      actionMsg.value = {
+        text:
+          body.status === "CLAIMED" || body.status === "ALREADY"
+            ? `本轮领取完成（${body.status}）`
+            : `领取未完成：${body.status ?? "未终态"}` +
+              (body.repair_reason ? ` —— ${body.repair_reason}` : ""),
+        tone: body.status === "CLAIMED" || body.status === "ALREADY" ? "ok" : "warn",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `领取失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /* 体检探针（R3 网页通道）：kind=health.check 走同一 /runs 通道，结论如实转述 */
+  async function healthApp(target: string) {
+    busyTarget.value = target;
+    actionMsg.value = null;
+    try {
+      const body = await api.createRun({ target, kind: "health.check" });
+      const ok = body.status === "ALREADY";
+      actionMsg.value = {
+        text: ok
+          ? "体检通过：会话有效"
+          : `体检结论：${body.status ?? "未终态"}` +
+            (body.repair_reason ? ` —— ${body.repair_reason}` : ""),
+        tone: ok ? "ok" : "warn",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `体检失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /* 一键批量（R2 补）：导入全部未泊位 / 领取全部已泊位——选卡语义在 server，端只发起与转述 */
+  async function importAllApps() {
+    busyTarget.value = "batch";
+    actionMsg.value = { text: "正在扫描本机客户端…", tone: "ok" };
+    try {
+      const results = await api.importAllApps();
+      const imported = results.flatMap((r) => r.accounts);
+      const issues = results.flatMap((r) => r.issues.map((i) => `${r.target}：${i}`));
+      const empty = results
+        .filter((r) => !r.accounts.length && !r.issues.length)
+        .map((r) => r.target);
+      const text =
+        [
+          imported.length ? `已导入：${imported.join("、")}` : "",
+          empty.length ? `未发现卡：${empty.join("、")}` : "",
+          ...issues,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "没有待导入的应用。";
+      actionMsg.value = { text, tone: issues.length ? "warn" : "ok" };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = {
+          text: e.detail ?? `一键导入失败（HTTP ${e.status}）`,
+          tone: "warn",
+        };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  async function claimAllApps() {
+    busyTarget.value = "batch";
+    actionMsg.value = { text: "正在逐张领取…", tone: "ok" };
+    try {
+      const rows = await api.claimAllRuns();
+      const done = rows.filter((r) => r.signal === "ok").length;
+      const rest = rows
+        .filter((r) => r.signal !== "ok")
+        .map(
+          (r) =>
+            `${r.target}：${r.status ?? "未终态"}${r.repair_reason ? `（${r.repair_reason}）` : ""}`,
+        );
+      const text = rows.length
+        ? `共发起 ${rows.length} 张，完成 ${done} 张` + (rest.length ? ` · ${rest.join(" · ")}` : "")
+        : "还没有已泊位的卡——先导入应用。";
+      actionMsg.value = { text, tone: rest.length ? "warn" : "ok" };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = {
+          text: e.detail ?? `一键领取失败（HTTP ${e.status}）`,
+          tone: "warn",
+        };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /* 勾选批量领取（矩阵页）：逐个顺序执行（与 claim 单发同语义），结果如实逐条转述 */
+  async function claimMany(targets: string[]) {
+    if (!targets.length) return;
+    busyTarget.value = "batch";
+    actionMsg.value = null;
+    const lines: string[] = [];
+    const statuses: (string | null)[] = [];
+    try {
+      for (const target of targets) {
+        try {
+          const body = await api.createRun({ target });
+          statuses.push(body.status ?? null);
+          lines.push(
+            `${target}：${body.status ?? "未终态"}` +
+              (body.repair_reason ? `（${body.repair_reason}）` : ""),
+          );
+        } catch (e) {
+          /* 现状两分支：非 2xx 带 detail，网络失败记「请求失败」 */
+          if (e instanceof api.ApiError) {
+            lines.push(`${target}：${e.detail ?? `HTTP ${e.status}`}`);
+          } else {
+            lines.push(`${target}：请求失败`);
+          }
+          statuses.push(null);
+        }
+      }
+      const done = statuses.every((s) => s === "CLAIMED" || s === "ALREADY");
+      actionMsg.value = { text: lines.join(" · "), tone: done ? "ok" : "warn" };
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  return {
+    busyTarget,
+    actionMsg,
+    importApp,
+    claimApp,
+    healthApp,
+    importAllApps,
+    claimAllApps,
+    claimMany,
+  };
+}
