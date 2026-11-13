@@ -1,38 +1,64 @@
 <script setup lang="ts">
 /**
- * Kabao 管理台 · 应用壳（A3-01：侧边栏 IA，总览 = 首页/卡包/雷达/记录；管理 = 提醒/设置）
+ * Kabao 管理台 · 应用壳（A3-01 矩阵改版：四页 IA = 账号/用量/记录/设置，矩阵即首页）
  *
  * 渲染纪律（A3-01，红线 2）：
  * - 状态染色只消费 core 出产的 signal 分类（ok/notice/attention/danger/quiet），
  *   不认识 Status / HealthLevel 字面量本身；status 仅在结果列如实展示原文
  * - repair_hint / evidence 是 core 产文案，直渲染不加工
- * - 页面拆在 pages/，本壳只持数据、轮询与动作；页面状态走 hash（可直链可后退）
+ * - 页面拆在 pages/，本壳只持数据、轮询与动作；页面状态走 hash（可直链可后退）；
+ *   旧直链（#/home、#/wallet、#/card、#/alerts、#/radar）静默重定向到规范 hash
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import SideNav from "./components/SideNav.vue";
-import HomePage from "./pages/HomePage.vue";
-import WalletPage from "./pages/WalletPage.vue";
-import RadarPage from "./pages/RadarPage.vue";
+import AccountsPage from "./pages/AccountsPage.vue";
+import UsagePage from "./pages/UsagePage.vue";
 import LogPage from "./pages/LogPage.vue";
-import AlertsPage from "./pages/AlertsPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
-import type { AccountItem, AppItem, ImportResult, PageName, RunItem, Settings, ThemeName } from "./types";
+import type {
+  AccountItem,
+  AppItem,
+  CollectOutcome,
+  ImportResult,
+  PageName,
+  RadarRow,
+  RunItem,
+  Settings,
+  ThemeName,
+} from "./types";
+import { isToday } from "./utils";
 
 const apiBase = "/api/v1";
 
 const hashByPage: Record<PageName, string> = {
-  首页: "home",
-  卡包: "wallet",
-  雷达: "radar",
+  账号: "accounts",
+  用量: "usage",
   记录: "log",
-  提醒: "alerts",
   设置: "settings",
 };
-const pageByHash = Object.fromEntries(
-  Object.entries(hashByPage).map(([page, hash]) => [hash, page]),
-) as Record<string, PageName>;
+/* 旧直链兼容（矩阵改版）：别名命中即 replaceState 重写为规范 hash */
+const legacyHashByPage: Record<string, PageName> = {
+  home: "账号",
+  wallet: "账号",
+  card: "账号",
+  alerts: "账号",
+  radar: "用量",
+};
+const pageByHash = {
+  ...Object.fromEntries(Object.entries(hashByPage).map(([page, hash]) => [hash, page])),
+  ...legacyHashByPage,
+} as Record<string, PageName>;
 
-const active = ref<PageName>(pageByHash[location.hash.slice(2)] ?? "首页");
+function resolveActive(): PageName {
+  const hash = location.hash.slice(2);
+  const page = pageByHash[hash] ?? "账号";
+  if (pageByHash[hash] && hash !== hashByPage[page]) {
+    history.replaceState(null, "", `#/${hashByPage[page]}`);
+  }
+  return page;
+}
+
+const active = ref<PageName>(resolveActive());
 
 function onHashChange() {
   const page = pageByHash[location.hash.slice(2)];
@@ -54,16 +80,25 @@ const loadedAt = ref("");
 const busyTarget = ref<string | null>(null);
 const actionMsg = ref<{ text: string; tone: "ok" | "warn" } | null>(null);
 const serverInfo = ref<{ title: string; version: string } | null>(null);
+/* 用量数据上收壳（矩阵额度列与用量页共用；radar 拉取失败静默为 []，不阻塞主数据） */
+const radarRows = ref<RadarRow[]>([]);
+const collecting = ref(false);
+const usageLoadedAt = ref("");
+const usageMsg = ref<{ text: string; tone: "ok" | "warn" } | null>(null);
 
 async function loadAll() {
   loading.value = true;
   loadError.value = "";
   try {
-    const [acc, run, pend, appList] = await Promise.all([
+    const [acc, run, pend, appList, radar] = await Promise.all([
       fetch(`${apiBase}/accounts`),
       fetch(`${apiBase}/runs?limit=50`),
       fetch(`${apiBase}/pending?limit=20`),
       fetch(`${apiBase}/apps`),
+      /* radar 独立容错：失败静默为 []（矩阵额度列显示「—」），不拖垮主数据 */
+      fetch(`${apiBase}/usage/radar`)
+        .then((r) => (r.ok ? (r.json() as Promise<RadarRow[]>) : []))
+        .catch(() => [] as RadarRow[]),
     ]);
     if (!acc.ok || !run.ok || !pend.ok || !appList.ok) {
       throw new Error(`HTTP ${acc.status}/${run.status}/${pend.status}/${appList.status}`);
@@ -72,10 +107,12 @@ async function loadAll() {
     runs.value = (await run.json()) as RunItem[];
     pending.value = (await pend.json()) as RunItem[];
     apps.value = (await appList.json()) as AppItem[];
+    radarRows.value = radar;
     loadedAt.value = new Intl.DateTimeFormat("zh-CN", {
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date());
+    usageLoadedAt.value = loadedAt.value;
   } catch {
     loadError.value = "够不到本机服务（server 未启动？）——启动后到侧栏点刷新。";
   } finally {
@@ -256,6 +293,99 @@ async function claimAllApps() {
   }
 }
 
+/* 勾选批量领取（矩阵页）：逐个顺序执行（与 claim 单发同语义），结果如实逐条转述 */
+async function claimMany(targets: string[]) {
+  if (!targets.length) return;
+  busyTarget.value = "batch";
+  actionMsg.value = null;
+  const lines: string[] = [];
+  const statuses: (string | null)[] = [];
+  try {
+    for (const target of targets) {
+      try {
+        const resp = await fetch(`${apiBase}/runs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target }),
+        });
+        const body = (await resp.json()) as {
+          status?: string | null;
+          repair_reason?: string | null;
+          detail?: string;
+        };
+        if (!resp.ok) {
+          lines.push(`${target}：${body.detail ?? `HTTP ${resp.status}`}`);
+          statuses.push(null);
+          continue;
+        }
+        statuses.push(body.status ?? null);
+        lines.push(
+          `${target}：${body.status ?? "未终态"}` +
+            (body.repair_reason ? `（${body.repair_reason}）` : ""),
+        );
+      } catch {
+        lines.push(`${target}：请求失败`);
+        statuses.push(null);
+      }
+    }
+    const done = statuses.every((s) => s === "CLAIMED" || s === "ALREADY");
+    actionMsg.value = { text: lines.join(" · "), tone: done ? "ok" : "warn" };
+  } finally {
+    busyTarget.value = null;
+    await loadAll();
+  }
+}
+
+/* 用量采集（用量页「立即采集」）：结果如实分列，不造总结论（原额度雷达页逻辑上收） */
+async function collectUsage() {
+  collecting.value = true;
+  usageMsg.value = null;
+  try {
+    const resp = await fetch(`${apiBase}/usage/collect`, { method: "POST" });
+    const body = (await resp.json()) as CollectOutcome[] | { detail?: string };
+    if (!resp.ok) {
+      usageMsg.value = {
+        text: (body as { detail?: string }).detail ?? `采集失败（HTTP ${resp.status}）`,
+        tone: "warn",
+      };
+      return;
+    }
+    if (!Array.isArray(body)) {
+      usageMsg.value = { text: "采集响应形状异常（预期结果列表）", tone: "warn" };
+      return;
+    }
+    usageMsg.value = {
+      text: summarizeCollect(body),
+      tone: body.some((o) => o.error) ? "warn" : "ok",
+    };
+  } catch {
+    usageMsg.value = { text: "采集失败——够不到本机服务。", tone: "warn" };
+  } finally {
+    collecting.value = false;
+    await loadAll();
+  }
+}
+
+function summarizeCollect(outcomes: CollectOutcome[]): string {
+  if (!outcomes.length) return "没有可采集的账号——先到「账号」页导入应用。";
+  return outcomes
+    .map((o) => {
+      const name =
+        radarRows.value.find((r) => r.account_id === o.account_id)?.display_name ?? o.account_id;
+      if (o.error) return `${name}：${o.error}`;
+      const saved = [
+        o.snapshot_saved ? "余额" : "",
+        o.aggregate_saved ? "汇总" : "",
+        o.ledger_saved > 0 ? `流水×${o.ledger_saved}` : "",
+      ]
+        .filter(Boolean)
+        .join("·");
+      const low = o.quota_low.length ? `；低额：${o.quota_low.join("、")}` : "";
+      return `${name}：${saved || "无新数据"}${low}`;
+    })
+    .join("；");
+}
+
 /* 设置：本机浏览器持久化 + 自动刷新轮询。
    注意：THEME_NAMES 必须先于 loadSettings() 调用点声明（函数声明提升、const 不提升，
    否则 has() 进 TDZ 抛错被 try/catch 静默吞掉，存档主题永远回退 system）。 */
@@ -315,6 +445,17 @@ function schedulePoll() {
 
 watch(() => [settings.value.autoRefresh, settings.value.intervalSec], schedulePoll);
 
+/* 今日自动巡检一句话（待办栏/矩阵页头用）：体检类 runs 按本地自然日聚合 */
+const todayDone = computed(() => {
+  const today = runs.value.filter((r) => r.kind === "health.check" && isToday(r.started_at));
+  if (!today.length) return null;
+  return {
+    label: "自动巡检",
+    ok: today.filter((r) => r.signal === "ok").length,
+    total: today.length,
+  };
+});
+
 /* 提醒角标 = 待处理 + 非正常卡 + 即将到期凭据（条目数，不去重） */
 const alertCount = computed(
   () =>
@@ -354,35 +495,36 @@ onBeforeUnmount(() => {
     <main class="content">
       <p v-if="loadError" class="errorline" role="alert">{{ loadError }}</p>
 
-      <HomePage
-        v-if="active === '首页'"
+      <AccountsPage
+        v-if="active === '账号'"
         :accounts="accounts"
         :apps="apps"
+        :radar="radarRows"
         :pending="pending"
-        :loading="loading"
-        :load-error="loadError"
-        @navigate="navigate"
-      />
-      <WalletPage
-        v-else-if="active === '卡包'"
-        :apps="apps"
-        :accounts="accounts"
+        :runs="runs"
         :busy-target="busyTarget"
         :msg="actionMsg"
+        :loading="loading"
+        :load-error="loadError"
+        :today-done="todayDone"
         @import="importApp"
         @claim="claimApp"
         @health="healthApp"
+        @claim-many="claimMany"
         @import-all="importAllApps"
         @claim-all="claimAllApps"
       />
-      <LogPage v-else-if="active === '记录'" :runs="runs" />
-      <RadarPage v-else-if="active === '雷达'" />
-      <AlertsPage
-        v-else-if="active === '提醒'"
-        :pending="pending"
-        :accounts="accounts"
-        @navigate="navigate"
+      <UsagePage
+        v-else-if="active === '用量'"
+        :rows="radarRows"
+        :loading="loading"
+        :collecting="collecting"
+        :msg="usageMsg"
+        :loaded-at="usageLoadedAt"
+        @refresh="loadAll"
+        @collect="collectUsage"
       />
+      <LogPage v-else-if="active === '记录'" :runs="runs" />
       <SettingsPage
         v-else
         :settings="settings"
