@@ -1,6 +1,6 @@
 # Kabao · 卡包
 
-**One wallet for all your AI accounts.** 你的所有 AI 账号权益，都收在这一个卡包里——领取、计量、调度，一包管尽。
+**One butler for all your AI accounts.** 你的所有 AI 账号，交给一个管家——签到、领取、计量、调度，一件不落。
 
 本地优先的 AI 账号管家：统一管理各家 AI 编程助手的**账号、凭据、权益、用量**，并在它们之间做**调度与迁移**。
 
@@ -20,7 +20,7 @@
 | [A1-02 一核多端落地](docs/specs/architecture/A1-02-一核多端落地.md) | 分层与依赖方向 / 领域模型概览 / Connector 机制 / 门禁 |
 | [A2-01 领域模型与动作模型](docs/specs/domain/A2-01-领域模型与动作模型.md) | 聚合根 / 结果词汇单源 / Action-Run / Trigger / Event / 端口 |
 | [A2-02 Connector 规范](docs/specs/domain/A2-02-Connector-规范.md) | manifest / 三级扩展 / 声明式 schema / 沙箱 / PROTOCOL.md 模板 |
-| [A3-01 信息架构与核心页面](docs/specs/application/A3-01-信息架构与核心页面.md) | 五导航 / 页面规格 / 旅程锚点 / 渲染纪律 |
+| [A3-01 信息架构与核心页面](docs/specs/application/A3-01-信息架构与核心页面.md) | 四页 IA（矩阵即首页）/ 页面规格 / 渲染纪律 |
 | [A4-01 L0 底座设计](docs/specs/cross-cutting/A4-01-L0-底座设计.md) | 凭据保险库 / 健康中心 / 事件总线与通知 / 审计 |
 | [A0-01 旧系统知识资产](docs/specs/legacy/A0-01-旧系统知识资产.md) | auto-signin-kit = 协议字典 + 验收基准（**非移植**）；带/不带清单 |
 | [design-decisions 设计决策](docs/design-decisions.md) | 品牌 / 主题 / IA / 可访问性 / 桌面端 |
