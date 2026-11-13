@@ -8,7 +8,7 @@ defineProps<{ runs: RunItem[] }>();
 <template>
   <header class="head">
     <h1 class="page-title">记录</h1>
-    <p class="page-sub">领取记录——每次动作都留痕。</p>
+    <p class="page-sub">操作台账——每次动作都留痕。</p>
   </header>
 
   <section class="section" aria-label="领取记录">
@@ -24,7 +24,7 @@ defineProps<{ runs: RunItem[] }>();
             <td>{{ run.target }}</td>
             <td class="mono code">{{ run.account_id }}</td>
             <td>
-              <span class="stamp" :class="`stamp--${run.signal}`">{{ run.status ?? "…" }}</span>
+              <span class="tag" :class="`tag--${run.signal}`">{{ run.status ?? "…" }}</span>
               <details v-if="run.evidence.length" class="fold fold--inline">
                 <summary>详情</summary>
                 <ul class="evidence">

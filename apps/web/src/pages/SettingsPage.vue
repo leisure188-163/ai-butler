@@ -83,7 +83,7 @@ function onThemeChange(event: Event) {
     <div class="sheet">
       <div class="field">
         <span class="field-label">产品</span>
-        <span class="field-value">Kabao（卡包）· 本地优先的 AI 账号管家</span>
+        <span class="field-value">Kabao（卡包）· AI 账号管家</span>
       </div>
       <div class="field">
         <span class="field-label">版本</span>
