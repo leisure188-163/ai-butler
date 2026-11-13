@@ -1,4 +1,4 @@
-/* 通用件（跨页共享）：按钮/灯/行/面板/折叠/印章/空态/设置件。
+/* 通用件（跨页共享）：按钮/徽标/行/面板/折叠/表格/待办栏/空态/设置件。
    布局类由各组件自持；颜色字号一律取 tokens.css 变量。 */
 
 /* ---- 按钮 ---- */
@@ -53,7 +53,7 @@
 
 /* ---- 面板与行 ----
    容器一律 .sheet 细线框（浮板退役）；列表也可裸账本行；
-   状态一律行尾墨印（.stamp），不再有圆点灯。 */
+   状态一律行尾结果徽（.tag），不再有圆点灯与印章。 */
 .sheet {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -79,24 +79,6 @@
   white-space: nowrap;
 }
 .row-actions { display: flex; gap: var(--space-2); align-self: center; }
-
-/* ---- 印章（结果形态：墨印，色相由 signal 决定）---- */
-.stamp {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1;
-  padding: 4px 8px;
-  border: 1.5px solid currentColor;
-  border-radius: 4px;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-.stamp--ok { color: var(--color-ok-ink); }
-.stamp--notice { color: var(--color-notice-ink); }
-.stamp--attention { color: var(--color-attention-ink); }
-.stamp--danger { color: var(--color-danger-ink); }
-.stamp--quiet { color: var(--color-quiet-ink); }
 
 /* ---- 折叠 / 证据 ---- */
 .fold summary {
@@ -192,3 +174,64 @@
   color: var(--color-ink);
 }
 .input:disabled { opacity: 0.45; }
+
+/* ---- 矩阵改版新增件（2026-11-13，ADR-009）----
+   结果徽 .tag 接替印章形态（更轻：无边框浅底）；.matrix 矩阵表格件；
+   .rail 待办栏容器；.badge-dot 应用小徽身份色点；.checkbox 批量选择。 */
+
+/* ---- 结果徽（色相由 signal 决定，端零映射；浅底 + ink 文字）---- */
+.tag {
+  display: inline-block;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-quiet-weak);
+  color: var(--color-quiet-ink);
+  white-space: nowrap;
+}
+.tag--ok { background: var(--color-ok-weak); color: var(--color-ok-ink); }
+.tag--notice { background: var(--color-notice-weak); color: var(--color-notice-ink); }
+.tag--attention { background: var(--color-attention-weak); color: var(--color-attention-ink); }
+.tag--danger { background: var(--color-danger-weak); color: var(--color-danger-ink); }
+.tag--quiet { background: var(--color-quiet-weak); color: var(--color-quiet-ink); }
+
+/* ---- 应用小徽身份色点（色值由组件按 --card-face-N 单值动态内联提供）---- */
+.badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+
+/* ---- 矩阵表（行 = 账号；选中态后置以胜过 hover）---- */
+.matrix { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.matrix th {
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+  white-space: nowrap;
+}
+.matrix td {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+  vertical-align: middle;
+}
+.matrix tbody tr:hover { background: var(--color-surface-2); }
+.matrix tr.is-selected { background: var(--color-accent-weak); }
+
+/* ---- 待办栏容器 ---- */
+.rail { display: flex; flex-direction: column; gap: var(--space-4); }
+.rail-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
+
+/* ---- 批量选择 ---- */
+.checkbox { accent-color: var(--color-ink); }
