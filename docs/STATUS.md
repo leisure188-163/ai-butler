@@ -121,7 +121,11 @@ LLM 壳注册（用户侧一步）。**
      （编排语义归 server，端零入参）；卡包页「一键导入（n）/一键领取（n）」，
      结果如实分列（signal 计数 + 原文 issues）。真机实测过：导入对无客户端家
      如实报修复建议；领取幂等回放当日班次 Run 不重打
-1. **npm org 待验证**：`@kabao` scope 可用性未验；不可用回退未 scope 的 `kabao-sdk`（A1-03 §6）。
+1. **npm org 部分验证（2026-11-13，本机 npm CLI 只读）**：registry 实证
+   `@kabao/sdk` 404（scope 名下零包）；回退名 `kabao-sdk`/`kabao-core`/
+   `kabao` 全部未发布（404，回退口径可行，A1-03 §6）。**org 名占用/注册
+   待交互**：npmjs.com 有 Cloudflare 防护（脚本请求一律 403，浏览器 UA 亦然），
+   org 创建需 npm 账号网页操作——发布前走一次交互验证即可定稿 scope 或回退。
 2. **desktop 端托盘/单实例锁未做**：main.js 双模式（在线/离线 sidecar 拉起 +
    健康轮询）已实现，托盘常驻与单实例锁留待 R2 网关批次一并接入 `build_engine`。
 3. **R3 网页会话通道——实现批①已收官（2026-11-13），余项**：
