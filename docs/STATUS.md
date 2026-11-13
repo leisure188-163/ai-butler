@@ -1,9 +1,18 @@
 # STATUS · 进度卡（每次会话开始先读我）
 
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
-> 最后更新：2026-11-13
+> 最后更新：2026-11-14
 
 ## 一句话现状
+
+**业务子域分包落地（2026-11-14）**：前端壳拆分 + core 用例层分包——App.vue 559 行
+（距 600 硬上限剩 41）拆为 **158 行纯装配壳**（对齐 api.py 聚合器纪律）+ 五 composables
+（useHashRoute / useShellData / useAccountActions / useUsageActions / useSettings）+
+**api.ts 端点访问单源**（与 server routes 四域同构；radar/openapi 容错语义随 api 函数走）；
+usecases.py 541 行拆为 **usecases/ 五用例模块包**（execute_action / health_scan /
+register_account / list_pending / collect_usage），`__init__.py` 纯再导出，引用方 17 处
+零改动（含 ProvisionRequest 历史透传兼容）。契约零改动；前端分包规则入册
+conventions/04 §2.4（新加端点/动作/域各有唯一落位）；usecases 存量挂账销账；门禁九项全绿。
 
 **UI 矩阵改版落地（2026-11-13，ADR-009/010）**：四页 IA（账号/用量/记录/设置，
 矩阵即首页）+ 品类句「Kabao · AI 账号管家」+ 视觉去卡化（真比例卡/金箔芯片/
@@ -113,6 +122,7 @@ ALREADY 幂等回放/不存在账号 HTTP 404 显式转述附可用名单——�
 | R2 | 用量采集 + 额度雷达 + MCP Server | **✅ 收官（2026-11-12）**：用量采集+雷达（真机四家实测）+ MCP stdio 薄壳（ADR-008） |
 | **UI 钱包视觉语言** | 去 AI 化重设计：真实卡面+墨印+账本行+钱包架（spec 2026-11-12） | **✅ 完成（2026-11-12）** |
 | **UI 矩阵改版** | ADR-009/010：四页 IA（矩阵即首页）+ 品类句「AI 账号管家」+ 去卡化中性基底 + 待办栏 | **✅ 完成（2026-11-13）** |
+| **业务子域分包** | 壳拆分（App.vue→装配壳+五 composables+api.ts 单源）+ 用例层分包（usecases.py→五用例包）+ 前端分包规则入册 conventions/04 §2.4 | **✅ 完成（2026-11-14）** |
 | R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | **实现批①+R3-2 完成（2026-11-13）**：A1-04 开篇两裁决 + A2-03 细案 + `browser_cookie`/capture/探针全链 + 两家连接器 + 体检 UI + 每日体检轮询 job（真机验收过）+ **Windows cookie 真机验收批（2026-11-13，双布局/锁死兜底/v20 定性）**；余项见挂账 3（①③⑤） |
 | R4 | 网关独立进程（账号池/反代/规则引擎） | 未开始 |
 | R5 | 会话三级迁移 | 未开始 |
