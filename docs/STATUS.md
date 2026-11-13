@@ -79,17 +79,17 @@ immutable connect 失败收编 ProfileUnreadable（真机抓的逃逸）。门�
 uvicorn 8019 + 真 kabao-mcp 子进程 + 官方 mcp 客户端 stdio：initialize/三
 工具列名/query_quota·query_usage 真账号空态如实投影/claim_now 真领取
 ALREADY 幂等回放/不存在账号 HTTP 404 显式转述附可用名单——红线 5 全链生效；
-真 LLM 壳注册仅剩用户侧一步）；②R2 spec 归档
+真 LLM 壳注册同日清账，见挂账 0①）；②R2 spec 归档
 `docs/superpowers/specs/2026-11-12-kabao-usage-radar.md`（取证三型/领域三
 实体/引擎三表/四家适配/雷达域/雷达页/MCP 薄壳/挂账四条全收拢）。
 **顺手修（真机发现）**：doubao Windows dock taskkill exit=128 =「没有找到
 进程」（探得与击杀间隙退出）此前按失败抛出致停靠扫描异常——改判「杀净语义
 已达成」，与 mac 分支 ProcessLookupError 宽容同事实同语义（doubao PROTOCOL
 §6 回填；真失败码照旧显式抛）。验收数据垫料：本机三家真客户端导入
-（trae/qoder/workbuddy 进临时库）；doubao 因上述 bug 未导入（修复后待
-日常 job/用户重扫验证全链）。
-**接下来：Claude 登录态补证（换有登录态环境）+ npm org 待验证 + MCP 真
-LLM 壳注册（用户侧一步）。**
+（trae/qoder/workbuddy 进临时库）；doubao 因上述 bug 未导入
+（2026-11-13 重扫全链实证清账，见挂账 3）。
+**接下来：Claude 登录态补证（换有登录态环境）+ npm org 待验证
+（org 创建需账号网页交互）。**
 
 ## 里程碑
 
@@ -113,8 +113,11 @@ LLM 壳注册（用户侧一步）。**
      server 不可达显式报错附启动命令（红线 5）；门禁八项绿 + stdio 真客户端冒烟
    - 待办：①真机 LLM 客户端验收——**2026-11-13 Windows 补真 server 全链
      tools/call 验收 PASS**（query_quota/query_usage 真投影 + claim_now 真
-     领取 ALREADY + 404 显式转述）；**剩真 LLM 壳注册一步（用户侧）**：
-     注册命令 `uv run kabao-mcp`
+     领取 ALREADY + 404 显式转述）；**真 LLM 壳注册 ✅（2026-11-13）**：
+     已注册进 Qoder 用户级 MCP（entryKey `kabao`，stdio = `uv --directory
+     <repo> run kabao-mcp`；控制面 list_tools 三工具握手实证，server 状态
+     ready）；**工具可用依赖 = server 8000 在跑**（常驻自动拉起归挂账 2
+     托盘批次；server 不可达时工具显式报错附启动命令，红线 5）
      ②~~R2 spec 落盘~~（2026-11-13 归档 docs/superpowers/specs/
      2026-11-12-kabao-usage-radar.md——spec §11 另挂四条随档：
      qoder 9999 占位 cycle 语义待登录态补证 / workbuddy 85 包分组聚合待
@@ -123,11 +126,15 @@ LLM 壳注册（用户侧一步）。**
      （编排语义归 server，端零入参）；卡包页「一键导入（n）/一键领取（n）」，
      结果如实分列（signal 计数 + 原文 issues）。真机实测过：导入对无客户端家
      如实报修复建议；领取幂等回放当日班次 Run 不重打
-1. **npm org 部分验证（2026-11-13，本机 npm CLI 只读）**：registry 实证
-   `@kabao/sdk` 404（scope 名下零包）；回退名 `kabao-sdk`/`kabao-core`/
-   `kabao` 全部未发布（404，回退口径可行，A1-03 §6）。**org 名占用/注册
-   待交互**：npmjs.com 有 Cloudflare 防护（脚本请求一律 403，浏览器 UA 亦然），
-   org 创建需 npm 账号网页操作——发布前走一次交互验证即可定稿 scope 或回退。
+1. **npm org 占用验证全绿（2026-11-13，真浏览器只读）**：org 页
+   /org/kabao 与用户页 /~kabao 双双 `Scope not found`（真浏览器过
+   Cloudflare；截图坏改用 accessibility 快照取证）；registry 侧
+   `@kabao/sdk` 与回退名 `kabao-sdk`/`kabao-core`/`kabao` 全 404（本机
+   npm CLI 只读）——**`@kabao` scope 可定稿**（pnpm workspace 已用
+   `@kabao/sdk` 无需改名）。剩创建一步需 npm 账号网页交互（登录 →
+   npmjs.com/org/create 建 org `kabao` 即可发布；不建则回退未 scope 的
+   `kabao-sdk`，A1-03 §6 口径）。注意 npm 公告：bypass-2FA token
+   2026-08 起受限、2027-01 起停直发——发布走 granular token + 2FA。
 2. **desktop 端托盘/单实例锁未做**：main.js 双模式（在线/离线 sidecar 拉起 +
    健康轮询）已实现，托盘常驻与单实例锁留待 R2 网关批次一并接入 `build_engine`。
 3. **R3 网页会话通道——实现批①已收官（2026-11-13），余项**：
@@ -171,9 +178,13 @@ LLM 壳注册（用户侧一步）。**
    auth.v1.dat（连跑 6 天文件停在 11-06）→ 文件内 token 已被服务端轮换作废，
    usage/campaigns 齐 401 TOKEN_EXPIRE——处置 = 重启客户端后重扫，非解锁链缺陷。
    门禁八项绿。**剩余缺口**：Trae×3 mac 取证未做（M1 记忆既有挂账）；qoder 需
-   重启客户端后重扫验证真数据面；**doubao Windows dock 全链重扫验证**（2026-11-13
-   taskkill-128 语义修复后——本机 dock 曾因该 bug 停靠扫描异常未导入，
-   杀净→带端口拉起→probe→顺带采集全链待重扫实证，单测已钉语义）。
+   重启客户端后重扫验证真数据面。**doubao Windows dock 全链重扫验证 ✅
+   （2026-11-13 本机真机）**：无端口普通态客户端起步 → POST
+   /apps/doubao_cn/import 全链 = 杀净清场 → 带端口拉起（新 PID 9222
+   LISTENING 实证）→ probe 就绪 → doubao_cn:main 泊位 → 顺带采集
+   入账流水 10 条真数据零 issues；snapshot=None/aggregate=None 为
+   ledger 单型如实形状；二次重扫幂等（probe 直达不杀进程同账号）。
+   taskkill-128 分支保持单测钉语义（间隙竞态真机不可确定性复现）。
 
 ## 已定关键决策（不再讨论，照做）
 
