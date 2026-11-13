@@ -116,7 +116,9 @@ LLM 壳注册（用户侧一步）。**
      领取 ALREADY + 404 显式转述）；**剩真 LLM 壳注册一步（用户侧）**：
      注册命令 `uv run kabao-mcp`
      ②~~R2 spec 落盘~~（2026-11-13 归档 docs/superpowers/specs/
-     2026-11-12-kabao-usage-radar.md）
+     2026-11-12-kabao-usage-radar.md——spec §11 另挂四条随档：
+     qoder 9999 占位 cycle 语义待登录态补证 / workbuddy 85 包分组聚合待
+     雷达页迭代 / 耗尽预测帧距下限 1h 随使用反馈再定 / MCP 真 LLM 壳即①）
    - **一键批量（2026-11-12 增补）**：POST /apps/import-all + /runs/claim-all
      （编排语义归 server，端零入参）；卡包页「一键导入（n）/一键领取（n）」，
      结果如实分列（signal 计数 + 原文 issues）。真机实测过：导入对无客户端家
@@ -169,7 +171,9 @@ LLM 壳注册（用户侧一步）。**
    auth.v1.dat（连跑 6 天文件停在 11-06）→ 文件内 token 已被服务端轮换作废，
    usage/campaigns 齐 401 TOKEN_EXPIRE——处置 = 重启客户端后重扫，非解锁链缺陷。
    门禁八项绿。**剩余缺口**：Trae×3 mac 取证未做（M1 记忆既有挂账）；qoder 需
-   重启客户端后重扫验证真数据面。
+   重启客户端后重扫验证真数据面；**doubao Windows dock 全链重扫验证**（2026-11-13
+   taskkill-128 语义修复后——本机 dock 曾因该 bug 停靠扫描异常未导入，
+   杀净→带端口拉起→probe→顺带采集全链待重扫实证，单测已钉语义）。
 
 ## 已定关键决策（不再讨论，照做）
 
