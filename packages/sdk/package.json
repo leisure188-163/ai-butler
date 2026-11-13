@@ -1,8 +1,26 @@
 {
   "name": "@kabao/sdk",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Kabao (卡包) server OpenAPI contract types — single source for web DTO derivation",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitee.com/hiclaw_520/ai-kabao.git"
+  },
   "type": "module",
   "types": "./src/gen/schema.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/gen/schema.d.ts"
+    }
+  },
+  "files": [
+    "src/gen/schema.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "generate": "node generate.mjs"
   },

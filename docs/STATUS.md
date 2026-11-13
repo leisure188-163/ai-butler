@@ -135,6 +135,13 @@ ALREADY 幂等回放/不存在账号 HTTP 404 显式转述附可用名单——�
    npmjs.com/org/create 建 org `kabao` 即可发布；不建则回退未 scope 的
    `kabao-sdk`，A1-03 §6 口径）。注意 npm 公告：bypass-2FA token
    2026-08 起受限、2027-01 起停直发——发布走 granular token + 2FA。
+   **@kabao/sdk 发布化就绪（2026-11-13，裁决 = A 纯类型契约包）**：
+   package.json 去 private（version 0.1.0 / MIT / repository / files 白名单
+   仅 schema.d.ts / exports.types / publishConfig public + 官方 registry）
+   + 包内 README + 根 LICENSE 复制入包（npm 只自动收录包目录内件）；
+   `npm pack --dry-run` 实证清单四件 5.2 kB（LICENSE/README/package.json/
+   schema.d.ts）；generate 零漂移 + 门禁九项绿（web 消费面 vue-tsc 回归
+   过）。真发布等 org 建好 + granular token，发布动作另行走用户指令。
 2. **desktop 端托盘/单实例锁未做**：main.js 双模式（在线/离线 sidecar 拉起 +
    健康轮询）已实现，托盘常驻与单实例锁留待 R2 网关批次一并接入 `build_engine`。
 3. **R3 网页会话通道——实现批①已收官（2026-11-13），余项**：
