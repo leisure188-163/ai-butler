@@ -75,8 +75,21 @@ claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针�
 分支 signal.SIGKILL 跨平台模拟（getattr→POSIX 数值 9，真 mac 行为不变）、
 immutable connect 失败收编 ProfileUnreadable（真机抓的逃逸）。门禁九项绿
 （474 passed，Windows 首跑）。
-**接下来：R2 收官两件**（MCP 真机 LLM 客户端验收 / R2 spec 落盘）+ Claude
-登录态补证（换有登录态环境）。
+**R2 收官两件清账（2026-11-13）**：①**MCP 真机全链验收 PASS**（真 server
+uvicorn 8019 + 真 kabao-mcp 子进程 + 官方 mcp 客户端 stdio：initialize/三
+工具列名/query_quota·query_usage 真账号空态如实投影/claim_now 真领取
+ALREADY 幂等回放/不存在账号 HTTP 404 显式转述附可用名单——红线 5 全链生效；
+真 LLM 壳注册仅剩用户侧一步）；②R2 spec 归档
+`docs/superpowers/specs/2026-11-12-kabao-usage-radar.md`（取证三型/领域三
+实体/引擎三表/四家适配/雷达域/雷达页/MCP 薄壳/挂账四条全收拢）。
+**顺手修（真机发现）**：doubao Windows dock taskkill exit=128 =「没有找到
+进程」（探得与击杀间隙退出）此前按失败抛出致停靠扫描异常——改判「杀净语义
+已达成」，与 mac 分支 ProcessLookupError 宽容同事实同语义（doubao PROTOCOL
+§6 回填；真失败码照旧显式抛）。验收数据垫料：本机三家真客户端导入
+（trae/qoder/workbuddy 进临时库）；doubao 因上述 bug 未导入（修复后待
+日常 job/用户重扫验证全链）。
+**接下来：Claude 登录态补证（换有登录态环境）+ npm org 待验证 + MCP 真
+LLM 壳注册（用户侧一步）。**
 
 ## 里程碑
 
@@ -98,8 +111,12 @@ immutable connect 失败收编 ProfileUnreadable（真机抓的逃逸）。门�
      MCPServer；三工具 query_quota/query_usage/claim_now = server 契约 API 纯投影
      （GET /usage/radar 拆额度面/用量面 + POST /runs 直传）；可选 provider 过滤；
      server 不可达显式报错附启动命令（红线 5）；门禁八项绿 + stdio 真客户端冒烟
-   - 待办：①真机 LLM 客户端验收（注册命令 `uv run kabao-mcp`）
-     ②R2 spec 落盘 docs/superpowers/specs/（设计与实现已批，可后补归档）
+   - 待办：①真机 LLM 客户端验收——**2026-11-13 Windows 补真 server 全链
+     tools/call 验收 PASS**（query_quota/query_usage 真投影 + claim_now 真
+     领取 ALREADY + 404 显式转述）；**剩真 LLM 壳注册一步（用户侧）**：
+     注册命令 `uv run kabao-mcp`
+     ②~~R2 spec 落盘~~（2026-11-13 归档 docs/superpowers/specs/
+     2026-11-12-kabao-usage-radar.md）
    - **一键批量（2026-11-12 增补）**：POST /apps/import-all + /runs/claim-all
      （编排语义归 server，端零入参）；卡包页「一键导入（n）/一键领取（n）」，
      结果如实分列（signal 计数 + 原文 issues）。真机实测过：导入对无客户端家
