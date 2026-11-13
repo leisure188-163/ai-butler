@@ -392,3 +392,142 @@ def test_webkit_micros_roundtrip(tmp_path, mac_env):
     """加密侧用 webkit_micros、解密侧 _webkit_to_iso：互逆无漂移（时区保全）。"""
     iso = _webkit_to_iso(webkit_micros(datetime(2026, 6, 15, 12, 30, 45, tzinfo=UTC)))
     assert iso == "2026-06-15T12:30:45+00:00"
+
+
+# --- 2026-11-13 Windows 真机验收批（A2-03 §7 回填）：现代布局/锁库兜底/逐 profile 隔离/v20 ---
+
+
+def test_capture_windows_network_layout(tmp_path, win_env, registry):
+    """现代 Chrome 布局（≥96：<profile>/Network/Cookies）+ Local State 跨级发现。"""
+    db = tmp_path / "User Data" / "Default" / "Network" / "Cookies"
+    rows = [
+        (DOMAIN, name, None, gcm_seal(plain, win_env), micros)
+        for name, (plain, micros) in {
+            COOKIES[0]: (b"v-net-0", webkit_micros(FUTURE)),
+            COOKIES[1]: (b"v-net-1", 0),
+        }.items()
+    ]
+    make_cookie_db(db, rows)
+    (tmp_path / "User Data" / "Local State").write_text(
+        json.dumps(
+            {"os_crypt": {"encrypted_key": base64.b64encode(b"DPAPI" + b"wrapped").decode()}}
+        ),
+        encoding="utf-8",
+    )
+    vault = MemVault()
+    outcome = _capture_via_registry(
+        registry, str(tmp_path / "User Data/*/Network/Cookies"), vault
+    )
+    assert outcome.issues == [], outcome.issues
+    assert outcome.accounts == ["chatgpt_web:main"]
+    stored, _ = vault.items[("chatgpt_web:main", "browser_cookie")]
+    assert [c["value"] for c in json.loads(stored.expose())["cookies"]] == ["v-net-0", "v-net-1"]
+
+
+def test_locked_db_falls_back_to_immutable_read(tmp_path, mac_env, registry, monkeypatch):
+    """活动库被浏览器锁死（拷贝 PermissionError，Windows 真 Chrome 形状）
+    → SQLite immutable 只读直开兜底，捕获照常走通。"""
+    import shutil as shutil_mod
+
+    def locked(src, dst):
+        raise PermissionError(13, "另一个程序正在使用此文件，进程无法访问")
+
+    monkeypatch.setattr(shutil_mod, "copyfile", locked)
+    db = tmp_path / "Chrome" / "Default" / "Cookies"
+    make_cookie_db(
+        db,
+        mac_rows(mac_env, {COOKIES[0]: (b"v-lock-0", 0), COOKIES[1]: (b"v-lock-1", 0)}),
+    )
+    vault = MemVault()
+    outcome = _capture_via_registry(registry, str(tmp_path / "Chrome/*/Cookies"), vault)
+    assert outcome.issues == [], outcome.issues
+    assert outcome.accounts == ["chatgpt_web:main"]
+    stored, _ = vault.items[("chatgpt_web:main", "browser_cookie")]
+    assert [c["value"] for c in json.loads(stored.expose())["cookies"]] == ["v-lock-0", "v-lock-1"]
+
+
+def test_locked_db_immutable_open_failure_stays_explicit_issue(
+    tmp_path, mac_env, registry, monkeypatch
+):
+    """真机回归（2026-11-13 Windows）：锁死 + immutable 直开的 connect 也失败
+    → ProfileUnreadable 如实出账（当时 connect 在 try 外裸抛，逃逸成笼统异常）。"""
+    import shutil as shutil_mod
+    import sqlite3 as sqlite3_mod
+
+    def locked(src, dst):
+        raise PermissionError(13, "另一个程序正在使用此文件，进程无法访问")
+
+    def no_open(*args, **kwargs):
+        raise sqlite3_mod.OperationalError("unable to open database file")
+
+    db = tmp_path / "Chrome" / "Default" / "Cookies"
+    make_cookie_db(
+        db,
+        mac_rows(mac_env, {COOKIES[0]: (b"v-x-0", 0), COOKIES[1]: (b"v-x-1", 0)}),
+    )
+    monkeypatch.setattr(shutil_mod, "copyfile", locked)
+    monkeypatch.setattr(sqlite3_mod, "connect", no_open)
+    outcome = _capture_via_registry(registry, str(tmp_path / "Chrome/*/Cookies"), MemVault())
+    assert outcome.accounts == []
+    assert outcome.issues and "只读直开失败" in outcome.issues[0]
+    assert "关闭浏览器后重扫" in outcome.issues[0]
+
+
+def test_profile_failure_falls_through_to_next(tmp_path, mac_env):
+    """逐 profile 隔离：首个库读不了（垃圾形状）→ 记原因换下一个；凑齐者胜。"""
+    bad = tmp_path / "Chrome" / "Default" / "Cookies"
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_bytes(b"this is not a sqlite database")
+    make_cookie_db(
+        tmp_path / "Chrome" / "Profile 1" / "Cookies",
+        mac_rows(mac_env, {COOKIES[0]: (b"v-ok-0", 0), COOKIES[1]: (b"v-ok-1", 0)}),
+    )
+    facts = _capture_kind(
+        capture_spec().auth, "chatgpt_web", [str(tmp_path / "Chrome/*/Cookies")]
+    )
+    envelope = json.loads(facts["browser_cookie"])
+    assert [c["value"] for c in envelope["cookies"]] == ["v-ok-0", "v-ok-1"]
+
+
+def test_all_profiles_failed_reports_first_issue(tmp_path, mac_env):
+    """全 profile 失败 → 报首个显式原因（库序确定），不再误报未登录。"""
+    bad = tmp_path / "Chrome" / "Default" / "Cookies"
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_bytes(b"garbage bytes, not a database")
+    facts = _capture_kind(
+        capture_spec().auth, "chatgpt_web", [str(tmp_path / "Chrome/*/Cookies")]
+    )
+    assert "_issue" in facts
+    assert "查询失败" in facts["_issue"]
+    assert "未登录" not in facts["_issue"]
+
+
+def test_v20_appbound_cookie_explicit_issue(tmp_path, win_env):
+    """v20 应用绑定加密（Chrome 127+ Windows 真机取证全量形状）：
+    显式落榜、文案自足、不误导「重扫」。"""
+    from kabao_connectors.browser import _capture_kind
+
+    db = tmp_path / "User Data" / "Default" / "Cookies"
+    make_cookie_db(db, [(DOMAIN, name, None, b"v20" + bytes(40), 0) for name in COOKIES])
+    (tmp_path / "User Data" / "Local State").write_text(
+        json.dumps(
+            {"os_crypt": {"encrypted_key": base64.b64encode(b"DPAPI" + b"wrapped").decode()}}
+        ),
+        encoding="utf-8",
+    )
+    facts = _capture_kind(
+        capture_spec().auth, "chatgpt_web", [str(tmp_path / "User Data/*/Cookies")]
+    )
+    assert "_issue" in facts
+    assert "v20" in facts["_issue"] and "应用绑定" in facts["_issue"]
+    assert "重扫" not in facts["_issue"]
+
+
+def test_decrypt_rejects_v20_with_shape_error():
+    """v20 = CookieShapeError（显式形状申报）；v11 等未知头照旧 ValueError。"""
+    from kabao_connectors.unlock import CookieShapeError, decrypt_chromium_cookie
+
+    with pytest.raises(CookieShapeError, match="应用绑定"):
+        decrypt_chromium_cookie(b"v20" + bytes(40), WIN_KEY, gcm=True)
+    with pytest.raises(ValueError, match="密文头未知"):
+        decrypt_chromium_cookie(b"v11" + bytes(40), WIN_KEY, gcm=True)

@@ -222,6 +222,14 @@ def load_umid_cosy(secret: Secret) -> dict[str, str]:
 # --- browser_cookie（A2-03 §1，R3 网页捕获）：Chromium cookie 解链 + 信封 loader ---
 
 
+class CookieShapeError(ValueError):
+    """cookie 密文形状显式不可解（文案自足，直接进 DockOutcome.issues）。
+
+    典型：v20（Chrome 127+ Windows 应用绑定加密，2026-11-13 真机取证全量
+    形状）——与「形状已变请重扫」不同，这不是临时态，重扫无用。
+    """
+
+
 def chromium_cookie_key(secret: bytes) -> bytes:
     """Chrome mac cookie 钥匙派生：safeStorage 口令 → PBKDF2-HMAC-SHA1 → 16B 密钥。
 
@@ -236,12 +244,21 @@ def decrypt_chromium_cookie(blob: bytes, key: bytes, *, gcm: bool) -> bytes:
     """v10 cookie 密文 → 明文。平台显式分派：mac=CBC（密钥 16B）、win=GCM（32B）。
 
     mac 链双形状自识别（经典 / 16B 段+IV 前缀，见函数体取证注）；win 链 =
-    nonce(12) + AES-256-GCM（Chromium v80+ 标准形状，真机验收挂账 A2-03 §7）。
-    密文非 v10 头显式爆。
+    nonce(12) + AES-256-GCM（Chromium v80+ 标准形状，2026-11-13 Windows 真机
+    验收：DPAPI 钥匙腿实解通过；cookie 腿真机全量 v20，见 CookieShapeError）。
+    v20 = Chrome 127+ 应用绑定加密（App-Bound）：解密须冒充 Chrome 进程调
+    IElevator COM，属对抗绕过——本通道不做（A1-04 §7 遇 challenge 如实落榜），
+    显式形状错误指明原因，不误导「重扫」。
+    密文非 v10/v20 头显式爆。
     """
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
     if not blob.startswith(_V10_MAGIC):
+        if blob.startswith(b"v20"):
+            raise CookieShapeError(
+                "cookie 密文为 v20（Chrome 127+ 应用绑定加密）——解密需冒充 Chrome 进程，"
+                "属对抗绕过，本通道不做（A2-03 §7 挂账）"
+            )
         raise ValueError(f"cookie 密文头未知: {blob[:3]!r}")
     body = blob[3:]
     if gcm:

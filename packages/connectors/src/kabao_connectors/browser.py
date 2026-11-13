@@ -1,12 +1,17 @@
 """浏览器会话捕获（A2-03 §2，R3 网页会话通道）：读 Chrome cookie 库出会话信封。
 
 与 dockio 平行的第二条「读本机状态」通道：
-- 发现 cookie 库（storage 候选，平台宏 + glob 文件）→ **字节拷贝临时件**
-  （浏览器运行中持锁；try/finally 用后即删——拷贝的是密文库，取证纪律照 M1）
+- 发现 cookie 库（storage 候选，平台宏 + glob 文件；新旧布局两候选——
+  Chrome ≥96 库在 <profile>/Network/Cookies）→ **字节拷贝临时件**
+  （密文库，try/finally 用后即删；活动库被浏览器锁死 → SQLite immutable
+  只读直开兜底，2026-11-13 Windows 真机取证）
 - host（domain 精确或点后缀）× 必需名单过滤 → 逐条解密（unlock 单源）
+- **逐 profile 隔离**：单库锁死/解不开 → 记首个原因换下一个 profile；
+  全落空有事故报事故，无事故按未登录如实落榜（不注册账号）
 - 两态导入语义：无任何 profile 凑齐名单 = 未登录如实落榜（不注册账号）；
   名单凑齐但已过期 = 照常出卡（expires_at 为过去值，健康分级如实示 EXPIRED）
-- 钥匙拒绝 / 解密失败 → DockOutcome.issues（红线 5，不静默不降级）
+- 钥匙拒绝 / 解密失败 → DockOutcome.issues（红线 5，不静默不降级）；
+  v20（Chrome 127+ 应用绑定加密）显式落榜，不做对抗解密（A2-03 §7）
 """
 
 from __future__ import annotations
@@ -20,6 +25,15 @@ from kabao_connectors.registry import ConnectorApp, DockContext, DockOutcome
 
 class StorageNotFound(Exception):
     """本机没有可捕获的浏览器会话（如实上报给 DockOutcome.issues）。"""
+
+
+class ProfileUnreadable(ValueError):
+    """单个 profile 库读不了（文案自足，直接进 DockOutcome.issues）。
+
+    典型：活动库被运行中的浏览器锁死（Windows 真 Chrome 实证连 Python
+    open 都进不去，2026-11-13）；语义 = profile 级事故，捕获流程换下一个
+    profile 继续，不中断不静默。
+    """
 
 
 def capture_cookies(
@@ -56,7 +70,14 @@ def capture_cookies(
 def _capture_kind(
     auth: AuthSpec, conn_id: str, candidates: list[str], *, key_provider=None, dpapi=None
 ) -> dict[str, str]:
-    """捕获主流程：facts = {"browser_cookie": 信封}，或 _issue / StorageNotFound。"""
+    """捕获主流程：facts = {"browser_cookie": 信封}，或 _issue / StorageNotFound。
+
+    逐 profile 隔离（2026-11-13 Windows 真机取证）：活动 profile 被浏览器
+    锁死 / 解不开时**换下一个 profile 继续**，首个失败原因留存；全部落空
+    才出账（有显式原因报原因，无则按未登录如实落榜）。
+    """
+    from kabao_connectors.unlock import CookieShapeError
+
     dbs = _cookie_dbs(candidates)
     if not dbs:
         raise StorageNotFound(
@@ -78,13 +99,23 @@ def _capture_kind(
         )
         return {"_issue": f"浏览器钥匙取不到（{exc}）——{tail}"}
 
+    issues: list[str] = []
     for db in dbs:
         try:
             captured = _capture_profile(db, auth, key, gcm)
+        except CookieShapeError as exc:  # 形状显式申报（v20 等）：文案自足
+            issues.append(f"{db}: {exc}")
+            continue
+        except ProfileUnreadable as exc:  # 读库失败（锁死/形状）：文案自足
+            issues.append(f"{db}: {exc}")
+            continue
         except (OSError, ValueError) as exc:
-            return {"_issue": f"{db}: cookie 解不开（{exc}）——浏览器或库形状已变，重扫"}
+            issues.append(f"{db}: cookie 解不开（{exc}）——浏览器或库形状已变，重扫")
+            continue
         if captured is not None:
             return {"browser_cookie": captured}
+    if issues:  # 无 profile 凑齐但有过显式事故：报首个原因（库序确定），不误报未登录
+        return {"_issue": issues[0]}
     raise StorageNotFound(
         f"{conn_id}: 未登录（Chrome 无 {auth.domain} 完整会话 cookie）——"
         "浏览器登录后重扫（未登录不是错误，A1-04 §4.1）"
@@ -125,9 +156,18 @@ def _chrome_key(example_db: Path, *, key_provider=None, dpapi=None) -> tuple[byt
 
     from kabao_connectors.unlock import dpapi_unprotect
 
-    state = example_db.parent.parent / "Local State"  # <User Data>/<profile>/Cookies → User Data 根
-    if not state.is_file():
-        raise StorageNotFound(f"未发现 Chrome Local State（候选: {state}）")
+    # Local State 在 <User Data> 根：旧布局 <profile>/Cookies 差两级，
+    # 现代布局（≥96）<profile>/Network/Cookies 差三级——向上逐级查找，布局无关
+    state = next(
+        (
+            parent / "Local State"
+            for parent in (example_db.parent, *example_db.parents)
+            if (parent / "Local State").is_file()
+        ),
+        None,
+    )
+    if state is None:
+        raise StorageNotFound(f"未发现 Chrome Local State（{example_db} 及其上层目录都没有）")
     try:
         data = json.loads(state.read_text(encoding="utf-8"))
         key_b64 = data["os_crypt"]["encrypted_key"]
@@ -183,33 +223,69 @@ def _capture_profile(db: Path, auth: AuthSpec, key: bytes, gcm: bool) -> str | N
 
 
 def _read_cookie_rows(db: Path, domain: str) -> list[tuple[str, bytes, str | None, int]]:
-    """密文临时拷贝 → 查 host 匹配行（name, encrypted_value, value, expires_utc）。
+    """cookie 行只读读取，两条路（A2-03 §2，2026-11-13 Windows 真机取证补）：
 
-    拷贝的是密文库（用后即删，绝不落明文）；SQLite 打开临时件只读查询。
+    ①字节拷贝临时件 → 临时件只读查询（拷的是密文库，用后即删，绝不落明文）；
+    ②活动库被浏览器锁死（Windows 真 Chrome：连 Python open 都 PermissionError，
+      SQLite immutable 直开同样进不去）→ SQLite ``immutable=1`` 只读直开原库
+      ——零锁零写，对浏览器零影响；明文照旧只在内存。
+
+    失败一律 ProfileUnreadable（文案自足：锁死指关浏览器，形状指重扫）。
     """
     import os
-    import shutil
     import sqlite3
+
+    sql = (
+        "SELECT name, encrypted_value, value, expires_utc FROM cookies "
+        "WHERE host_key = ? OR host_key LIKE ?"
+    )
+    args = (domain, f"%.{domain}")
+    tmp = _temp_copy_encrypted_db(db)
+    locked = tmp is None  # 浏览器锁死 → immutable 只读直开（connect 也可能失败，同 try 兜住）
+    try:
+        if locked:
+            from urllib.parse import quote
+
+            conn = sqlite3.connect(f"file:{quote(db.as_posix())}?immutable=1", uri=True)
+        else:
+            conn = sqlite3.connect(tmp)
+        try:
+            return _query_rows(conn, sql, args)
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        raise ProfileUnreadable(
+            f"cookie 库被浏览器锁住且只读直开失败（{exc}）——关闭浏览器后重扫"
+            if locked
+            else f"cookie 库查询失败（{exc}）——库形状已变，重扫"
+        ) from exc
+    finally:
+        if not locked:
+            os.unlink(tmp)  # 密文临时件用后即删（取证纪律）
+
+
+def _temp_copy_encrypted_db(db: Path) -> Path | None:
+    """密文库字节拷贝到临时件；浏览器锁死（PermissionError）→ None（immutable 兜底）；
+    其余拷贝事故 → ProfileUnreadable。临时件失败时同样即删。"""
+    import os
+    import shutil
     import tempfile
 
     fd, tmp = tempfile.mkstemp(prefix="kabao-cookies-", suffix=".sqlite")
     os.close(fd)
     try:
         shutil.copyfile(db, tmp)
-        conn = sqlite3.connect(tmp)
-        try:
-            return [
-                (row[0], row[1], row[2], row[3])
-                for row in conn.execute(
-                    "SELECT name, encrypted_value, value, expires_utc FROM cookies "
-                    "WHERE host_key = ? OR host_key LIKE ?",
-                    (domain, f"%.{domain}"),
-                )
-            ]
-        finally:
-            conn.close()
-    finally:
+    except PermissionError:
         os.unlink(tmp)
+        return None
+    except OSError as exc:
+        os.unlink(tmp)
+        raise ProfileUnreadable(f"cookie 库拷贝失败（{exc}）——关闭浏览器后重扫") from exc
+    return tmp
+
+
+def _query_rows(conn, sql: str, args: tuple) -> list[tuple[str, bytes, str | None, int]]:
+    return [(row[0], row[1], row[2], row[3]) for row in conn.execute(sql, args)]
 
 
 def _webkit_to_iso(micros: int) -> str | None:

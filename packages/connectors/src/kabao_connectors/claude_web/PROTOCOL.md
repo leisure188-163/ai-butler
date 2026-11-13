@@ -48,3 +48,7 @@
   cookie（「未登录」天然样本）→ 导入语义 = 如实落榜不注册
 - 2026-11-13：`/api/auth/session` 未登录态 = 403 region_unavailable（curl，
   只读取证，响应体已删）
+- 2026-11-13（**Windows 真机验收**，Chrome 运行中）：与 chatgpt_web 同批次
+  （A2-03 §7.3/§7.7）——现代布局候选补齐、活动库锁死如实出账、钥匙/GCM 腿
+  真机 PASS；本机 profile 无 claude.ai cookie（未登录语义真机复证）；
+  v20 应用绑定加密平台定性同见 chatgpt_web 取证记录

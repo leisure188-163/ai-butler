@@ -63,8 +63,20 @@ claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针�
 单账号异常 WARNING 隔离不打断整轮）；server 组合层接线（`KABAO_SCHEDULE=0` 可关）。
 体检从「手动按钮」升级为「每日巡检」：EXPIRED/NO_AUTH 修复建议随 Run 出账，
 连败升级走 AssessAccountHealth 既有反馈回路。门禁九项绿（含新文件长度机检）。
-**接下来：R3-2 候选**——Claude 登录态补证（换有登录态环境）/ Windows cookie
-真机验收 / R2 收官待办两件。
+**Windows cookie 真机验收批完成（2026-11-13）**：现代 Chrome 布局（≥96：
+`<profile>/Network/Cookies`）双候选补齐（此前旧路径候选本机全落空，误报
+「未发现 cookie 库」）；活动库锁死 → immutable 只读直开兜底 + 如实出账，
+逐 profile 隔离（首个失败换下一个，全落空报首个原因不误报未登录）；v20
+应用绑定加密显式落榜（Chrome 127+ App-Bound，解密需冒充 Chrome 进程 =
+对抗绕过，不做——A2-03 §7.7 平台定性：Windows 新版 Chrome 网页会话捕获
+如实不可得）；DPAPI 钥匙腿（真 CryptUnprotectData 209B→32B）+ GCM 腿
+（真钥匙 roundtrip）真机 PASS。顺手修三处 Windows 门禁/测试失明：verify
+子进程编码口径（写读双侧定 UTF-8，此前 GBK 撞 ✓ 即整条失明）、豆包 mac
+分支 signal.SIGKILL 跨平台模拟（getattr→POSIX 数值 9，真 mac 行为不变）、
+immutable connect 失败收编 ProfileUnreadable（真机抓的逃逸）。门禁九项绿
+（474 passed，Windows 首跑）。
+**接下来：R2 收官两件**（MCP 真机 LLM 客户端验收 / R2 spec 落盘）+ Claude
+登录态补证（换有登录态环境）。
 
 ## 里程碑
 
@@ -75,7 +87,7 @@ claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针�
 | **UI 重设计** | 「卡纸与墨」主题 + 五页落地（设计能力包流程，A3-01/D2） | **✅ 完成（2026-11-12）** |
 | R2 | 用量采集 + 额度雷达 + MCP Server | **✅ 收官（2026-11-12）**：用量采集+雷达（真机四家实测）+ MCP stdio 薄壳（ADR-008） |
 | **UI 钱包视觉语言** | 去 AI 化重设计：真实卡面+墨印+账本行+钱包架（spec 2026-11-12） | **✅ 完成（2026-11-12）** |
-| R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | **实现批①+R3-2 完成（2026-11-13）**：A1-04 开篇两裁决 + A2-03 细案 + `browser_cookie`/capture/探针全链 + 两家连接器 + 体检 UI + 每日体检轮询 job（真机验收过）；余项见挂账 3 |
+| R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | **实现批①+R3-2 完成（2026-11-13）**：A1-04 开篇两裁决 + A2-03 细案 + `browser_cookie`/capture/探针全链 + 两家连接器 + 体检 UI + 每日体检轮询 job（真机验收过）+ **Windows cookie 真机验收批（2026-11-13，双布局/锁死兜底/v20 定性）**；余项见挂账 3（①③⑤） |
 | R4 | 网关独立进程（账号池/反代/规则引擎） | 未开始 |
 | R5 | 会话三级迁移 | 未开始 |
 
@@ -103,7 +115,10 @@ claude_web NO_AUTH 缺凭据）；体检按钮全链通（含装配漏挂探针�
      随 register_provision_ports 挂载，server _assemble_connectors 补挂
      health_ports——真机抓到漏挂 500 后加回归测试）
    - **挂账**：①Claude 最小 cookie 名单补证（本机无登录态，换环境取证）；
-     ②Windows Chrome cookie 真机验收（GCM 链只有单测假 DPAPI）；③mac v10
+     ②Windows Chrome cookie 真机验收——**2026-11-13 完成**：现代布局双候选/
+      锁死兜底/逐 profile 隔离/v20 显式落榜 + DPAPI/GCM 真机 PASS；平台定性 =
+      Chrome 127+ 应用绑定加密 v20 全量，本通道不做对抗解密（Windows 新版
+      Chrome 网页会话捕获如实落榜，A2-03 §7.3/§7.7）；③mac v10
      密文前 16B 段结构未定论（确定性相关、非 sha256/hmac，完整性验证挂账）；
      ④~~定时体检轮询批次~~（已落地 R3-2，2026-11-13：register_health_ports +
      start_health_scans，轮询名册=探针名册，启动补扫+单账号隔离）；⑤A1-04 §8.3/8.4

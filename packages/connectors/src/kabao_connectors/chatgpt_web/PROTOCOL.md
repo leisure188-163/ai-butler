@@ -48,3 +48,10 @@
 - 2026-11-12（mac 本机，A1-04 §4.1）：Chrome cookie 库 358+170 条全解零失败；
   会话令牌在库但已过期（「cookie 在但过期」天然样本）→ 导入语义 = 照常出卡
 - 2026-11-13：`/api/auth/session` 未登录态取证未遂（网络不可达）——待登录态环境补证
+- 2026-11-13（**Windows 真机验收**，Chrome 运行中）：库为现代布局
+  `<profile>/Network/Cookies`（Chrome ≥96，声明补双布局候选——此前旧路径候选
+  本机全落空误报「未发现 cookie 库」）；活动 Default 库锁死 → immutable 只读
+  直开兜底 + 如实出账「关闭浏览器后重扫」，不注册账号；Local State 钥匙腿真
+  DPAPI 实解（209B→32B）+ GCM 腿真钥匙 roundtrip PASS。**平台定性（A2-03
+  §7.7）**：可读 Profile 1 的 124 条 cookie 全量 v20（Chrome 127+ 应用绑定
+  加密）——本通道不做对抗解密，Windows 新版 Chrome 网页会话捕获如实落榜
