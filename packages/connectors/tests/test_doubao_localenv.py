@@ -153,10 +153,12 @@ def test_mac_kill_pid_uses_sigkill(monkeypatch):
 
     import signal
 
+    # 断言值与产品侧同源取 SIGKILL（Windows 无该属性，POSIX 上仍是真 SIGKILL）
+    expected_sig = getattr(signal, "SIGKILL", 9)
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(localenv.os, "kill", fake_kill)
     localenv.real_env().kill_pid(2852)
-    assert recorded["call"] == (2852, signal.SIGKILL)
+    assert recorded["call"] == (2852, expected_sig)
 
 
 def test_mac_kill_pid_gone_is_success(monkeypatch):

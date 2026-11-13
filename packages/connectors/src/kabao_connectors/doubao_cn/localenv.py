@@ -227,8 +227,11 @@ def _kill_pid(pid: int) -> None:
     if sys.platform == "darwin":
         import signal
 
+        # SIGKILL 缺属性时用 POSIX 数值 9：真 mac 必有该属性（行为不变），
+        # 兜底只为 mac 分支单测能在非 POSIX 平台模拟执行（本分支有平台守门）
+        sig = getattr(signal, "SIGKILL", 9)
         try:
-            os.kill(pid, signal.SIGKILL)
+            os.kill(pid, sig)
         except ProcessLookupError:
             pass  # 已退出 = 杀净语义达成（probe 已失败才走到这，无端口实例杀尽即可）
         return

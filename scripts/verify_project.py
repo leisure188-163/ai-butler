@@ -233,15 +233,25 @@ def check_sdk_freshness(root: Path) -> list[str]:
 
 
 def check_tests(root: Path) -> list[str]:
+    import os
     import subprocess
+
+    # Windows 编码口径（2026-11-13 真机）：子进程写 UTF-8（PYTHONIOENCODING）+
+    # 父进程按 UTF-8 解（errors=replace）——默认两侧都跟控制台代码页（GBK），
+    # 子进程任何 UTF-8 字节（如 pytest 输出里的 ✓）都让读线程 UnicodeDecodeError
+    # 崩掉，门禁整条失明误报「核心测试未通过」。
+    def run(cmd, **kw):
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+        return subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", env=env, **kw,
+        )
+
     try:
         # 本仓定制（2026-11-11）：跑根 pyproject testpaths 全量（core/engine/
         # connectors/server）——skill 上游口径只跑 core，M1 装配后 server 路由
         # 的回归（如 timedelta 漏 import）不在其中会漏检
-        r = subprocess.run(
-            ["uv", "run", "pytest", "-q"],
-            cwd=root, capture_output=True, text=True, timeout=600,
-        )
+        r = run(["uv", "run", "pytest", "-q"], cwd=root, timeout=600)
     except FileNotFoundError:
         return ["uv 不可用（未安装或不在 PATH）: 无法运行核心测试，请安装 uv 或去掉 --test"]
     # stdout/stderr 理论上 capture_output 必非 None，但实测瞬态环境（shell profile
@@ -253,12 +263,12 @@ def check_tests(root: Path) -> list[str]:
     # packages/sdk 契约（红线 2/4），server 改字段后 vue-tsc 必须当场报错；
     # pytest 只覆盖 Python 侧。shell=True 与契约指纹检查同款（Windows 下
     # pnpm 是 .cmd shim，list 形式解析不到）。
-    probe = subprocess.run("pnpm --version", shell=True, capture_output=True, text=True)
+    probe = run("pnpm --version", shell=True)
     if probe.returncode != 0:
         return ["pnpm 不可用（未安装或不在 PATH）: 无法运行 web 端 vue-tsc 类型检查"]
-    wt = subprocess.run(
+    wt = run(
         "pnpm --dir apps/web exec vue-tsc --noEmit",
-        shell=True, cwd=root, capture_output=True, text=True, timeout=300,
+        shell=True, cwd=root, timeout=300,
     )
     if wt.returncode != 0:
         tails = ((wt.stdout or "") + (wt.stderr or "")).strip().splitlines()[-5:]
