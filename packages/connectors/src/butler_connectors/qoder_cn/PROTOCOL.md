@@ -2,7 +2,7 @@
 
 > 本文件是**逆向结论的归宿**（A0-01 §2.1）：端点 / 凭据解锁 / 风控头 / 判定。
 > 来源 = 旧仓库取证笔记 NOTE-02（2026-10-21，客户端 0.4.8）+ 旧实现只读提炼；
-> 实现按 ADR-004 走**声明式扩展**，不搬代码。每条结论附取证日期；
+> 实现按 ADR-006 走**声明式扩展**，不搬代码。每条结论附取证日期；
 > **适配器/声明里不允许出现本文没有的端点与头**。
 
 ## 1. 身份与凭据
@@ -63,7 +63,7 @@ Base：`https://openapi.qoder.com.cn`
   `Authorization: Bearer <token>`——全部**静态头**
 - **缺 `Cosy-ClientType` 服务端返回空活动列表**（表现为"没有可领的活"而非报错，
   静默陷阱）；**缺机器身份头组则不返回可领取的日常活动**（同陷阱）——
-  新系统对两者都显式化（ADR-004 §4），绝不静默降级
+  新系统对两者都显式化（ADR-006 §4），绝不静默降级
 - **响应无外壳业务码**（2026-11-11 真机取证）：HTTP 200 即 ok，顶层直接是业务字段
   `uid / showCampaign / claimable / campaignUrl / campaigns[]`——声明 `code_path: ""`
 - 列表项形状（真机取证 2026-11-11）：`campaignId`（36 字符主键）/ `campaignKey`
@@ -80,7 +80,7 @@ Base：`https://openapi.qoder.com.cn`
 | `claimStatus` 其它值 | PENDING | 服务端处理中，可退避 |
 | 筛选后列表双空（无可领也无可领标记） | PENDING | 活动未开始/已结束，如实上报 |
 | claim HTTP ok | 受理 → status 复查定论 | **响应无业务码**（replayed 回执形状非关键，§6 定性） |
-| 未知形状（campaigns 缺失/非列表等） | FAILED + PROTOCOL_CHANGED 事件 | ADR-002 机制兜底 |
+| 未知形状（campaigns 缺失/非列表等） | FAILED + PROTOCOL_CHANGED 事件 | ADR-004 机制兜底 |
 
 ## 4. 幂等与窗口
 
@@ -104,7 +104,7 @@ Base：`https://openapi.qoder.com.cn`
 > 每日 10:00 活动窗错配**——09:59 的 ALREADY 台账在 10:00 刷新后持续回放，当天
 > 可领项静默漏领（oracle 10:02 见 CLAIMABLE、新系统 10:06 仍回放旧台账实证）；
 > 已修（`refresh_at: "10:00"` + 调度首班对齐 10:05，改声明不改代码）。另修正
-> 缺辅凭据语义：NO_AUTH → FAILED + 停靠 hint（ADR-004 §4 原裁决，重登治不了
+> 缺辅凭据语义：NO_AUTH → FAILED + 停靠 hint（ADR-006 §4 原裁决，重登治不了
 > 没停靠）。CLAIMABLE 逐项领取当日未自然发生：10:00 刷新后桌面端分钟级内
 > 领走（10:02 CLAIMABLE → 10:06 已 CLAIMED，期间两系统均未发 claim）。
 

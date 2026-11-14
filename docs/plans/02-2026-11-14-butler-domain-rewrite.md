@@ -6,10 +6,10 @@
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 把 `packages/core` + `packages/engine` 从零重写为五业务域 + shared 的
-`butler_core` / `butler_engine`，并入 ADR-008 多账号模型，P6 收口切流。
+`butler_core` / `butler_engine`，并入 ADR-003 多账号模型，P6 收口切流。
 
 **Architecture:** 新旧并行——P1-P5 新建 `butler_core`/`butler_engine` 并自带测试，
-旧 `kabao_core`/`kabao_engine` 原样保留供 server 继续使用；P6 一次性切流
+旧 `kabao_core`/`butler_engine` 原样保留供 server 继续使用；P6 一次性切流
 （apps 改 import、契约再生成、删旧包）。每阶段验收 = 新增测试全绿 + 门禁九项全绿。
 
 **Tech Stack:** Python 3 + uv workspace + pytest；契约 openapi-typescript（P6）；
@@ -141,7 +141,7 @@ def test_provider_not_in_ui_vocabulary(): ...  # 静态断言 domain 无 UI 词
 
 ```python
 def test_idempotency_key_per_account(): ...
-# key(kind, account_id, window) 同账号同窗口 → 相同；不同账号 → 不同（ADR-008 §4）
+# key(kind, account_id, window) 同账号同窗口 → 相同；不同账号 → 不同（ADR-003 §4）
 
 def test_run_budget_is_first_class(): ...
 # Run 构造必填 budget；超预算判定函数返回如实语义
@@ -238,7 +238,7 @@ event/threshold 触发器消费 shared 事件发起 Action；待办去重
 **Step 1: 失败测试**：各域 repo 实现对应 core ports（假→真替换测试，
 复用 core 侧用例测试作集成测试）；schema 表含 `account_key` 列
 （accounts 集合落地），`usage_samples` 按天分区独立表。
-**Step 2-4:** FAIL → 移植旧 engine 九子模块实现（`kabao_engine/` 各 sqlite.py）
+**Step 2-4:** FAIL → 移植旧 engine 九子模块实现（`butler_engine/` 各 sqlite.py）
 到新域图目录 → PASS。**Step 5:**
 `git commit -m "feat:[0]: butler_engine 按域图落库适配器"`
 
@@ -285,8 +285,8 @@ def test_audit_written(): ...
 - Modify: `packages/connectors/src/kabao_connectors/` → 目录改名
   `butler_connectors/`（registry.py / decl.py / dockio.py / browser.py / cdp.py /
   unlock.py / manifest.py / ssaes.py / native_helper.py 随迁，import 全部切
-  butler_core/butler_engine——**此时旧 kabao_engine 尚在，注意 connectors
-  切新包后旧 server 侧仍走 kabao_engine：本 Task 完成 P5+P6 前半，切换期间
+  butler_core/butler_engine——**此时旧 butler_engine 尚在，注意 connectors
+  切新包后旧 server 侧仍走 butler_engine：本 Task 完成 P5+P6 前半，切换期间
   以 `uv run pytest` 全量绿为准绳；若 verify 结构项冲突，把"双包并存期"
   期望更新进 verify_project.py 并在提交信息注明**）
 - 六连接器子包 `trae_cn/qoder_cn/doubao_cn/workbuddy_cn/chatgpt_web/claude_web`：
@@ -316,9 +316,9 @@ def test_audit_written(): ...
 
 **Files:**
 - Modify: `apps/server`、`apps/cli`、`apps/mcp`、`apps/desktop` 全部 import
-  kabao_core/kabao_engine → butler_core/butler_engine
+  kabao_core/butler_engine → butler_core/butler_engine
 - Modify: 各 `pyproject.toml` 发行包名 → `butler-core/-engine/-connectors/-server/-cli/-mcp`
-- Delete: `packages/core/src/kabao_core/`、`packages/engine/src/kabao_engine/`
+- Delete: `packages/core/src/kabao_core/`、`packages/engine/src/butler_engine/`
 - Modify: `scripts/verify_project.py`（结构期望：butler_core 域图 + 依赖恒等式机检：
   domain.py 禁止 import 其他域）
 - Modify: `docs/conventions/00-项目配置.md`（`{repo-remote}` 等——若 Gitee 已改名）
@@ -354,4 +354,4 @@ web 适配 → `vue-tsc` 绿 → 门禁绿。
 - **双包并存期**（P1-P5）：新旧互不依赖，旧链路测试始终绿 = 随时可停
 - **P6 切流是唯一大爆炸点**：切流前 P1-P5 全部测试绿 + 迁移脚本钉死；切流
   单独成 commit，出问题 `git revert` 单点回退
-- **多账号契约波及 MCP**：兼容层裸应用 id = 首账号，既有调用不断（ADR-008 §2）
+- **多账号契约波及 MCP**：兼容层裸应用 id = 首账号，既有调用不断（ADR-003 §2）

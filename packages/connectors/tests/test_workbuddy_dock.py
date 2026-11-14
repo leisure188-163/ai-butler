@@ -1,4 +1,4 @@
-"""dock offline tests: pure health check + guidance (ADR-006 decision 4), zero network zero decryption zero process launch."""
+"""dock offline tests: pure health check + guidance (ADR-008 decision 4), zero network zero decryption zero process launch."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ class FakeRegister:
 @dataclass
 class FakeCtx:
     register: FakeRegister = field(default_factory=FakeRegister)
-    vault: object = None  # fetched on demand, zero vault: dock never touches the vault (ADR-006 decision 3)
+    vault: object = None  # fetched on demand, zero vault: dock never touches the vault (ADR-008 decision 3)
 
 
 def write_auth(tmp_path, monkeypatch, token) -> Path:

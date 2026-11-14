@@ -5,10 +5,10 @@
   就在 YAML + 共享运行时里）；adapter 型连接器动态 import 其 entry 模块
   （entry = "module.attribute"，模块内实现 core 端口——三级扩展第二级；
   其 build_port 契约 = ``(vault=, transport=)``，transport 与声明式共用注入面）
-- 业务码方言在装载期注册（ADR-002）：business_codes = raw code → Status
+- 业务码方言在装载期注册（ADR-004）：business_codes = raw code → Status
 - dock 分发：声明式连接器的接入扫描 = 共享 dockio（storage 发现 → 凭据入库）；
   adapter 连接器在包内 onboard.py 的 ``dock(ctx)`` 自带扫描
-- 调度条目输出纯数据（dict）：engine 不 import 本包（ADR-003），
+- 调度条目输出纯数据（dict）：engine 不 import 本包（ADR-005），
   端的组装层把字典转成 engine 的 ScheduleEntry
 """
 
@@ -259,7 +259,7 @@ class Registry:
 
 
 def load_registry() -> Registry:
-    """扫描包内每个连接器子目录的 manifest.yaml；装载即注册方言（ADR-002）。
+    """扫描包内每个连接器子目录的 manifest.yaml；装载即注册方言（ADR-004）。
 
     幂等：同映射重复注册不报错（reload 安全），映射不同 = 装配 bug 显式爆。
     """
@@ -277,7 +277,7 @@ def load_registry() -> Registry:
             )
         for spec in manifest.capabilities.values():
             if spec.kind == "adapter":
-                # 装载即 import：adapter 模块自注册业务码方言（ADR-002 装载期），
+                # 装载即 import：adapter 模块自注册业务码方言（ADR-004 装载期），
                 # 坏 entry 也在装载期显式爆，不留到首次 run（红线 5）
                 _load_entry_module(manifest.id, spec.entry)
         declarative: dict[str, Any] = {}

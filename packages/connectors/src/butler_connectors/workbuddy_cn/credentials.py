@@ -1,4 +1,4 @@
-"""workbuddy credential file location and reading (with transient file-lock retries) (ADR-006 decision 3: fetch and use on demand, never persisted).
+"""workbuddy credential file location and reading (with transient file-lock retries) (ADR-008 decision 3: fetch and use on demand, never persisted).
 
 The credential file is automatically written by the desktop client after login; the client briefly holds the file
 exclusively when refreshing its token — reading at that exact moment hits PermissionError; the lock is transient,

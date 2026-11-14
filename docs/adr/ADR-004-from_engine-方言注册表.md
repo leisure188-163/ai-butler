@@ -1,11 +1,11 @@
 ---
-name: kabao-adr-002
+name: butler-adr-004
 description: 连接器方言以数据在 core 注册，from_engine(text, dialect) 是唯一运行时翻译入口，未知码显式报错。TRIGGER when 实现 Connector/翻译业务码/对验收 oracle 时
 version: "1.0.0"
 level: must
 ---
 
-# ADR-002 · from_engine 方言注册表：core 单源翻译，未知码显式报错
+# ADR-004 · from_engine 方言注册表：core 单源翻译，未知码显式报错
 
 - **状态**：Accepted
 - **日期**：2026-11-10

@@ -204,7 +204,7 @@ def test_missing_credentials_no_auth():
 
 
 def test_missing_aux_credential_failed_with_dock_hint():
-    """缺辅凭据（机器身份）：登录态在但头组不全 → FAILED + 重新停靠 hint（ADR-004 §4）。
+    """缺辅凭据（机器身份）：登录态在但头组不全 → FAILED + 重新停靠 hint（ADR-006 §4）。
 
     与缺主凭据（NO_AUTH，修复 = 重登）分开——重登治不了没停靠。
     """

@@ -61,7 +61,7 @@ class ActionInvalid(DomainError):
 
 @dataclass(frozen=True)
 class Action:
-    """Action = (kind, target, params)；target = 应用 + 账号编址（ADR-008 §2）。"""
+    """Action = (kind, target, params)；target = 应用 + 账号编址（ADR-003 §2）。"""
 
     kind: ActionKind
     target: str
@@ -136,6 +136,6 @@ class Run:
 
 
 def idempotency_key(action: Action, account_id: str, window: str) -> str:
-    """幂等键 = (kind, account_id, 窗口)——按账号粒度（ADR-008 §4）。"""
+    """幂等键 = (kind, account_id, 窗口)——按账号粒度（ADR-003 §4）。"""
 
     return f"{action.kind.value}:{account_id}:{window}"

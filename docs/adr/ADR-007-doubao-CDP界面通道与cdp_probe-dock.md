@@ -5,12 +5,12 @@ version: "1.0.0"
 level: must
 ---
 
-# ADR-005 · doubao 接入形状 = CDP 界面通道端口实现，dock = cdp_probe 体检
+# ADR-007 · doubao 接入形状 = CDP 界面通道端口实现，dock = cdp_probe 体检
 
 - **状态**：Accepted
 - **日期**：2026-11-11
-- **决策者**：M1 会话（用户三项裁决：dock 体检 / 自动拉起 / M1 不做清扫）
-- **关联**：A2-02 §3（端口实现合法形态）、§8（CDP 测试边界）、ADR-004（排除项
+- **决策者**：架构会话（用户三项裁决：dock 体检 / 自动拉起 / 首期不做清扫）
+- **关联**：A2-02 §3（端口实现合法形态）、§8（CDP 测试边界）、ADR-006（排除项
   "doubao dock 形态届时另裁"的落定）、doubao_cn PROTOCOL.md、旧仓库 NOTE-04
 
 ## 背景
@@ -39,7 +39,7 @@ detail 只读 code=0。
    **豆包登录态 = 运行中的客户端进程本身**，没有可注入凭据——vault 最小授权
    退化为零申报（`credential.kinds: []`）；Cookie 运行时 CDP 现取现用，
    绝不持久化。
-3. **通道裁决**：M1 只实现界面通道 + detail 只读复查（裸 HTTP 唯一保留接口，
+3. **通道裁决**：首期只实现界面通道 + detail 只读复查（裸 HTTP 唯一保留接口，
    实测无害；签名校验若未来收紧 → 升级页面内 fetch，届时另裁）。**裸写禁令**：
    checkin/claim 一律不裸发——checkin 由客户端 JS 自己发（我们只负责把用户
    "点一下"），claim（任务清扫）M2 另裁（界面点击或取证后裸发）。
@@ -51,7 +51,7 @@ detail 只读 code=0。
 
 ## 排除项
 
-- 任务清扫（tasks/milestones 领取）M1 不做——裸 HTTP claim 有会话受限风险、
+- 任务清扫（tasks/milestones 领取）首期不做——裸 HTTP claim 有会话受限风险、
   界面点击编排复杂（按钮位置不稳定）；M2 结合用量采集另裁
 - 文件解 Cookie（多 profile 合并 + 32B 前缀剥离）不做——界面通道用不上，
   且 Profile N 运行期独占锁、Default 常为过期态

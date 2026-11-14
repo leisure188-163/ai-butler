@@ -1,4 +1,4 @@
-"""helper.js verbatim import guard (ADR-006 decision 2: JS/orchestration shape = protocol contract, rewriting is forbidden)."""
+"""helper.js verbatim import guard (ADR-008 decision 2: JS/orchestration shape = protocol contract, rewriting is forbidden)."""
 
 from pathlib import Path
 

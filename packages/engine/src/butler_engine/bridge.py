@@ -4,7 +4,7 @@
 通知中心）→ Vault（秘密后端按平台选默认层）→ 健康扫描用例 → 到期/停靠/用量定时 job。
 端拿 EngineKit 用，不许 import 引擎内部模块。
 
-连接器接入（ADR-003）：端把连接器注册表产出的 target→端口映射交给
+连接器接入（ADR-005）：端把连接器注册表产出的 target→端口映射交给
 `register_provision_ports()`，用例层按 action.target 路由；engine 不 import
 连接器包（依赖方向恒指 core）。
 """
@@ -118,7 +118,7 @@ class EngineKit:
         *,
         replace: bool = False,
     ) -> None:
-        """挂载连接器端口（ADR-003）：target 精确路由优先，kind 兜底。
+        """挂载连接器端口（ADR-005）：target 精确路由优先，kind 兜底。
 
         重复挂载同名 target = 注册表装配 bug，显式拒绝（红线 5）；
         显式 replace=True = 重装配（测试/热替换），替换而非静默叠加。
@@ -137,7 +137,7 @@ class EngineKit:
         *,
         replace: bool = False,
     ) -> None:
-        """挂载用量采集端口（R2）：target 精确路由（同 ADR-003 纪律）。
+        """挂载用量采集端口（R2）：target 精确路由（同 ADR-005 纪律）。
 
         重复挂载同名 target = 注册表装配 bug，显式拒绝；replace=True 供重装配。
         """
@@ -318,7 +318,7 @@ def _secret_backends() -> tuple[dict[str, SecretBackend], str]:
 def build_engine(db_path: str | Path = DEFAULT_DB) -> EngineKit:
     """组装根：把适配器接到端口，构造用例（A1-02 §1：start 层职责）。
 
-    provision 类端口由端按 ADR-003 注册（连接器注册表 → register_provision_ports）；
+    provision 类端口由端按 ADR-005 注册（连接器注册表 → register_provision_ports）；
     未接入动作显式拒绝（UnsupportedAction）。每日扫描 job 默认不启动，由端
     （server/desktop 组合层）显式 start_expiry_scans()。
     """

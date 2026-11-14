@@ -1,16 +1,16 @@
 ---
-name: kabao-adr-004
+name: butler-adr-006
 description: qoder 走声明式扩展接入——列表领取形状进 schema、凭据与机器身份做成 kind，不写 per-app 代码。TRIGGER when 实现 qoder/评估声明式 schema 扩展时
 version: "1.0.0"
 level: must
 ---
 
-# ADR-004 · qoder 接入形状 = 声明式扩展，不是 Python 适配器
+# ADR-006 · qoder 接入形状 = 声明式扩展，不是 Python 适配器
 
 - **状态**：Accepted
 - **日期**：2026-11-11
-- **决策者**：M1 会话（与用户裁决 kind 收敛原则同日）
-- **关联**：A2-02 §3（kind 收敛原则）、§4（声明式 schema）、ADR-002/003、qoder PROTOCOL.md
+- **决策者**：架构会话（与用户裁决 kind 收敛原则同日）
+- **关联**：A2-02 §3（kind 收敛原则）、§4（声明式 schema）、ADR-004/003、qoder PROTOCOL.md
 
 ## 背景
 

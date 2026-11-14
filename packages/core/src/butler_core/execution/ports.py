@@ -57,7 +57,7 @@ def routing_ports(
     kind_ports: Mapping[ActionKind, ProvisionPort],
     target_ports: Mapping[str, ProvisionPort],
 ) -> PortSelector:
-    """target 精确匹配优先，kind 兜底（ADR-003）。"""
+    """target 精确匹配优先，kind 兜底（ADR-005）。"""
 
     def select(action: Action) -> ProvisionPort | None:
         return target_ports.get(action.target) or kind_ports.get(action.kind)

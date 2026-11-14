@@ -6,7 +6,7 @@
 
 ## 1. 职责与边界
 
-- 管：Provider、Account 集合（多账号，ADR-008）、Credential、Entitlement、Session、
+- 管：Provider、Account 集合（多账号，ADR-003）、Credential、Entitlement、Session、
   账户注册与凭据导入入口、vault 端口（预警窗常量随域）。
 - 不管：执行动作（execution）、用量计算（usage）、健康评级规则（health）——
   本域只提供账户事实，评级与动作由对应域消费。
@@ -19,7 +19,7 @@ Account（聚合根）：
   identity = (provider_id, account_key)；account_key 缺省 "main"
   同一 Provider 下 account_key 唯一；删除账户 = 软删除（台账/审计保留 account_id）
 Credential：kind(ss_aes/cookie/oauth/api-key) / 密文 / 有效期 / 轮换历史
-  ——凭据必须绑定 account，禁止按应用共享（ADR-008 §5）
+  ——凭据必须绑定 account，禁止按应用共享（ADR-003 §5）
 Entitlement：余额 / 连签 / 上次领取窗口（按账号隔离）
 Session：存储位置 / 可迁移级别(local|inject|server)
 ```
@@ -32,7 +32,7 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 
 ## 3. 端口（accounts/ports.py）
 
-- `VaultPort`：凭据存取/解锁（engine 实现；本地凭据解锁链，承袭 M1 收敛裁决 ADR-006）
+- `VaultPort`：凭据存取/解锁（engine 实现；本地凭据解锁链，承袭 M1 收敛裁决 ADR-008）
 - `SessionSourcePort`：本机会话/凭据扫描与导入（dock/浏览器通道的数据面）
 - `AccountRepoPort`：账户集合的持久化（Repository 接口隔离，A1-02 §6）
 
@@ -41,7 +41,7 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 | 用例 | 语义 |
 |---|---|
 | `register_account` | 建立 Provider 下账户并落库；`(provider, account_key)` 冲突 → 显式拒绝 |
-| 导入多账号 | SessionSourcePort 枚举本机多 profile/多开，逐账号入库（ADR-008 §3；连接器侧逐家取证随 P5 落地，见 A2-02 §5 沙箱） |
+| 导入多账号 | SessionSourcePort 枚举本机多 profile/多开，逐账号入库（ADR-003 §3；连接器侧逐家取证随 P5 落地，见 A2-02 §5 沙箱） |
 
 ## 5. 事件联动
 

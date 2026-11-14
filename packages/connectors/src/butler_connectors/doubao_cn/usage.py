@@ -1,6 +1,6 @@
 """doubao_cn 用量通道（R2，PROTOCOL §7.2）：quota/records 入账流水裸读。
 
-- 零凭据设计（ADR-005）：CDP 现取 Cookie（现取现用不入 vault），复用签到
+- 零凭据设计（ADR-007）：CDP 现取 Cookie（现取现用不入 vault），复用签到
   通道的环境束（version_code 运行时派生）与活动页连接（有页附着，无页新开）
 - quota/records = 入账 ledger（本机全量 15 条全为正值实证）：cursor 翻页
   （上限 10 页防御）；detail/UI 无余额 → snapshot=None aggregate=None 如实
@@ -150,5 +150,5 @@ class DoubaoUsagePort:
 
 
 def build_usage_port(*, vault, transport=None, auth=None, kinds=()) -> DoubaoUsagePort:
-    """registry usage.collect entry：vault/auth/kinds 收下但零凭据设计不用（ADR-005）。"""
+    """registry usage.collect entry：vault/auth/kinds 收下但零凭据设计不用（ADR-007）。"""
     return DoubaoUsagePort(transport=transport, auth=auth, kinds=tuple(kinds))

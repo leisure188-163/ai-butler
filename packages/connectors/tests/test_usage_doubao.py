@@ -1,6 +1,6 @@
 """doubao_cn 用量通道测试（R2-C）：CDP 现取 Cookie + quota/records 流水翻页。
 
-零凭据设计（ADR-005）：无 vault/auth 参与；环境束与 CDP 通道全假件离线。
+零凭据设计（ADR-007）：无 vault/auth 参与；环境束与 CDP 通道全假件离线。
 断言翻页游标、流水字段映射、probe 失败显式上抛。
 """
 
@@ -197,7 +197,7 @@ def test_amount_as_numeric_string_accepted():
 
 
 def test_build_usage_port_defaults_real_env():
-    """registry entry 契约：vault/auth/kinds 收下但零凭据设计不用（ADR-005）。"""
+    """registry entry 契约：vault/auth/kinds 收下但零凭据设计不用（ADR-007）。"""
     port = build_usage_port(vault=None, transport=None, auth=None, kinds=())
     assert isinstance(port, DoubaoUsagePort)
     assert port.transport is not None

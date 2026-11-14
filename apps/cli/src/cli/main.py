@@ -27,7 +27,7 @@ def _kit():
 
 
 def _registry():
-    """连接器注册表（ADR-003）：CLI 与 server 同源装载。"""
+    """连接器注册表（ADR-005）：CLI 与 server 同源装载。"""
     from butler_connectors.registry import load_registry
 
     return load_registry()

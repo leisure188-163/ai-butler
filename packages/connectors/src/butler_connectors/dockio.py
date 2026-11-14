@@ -66,7 +66,7 @@ def _scan_kind(
     raise ManifestInvalid(f"{conn_id}: dock 扫描器不支持凭据 kind {auth.kind!r}")
 
 
-# --- dpapi_gcm_v10（qoder_cn）：glob 数据目录 → 自包含信封（ADR-004）---
+# --- dpapi_gcm_v10（qoder_cn）：glob 数据目录 → 自包含信封（ADR-006）---
 
 
 def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> dict[str, str]:
@@ -74,7 +74,7 @@ def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> dict[str, str]:
 
     Windows 信封自包含（dat + key_b64，unlock.session_from_dpapi_gcm_v10 解链），
     运行时解锁不再依赖本机文件布局；mac 信封只带 dat——钥匙在 Keychain
-    （"Qoder App Safe Storage"），解锁时现取（ADR-006 决策 3：现用现取，密钥不入 vault）。
+    （"Qoder App Safe Storage"），解锁时现取（ADR-008 决策 3：现用现取，密钥不入 vault）。
     解码一次只为验形 + 取 expiresAt 元数据，明文即刻丢弃，入库的是信封原文。
     """
     import sys
@@ -180,7 +180,7 @@ def _collect_umid_cosy(
     """Cosy 机器身份头组采集（kind=umid_cosy）：跑客户端自带 runtime-info 组件。
 
     标识不编造（PROTOCOL qoder_cn §1）；找不到组件/字段不齐 = 显式爆——
-    绝不退回"普通请求"（旧系统缺头静默空列表的陷阱，ADR-004 §4 显式化）。
+    绝不退回"普通请求"（旧系统缺头静默空列表的陷阱，ADR-006 §4 显式化）。
     """
     import base64
     import json

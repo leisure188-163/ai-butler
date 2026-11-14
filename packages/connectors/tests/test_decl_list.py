@@ -1,4 +1,4 @@
-"""声明式列表模式（qoder 形状，ADR-004）：三分类判定 × 逐项 claim × 复查确认。
+"""声明式列表模式（qoder 形状，ADR-006）：三分类判定 × 逐项 claim × 复查确认。
 
 假 transport 剧本化（离线，无 IO）；解锁字段 stub 注入，与 test_decl_runtime 同法。
 """

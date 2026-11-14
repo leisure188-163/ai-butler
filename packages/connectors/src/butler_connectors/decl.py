@@ -4,7 +4,7 @@
 1. 解锁：vault 按申报 kinds 取凭据 → 字段字典 → 填 header 模板（缺字段显式爆）
 2. status 先行：已被领过 → ALREADY（省一次 claim）；dry_run → SKIPPED（只报告）
 3. claim：retry.on_codes 命中 → 按 backoff_seconds 退避重试（受 deadline 硬约束）
-4. 结果翻译：非 ok 业务码经 ADR-002 方言 from_engine(...)；未知码把
+4. 结果翻译：非 ok 业务码经 ADR-004 方言 from_engine(...)；未知码把
    UnknownEngineCode 抛给 ExecuteAction（FAILED + PROTOCOL_CHANGED 事件）；
    响应缺关键字段 = 协议形状变化的探测点，同路处理
 5. confirm_by_status：claim 受理后以 status 复查为准（结果权威）
@@ -128,7 +128,7 @@ def _resolve_auth_headers(
                 raise _Verdict(
                     Status.NO_AUTH, kind, note=f"缺凭据 kind={kind}——{_no_auth_note(auth.kind)}"
                 ) from exc
-            # 辅凭据（机器身份等）缺失 = 登录态在但头组不全——ADR-004 §4：
+            # 辅凭据（机器身份等）缺失 = 登录态在但头组不全——ADR-006 §4：
             # 缺机器身份 → FAILED + repair_hint（重新停靠），绝不静默空列表
             raise _Verdict(
                 Status.FAILED,
@@ -149,7 +149,7 @@ def _verdict_to_result(display: str, verdict: _Verdict, *, default_no_auth: str)
     if verdict.status is Status.NO_AUTH:
         hint = RepairHint(reason=verdict.note or default_no_auth, action_id="dock")
     elif verdict.status is Status.FAILED and verdict.note:
-        # 带 note 的 FAILED = 缺辅凭据（机器身份）等"停靠可修"态（ADR-004 §4）；
+        # 带 note 的 FAILED = 缺辅凭据（机器身份）等"停靠可修"态（ADR-006 §4）；
         # 无 note 的 FAILED（方言业务码事故）维持无 hint 原语义
         hint = RepairHint(reason=verdict.note, action_id="dock")
     return RunResult(status=verdict.status, evidence=(evidence,), repair_hint=hint)
@@ -450,7 +450,7 @@ class DeclarativeHealthPort:
     实现 core ProvisionPort 协议结构（capabilities + run）——复用既有
     路由/台账/事件机制，core 零改动。非 health.check 动作显式拒绝（网页通道
     无领取概念，A1-04 §6）。七词映射：HTTP ok = ALREADY（期望态已达成，
-    healthy = silent）；映射码经 ADR-002 方言；未知码上抛给 ExecuteAction
+    healthy = silent）；映射码经 ADR-004 方言；未知码上抛给 ExecuteAction
     （FAILED + PROTOCOL_CHANGED）。
     """
 

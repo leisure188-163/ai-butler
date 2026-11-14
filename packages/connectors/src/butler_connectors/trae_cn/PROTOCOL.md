@@ -44,7 +44,7 @@ body  = 登录态 JSON：{ "token": <Cloud-IDE-JWT>, ... }
 - **claim 必带 `x-device-id: <Aha 数字设备号>`**，否则业务码 9004（2026-10-21 复核；status 不校验设备头）
 - 客户端原进程还附 x-device-brand 等五件套——**M1 未发**（取证未证实缺它会拒绝；勿编造）
 
-## 3. 业务码与结果翻译（ADR-002 方言 `trae_cn`）
+## 3. 业务码与结果翻译（ADR-004 方言 `trae_cn`）
 
 | 原始码 | 语义 | → Status | 备注 |
 |---|---|---|---|
@@ -52,7 +52,7 @@ body  = 登录态 JSON：{ "token": <Cloud-IDE-JWT>, ... }
 | `1001` | 服务端无法认证（令牌失效） | NO_AUTH | 修复 = 桌面端重新登录后重新停靠 |
 | `9004` | 请求缺设备头（我方缺陷） | FAILED | 修复 = 重新停靠（dock 会补 device_dn） |
 | `9074` | 活动期限流 | PENDING | **可退避重试 30/60/120s**；耗尽如实 PENDING，不算失败 |
-| 未知码 | 协议可能已变 | FAILED + PROTOCOL_CHANGED 事件 | ADR-002 机制兜底 |
+| 未知码 | 协议可能已变 | FAILED + PROTOCOL_CHANGED 事件 | ADR-004 机制兜底 |
 
 ## 4. 幂等与窗口
 

@@ -1,6 +1,6 @@
 """账户域用例（A2-04 §4）：注册账户 + 多账号枚举导入。
 
-多账号（ADR-008）：(provider, account_key) 是身份锚点；同身份重复停靠是幂等
+多账号（ADR-003）：(provider, account_key) 是身份锚点；同身份重复停靠是幂等
 回放（返回既有账户，不覆盖、不改号）；显式传入的 account_id 与身份编址不一致
 则拒绝（形状冲突，红线 5）。
 """
@@ -52,7 +52,7 @@ class RegisterAccount:
         return account
 
     def import_from_source(self, draft: AccountDraft) -> list[Account]:
-        """枚举本机多 profile（ADR-008 §3），逐账号入库。"""
+        """枚举本机多 profile（ADR-003 §3），逐账号入库。"""
 
         if self.source is None:
             return [self.execute(draft.provider, draft.display_name, account_key=draft.account_key)]

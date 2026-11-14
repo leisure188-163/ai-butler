@@ -75,7 +75,7 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
         assert rows == [
             {
                 "account_id": "acc1",
-                "account_key": "acc1",  # 多账号维度（ADR-008）
+                "account_key": "acc1",  # 多账号维度（ADR-003）
                 "provider": "",  # vault-only 账号：号册无记录，如实空串
                 "display_name": "acc1",  # 缺省回落 account_id
                 "level": "healthy",  # core 出产字面量，server 原样传递

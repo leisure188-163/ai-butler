@@ -1,11 +1,11 @@
-"""workbuddy_cn connector (ADR-006): encrypted-credential decryption-chain port implementation — WorkBuddy-specific is only the credential chain.
+"""workbuddy_cn connector (ADR-008): encrypted-credential decryption-chain port implementation — WorkBuddy-specific is only the credential chain.
 
 - registry adapter contract (registry._load_entry): ``adapter.butler`` provides build_port / dock
-  hooks (manifest/dock 入册见同 Task）；vault 参数保留（契约签名）但现用现取零 vault（ADR-006
+  hooks (manifest/dock 入册见同 Task）；vault 参数保留（契约签名）但现用现取零 vault（ADR-008
   决策 3：客户端 30 天自动刷新并重写凭据文件，入库即过期）
 - Orchestration (PROTOCOL §3 decision table): locate credential → parse/decrypt → status query (claim only if
   unsigned) → claim → recheck; 401/403/active/already-signed/credit/error codes all land as explicit statuses
-- Dialect loading-phase self-registration (ADR-002): dialect = {"10001": ALREADY} (claim 400 already-signed code);
+- Dialect loading-phase self-registration (ADR-004): dialect = {"10001": ALREADY} (claim 400 already-signed code);
   other unknown claim codes deliberately unregistered → UnknownEngineCode → use case layer FAILED +
   PROTOCOL_CHANGED (red line 5)
 - Decryption primitives in native_helper.py (generic); local environment in localenv.py (workbuddy-specific)
@@ -134,7 +134,7 @@ def _claimed(credit: Any, status: dict) -> RunResult:
 class WorkbuddyProvisionPort(ProvisionPort):
     """WorkBuddy sign-in port: decryption chain fetched on demand + status-driven decisions; dry_run only queries.
 
-    Credentials fetched and decrypted per run (ADR-006 decision 3): locate file → parse (transient lock retry) →
+    Credentials fetched and decrypted per run (ADR-008 decision 3): locate file → parse (transient lock retry) →
     subprocess decryption only for envelopes → build headers in memory, discard after use; except PENDING, all
     statuses land explicitly per the PROTOCOL §3 decision table, never silent fallback (red line 5).
     """
@@ -313,7 +313,7 @@ class _Butler:
         transport=None,
         env: WorkbuddyEnv | None = None,
     ) -> WorkbuddyProvisionPort:
-        # vault parameter kept (registry contract signature); fetched on demand, zero vault (ADR-006 decision 3)
+        # vault parameter kept (registry contract signature); fetched on demand, zero vault (ADR-008 decision 3)
         from butler_connectors.transport import httpx_transport
 
         return WorkbuddyProvisionPort(
@@ -322,7 +322,7 @@ class _Butler:
         )
 
     def dock(self, ctx: DockContext, *, env: WorkbuddyEnv | None = None) -> DockOutcome:
-        """Pure health check + guidance (ADR-006 decision 4): four read-only items, zero network zero decryption, no auto-launch."""
+        """Pure health check + guidance (ADR-008 decision 4): four read-only items, zero network zero decryption, no auto-launch."""
         env = env if env is not None else real_env()
         issues = self._checkup(env)
         if issues:
@@ -369,7 +369,7 @@ class _Butler:
 
 butler = _Butler()
 
-#: Dialect loading-phase self-registration (ADR-002): claim 400 already-signed code; 401/403 are HTTP-layer
+#: Dialect loading-phase self-registration (ADR-004): claim 400 already-signed code; 401/403 are HTTP-layer
 #: decisions, not in the dialect (PROTOCOL §3); other unknown codes deliberately unregistered →
 #: UnknownEngineCode → use case layer FAILED + PROTOCOL_CHANGED (red line 5).
 from butler_core.shared.results import register_dialect

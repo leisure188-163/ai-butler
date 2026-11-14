@@ -1,4 +1,4 @@
-"""CDP 通用原语（ADR-005）：Chromium/Electron 客户端界面通道的共享底座。
+"""CDP 通用原语（ADR-007）：Chromium/Electron 客户端界面通道的共享底座。
 
 - 原语不认识任何产品：probe / targets / pick / attach / open_activity /
   cookies / evaluate / click——产品专属编排在各连接器 adapter（A2-02 §3）

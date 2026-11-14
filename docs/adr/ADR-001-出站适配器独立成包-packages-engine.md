@@ -1,5 +1,5 @@
 ---
-name: kabao-adr-001
+name: butler-adr-001
 description: 出站适配器（Vault/SQLite/HTTP/调度器）独立成 packages/engine 包，bridge.py 唯一出桥，对齐 COLA infrastructure 层。TRIGGER when 写适配器/装配依赖/讨论 core 依赖时
 version: "1.0.0"
 level: must
@@ -15,7 +15,7 @@ level: must
 ## 背景
 
 A1-02 §2 分层图画了 `engines/`（出站适配器：HTTP / 凭据解锁 / CDP / SQLite / 调度器），
-但 §5 目录规划和脚手架都没有给这个层落点——M0 编码第一步就会撞上：Keychain(Vault)、
+但 §5 目录规划和脚手架都没有给这个层落点——实现第一步就会撞上：Keychain(Vault)、
 SQLite 仓储、事件总线落地、调度器这些适配器**需要被 server 与 CLI 共享**（两端都直调 core）。
 
 候选方案：
@@ -42,20 +42,19 @@ SQLite 仓储、事件总线落地、调度器这些适配器**需要被 server 
 
 ## 决策
 
-**方案 A：出站适配器独立成 `packages/engine`（包名 `kabao_engine`）**，流程要点：
+**方案 A：出站适配器独立成 `packages/engine`（包名 `butler_engine`）**，流程要点：
 
 1. 依赖方向恒定：`端 → core`、`engine → core`；engine 不依赖任何端。
-2. `kabao_engine/bridge.py` 是端触达引擎的**唯一出桥**（R4）：装配适配器 →
+2. `butler_engine/bridge.py` 是端触达引擎的**唯一出桥**：装配适配器 →
    构造用例 → 把引擎原始输出经 core 领域词汇归一后返回。
 3. 适配器按**能力**分子包（`vault/` `ledger/` `scheduling/` `http/`…），
    禁止用旧业务目录名（R3）。
 4. `core/bootstrap.py` 保留为纯装配根（只认端口协议）；bridge 调它并传具体适配器。
-5. server / CLI 统一 `from kabao_engine.bridge import ...`；
-   脚手架残留的 `apps/server/adapters/`、`apps/cli/repo.py` 在 M0 重构时迁入 engine 后删除。
+5. server / CLI 统一 `from butler_engine.bridge import ...`；
 
 明确排除项：
 
-- `packages/connectors/`（M1 的 Connector 包）**不属于** engine——Connector 是被
+- `packages/connectors/`（Connector 包）**不属于** engine——Connector 是被
   core 端口调度的领域扩展，不是基础设施适配器，见 A2-02 §1。
 - M3 的网关独立进程（`apps/gateway`）不是 engine 的一部分，仅通过 IPC/HTTP 与主控通信。
 

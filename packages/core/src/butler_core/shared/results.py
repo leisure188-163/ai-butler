@@ -3,7 +3,7 @@
 - 字面量与旧系统方言严格对齐——行为验收 oracle 零损耗（A0-01 §2.2），
   禁止增改字面量。
 - 端上只消费 ResultKind 谓词，禁止 `if status in [...]` 式语义映射表（红线 2）。
-- from_engine 是唯一运行时翻译入口；方言注册表机制见 ADR-002。
+- from_engine 是唯一运行时翻译入口；方言注册表机制见 ADR-004。
 - 未知业务码显式报错（红线 5），绝不静默兜底。
 """
 
@@ -108,7 +108,7 @@ _DIALECTS: dict[str, dict[str, Status]] = {
 
 
 def register_dialect(name: str, mapping: Mapping[str, Status]) -> None:
-    """注册连接器方言（业务码 → Status），加载期调用一次（ADR-002）。
+    """注册连接器方言（业务码 → Status），加载期调用一次（ADR-004）。
 
     同名重载：映射**完全一致** = 注册表 reload 的幂等续订，不再报错；
     映射不一致 = 装配 bug，显式报错，绝不静默覆盖。

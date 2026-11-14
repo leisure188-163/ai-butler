@@ -210,7 +210,7 @@ def test_web_connectors_loaded_with_shapes(registry):
 
 
 def test_http_codes_registered_as_dialect(registry):
-    """ProbeSpec.codes 装载期注册方言（ADR-002 唯一翻译点）。"""
+    """ProbeSpec.codes 装载期注册方言（ADR-004 唯一翻译点）。"""
     assert from_engine("401", dialect="chatgpt_web") is Status.EXPIRED
     assert from_engine("403", dialect="chatgpt_web") is Status.NO_AUTH
     assert from_engine("401", dialect="claude_web") is Status.EXPIRED

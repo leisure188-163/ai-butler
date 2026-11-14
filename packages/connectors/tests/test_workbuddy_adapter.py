@@ -366,7 +366,7 @@ def test_dialect_single_entry():
 
 
 def test_execute_action_unknown_code_becomes_failed_with_event(tmp_path, monkeypatch):
-    """Use case integration (ADR-002): UnknownEngineCode → FAILED + PROTOCOL_CHANGED event."""
+    """Use case integration (ADR-004): UnknownEngineCode → FAILED + PROTOCOL_CHANGED event."""
     write_auth(tmp_path, monkeypatch, _PLAIN_TOKEN)
     saved: list = []
     events: list = []

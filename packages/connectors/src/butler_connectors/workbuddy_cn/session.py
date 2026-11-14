@@ -1,4 +1,4 @@
-"""workbuddy session: validation, auth headers, plaintext/encrypted credential resolution (ADR-006 decisions 2/3).
+"""workbuddy session: validation, auth headers, plaintext/encrypted credential resolution (ADR-008 decisions 2/3).
 
 The credential file is automatically written by the desktop client after login; the old accessToken is plaintext,
 the new version is a ``$wbEncrypted`` envelope — the latter is decrypted by the client's bundled runtime in a hidden
@@ -220,7 +220,7 @@ def decrypt_envelope(
     timeout: float = AUTH_HELPER_TIMEOUT,
     runner=run_json_stdin_helper,
 ) -> str:
-    """Envelope → plaintext token: try candidate runtimes in order, switch to next on KEY_MISMATCH (ADR-006 decision 6)."""
+    """Envelope → plaintext token: try candidate runtimes in order, switch to next on KEY_MISMATCH (ADR-008 decision 6)."""
     if not candidates:
         raise AuthError("RUNTIME_NOT_FOUND")
     script = helper_js()

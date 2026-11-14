@@ -1,6 +1,6 @@
 """workbuddy local environment bundle (same shape as doubao localenv): runtime location + WORKBUDDY_EXE override.
 
-The decryption chain needs the client's bundled Electron runtime (ADR-006 decisions 2/6): candidates are tried in
+The decryption chain needs the client's bundled Electron runtime (ADR-008 decisions 2/6): candidates are tried in
 order, switching to the next on KEY_MISMATCH. Location order: WORKBUDDY_EXE explicit override (invalid path =
 explicit error, not "not installed") > common install directories (Windows) / .app bundles (mac) > uninstall
 registry (Windows only; HKCU/HKLM/WOW6432Node).
@@ -106,7 +106,7 @@ def _exe_from_entry(entry: dict[str, str]) -> Path | None:
     icon = entry.get("DisplayIcon", "").split(",")[0].strip().strip('"')
     if icon:
         base = Path(icon)
-        if base.suffix:  # suffixed = exe itself (measured form, ADR-006 decision 6)
+        if base.suffix:  # suffixed = exe itself (measured form, ADR-008 decision 6)
             return base
         for exe in _RUNTIME_EXES:  # unsuffixed = directory form → append both names
             if (base / exe).is_file():

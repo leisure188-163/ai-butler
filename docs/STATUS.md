@@ -22,9 +22,9 @@ openapi.sha256 零 diff。**验收**：vue-tsc 绿 + 门禁九项绿 + 505 tests
 修掉窄屏顶条六项导航与主名重叠（改两行网格 + 导航横向滚动）。
 Butler 重定位六问裁决全部落地。
 
-**按业务域重写 P0-P6 全部完成（2026-11-14，ADR-009）**：`butler_core` 五业务域
+**按业务域重写 P0-P6 全部完成（2026-11-14，ADR-002）**：`butler_core` 五业务域
 + shared 内核从零落地（端口随域走、依赖恒等式入门禁机检），`butler_engine` 按同
-域图重写，旧 `kabao_core/kabao_engine` 已删除；全库 six 包/CLI/env/db/存储键/
+域图重写，旧 `kabao_core/butler_engine` 已删除；全库 six 包/CLI/env/db/存储键/
 npm 包名统一 butler（仅 Gitee 远端改名待用户手工）；多账号模型落地
 （首账号键 `main` 兼容存量，幂等键按账号，契约 `account_key`/`account_ids`，
 一键领取逐账户发起）；一次性迁移集中 `butler_engine/db/migrate.py`（旧库四级
@@ -45,16 +45,16 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 - 前代项目 auto-signin-kit **严禁搬代码**：只提炼 PROTOCOL.md + 行为对照验收（A0-01）
 - **ADR-001**：出站适配器独立成 `packages/engine`（COLA infrastructure 正形）；
   端只准 `from butler_engine.bridge import ...`；core.bootstrap 保留纯装配根
-- **ADR-002**：from_engine 方言注册表——连接器以**数据**申报业务码→Status 映射、
+- **ADR-004**：from_engine 方言注册表——连接器以**数据**申报业务码→Status 映射、
   加载期注册；默认 legacy 自映射；未知码显式抛 UnknownEngineCode（红线 5），
   用例层转 FAILED + evidence + PROTOCOL_CHANGED；严格字面匹配不归一。
   协议字面量七词（CLAIMED/ALREADY/FAILED/NO_AUTH/PENDING/EXPIRED/SKIPPED）
   与旧系统 oracle 对齐，**永不改名**（两层词汇原则，收编 conventions/3 与 A1-03 §3）
-- **ADR-003**：连接器 target 级端口路由
-- **ADR-004**：qoder 接入形状 = 声明式扩展（列表领取受限形状 / DPAPI+AES-GCM
+- **ADR-005**：连接器 target 级端口路由
+- **ADR-006**：qoder 接入形状 = 声明式扩展（列表领取受限形状 / DPAPI+AES-GCM
   双层凭据 / 机器身份头组 kind 化 / 静默陷阱显式化 = FAILED + repair_hint）
-- **ADR-005**：doubao 接入形状 = CDP 界面通道（零凭据）
-- **ADR-006**：workbuddy 接入形状 = adapter 端口实现——凭据**现用现取零申报**
+- **ADR-007**：doubao 接入形状 = CDP 界面通道（零凭据）
+- **ADR-008**：workbuddy 接入形状 = adapter 端口实现——凭据**现用现取零申报**
   （不落 vault，运行时读客户端会话文件即用即弃）；信封 token 解密走 helper.js
   子进程（客户端自带 Electron runtime；「严禁搬代码」的唯一例外 = 协议契约，
   守卫测试钉 12 标记）

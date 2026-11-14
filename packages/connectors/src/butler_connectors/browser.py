@@ -143,7 +143,7 @@ def _cookie_dbs(candidates: list[str]) -> list[Path]:
 def _chrome_key(example_db: Path, *, key_provider=None, dpapi=None) -> tuple[bytes, bool]:
     """浏览器 cookie 钥匙：(key, gcm)。mac = Keychain CLI → PBKDF2（16B/CBC）；
     win = Local State os_crypt.encrypted_key → DPAPI（32B/GCM）。
-    A2-03 §1：钥匙只进内存，绝不入 vault 信封（现用现取，ADR-006 决策 3 同款）。"""
+    A2-03 §1：钥匙只进内存，绝不入 vault 信封（现用现取，ADR-008 决策 3 同款）。"""
     import base64
     import json
     import sys

@@ -179,7 +179,7 @@ class ProbeSection(_Strict):
 class ProbeSpec(_Strict):
     """health.check 声明（A2-03 §3，R3 探针）：auth + probe + HTTP 码字典。
 
-    codes 是 HTTP status → Status 字面量名——装载期注册方言（ADR-002 唯一
+    codes 是 HTTP status → Status 字面量名——装载期注册方言（ADR-004 唯一
     翻译点）；未声明的 status = 未知码，显式爆（协议变更探测）。
     """
 

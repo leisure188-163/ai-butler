@@ -1,6 +1,6 @@
 """workbuddy_cn 用量通道（R2，PROTOCOL §7.1）：get-user-resource 85 包分账本。
 
-- 现用现取零 vault（ADR-006 决策 3）：session_chain（可注入）= 定位凭据 →
+- 现用现取零 vault（ADR-008 决策 3）：session_chain（可注入）= 定位凭据 →
   解析/解密 → 内存建头，返回 (headers, endpoint)；401/403 = 登录态失效显式
   上抛（CollectUsage 收进 outcome.error）
 - 时间戳必须是字符串（Go 结构体 string，传数字 400 unmarshal 实证踩坑）；
@@ -72,7 +72,7 @@ def _data_node(payload: dict) -> dict:
 
 
 def _real_session_chain(deadline: datetime) -> tuple[dict[str, str], str]:
-    """真实凭据链（ADR-006，与签到通道同链路）：定位凭据文件 → 解析/解密 →
+    """真实凭据链（ADR-008，与签到通道同链路）：定位凭据文件 → 解析/解密 →
     内存建头，用后即弃；endpoint 取凭据内声明（可覆盖），缺省官方端点。"""
     from butler_connectors.workbuddy_cn.credentials import find_auth_file, load_session_retry
     from butler_connectors.workbuddy_cn.localenv import InvalidOverride, real_env
@@ -217,5 +217,5 @@ class WorkbuddyUsagePort:
 
 
 def build_usage_port(*, vault, transport=None, auth=None, kinds=()) -> WorkbuddyUsagePort:
-    """registry usage.collect entry：vault/auth/kinds 收下但现用现取零 vault 不用（ADR-006）。"""
+    """registry usage.collect entry：vault/auth/kinds 收下但现用现取零 vault 不用（ADR-008）。"""
     return WorkbuddyUsagePort(transport=transport, auth=auth, kinds=tuple(kinds))

@@ -77,7 +77,7 @@ def idempotency_key(action: Action, account_id: str, window: str) -> str:
 class ExecuteAction:
     """发起并落实一次 Action → Run。
 
-    ports 是**选择器**（ADR-003）：M1 起多连接器共用一个 kind，用例按
+    ports 是**选择器**（ADR-005）：M1 起多连接器共用一个 kind，用例按
     action.target 精确挑连接器端口（core 通用规则，不写任何产品分支）。
     """
 
@@ -143,7 +143,7 @@ class ExecuteAction:
         try:
             result = self._invoke(port, req, request.budget)
         except UnknownEngineCode as e:
-            # 未知业务码 = 上游协议可能已变更（ADR-002）：
+            # 未知业务码 = 上游协议可能已变更（ADR-004）：
             # FAILED + evidence 保留原始码 + PROTOCOL_CHANGED 探测事件。
             self._terminate(
                 run,

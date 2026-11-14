@@ -1,4 +1,4 @@
-"""A2-01 §2 / ADR-002：结果词汇单源的行为基线。
+"""A2-01 §2 / ADR-004：结果词汇单源的行为基线。
 
 - 字面量冻结：oracle 对齐，多一个少一个都是协议事故
 - 谓词表：端零映射的语义唯一出处
@@ -32,7 +32,7 @@ def test_status_is_str_enum():
     assert str(Status.ALREADY) == "ALREADY"  # 序列化即字面量，oracle 零损耗
 
 
-# 谓词表语义（ADR-002 评审定的映射，见 results.py 表内注释）
+# 谓词表语义（ADR-004 评审定的映射，见 results.py 表内注释）
 EXPECTED_KINDS = {
     Status.CLAIMED: (True, False, False),
     Status.ALREADY: (True, False, False),

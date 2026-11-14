@@ -162,7 +162,7 @@ def test_dock_qoder_full_chain(data_dir, umid_ready):
 
 
 def test_dock_qoder_missing_umid_component(data_dir, monkeypatch):
-    """runtime-info 定位失败 → 显式 issue（绝不静默停靠半套凭据，ADR-004 §4）。"""
+    """runtime-info 定位失败 → 显式 issue（绝不静默停靠半套凭据，ADR-006 §4）。"""
     monkeypatch.setattr(dockio, "_locate_umid", lambda: None)
     outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.app*")), MemVault())
     assert outcome.accounts == []

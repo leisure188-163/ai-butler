@@ -60,7 +60,7 @@ def check_manifest(root: Path, pkg: str) -> list[str]:
         ".env.example",  # docker-compose.yml 已删（2026-11-12）：postgres/JWT_SECRET
                          # 与 SQLite 单机架构漂移（M2 取证清单顺手项），非必需产物
     ]
-    # ADR-009：butler_core 按业务域分包（shared + 五域）；旧包仍是分层结构。
+    # ADR-002：butler_core 按业务域分包（shared + 五域）；旧包仍是分层结构。
     # 双包并存期按检出的包名走对应结构，删除旧包后只保留分支一。
     core_dir = f"packages/core/src/{pkg}_core"
     if pkg == "butler":
@@ -128,7 +128,7 @@ def check_dep_direction(root: Path) -> list[str]:
 
 
 def check_domain_isolation(root: Path) -> list[str]:
-    """ADR-009 依赖恒等式机检：业务域 domain.py 只准 import shared。
+    """ADR-002 依赖恒等式机检：业务域 domain.py 只准 import shared。
 
     域间编排必须经用例层组合端口；domain.py 直接 import 另一个业务域 = 边界失守。
     """

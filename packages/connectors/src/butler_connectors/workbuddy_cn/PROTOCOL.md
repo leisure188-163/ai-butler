@@ -4,7 +4,7 @@
 > 来源 = 旧仓库取证笔记 NOTE-01（2026-10-21~10-22）+ 旧仓库源码（da396d7^）
 > 逐行核对 + 本机实况核查（2026-11-11，Windows，WorkBuddy AI 5.9.4 /
 > WorkBuddy 5.9.3 双版本并存）；实现走**端口实现 + 加密凭据解密链**
-> （ADR-006），不搬代码（helper.js 例外：协议契约原样搬运禁改）。
+> （ADR-008），不搬代码（helper.js 例外：协议契约原样搬运禁改）。
 > 每条结论附取证日期；**适配器里不允许出现本文没有的端点与编排**。
 
 ## 1. 身份与凭据
@@ -12,7 +12,7 @@
 | 项 | 事实 | 取证 |
 |---|---|---|
 | 产品 | WorkBuddy（腾讯系，CodeBuddy 桌面端登录后写凭据；endpoint `https://copilot.tencent.com`） | NOTE-01 2026-10-21 |
-| 权益面 | M1 = 每日签到（`{"credit":100}` / 日，连签奖励）；成长中心（旅行/任务/补登/兑换/盲盒）= 后续批次（ADR-006 决策 1） | 2026-11-11 |
+| 权益面 | M1 = 每日签到（`{"credit":100}` / 日，连签奖励）；成长中心（旅行/任务/补登/兑换/盲盒）= 后续批次（ADR-008 决策 1） | 2026-11-11 |
 | 凭据源 | 桌面端登录后自动写出的 JSON 文件；定位优先级 = `WORKBUDDY_AUTH_FILE` 覆盖（路径不存在显式报错）> 平台默认扫描：Windows `%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info`；macOS `~/Library/Application Support/CodeBuddyExtension/Data/Public/auth/workbuddy-desktop.info`；Linux（CLI）`$XDG_DATA_HOME/CodeBuddyExtension/Data/Public/auth/Tencent-Cloud.coding-copilot.info`（旧路径/兜底扫 `~/.config/…`、`~/.workbuddy/auth/workbuddy-desktop.info`） | NOTE-01 §2 + 本机 2026-11-11 实证（文件在，同目录另有带时间戳的轮换历史 `.info`） |
 | 文件锁 | 客户端刷新 token 时短暂独占文件 → `PermissionError` 重试 3 次 × 2s 间隔 | NOTE-01 §2 |
 | 凭据 JSON | 必备形状 `{auth:{accessToken,…,domain?,endpoint?}, account:{uid, enterpriseId?}}`；本机实况含大量多余字段（accounts/allAccounts/refreshToken/expiresAt…）——**解析只取申报字段，多余忽略**；`auth.endpoint` 存在且为合法 https 才覆盖默认 base | NOTE-01 §3 + 本机 2026-11-11 |
@@ -21,9 +21,9 @@
 | helper 管道契约 | 超时 10s（与剩余预算取 min）、输入输出各 65536B 上限；helper 子进程可回 reason 白名单七值：`INVALID_FORMAT / UNSUPPORTED_ENVELOPE / RUNTIME_UNAVAILABLE / KEY_MISMATCH / DECRYPT_FAILED / HELPER_TIMEOUT / HELPER_PROTOCOL`（前五个 + HELPER_PROTOCOL 为 JS 侧可能值，HELPER_TIMEOUT 由 runner 超时侧产生）；`RUNTIME_NOT_FOUND / INVALID_RUNTIME_PATH` 由 runtime 定位器产生、`MISSING_SESSION` 由会话校验产生——全部收敛为 NO_AUTH 语义，人话文案沿旧仓库 AUTH_REASONS；子进程环境剥离 `NODE_* / ELECTRON_* / WORKBUDDY_*` 前缀后强制 `ELECTRON_RUN_AS_NODE=1`；token 一律不进异常文本 | NOTE-01 §4 + session.py 核对 2026-11-11 |
 | `probe` 操作 | 同管道发 `{version:1, operation:"probe"}` → `{ok:true, electron:<版本>}`：离线探测运行时能力（dock/诊断用，不解密不联网） | NOTE-01 §4 |
 | 客户端定位 | 优先级 = `WORKBUDDY_EXE` 显式指定（路径无效显式报错，不当"未安装"）> 默认目录探测（Windows `%LOCALAPPDATA%\Programs\WorkBuddy\WorkBuddy.exe`、`%ProgramFiles%\WorkBuddy\WorkBuddy.exe` 等常见根；macOS `/Applications`、`~/Applications` 下 `WorkBuddy.app` / `WorkBuddyAI.app` 的 `Contents/MacOS/Electron`）> 卸载注册表（Windows：HKCU/HKLM，含 32/64 位视图）。**实测定稿（2026-11-11）**：本机两条目 `WorkBuddy AI 5.9.4`（HKCU）/ `WorkBuddy 5.9.3`（HKLM），`InstallLocation` **均为空**——exe 必须从 `DisplayIcon` 取：剥引号 + 按 `,` 截断剥图标索引后即主 exe 本体（`D:\software\ai-tools\WorkBuddyAI\WorkBuddyAI.exe` / `D:\software\ai-tools\WorkBuddy\WorkBuddy.exe`）；条目匹配 = **DisplayName `WorkBuddy` 前缀**（大小写不敏感，兼容 `WorkBuddy AI` 变体——旧仓库正则 `WorkBuddy(\s+\d+…)?` 匹配不上 AI 变体，**勿沿用**）。**mac 实测（2026-11-12）**：`/Applications/WorkBuddy.app` 5.9.3，`CFBundleExecutable` 即原生 `Electron`（含同一 `electron_browser_workbuddy_storage` 绑定）——probe 回 `{ok:true, electron:"37.10.3"}`，解密链真机端到端通（1472 字符合法 token，只验形状不落盘）；真机 dock + 顺带采集全链绿（90 权益包入库） | 2026-11-11 / 2026-11-12 |
-| 多版本并存 | 双版本并列为常态：候选 runtime 按顺序尝试解密，`KEY_MISMATCH` 换下一个；全败 → NO_AUTH + hint「用 `WORKBUDDY_EXE` 指定与凭据匹配的客户端」（ADR-006 决策 6） | 2026-11-11 |
+| 多版本并存 | 双版本并列为常态：候选 runtime 按顺序尝试解密，`KEY_MISMATCH` 换下一个；全败 → NO_AUTH + hint「用 `WORKBUDDY_EXE` 指定与凭据匹配的客户端」（ADR-008 决策 6） | 2026-11-11 |
 | 鉴权头 | `Accept: application/json`、`Authorization: Bearer <token>`、`Content-Type: application/json`、`X-User-Id: <uid>`、`User-Agent: WorkBuddy`；`X-Domain: <domain>`（本机 `www.workbuddy.cn`，凭据里存在才带）；`X-Enterprise-Id` + `X-Tenant-Id`（企业号 `enterpriseId` 存在才带） | NOTE-01 §3 |
-| token 生命周期 | `expiresIn 2592000`（30 天），客户端自动刷新并**重写凭据文件**——Butler **现用现取**，绝不入库持久化（ADR-006 决策 3）；本机 `lastRefreshTime` 证明轮换在发生 | 本机 2026-11-11 |
+| token 生命周期 | `expiresIn 2592000`（30 天），客户端自动刷新并**重写凭据文件**——Butler **现用现取**，绝不入库持久化（ADR-008 决策 3）；本机 `lastRefreshTime` 证明轮换在发生 | 本机 2026-11-11 |
 
 ## 2. 端点族（M1 签到最小集）
 
@@ -103,7 +103,7 @@ NO_AUTH 演练走 :8011 第二实例 + `WORKBUDDY_AUTH_FILE` 覆盖，真凭据�
 - `schedule.times` 4 班次（沿 doubao 节奏 `["09:15","13:15","19:15","23:15"]`）
   + `refresh_at: "00:00"` **显式声明**（adapter 连接器必须显式——declarative
   回落分支对 adapter 会 KeyError）
-- 无 `credential` 段（现用现取零申报，ADR-006 决策 3）
+- 无 `credential` 段（现用现取零申报，ADR-008 决策 3）
 
 ## 7. 用量取证（2026-11-12，M2 真机只读 spike，WorkBuddy 5.9.3 / CodeBuddy CN 4.12.3 / Windows）
 

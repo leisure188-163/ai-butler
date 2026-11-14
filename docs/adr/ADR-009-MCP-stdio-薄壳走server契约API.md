@@ -1,16 +1,16 @@
 ---
-name: kabao-adr-008
+name: butler-adr-002
 description: MCP stdio 薄壳宿主形态——零 core/engine import，纯 HTTP 走 server 契约 API；工具集三件不扩。TRIGGER when 讨论 MCP 工具、LLM 客户端接入、apps/mcp 时
 version: "0.1.0"
 level: must
 ---
 
-# ADR-007 · MCP stdio 薄壳走 server 契约 API
+# ADR-009 · MCP stdio 薄壳走 server 契约 API
 
 - **状态**：Accepted
 - **日期**：2026-11-12
 - **决策者**：用户（已裁②③④）+ Agent 落地
-- **关联**：A1-02（一核多端）、ADR-003（target 级端口路由）、红线 2/4/5
+- **关联**：A1-02（一核多端）、ADR-005（target 级端口路由）、红线 2/4/5
 
 ## 背景
 
@@ -27,7 +27,7 @@ R2 收尾需要把卡包能力暴露给 LLM 客户端（Claude Desktop / Cline �
 
 **方案 2：stdio 宿主 = 纯 HTTP 投影端，零 core/engine import**。流程要点：
 
-1. 落点 `apps/mcp`（包名 `kabao-mcp`，src 包 `kabao_mcp`——**不得叫 `mcp`**，
+1. 落点 `apps/mcp`（包名 `butler-mcp`，src 包 `butler_mcp`——**不得叫 `mcp`**，
    与官方 SDK `import mcp` 冲突）；SDK 用官方 `mcp` 2.x（`MCPServer`，
    stdio transport；v1 的 FastMCP 已更名）。
 2. base URL 取 `KABAO_SERVER_URL`（默认 `http://127.0.0.1:8000`）；

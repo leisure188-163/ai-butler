@@ -1,4 +1,4 @@
-"""连接器测试固件：测试方言预注册（ADR-002）+ 停停靠 fixture 工具。"""
+"""连接器测试固件：测试方言预注册（ADR-004）+ 停停靠 fixture 工具。"""
 
 import base64
 import hashlib

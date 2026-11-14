@@ -175,7 +175,7 @@ def test_unsupported_kind_rejected():
 
 
 def test_unsupported_target_rejected():
-    """ADR-003：target 精确路由优先；未注册 target 的连接器显式拒绝。"""
+    """ADR-005：target 精确路由优先；未注册 target 的连接器显式拒绝。"""
     other = Action(kind=ActionKind.PROVISION_RUN, target="ghost")
     uc = ExecuteAction(
         ledger=MemLedger(), sink=CollectSink(), ports=routing_ports({}, {"qoder": FakePort()})

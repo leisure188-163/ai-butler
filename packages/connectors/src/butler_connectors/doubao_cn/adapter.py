@@ -1,10 +1,10 @@
-"""doubao_cn 连接器（ADR-005）：CDP 界面通道端口实现——豆包专属的只有编排。
+"""doubao_cn 连接器（ADR-007）：CDP 界面通道端口实现——豆包专属的只有编排。
 
 - registry adapter 契约（registry._load_entry）：``adapter.butler`` 提供
   build_port / dock 两钩子；vault 参数保留（契约签名）但零凭据设计不使用
 - 编排（PROTOCOL §3 判定表）：probe → 版本派生 → 活动页 → Cookie 现取 →
   detail 权威判定 →（未签）界面受信任点击 → 复查；PENDING = 客户端不可达（暂态）
-- 方言装载期自注册（ADR-002）：code=2 刻意不注册——未知码 → UnknownEngineCode
+- 方言装载期自注册（ADR-004）：code=2 刻意不注册——未知码 → UnknownEngineCode
   → 用例层统一 FAILED + PROTOCOL_CHANGED（活动换季探测）
 - CDP 原语在 cdp.py（通用）；本机环境在 localenv.py（doubao 专属）
 """
@@ -308,7 +308,7 @@ class DoubaoCdpProvisionPort(ProvisionPort):
 # --- registry adapter 钩子面与停靠 ---
 
 def _ensure_running(env: LocalEnv, channel: CdpChannel) -> list[str]:
-    """杀无端口实例 → 带端口重启 → 轮询就绪（ADR-005 决策 5；仅显式 dock 触发，
+    """杀无端口实例 → 带端口重启 → 轮询就绪（ADR-007 决策 5；仅显式 dock 触发，
     调度触发的 run() 绝不杀进程——不可达即 PENDING）。"""
     exe = env.locate_exe()
     if exe is None:
@@ -348,7 +348,7 @@ class _Butler:
         env: LocalEnv | None = None,
         channel: CdpChannel | None = None,
     ) -> DoubaoCdpProvisionPort:
-        # vault 参数保留（registry 契约签名）；零凭据设计不使用（ADR-005 决策 2）
+        # vault 参数保留（registry 契约签名）；零凭据设计不使用（ADR-007 决策 2）
         env = env if env is not None else real_env()
         return DoubaoCdpProvisionPort(
             transport=transport if transport is not None else httpx_transport(),
@@ -379,7 +379,7 @@ class _Butler:
 
 butler = _Butler()
 
-#: 方言装载期自注册（ADR-002）：code=2 刻意不注册——换季走 UnknownEngineCode
+#: 方言装载期自注册（ADR-004）：code=2 刻意不注册——换季走 UnknownEngineCode
 #: → 用例层 FAILED + PROTOCOL_CHANGED（与声明式连接器同一条探测路径）。
 from butler_core.shared.results import register_dialect
 

@@ -3,7 +3,7 @@
 > 本文件是**逆向结论的归宿**（A0-01 §2.1）：端点 / CDP 编排 / 判定 / 已知风险。
 > 来源 = 旧仓库取证笔记 NOTE-04（2026-11-02~11-08）+ 本机 spike 实证（2026-11-11，
 > Windows，豆包 2.35.8 / Chromium 147）；实现走 **CDP 界面通道端口实现**
-> （ADR-005），不搬代码。每条结论附取证日期；
+> （ADR-007），不搬代码。每条结论附取证日期；
 > **适配器里不允许出现本文没有的端点与编排**。
 
 ## 1. 身份与凭据
@@ -14,7 +14,7 @@
 | 权益面 | 签到领额度（每日 +200，周一翻倍）+ 任务/里程碑奖励（12 tasks + 3 milestones，M2 清扫） | 2026-11-11 |
 | 数据目录 | `%LOCALAPPDATA%/Doubao/User Data/{Default,Profile N}`（登录态 = Chromium Cookie，分库存放；活动面板 webview 用 `Profile N`，运行期独占锁读不了，`Default` 常为过期旧会话） | 2026-11-02 |
 | Cookie 加密 | 标准 Chromium v10（DPAPI + AES-256-GCM）+ **32 字节应用层前缀剥离**；macOS 文件解密未破解（如实 UNSUPPORTED）——但本设计**不读文件库**（见 §6 通道裁决） | 2026-11-02 |
-| **会话本质** | 界面通道下**没有可注入的凭据**——会话 = 运行中的客户端进程本身（签名 `a_bogus`/`msToken` 由客户端 JS 生成）；vault 零凭据申报 | 2026-11-11（ADR-005 裁决） |
+| **会话本质** | 界面通道下**没有可注入的凭据**——会话 = 运行中的客户端进程本身（签名 `a_bogus`/`msToken` 由客户端 JS 生成）；vault 零凭据申报 | 2026-11-11（ADR-007 裁决） |
 | 客户端定位 | exe 候选：`HKCU\...\Uninstall\Doubao` 的 `DisplayIcon` 父目录 + `app\Doubao.exe`（本机 `D:\software\ai-tools\Doubao\app\Doubao.exe`；`%LOCALAPPDATA%\Doubao\Application` 为空，勿用）；进程名 `Doubao.exe`。**实测定稿（2026-11-11 验收）**：条目匹配按**子键名** `Doubao*` 优先，DisplayName 是中文 `豆包`（非 `Doubao` 开头，勿按 DisplayName 前缀匹配）；`DisplayIcon` 带引号且指向 `icon.ico`（如 `"D:\...\Doubao\icon.ico"`）——剥引号后取父目录 | 2026-11-11 |
 | 版本来源 | Windows：卸载注册表 `DisplayVersion`（匹配口径同上：子键名 `Doubao*` 或 DisplayName `Doubao*`/`豆包`，本机 `2.35.8`；环境变量 `DOUBAO_VERSION` 可覆盖）；macOS：`Info.plist CFBundleShortVersionString`。读不到**显式报错**——旧值正是故障本身（写死版本在客户端升级后回 710010702） | 2026-11-11 |
 | version_code | `主*10000+次*100+修订`（2.35.8 → 23508，本机实证有效）；exe 文件版本是 Chromium 内核号（147.0.7727.149），**不是**应用版本 | 2026-11-11 |
@@ -64,7 +64,7 @@ Base：`https://www.doubao.com`
 | detail `710010702` | FAILED + 指引 | 三义码不猜：手工点一次可判别"会话降权 vs 平台故障" |
 | 未知形状 / 找不到按钮 / 建页失败 | FAILED | 协议事故显式报，绝不静默（红线 5）；evidence 带页面文本摘要（脱敏） |
 
-方言注册口径（ADR-002 装载期）：`doubao_cn` 方言 = `{"710012001": NO_AUTH, "710010702": FAILED}`；
+方言注册口径（ADR-004 装载期）：`doubao_cn` 方言 = `{"710012001": NO_AUTH, "710010702": FAILED}`；
 `code=2` **刻意不注册**——未知码走 UnknownEngineCode → 用例层统一转 FAILED + PROTOCOL_CHANGED
 事件（与声明式连接器同一条协议变更探测路径）。
 
@@ -88,7 +88,7 @@ Base：`https://www.doubao.com`
 
 > oracle = 旧仓库 `auto-signin-kit doubao status/auto`（mac 上已验证可正常领取）。
 
-## 6. 已知风险与通道裁决（ADR-005）
+## 6. 已知风险与通道裁决（ADR-007）
 
 - **通道裁决（本设计的根）**：①**裸 HTTP 写操作禁令**——缺 `a_bogus`/`msToken`
   签名的连续裸请求会把会话搞受限（连手工点都失败，重装才恢复；旧系统
@@ -154,7 +154,7 @@ Base：`https://www.doubao.com`
   **周一 400**（11-02/11-09 两个周一双实证），断签无补登记录
 - cursor 为 base64 JSON `{"create_time", "id"}`
 
-### 7.3 ADR-005 遗留三选一：裁决材料齐（倾向「detail 裸读，不做 CDP 读用量」）
+### 7.3 ADR-007 遗留三选一：裁决材料齐（倾向「detail 裸读，不做 CDP 读用量」）
 
 CDP DOM/截图实证（agent-explore 活动页 + doubao-chat 主聊天页）：界面能读到
 的额度信息只有「累计获得额度」（与 detail.total_amount 完全重复）——**CDP 读

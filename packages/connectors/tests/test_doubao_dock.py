@@ -1,4 +1,4 @@
-"""doubao dock 离线测试：cdp_probe 体检 + 自动拉起编排（ADR-005 决策 2/5）。"""
+"""doubao dock 离线测试：cdp_probe 体检 + 自动拉起编排（ADR-007 决策 2/5）。"""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 """workbuddy_cn 用量通道测试（R2-C）：get-user-resource 85 包分账本。
 
-现用现取零 vault（ADR-006 决策 3）：session_chain 可注入（真实链 =
+现用现取零 vault（ADR-008 决策 3）：session_chain 可注入（真实链 =
 定位凭据 → 解密 → 建头）。断言字符串时间戳陷阱（PROTOCOL §7.1 踩坑实证）、
 TotalCount 翻页、*Precise 字符串后备、401 显式上抛。
 """

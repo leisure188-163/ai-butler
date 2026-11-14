@@ -11,5 +11,5 @@
 - ``registry``：装载 manifest → 组建 ProvisionPort / 停靠调度条目 / dispose 分发
 
 依赖方向：本包只准依赖 core（端口与领域模型），依赖注入由端（server/cli）
-的组装层完成——engine 不 import 本包（ADR-003）。
+的组装层完成——engine 不 import 本包（ADR-005）。
 """

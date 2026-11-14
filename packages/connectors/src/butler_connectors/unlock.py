@@ -36,7 +36,7 @@ def load_raw(kind: str, secret: Secret) -> dict[str, str]:
     return {kind: secret.expose()}
 
 
-# --- dpapi_gcm_v10（qoder_cn，ADR-004）：登录态信封解锁（双平台单 kind）---
+# --- dpapi_gcm_v10（qoder_cn，ADR-006）：登录态信封解锁（双平台单 kind）---
 # Windows：DPAPI 包裹密钥（Local State os_crypt）+ AES-256-GCM；
 # macOS（2026-11-12 真机取证）：钥匙在 Keychain（safeStorage 惯例）+ AES-128-CBC。
 
@@ -115,7 +115,7 @@ def session_from_dpapi_gcm_v10(
     b64decode → 剥 DPAPI 前缀 → CryptUnprotectData → AES 密钥；dat → ``v10``+nonce+密文
     → AES-256-GCM。
     mac 信封只带 dat（2026-11-12 取证：mac 的 Local State 无 os_crypt）——钥匙解锁时
-    从 Keychain 现取（ADR-006 决策 3 同款：现用现取，密钥绝不入 vault），dat → ``v10``
+    从 Keychain 现取（ADR-008 决策 3 同款：现用现取，密钥绝不入 vault），dat → ``v10``
     +CBC 密文 → AES-128-CBC → PKCS7。
     dpapi / key_provider 参数可注入（测试 / 非 Windows 离线验证解链逻辑）。
     """

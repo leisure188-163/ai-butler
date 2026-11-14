@@ -43,7 +43,7 @@ class CollectOutcome:
 class CollectUsage:
     """用量采集编排（R2：dock 顺带 + 每日调度共用的核心逻辑）。
 
-    - 端口按 target 精确选路（同 ADR-003 路由纪律）；未接入如实报 outcome.error
+    - 端口按 target 精确选路（同 ADR-005 路由纪律）；未接入如实报 outcome.error
     - 三段可空各存各的：快照 / 聚合 / 流水（record_id 幂等去重）
     - QUOTA_LOW 变更才产事件：与上一帧同包占比比较——首评异常也发，仍低不重发，
       恢复不产事件（A2-01 §5 无恢复事件类型），再跌回再发；记忆 = 快照历史本身

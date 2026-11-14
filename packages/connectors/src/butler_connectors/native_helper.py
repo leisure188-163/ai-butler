@@ -1,4 +1,4 @@
-"""native_helper generic primitives (ADR-006 decision 2): JSON-stdin subprocess runner.
+"""native_helper generic primitives (ADR-008 decision 2): JSON-stdin subprocess runner.
 
 Runs helper scripts in the client's bundled Electron runtime (workbuddy_cn/helper.js): request via stdin, reply
 via stdout; this module is responsible for protocol shape — hard timeout, read/write byte caps, reason whitelist,

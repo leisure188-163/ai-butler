@@ -1,4 +1,4 @@
-"""dpapi_gcm_v10 / umid_cosy 解锁链（ADR-004 kind 化凭据，qoder_cn）。
+"""dpapi_gcm_v10 / umid_cosy 解锁链（ADR-006 kind 化凭据，qoder_cn）。
 
 DPAPI 是真机 API——测试注入替身只替 CryptUnprotectData 一步；
 信封形状 / v10 前缀 / AES-256-GCM 链路用真 cryptography 走全。

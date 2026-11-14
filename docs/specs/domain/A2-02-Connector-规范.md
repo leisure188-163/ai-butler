@@ -106,7 +106,7 @@ schema 外字段直接报错（`extra=forbid`，继承旧仓库"显式报错不�
 ## 7. 实现顺序（M1，由简到繁验证底座）
 
 1. trae_cn（纯声明式）→ 2. qoder_cn（声明式 + 设备风控头）→
-3. doubao_cn（CDP 编排）→ 4. workbuddy_cn（签到最小集，ADR-006 收敛）
+3. doubao_cn（CDP 编排）→ 4. workbuddy_cn（签到最小集，ADR-008 收敛）
 
 **硬标准**：每个 Connector 不加特殊分支接入新模型；某个必须写例外 →
 停下来改模型。每个完成后跑行为一致性对照（见 `../legacy/A0-01-旧系统知识资产.md` §4）。
@@ -128,9 +128,9 @@ CI 只在 ubuntu 跑——平台特有调用（Windows DPAPI / macOS Keychain）
    样本含真实 token/uid 不得入库——先脱敏再提交。
 
 
-## 9. 多账号 dock/import 取证结论（ADR-008 §3，2026-11-14 重写 P5）
+## 9. 多账号 dock/import 取证结论（ADR-003 §3，2026-11-14 重写 P5）
 
-core/engine/server 已按 ADR-008 支持"一应用 N 账户"（`account_key`、
+core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_key`、
 `AppOut.account_ids`、一键领取逐账户发起）。连接器侧取证结论如实登记如下，
 **不虚报未验证能力**（红线 5）：
 

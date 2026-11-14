@@ -1,20 +1,20 @@
 ---
-name: kabao-adr-003
+name: butler-adr-005
 description: 连接器端口按 target 精确路由优先、kind 兜底，端组装层动态挂载。TRIGGER when 讨论连接器接入/端口路由时
 version: "1.0.0"
 level: must
 ---
 
-# ADR-003 · 连接器 target 级端口路由（追溯补记）
+# ADR-005 · 连接器 target 级端口路由（追溯补记）
 
 - **状态**：Accepted（2026-11-11 实施；2026-11-11 补记文档）
 - **日期**：2026-11-11（裁决随实施落地）
-- **决策者**：M1 首提交会话
-- **关联**：ADR-001（engine 独立包）、ADR-002（from_engine 方言注册表）、A2-02 §3 三级扩展
+- **决策者**：架构会话
+- **关联**：ADR-001（engine 独立包）、ADR-004（from_engine 方言注册表）、A2-02 §3 三级扩展
 
 ## 背景
 
-M0 用例层端口是单端口注入（`ExecuteAction(ports=...)`）；M1 起多连接器并存
+初版用例层端口是单端口注入（`ExecuteAction(ports=...)`）；多连接器并存
 （trae → qoder → doubao → workbuddy），用例按什么维度选端口？候选：
 kind 全局映射（同 kind 连接器冲突）、target 精确映射（每连接器一个）、
 连接器自带分发。
@@ -38,7 +38,7 @@ kind 全局映射（同 kind 连接器冲突）、target 精确映射（每连�
 
 **正面**：
 
-- 多连接器并存零特殊分支；每连接器端口独立可换（M1 各家逐个接入）
+- 多连接器并存零特殊分支；每连接器端口独立可换（各家逐个接入）
 - engine 与 connectors 解耦到数据面（依赖方向机检可查）
 
 **负面/约束**：
