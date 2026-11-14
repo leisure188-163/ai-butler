@@ -6,8 +6,8 @@ import time
 
 import pytest
 
-from kabao_core.domain.event import Event, EventType, Severity
-from kabao_engine.events.bus import EventBus, EventPublishError
+from butler_core.shared.events import Event, EventType, Severity
+from butler_engine.events.bus import EventBus, EventPublishError
 
 
 def _event() -> Event:

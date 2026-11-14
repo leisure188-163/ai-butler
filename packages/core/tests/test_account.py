@@ -5,11 +5,11 @@ from typing import Callable
 
 import pytest
 
-from kabao_core.application.ports import AccountRepository
-from kabao_core.application.usecases import RegisterAccount
-from kabao_core.domain.account import Account, main_account_id
-from kabao_core.domain.errors import DomainError
-from kabao_core.domain.run import now_utc
+from butler_core.accounts.ports import AccountRepository
+from butler_core.accounts.usecases.register_account import RegisterAccount
+from butler_core.accounts.domain import Account, main_account_id
+from butler_core.shared.errors import DomainError
+from butler_core.execution.domain import now_utc
 
 
 class MemAccounts(AccountRepository):

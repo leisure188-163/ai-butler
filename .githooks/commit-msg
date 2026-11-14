@@ -1,5 +1,5 @@
 #!/bin/sh
-# 本仓库（kabao）的提交信息强制校验：与 skill monorepo-scaffold 生成的钩子同源（除注释外逻辑一致）。
+# 本仓库（butler）的提交信息强制校验：与 skill monorepo-scaffold 生成的钩子同源（除注释外逻辑一致）。
 # 根据：docs/conventions/08-提交信息规范.md；启用：git config core.hooksPath .githooks
 #
 # 合法形式（单号必填，无关联需求占位 [0]）：

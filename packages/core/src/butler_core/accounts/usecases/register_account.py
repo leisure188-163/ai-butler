@@ -1,7 +1,8 @@
 """账户域用例（A2-11 §4）：注册账户 + 多账号枚举导入。
 
 多账号（ADR-010）：(provider, account_key) 是身份锚点；同身份重复停靠是幂等
-回放，同身份但展示名冲突显式拒绝（不静默改号，红线 5）。
+回放（返回既有账户，不覆盖、不改号）；显式传入的 account_id 与身份编址不一致
+则拒绝（形状冲突，红线 5）。
 """
 
 from __future__ import annotations
@@ -28,17 +29,18 @@ class RegisterAccount:
         provider: str,
         display_name: str,
         *,
-        account_key: str = "default",
+        account_key: str = "main",
         account_id: str | None = None,
     ) -> Account:
-        aid = account_id or account_identity(provider, account_key)
+        computed = account_identity(provider, account_key)
+        if account_id is not None and account_id != computed:
+            raise AccountAlreadyExists(
+                f"account_id {account_id!r} 与 (provider, account_key) 编址 {computed!r} 冲突"
+            )
+        aid = computed
         existing = self.accounts.get(aid)
         if existing is not None:
-            if existing.display_name != display_name:
-                raise AccountAlreadyExists(
-                    f"账户 {aid!r} 已存在且展示名冲突，显式拒绝（不静默改号）"
-                )
-            return existing  # 幂等回放：同一身份重复停靠
+            return existing  # 幂等回放：同一身份重复停靠，不覆盖不改号
         account = Account(
             id=aid,
             provider=provider.strip(),

@@ -67,7 +67,7 @@ class Port:
 def _request(**kw):
     params = dict(
         action=Action(kind=ActionKind.PROVISION_RUN, target="trae_cn"),
-        account_id="trae_cn:default",
+        account_id="trae_cn:main",
         budget=timedelta(seconds=1),
         window="2026-11-14",
     )
@@ -121,7 +121,7 @@ def test_unsupported_action_and_invalid_request():
 
 def test_budget_is_first_class_and_run_terminal_immutable():
     action = Action(kind=ActionKind.USAGE_QUERY, target="trae_cn")
-    run = Run(id="r", action=action, account_id="trae_cn:default",
+    run = Run(id="r", action=action, account_id="trae_cn:main",
               idempotency_key="", budget=timedelta(seconds=5))
     assert run.budget == timedelta(seconds=5)
     run.finish(RunResult(status=Status.FAILED))

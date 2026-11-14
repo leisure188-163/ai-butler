@@ -10,8 +10,8 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from kabao_core.domain.errors import DomainError
-from kabao_core.domain.schedule import claim_window
+from butler_core.shared.errors import DomainError
+from butler_core.scheduling.domain import claim_window
 
 
 def test_window_is_calendar_day_at_and_after_anchor():

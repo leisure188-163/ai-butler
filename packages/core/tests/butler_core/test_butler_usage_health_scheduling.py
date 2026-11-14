@@ -127,7 +127,7 @@ def test_claim_window_and_trigger_validation():
     with pytest.raises(WindowInvalid):
         claim_window(NOW, "25:00")
     trigger = Trigger(kind=TriggerKind.CRON, key="daily", target="trae_cn")
-    assert trigger.enabled and trigger.account_key == "default"
+    assert trigger.enabled and trigger.account_key == "main"
     with pytest.raises(WindowInvalid):
         Trigger(kind=TriggerKind.EVENT, key="", target="trae_cn")
 

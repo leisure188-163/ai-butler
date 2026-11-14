@@ -1,4 +1,4 @@
-"""主控 server · Kabao API 契约冒烟（M0 三页数据源）。
+"""主控 server · Butler API 契约冒烟（M0 三页数据源）。
 
 - 三端点形状 + 端零映射抽查：响应里的 level/status 是 core 出产字面量原样传递，
   server 不做语义映射（红线 2 的机检补位——响应成员必须 ∈ core 词表）
@@ -13,17 +13,17 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from kabao_core.application.ports import routing_ports
-from kabao_core.application.usecases import RunRequest
-from kabao_core.domain.action import Action, ActionKind
-from kabao_core.domain.results import Status
-from kabao_core.domain.run import RunResult
-from kabao_core.domain.vault import Secret
+from butler_core.execution.ports import routing_ports
+from butler_core.execution.usecases.execute_action import RunRequest
+from butler_core.execution.domain import Action, ActionKind
+from butler_core.shared.results import Status
+from butler_core.execution.domain import RunResult
+from butler_core.accounts.domain import Secret
 
 
 def _client(tmp_path: Path) -> TestClient:
-    os.environ["KABAO_DB"] = str(tmp_path / "kabao.db")
-    os.environ["KABAO_SCHEDULE"] = "0"  # 关调度：用量 job 启动补扫会与假件端口竞态
+    os.environ["BUTLER_DB"] = str(tmp_path / "butler.db")
+    os.environ["BUTLER_SCHEDULE"] = "0"  # 关调度：用量 job 启动补扫会与假件端口竞态
     from server.main import app
 
     return TestClient(app)
@@ -34,7 +34,7 @@ class FakePort:
         self._result = result
 
     def capabilities(self):
-        from kabao_core.application.ports import Capabilities
+        from butler_core.execution.ports import Capabilities
 
         return Capabilities(dry_run=True)
 
@@ -75,6 +75,7 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
         assert rows == [
             {
                 "account_id": "acc1",
+                "account_key": "acc1",  # 多账号维度（ADR-010）
                 "provider": "",  # vault-only 账号：号册无记录，如实空串
                 "display_name": "acc1",  # 缺省回落 account_id
                 "level": "healthy",  # core 出产字面量，server 原样传递
@@ -185,8 +186,8 @@ class FakeUsagePort:
 def _usage_result(remaining: float, *, total: float = 3200, collected_at=None):
     from datetime import datetime, timezone
 
-    from kabao_core.application.ports import new_id
-    from kabao_core.domain.usage import PackageQuota, UsageAggregate, UsageResult, UsageSnapshot
+    from butler_core.shared.ids import new_id
+    from butler_core.usage.domain import PackageQuota, UsageAggregate, UsageResult, UsageSnapshot
 
     now = collected_at or datetime.now(timezone.utc)
     pkg = PackageQuota(
@@ -295,8 +296,8 @@ def test_usage_radar_shows_ledger_entries(tmp_path):
     """doubao 形态：无快照有流水——雷达行流水如实分列（R2 块①可得性矩阵）。"""
     from datetime import datetime, timezone
 
-    from kabao_core.application.ports import new_id
-    from kabao_core.domain.usage import QuotaLedgerEntry, UsageResult
+    from butler_core.shared.ids import new_id
+    from butler_core.usage.domain import QuotaLedgerEntry, UsageResult
 
     with _client(tmp_path) as client:
         kit = client.app.state.kit
@@ -334,7 +335,7 @@ class _StubRegistry:
         self._accounts = accounts
 
     def dock(self, ctx, *, target):
-        from kabao_connectors.registry import DockOutcome
+        from butler_connectors.registry import DockOutcome
 
         for acc in self._accounts:
             provider = acc.split(":")[0]
@@ -354,7 +355,7 @@ class _BatchRegistry:
         return [SimpleNamespace(manifest=SimpleNamespace(id=t)) for t in self._targets]
 
     def dock(self, ctx, *, target):
-        from kabao_connectors.registry import DockOutcome
+        from butler_connectors.registry import DockOutcome
 
         ctx.register.execute(target, target)
         return [DockOutcome(target=target, accounts=[f"{target}:main"])]

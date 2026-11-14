@@ -5,10 +5,10 @@ import sqlite3
 from contextlib import closing
 from datetime import timedelta
 
-from kabao_core.domain.action import Action, ActionKind
-from kabao_core.domain.results import Status
-from kabao_core.domain.run import Run, RunResult, now_utc
-from kabao_engine.audit.sqlite import AuditSubscriber, SqliteAuditLog
+from butler_core.execution.domain import Action, ActionKind
+from butler_core.shared.results import Status
+from butler_core.execution.domain import Run, RunResult, now_utc
+from butler_engine.audit.sqlite import AuditSubscriber, SqliteAuditLog
 
 
 def test_record_hashes_credential_ref(tmp_path):
@@ -42,7 +42,7 @@ def test_export_and_purge(tmp_path):
 def test_audit_subscriber_only_writes_for_provision(tmp_path):
     audit = SqliteAuditLog(tmp_path / "m.db")
     sub = AuditSubscriber(audit)
-    from kabao_core.domain.event import Event, EventType, Severity
+    from butler_core.shared.events import Event, EventType, Severity
 
     write_done = Event.new(
         EventType.RUN_FINISHED,
@@ -79,7 +79,7 @@ def test_subscriber_end_to_end_via_real_run(tmp_path):
     action = Action(kind=ActionKind.PROVISION_CLAIM, target="workbuddy_cn")
     run = Run(id="r9", action=action, account_id="acc7", idempotency_key="k9")
     run.finish(RunResult(status=Status.ALREADY))
-    from kabao_core.domain.event import run_finished_event
+    from butler_core.shared.events import run_finished_event
 
     sub.on_event(run_finished_event(run))
     rows = json.loads(audit.export_json())

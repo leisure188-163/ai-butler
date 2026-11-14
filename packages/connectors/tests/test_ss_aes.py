@@ -12,7 +12,7 @@ import pytest
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.padding import PKCS7
 
-from kabao_connectors.ssaes import (
+from butler_connectors.ssaes import (
     HEADER,
     MASTER_KEY_LEN,
     EnvelopeInvalid,
@@ -25,7 +25,7 @@ def derived_pair(master: bytes) -> tuple[bytes, bytes]:
     """协议派生单源复刻（测试封口用）：sha512(sha512(master) ‖ salt) → key,iv。"""
     import hashlib
 
-    from kabao_connectors.ssaes import SALT
+    from butler_connectors.ssaes import SALT
 
     digest = hashlib.sha512(hashlib.sha512(master).digest() + SALT).digest()
     return digest[:16], digest[16:32]

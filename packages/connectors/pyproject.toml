@@ -1,10 +1,10 @@
 [project]
-name = "kabao-connectors"
+name = "butler-connectors"
 version = "0.1.0"
-description = "Kabao 连接器家族（A2-02）：manifest 声明 + 声明式引擎 + 各产品适配器"
+description = "Butler 连接器家族（A2-02）：manifest 声明 + 声明式引擎 + 各产品适配器"
 requires-python = ">=3.11"
 dependencies = [
-    "kabao-core",
+    "butler-core",
     "httpx>=0.27",
     "pydantic>=2.7",
     "pyyaml>=6.0",
@@ -13,11 +13,11 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-kabao-core = { workspace = true }
+butler-core = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/kabao_connectors"]
+packages = ["src/butler_connectors"]

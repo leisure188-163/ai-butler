@@ -1,16 +1,16 @@
 [project]
-name = "kabao-cli"
+name = "butler-cli"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["typer", "rich", "kabao-core", "kabao-engine", "kabao-connectors"]
+dependencies = ["typer", "rich", "butler-core", "butler-engine", "butler-connectors"]
 
 [project.scripts]
-kabao = "cli.main:app"
+butler = "cli.main:app"
 
 [tool.uv.sources]
-kabao-core = { workspace = true }
-kabao-engine = { workspace = true }
-kabao-connectors = { workspace = true }
+butler-core = { workspace = true }
+butler-engine = { workspace = true }
+butler-connectors = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

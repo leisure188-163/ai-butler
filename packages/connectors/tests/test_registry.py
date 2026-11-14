@@ -3,10 +3,10 @@
 import pytest
 import yaml
 
-from kabao_core.domain.action import ActionKind
-from kabao_core.domain.results import Status, UnknownEngineCode, from_engine
-from kabao_connectors.manifest import ConnectorManifest, ManifestInvalid
-from kabao_connectors.registry import DockContext, load_registry
+from butler_core.execution.domain import ActionKind
+from butler_core.shared.results import Status, UnknownEngineCode, from_engine
+from butler_connectors.manifest import ConnectorManifest, ManifestInvalid
+from butler_connectors.registry import DockContext, load_registry
 
 
 @pytest.fixture(scope="module")
@@ -117,7 +117,7 @@ def test_adapter_build_port_receives_transport(monkeypatch):
     import types
     from pathlib import Path
 
-    mod = types.ModuleType("kabao_connectors.stub_boot.adapter")
+    mod = types.ModuleType("butler_connectors.stub_boot.adapter")
     seen: dict = {}
 
     class _Boot:
@@ -125,16 +125,16 @@ def test_adapter_build_port_receives_transport(monkeypatch):
             seen.update(vault=vault, transport=transport)
             return object()
 
-    mod.kabao = _Boot()
-    monkeypatch.setitem(sys.modules, "kabao_connectors.stub_boot.adapter", mod)
-    from kabao_connectors.registry import ConnectorApp, Registry
+    mod.butler = _Boot()
+    monkeypatch.setitem(sys.modules, "butler_connectors.stub_boot.adapter", mod)
+    from butler_connectors.registry import ConnectorApp, Registry
 
     manifest = ConnectorManifest.model_validate(
         {
             "id": "stub_boot",
             "display": "Stub",
             "capabilities": {
-                "provision.run": {"kind": "adapter", "entry": "adapter.kabao"}
+                "provision.run": {"kind": "adapter", "entry": "adapter.butler"}
             },
         }
     )
@@ -147,7 +147,7 @@ def test_adapter_build_port_receives_transport(monkeypatch):
 
 def test_workbuddy_adapter_port_built_via_registry(registry):
     """Registry assembly surface: workbuddy adapter port produced by provision_ports, transport passes through."""
-    from kabao_connectors.workbuddy_cn.adapter import WorkbuddyProvisionPort
+    from butler_connectors.workbuddy_cn.adapter import WorkbuddyProvisionPort
 
     sentinel = object()
     ports = registry.provision_ports(vault=None, transport=sentinel)
@@ -158,10 +158,10 @@ def test_workbuddy_adapter_port_built_via_registry(registry):
 
 def test_usage_ports_loaded_for_all_four(registry):
     """R2：申报 usage.collect 的连接器装载为用量端口；auth/kinds 按主链透传。"""
-    from kabao_connectors.doubao_cn.usage import DoubaoUsagePort
-    from kabao_connectors.qoder_cn.usage import QoderUsagePort
-    from kabao_connectors.trae_cn.usage import TraeUsagePort
-    from kabao_connectors.workbuddy_cn.usage import WorkbuddyUsagePort
+    from butler_connectors.doubao_cn.usage import DoubaoUsagePort
+    from butler_connectors.qoder_cn.usage import QoderUsagePort
+    from butler_connectors.trae_cn.usage import TraeUsagePort
+    from butler_connectors.workbuddy_cn.usage import WorkbuddyUsagePort
 
     sentinel = object()
     ports = registry.usage_ports(vault=None, transport=sentinel)
@@ -183,7 +183,7 @@ def test_usage_collect_declarative_rejected():
     """usage.collect 只认 adapter（用量编排各家专属）——其他 kind 显式爆。"""
     from pathlib import Path
 
-    from kabao_connectors.registry import ConnectorApp, Registry
+    from butler_connectors.registry import ConnectorApp, Registry
 
     manifest = ConnectorManifest.model_validate(
         {
@@ -204,16 +204,16 @@ def test_load_registry_imports_adapter_entry(monkeypatch, tmp_path):
     import sys
     import types
 
-    from kabao_connectors import registry as registry_mod
+    from butler_connectors import registry as registry_mod
 
-    mod = types.ModuleType("kabao_connectors.stub_boot.adapter")
+    mod = types.ModuleType("butler_connectors.stub_boot.adapter")
 
     class _Boot:
         def build_port(self, *, vault, transport=None): ...
 
         def dock(self, ctx): ...
 
-    mod.kabao = _Boot()
+    mod.butler = _Boot()
     # 观察点：load_registry 对 adapter 能力必须触发 _load_entry_module（真实现走 importlib，
     # sys.modules 预插假模块即命中，无需起真包）
     seen: list[tuple[str, str]] = []
@@ -224,30 +224,30 @@ def test_load_registry_imports_adapter_entry(monkeypatch, tmp_path):
         return real_load(conn_id, entry)
 
     monkeypatch.setattr(registry_mod, "_load_entry_module", spy)
-    monkeypatch.setitem(sys.modules, "kabao_connectors.stub_boot.adapter", mod)
+    monkeypatch.setitem(sys.modules, "butler_connectors.stub_boot.adapter", mod)
     monkeypatch.setattr(
         registry_mod, "package_root", lambda conn_id=None: _fake_package(tmp_path)
     )
     registry_mod.load_registry()
-    assert seen == [("stub_boot", "adapter.kabao")]  # 装载即 import 发生过
+    assert seen == [("stub_boot", "adapter.butler")]  # 装载即 import 发生过
 
 
 def test_load_registry_bad_adapter_entry_raises(monkeypatch, tmp_path):
     """坏 adapter entry（模块不存在）装载期显式爆，不留到首次 run（红线 5）。"""
     import pytest
 
-    from kabao_connectors import registry as registry_mod
+    from butler_connectors import registry as registry_mod
 
     monkeypatch.setattr(
         registry_mod, "package_root", lambda conn_id=None: _fake_package(
-            tmp_path, entry="ghost.kabao"
+            tmp_path, entry="ghost.butler"
         )
     )
     with pytest.raises(ImportError):
         registry_mod.load_registry()
 
 
-def _fake_package(tmp_path, entry: str = "adapter.kabao"):
+def _fake_package(tmp_path, entry: str = "adapter.butler"):
     """临时包根里的一枚假 adapter 连接器目录（manifest.yaml）。"""
     root = tmp_path / "stub_boot"
     root.mkdir(parents=True, exist_ok=True)

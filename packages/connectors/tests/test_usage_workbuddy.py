@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from kabao_core.application.ports import UsageRequest
-from kabao_connectors.workbuddy_cn.usage import WorkbuddyUsagePort, build_usage_port
+from butler_core.usage.ports import UsageRequest
+from butler_connectors.workbuddy_cn.usage import WorkbuddyUsagePort, build_usage_port
 
 _T0 = datetime(2026, 11, 12, 8, 0, 0, tzinfo=timezone.utc)
 _DEADLINE = datetime(2026, 11, 12, 8, 1, 0, tzinfo=timezone.utc)
@@ -51,7 +51,7 @@ class FakeTransport:
         self.calls.append(request)
         payload = self.pages[min(self.page_idx, len(self.pages) - 1)]
         self.page_idx += 1
-        from kabao_connectors.transport import HttpResponse
+        from butler_connectors.transport import HttpResponse
 
         return HttpResponse(status_code=self.status, payload=payload)
 

@@ -8,14 +8,7 @@
 import pytest
 from dataclasses import FrozenInstanceError
 
-from kabao_core.domain.results import (
-    DialectError,
-    ResultKind,
-    Status,
-    UnknownEngineCode,
-    from_engine,
-    register_dialect,
-)
+from butler_core.shared.results import DialectError, ResultKind, Status, UnknownEngineCode, from_engine, register_dialect
 
 # A2-01 §2 清单：字面量为 oracle 对齐固定值
 EXPECTED_LITERALS = {

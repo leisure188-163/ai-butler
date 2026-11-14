@@ -1,6 +1,6 @@
 # docs · 文档导航
 
-> kabao 的 docs 是一个有标准结构的仓库：conventions 管强制规范、specs 管设计、
+> butler 的 docs 是一个有标准结构的仓库：conventions 管强制规范、specs 管设计、
 > adr 管决策、AGENTS.md（仓库根）管 AI 进场路由。
 
 ## 开发前必读

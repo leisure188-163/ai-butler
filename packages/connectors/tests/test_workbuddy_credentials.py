@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from kabao_connectors.workbuddy_cn import credentials
+from butler_connectors.workbuddy_cn import credentials
 
 
 def test_env_override_hits_file(tmp_path, monkeypatch):

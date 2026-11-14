@@ -16,7 +16,7 @@
 ```
 Provider：Connector 的产品级身份（id + display + capabilities 申报源）
 Account（聚合根）：
-  identity = (provider_id, account_key)；account_key 缺省 "default"
+  identity = (provider_id, account_key)；account_key 缺省 "main"
   同一 Provider 下 account_key 唯一；删除账户 = 软删除（台账/审计保留 account_id）
 Credential：kind(ss_aes/cookie/oauth/api-key) / 密文 / 有效期 / 轮换历史
   ——凭据必须绑定 account，禁止按应用共享（ADR-010 §5）
@@ -28,7 +28,7 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 1. account_id 是全系统外键——Run/Event/Sample 一律挂它
 2. 凭据明文永不离开 vault 端口背后（core 只见句柄与元数据）
 3. `(provider, account_key)` 缺省落位规则：存量单账号数据迁移时
-   account_key = "default"，零信息丢失（迁移测试钉死，A1-05 §5 P4）
+   account_key = "main"，零信息丢失（迁移测试钉死，A1-05 §5 P4）
 
 ## 3. 端口（accounts/ports.py）
 

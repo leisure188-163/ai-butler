@@ -9,13 +9,13 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "kabao-cli",
-    "kabao-connectors",
-    "kabao-core",
-    "kabao-engine",
-    "kabao-mcp",
-    "kabao-server",
-    "kabao-workspace",
+    "butler-cli",
+    "butler-connectors",
+    "butler-core",
+    "butler-engine",
+    "butler-mcp",
+    "butler-server",
+    "butler-workspace",
 ]
 
 [[package]]
@@ -57,6 +57,137 @@ sdist = { url = "https://mirrors.aliyun.com/pypi/packages/9a/8e/82a0fe20a541c031
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl", hash = "sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309" },
 ]
+
+[[package]]
+name = "butler-cli"
+version = "0.1.0"
+source = { editable = "apps/cli" }
+dependencies = [
+    { name = "butler-connectors" },
+    { name = "butler-core" },
+    { name = "butler-engine" },
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "butler-connectors", editable = "packages/connectors" },
+    { name = "butler-core", editable = "packages/core" },
+    { name = "butler-engine", editable = "packages/engine" },
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[[package]]
+name = "butler-connectors"
+version = "0.1.0"
+source = { editable = "packages/connectors" }
+dependencies = [
+    { name = "butler-core" },
+    { name = "cryptography" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "websocket-client" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "butler-core", editable = "packages/core" },
+    { name = "cryptography", specifier = ">=42" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pydantic", specifier = ">=2.7" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "websocket-client", specifier = ">=1.8" },
+]
+
+[[package]]
+name = "butler-core"
+version = "0.1.0"
+source = { editable = "packages/core" }
+
+[[package]]
+name = "butler-engine"
+version = "0.1.0"
+source = { editable = "packages/engine" }
+dependencies = [
+    { name = "butler-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "butler-core", editable = "packages/core" }]
+
+[[package]]
+name = "butler-mcp"
+version = "0.1.0"
+source = { editable = "apps/mcp" }
+dependencies = [
+    { name = "httpx" },
+    { name = "mcp" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx" },
+    { name = "mcp" },
+]
+
+[[package]]
+name = "butler-server"
+version = "0.1.0"
+source = { editable = "apps/server" }
+dependencies = [
+    { name = "butler-connectors" },
+    { name = "butler-core" },
+    { name = "butler-engine" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "butler-connectors", editable = "packages/connectors" },
+    { name = "butler-core", editable = "packages/core" },
+    { name = "butler-engine", editable = "packages/engine" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn", extras = ["standard"] },
+]
+
+[[package]]
+name = "butler-workspace"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "butler-cli" },
+    { name = "butler-connectors" },
+    { name = "butler-core" },
+    { name = "butler-engine" },
+    { name = "butler-mcp" },
+    { name = "butler-server" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "butler-cli", editable = "apps/cli" },
+    { name = "butler-connectors", editable = "packages/connectors" },
+    { name = "butler-core", editable = "packages/core" },
+    { name = "butler-engine", editable = "packages/engine" },
+    { name = "butler-mcp", editable = "apps/mcp" },
+    { name = "butler-server", editable = "apps/server" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8" }]
 
 [[package]]
 name = "certifi"
@@ -489,137 +620,6 @@ sdist = { url = "https://mirrors.aliyun.com/pypi/packages/19/74/a633ee74eb36c44a
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl", hash = "sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe" },
 ]
-
-[[package]]
-name = "kabao-cli"
-version = "0.1.0"
-source = { editable = "apps/cli" }
-dependencies = [
-    { name = "kabao-connectors" },
-    { name = "kabao-core" },
-    { name = "kabao-engine" },
-    { name = "rich" },
-    { name = "typer" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "kabao-connectors", editable = "packages/connectors" },
-    { name = "kabao-core", editable = "packages/core" },
-    { name = "kabao-engine", editable = "packages/engine" },
-    { name = "rich" },
-    { name = "typer" },
-]
-
-[[package]]
-name = "kabao-connectors"
-version = "0.1.0"
-source = { editable = "packages/connectors" }
-dependencies = [
-    { name = "cryptography" },
-    { name = "httpx" },
-    { name = "kabao-core" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "websocket-client" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cryptography", specifier = ">=42" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "kabao-core", editable = "packages/core" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "websocket-client", specifier = ">=1.8" },
-]
-
-[[package]]
-name = "kabao-core"
-version = "0.1.0"
-source = { editable = "packages/core" }
-
-[[package]]
-name = "kabao-engine"
-version = "0.1.0"
-source = { editable = "packages/engine" }
-dependencies = [
-    { name = "kabao-core" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "kabao-core", editable = "packages/core" }]
-
-[[package]]
-name = "kabao-mcp"
-version = "0.1.0"
-source = { editable = "apps/mcp" }
-dependencies = [
-    { name = "httpx" },
-    { name = "mcp" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx" },
-    { name = "mcp" },
-]
-
-[[package]]
-name = "kabao-server"
-version = "0.1.0"
-source = { editable = "apps/server" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "kabao-connectors" },
-    { name = "kabao-core" },
-    { name = "kabao-engine" },
-    { name = "pydantic-settings" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "kabao-connectors", editable = "packages/connectors" },
-    { name = "kabao-core", editable = "packages/core" },
-    { name = "kabao-engine", editable = "packages/engine" },
-    { name = "pydantic-settings" },
-    { name = "uvicorn", extras = ["standard"] },
-]
-
-[[package]]
-name = "kabao-workspace"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "kabao-cli" },
-    { name = "kabao-connectors" },
-    { name = "kabao-core" },
-    { name = "kabao-engine" },
-    { name = "kabao-mcp" },
-    { name = "kabao-server" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "kabao-cli", editable = "apps/cli" },
-    { name = "kabao-connectors", editable = "packages/connectors" },
-    { name = "kabao-core", editable = "packages/core" },
-    { name = "kabao-engine", editable = "packages/engine" },
-    { name = "kabao-mcp", editable = "apps/mcp" },
-    { name = "kabao-server", editable = "apps/server" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8" }]
 
 [[package]]
 name = "markdown-it-py"

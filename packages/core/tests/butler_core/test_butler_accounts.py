@@ -39,7 +39,7 @@ class MemoryAccounts(AccountRepository):
 
 
 def test_identity_default_key_and_collection():
-    assert account_identity("trae_cn") == "trae_cn:default"
+    assert account_identity("trae_cn") == "trae_cn:main"
     assert main_account_id("trae_cn") == account_identity("trae_cn")
     a = Account(
         id=account_identity("trae_cn", "work"),
@@ -82,8 +82,9 @@ def test_register_multi_account_and_conflict():
     assert len(repo.list_by_provider("trae_cn")) == 2
     assert a.id != b.id
     assert uc.execute("trae_cn", "工作号", account_key="work").id == a.id  # 幂等
+    assert uc.execute("trae_cn", "改名了", account_key="work").id == a.id  # 不覆盖
     with pytest.raises(AccountAlreadyExists):
-        uc.execute("trae_cn", "改名了", account_key="work")
+        uc.execute("trae_cn", "x", account_key="work", account_id="trae_cn:other")
 
 
 def test_secret_redaction_and_empty_rejected():
@@ -95,10 +96,10 @@ def test_secret_redaction_and_empty_rejected():
 
 
 def test_vault_ref_and_credential_health():
-    assert vault_ref("trae_cn:default", "cookie") == "trae_cn:default:cookie"
+    assert vault_ref("trae_cn:main", "cookie") == "trae_cn:main:cookie"
     now = datetime(2026, 1, 1, tzinfo=timezone.utc)
     expiring = CredentialHealth.build(
-        account_id="trae_cn:default", kind="cookie",
+        account_id="trae_cn:main", kind="cookie",
         expires_at=now + timedelta(days=1), clock=lambda: now,
     )
     assert expiring.level is HealthLevel.EXPIRING

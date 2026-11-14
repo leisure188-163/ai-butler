@@ -1,4 +1,4 @@
-"""Kabao CLI（执行器/排障用，非主入口——决策见 STATUS）。
+"""Butler CLI（执行器/排障用，非主入口——决策见 STATUS）。
 
 卡包命令词表（A1-03 §4）：cards（卡=账号）/ apps（应用）/ import（导入）/
 claim（领取）/ check（体检）/ records（领取记录）。全部经 bridge 触达引擎
@@ -14,21 +14,21 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-app = typer.Typer(help="Kabao · 你的 AI 卡包（执行器/排障）")
+app = typer.Typer(help="Butler · 你的 AI 卡包（执行器/排障）")
 cards = typer.Typer(help="卡（账号）管理")
 app.add_typer(cards, name="cards")
 console = Console()
 
 
 def _kit():
-    from kabao_engine.bridge import build_engine, default_db_path
+    from butler_engine.bridge import build_engine, default_db_path
 
-    return build_engine(os.environ.get("KABAO_DB") or default_db_path())
+    return build_engine(os.environ.get("BUTLER_DB") or default_db_path())
 
 
 def _registry():
     """连接器注册表（ADR-003）：CLI 与 server 同源装载。"""
-    from kabao_connectors.registry import load_registry
+    from butler_connectors.registry import load_registry
 
     return load_registry()
 
@@ -41,7 +41,7 @@ def _mount_ports(kit) -> None:
 
 
 def _unknown_target(target: str) -> None:
-    from kabao_connectors.registry import load_registry
+    from butler_connectors.registry import load_registry
 
     console.print(
         f"[red]连接器未接入: {target!r}[/red]（可用: {', '.join(load_registry().ids())}）"
@@ -74,7 +74,7 @@ def apps() -> None:
 @app.command("import")
 def import_cmd(target: str) -> None:
     """导入：扫本机客户端 → 账号入卡包 → 凭据入库（结果如实分列，不静默）。"""
-    from kabao_connectors.registry import DockContext
+    from butler_connectors.registry import DockContext
 
     kit = _kit()
     try:
@@ -100,9 +100,9 @@ def claim(
     dry_run: bool = typer.Option(False, "--dry-run", help="只演练不落账"),
 ) -> None:
     """手动领取：立即跑一次 provision.run（窗口按 core 时间表规则）。"""
-    from kabao_core.application.usecases import RunRequest
-    from kabao_core.domain.action import Action, ActionKind
-    from kabao_core.domain.schedule import claim_window
+    from butler_core.execution.usecases.execute_action import RunRequest
+    from butler_core.execution.domain import Action, ActionKind
+    from butler_core.scheduling.domain import claim_window
 
     kit = _kit()
     try:

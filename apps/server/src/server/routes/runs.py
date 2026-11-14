@@ -11,9 +11,9 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from kabao_core.domain.run import Run
+from butler_core.execution.domain import Run
 
-router = APIRouter(tags=["kabao"])
+router = APIRouter(tags=["butler"])
 
 _MAX_LIMIT = 200
 
@@ -24,7 +24,8 @@ class RunIn(BaseModel):
 
     target: str
     kind: str = "provision.run"
-    account_id: str | None = None
+    account_id: str | None = None  # 显式账号规范 id（优先于 account_key）
+    account_key: str = "main"  # ADR-010：target = 应用 + 账号；裸应用 id 兼容首账号
     dry_run: bool = False
 
 
@@ -38,6 +39,7 @@ class RunOut(BaseModel):
     kind: str  # ActionKind.value
     target: str
     account_id: str
+    account_key: str  # 幂等键按账号粒度（ADR-010 §4）
     started_at: datetime
     finished_at: datetime | None
     status: str | None  # Status.value（oracle 方言字面量，端零映射）
@@ -54,6 +56,7 @@ def _run_out(run: Run) -> RunOut:
         kind=run.action.kind.value,
         target=run.action.target,
         account_id=run.account_id,
+        account_key=run.account_id.split(":", 1)[-1],
         started_at=run.started_at,
         finished_at=run.finished_at,
         status=result.status.value if result else None,
@@ -78,10 +81,14 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
     kind ∈ ActionKind 词表校验；health.check 免窗口（非领取类写动作，无幂等键），
     预算取连接器 health.check 能力申报的 budget_seconds。
     """
-    from kabao_core.application.usecases import RunRequest
-    from kabao_core.domain.action import Action, ActionKind
-    from kabao_core.domain.schedule import claim_window
+    from butler_core.accounts.domain import account_identity
+    from butler_core.execution.usecases.execute_action import RunRequest
+    from butler_core.execution.domain import Action, ActionKind
+    from butler_core.scheduling.domain import claim_window
 
+    resolved_account = payload.account_id or account_identity(
+        payload.target, payload.account_key
+    )
     registry = request.app.state.registry
     kit = request.app.state.kit
     try:
@@ -101,7 +108,7 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
         run = kit.execute_action.execute(
             RunRequest(
                 action=Action(kind=kind, target=payload.target),
-                account_id=payload.account_id or f"{payload.target}:main",
+                account_id=resolved_account,
                 budget=timedelta(seconds=app.provision_budget("health.check")),
             )
         )
@@ -120,7 +127,7 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
     run = kit.execute_action.execute(
         RunRequest(
             action=Action(kind=ActionKind.PROVISION_RUN, target=payload.target),
-            account_id=payload.account_id or f"{payload.target}:main",
+            account_id=resolved_account,
             window=window,
             dry_run=payload.dry_run,
             budget=timedelta(seconds=app.provision_budget("provision.run")),
@@ -135,31 +142,32 @@ def claim_all_runs(request: Request) -> list[RunOut]:
 
     只认已泊位的（卡包里有的卡才领）；端零入参，选卡语义归编排层。
     """
-    from kabao_core.application.usecases import RunRequest
-    from kabao_core.domain.action import Action, ActionKind
-    from kabao_core.domain.schedule import claim_window
+    from butler_core.execution.usecases.execute_action import RunRequest
+    from butler_core.execution.domain import Action, ActionKind
+    from butler_core.scheduling.domain import claim_window
 
     registry = request.app.state.registry
     kit = request.app.state.kit
-    docked = {a.provider: a.id for a in kit.accounts.list_all()}
+    # 多账号（ADR-010）：同一应用下每个账户各自发起，幂等键按账号粒度
+    docked: dict[str, list[str]] = {}
+    for account in kit.accounts.list_all():
+        docked.setdefault(account.provider, []).append(account.id)
     refresh = {e["target"]: e["refresh_at"] for e in registry.schedule_entries()}
     out: list[RunOut] = []
     for app in registry.apps():
         if app.manifest.capabilities.get("provision.run") is None:
             continue  # 网页连接器无领取概念（A1-04 §6），一键领取跳过
-        account_id = docked.get(app.manifest.id)
-        if account_id is None:
-            continue
-        window = claim_window(datetime.now(), refresh.get(app.manifest.id, "00:00"))
-        run = kit.execute_action.execute(
-            RunRequest(
-                action=Action(kind=ActionKind.PROVISION_RUN, target=app.manifest.id),
-                account_id=account_id,
-                window=window,
-                budget=timedelta(seconds=app.provision_budget("provision.run")),
+        for account_id in docked.get(app.manifest.id, []):
+            window = claim_window(datetime.now(), refresh.get(app.manifest.id, "00:00"))
+            run = kit.execute_action.execute(
+                RunRequest(
+                    action=Action(kind=ActionKind.PROVISION_RUN, target=app.manifest.id),
+                    account_id=account_id,
+                    window=window,
+                    budget=timedelta(seconds=app.provision_budget("provision.run")),
+                )
             )
-        )
-        out.append(_run_out(run))
+            out.append(_run_out(run))
     return out
 
 

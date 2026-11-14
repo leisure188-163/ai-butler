@@ -10,19 +10,16 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from kabao_core.application.ports import CredentialMissing, ProvisionRequest
-from kabao_core.domain.action import ActionKind
-from kabao_core.domain.results import (
-    Status,
-    UnknownEngineCode,
-    from_engine,
-    register_dialect,
-)
-from kabao_core.domain.vault import Secret
+from butler_core.accounts.ports import CredentialMissing
 
-from kabao_connectors.decl import DeclarativeHealthPort
-from kabao_connectors.manifest import ProbeSpec
-from kabao_connectors.transport import HttpResponse, TransportError
+from butler_core.execution.ports import ProvisionRequest
+from butler_core.execution.domain import ActionKind
+from butler_core.shared.results import Status, UnknownEngineCode, from_engine, register_dialect
+from butler_core.accounts.domain import Secret
+
+from butler_connectors.decl import DeclarativeHealthPort
+from butler_connectors.manifest import ProbeSpec
+from butler_connectors.transport import HttpResponse, TransportError
 
 CONN = "webco"
 register_dialect(CONN, {"401": Status.EXPIRED, "403": Status.NO_AUTH})  # 单测自带方言（装载期注册发生在 load_registry）
@@ -188,7 +185,7 @@ def test_capabilities_no_dry_run():
 
 @pytest.fixture(scope="module")
 def registry():
-    from kabao_connectors.registry import load_registry
+    from butler_connectors.registry import load_registry
 
     return load_registry()
 
@@ -227,7 +224,7 @@ def test_provision_ports_skip_web_connectors(registry):
 
 
 def test_health_ports_built_for_web_connectors(registry):
-    from kabao_connectors.decl import DeclarativeHealthPort as Port
+    from butler_connectors.decl import DeclarativeHealthPort as Port
 
     sentinel = object()
     ports = registry.health_ports(vault=None, transport=sentinel)
@@ -245,9 +242,9 @@ def test_web_connectors_have_no_schedule(registry):
 
 def test_dock_dispatch_falls_to_session_import(registry, monkeypatch):
     """dock 分发回落：无 provision.run → 走 browser.capture_cookies（A2-03 §4）。"""
-    import kabao_connectors.browser as browser_mod
+    import butler_connectors.browser as browser_mod
 
-    from kabao_connectors.registry import DockContext, DockOutcome
+    from butler_connectors.registry import DockContext, DockOutcome
 
     seen: dict = {}
 
@@ -269,7 +266,7 @@ def test_dock_dispatch_falls_to_session_import(registry, monkeypatch):
 
 def test_dock_web_without_cookies_reports_not_logged_in(registry, tmp_path):
     """分发落地的真实捕获通道：候选全空 → 未发现 cookie 库（非「未申报能力」）。"""
-    from kabao_connectors.registry import DockContext
+    from butler_connectors.registry import DockContext
 
     ctx = DockContext(
         vault=None,

@@ -12,7 +12,7 @@ import json
 import httpx
 import pytest
 
-from kabao_mcp import main as mcp_main
+from butler_mcp import main as mcp_main
 
 
 def _radar_row(provider: str = "trae_cn", display: str = "Trae CN") -> dict:
@@ -193,7 +193,7 @@ def test_http_error_detail_passthrough(mock_transport):
 
 
 def test_base_url_env_override(monkeypatch):
-    monkeypatch.setenv("KABAO_SERVER_URL", "http://127.0.0.1:9000/")
+    monkeypatch.setenv("BUTLER_SERVER_URL", "http://127.0.0.1:9000/")
     assert mcp_main._base_url() == "http://127.0.0.1:9000"
-    monkeypatch.delenv("KABAO_SERVER_URL")
+    monkeypatch.delenv("BUTLER_SERVER_URL")
     assert mcp_main._base_url() == "http://127.0.0.1:8000"

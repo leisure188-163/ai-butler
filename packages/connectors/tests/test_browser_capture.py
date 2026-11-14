@@ -17,12 +17,12 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.padding import PKCS7
 
-from kabao_core.application.ports import AccountRepository
-from kabao_core.application.usecases import RegisterAccount
-from kabao_connectors import unlock
-from kabao_connectors.browser import _capture_kind, _webkit_to_iso, capture_cookies
-from kabao_connectors.manifest import CaptureSpec
-from kabao_connectors.registry import DockContext, load_registry
+from butler_core.accounts.ports import AccountRepository
+from butler_core.accounts.usecases.register_account import RegisterAccount
+from butler_connectors import unlock
+from butler_connectors.browser import _capture_kind, _webkit_to_iso, capture_cookies
+from butler_connectors.manifest import CaptureSpec
+from butler_connectors.registry import DockContext, load_registry
 
 MAC_SECRET = b"chrome-safe-storage-pass"
 WIN_KEY = bytes(range(32))  # GCM 链 32B（AES-256）
@@ -360,7 +360,7 @@ def test_capture_windows_missing_local_state(tmp_path, win_env, registry):
 
 def test_mac_cbc_dual_shape_decrypt():
     """双形状自识别：经典（体=密文）与前缀（16B 段+IV）都能解回明文。"""
-    from kabao_connectors.unlock import decrypt_chromium_cookie
+    from butler_connectors.unlock import decrypt_chromium_cookie
 
     key = unlock.chromium_cookie_key(MAC_SECRET)
     assert decrypt_chromium_cookie(cbc_seal(b"classic-value", key), key, gcm=False) == b"classic-value"
@@ -372,7 +372,7 @@ def test_mac_cbc_dual_shape_decrypt():
 
 def test_mac_cbc_short_body_rejected():
     """非 v10 头 / 块长不齐显式爆（形状已变探测）。"""
-    from kabao_connectors.unlock import decrypt_chromium_cookie
+    from butler_connectors.unlock import decrypt_chromium_cookie
 
     key = unlock.chromium_cookie_key(MAC_SECRET)
     with pytest.raises(ValueError, match="密文头未知"):
@@ -505,7 +505,7 @@ def test_all_profiles_failed_reports_first_issue(tmp_path, mac_env):
 def test_v20_appbound_cookie_explicit_issue(tmp_path, win_env):
     """v20 应用绑定加密（Chrome 127+ Windows 真机取证全量形状）：
     显式落榜、文案自足、不误导「重扫」。"""
-    from kabao_connectors.browser import _capture_kind
+    from butler_connectors.browser import _capture_kind
 
     db = tmp_path / "User Data" / "Default" / "Cookies"
     make_cookie_db(db, [(DOMAIN, name, None, b"v20" + bytes(40), 0) for name in COOKIES])
@@ -525,7 +525,7 @@ def test_v20_appbound_cookie_explicit_issue(tmp_path, win_env):
 
 def test_decrypt_rejects_v20_with_shape_error():
     """v20 = CookieShapeError（显式形状申报）；v11 等未知头照旧 ValueError。"""
-    from kabao_connectors.unlock import CookieShapeError, decrypt_chromium_cookie
+    from butler_connectors.unlock import CookieShapeError, decrypt_chromium_cookie
 
     with pytest.raises(CookieShapeError, match="应用绑定"):
         decrypt_chromium_cookie(b"v20" + bytes(40), WIN_KEY, gcm=True)

@@ -11,19 +11,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from kabao_core.application.ports import UsageRequest
-from kabao_core.application.usecases import CollectUsage, CollectOutcome
-from kabao_core.domain.event import EventType, Severity
-from kabao_core.domain.usage import (
-    PackageQuota,
-    QuotaLedgerEntry,
-    UsageAggregate,
-    UsageResult,
-    UsageSnapshot,
-    forecast_exhaustion,
-    is_quota_low,
-    quota_ratio,
-)
+from butler_core.usage.ports import UsageRequest
+from butler_core.usage.usecases.collect_usage import CollectUsage, CollectOutcome
+from butler_core.shared.events import EventType, Severity
+from butler_core.usage.domain import PackageQuota, QuotaLedgerEntry, UsageAggregate, UsageResult, UsageSnapshot, forecast_exhaustion, is_quota_low, quota_ratio
 
 _T0 = datetime(2026, 11, 12, 12, 0, tzinfo=timezone.utc)
 

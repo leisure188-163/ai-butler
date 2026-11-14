@@ -13,12 +13,12 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from kabao_core.application.ports import AccountRepository
-from kabao_core.application.usecases import RegisterAccount
-from kabao_connectors import dockio, unlock
-from kabao_connectors.dockio import scan_storage
-from kabao_connectors.manifest import DeclarativeSpec
-from kabao_connectors.registry import DockContext, load_registry
+from butler_core.accounts.ports import AccountRepository
+from butler_core.accounts.usecases.register_account import RegisterAccount
+from butler_connectors import dockio, unlock
+from butler_connectors.dockio import scan_storage
+from butler_connectors.manifest import DeclarativeSpec
+from butler_connectors.registry import DockContext, load_registry
 
 from test_unlock_qoder import MAC_SECRET, TEST_KEY, seal_envelope, seal_mac_envelope
 
@@ -327,7 +327,7 @@ def test_registry_guid_subkey_missing_install_location(tmp_path, monkeypatch):
             "{no-display-entry}": {"SystemComponent": 1},  # 无 DisplayName：跳过
         },
     )
-    from kabao_connectors.dockio import _registry_install_roots
+    from butler_connectors.dockio import _registry_install_roots
 
     assert _registry_install_roots() == [ico.parent]
 
@@ -337,7 +337,7 @@ def test_locate_umid_env_override(tmp_path, monkeypatch):
     fake_exe = tmp_path / "runtime-info.exe"
     fake_exe.write_bytes(b"x")
     monkeypatch.setenv("QODER_UMID_EXE", str(fake_exe))
-    from kabao_connectors.dockio import _locate_umid
+    from butler_connectors.dockio import _locate_umid
 
     assert _locate_umid() == fake_exe  # 覆盖优先，且不做存在性宽容
 

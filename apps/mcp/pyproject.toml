@@ -1,15 +1,15 @@
 [project]
-name = "kabao-mcp"
+name = "butler-mcp"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = ["mcp", "httpx"]
 
 [project.scripts]
-kabao-mcp = "kabao_mcp.main:main"
+butler-mcp = "butler_mcp.main:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/kabao_mcp"]
+packages = ["src/butler_mcp"]

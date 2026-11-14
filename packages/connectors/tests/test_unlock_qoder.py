@@ -10,9 +10,9 @@ import json
 import pytest
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from kabao_core.domain.vault import Secret
-from kabao_connectors import unlock
-from kabao_connectors.unlock import (
+from butler_core.accounts.domain import Secret
+from butler_connectors import unlock
+from butler_connectors.unlock import (
     UnknownCredentialKind,
     load_dpapi_gcm_v10,
     load_umid_cosy,

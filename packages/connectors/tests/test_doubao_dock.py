@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
-from kabao_connectors.cdp import CdpError
-from kabao_connectors.doubao_cn import adapter
+from butler_connectors.cdp import CdpError
+from butler_connectors.doubao_cn import adapter
 
 
 @dataclass
@@ -77,7 +77,7 @@ class ScriptedChannel:
 
 def test_probe_ok_registers_account_without_vault():
     ctx, env = FakeCtx(), FakeDockEnv()
-    outcome = adapter.kabao.dock(ctx, env=env, channel=ScriptedChannel([None]))
+    outcome = adapter.butler.dock(ctx, env=env, channel=ScriptedChannel([None]))
     assert outcome.issues == []
     assert outcome.accounts == ["doubao_cn:main"]
     assert env.spawned == [] and env.killed == []  # 可达即过，不动进程
@@ -89,7 +89,7 @@ def test_probe_fail_relaunches_and_registers():
     env = FakeDockEnv(exe=exe, pids=[11, 22])
     channel = ScriptedChannel([CdpError("down"), None, None])  # 首次不可达，拉起后可达
     ctx = FakeCtx()
-    outcome = adapter.kabao.dock(ctx, env=env, channel=channel)
+    outcome = adapter.butler.dock(ctx, env=env, channel=channel)
     assert outcome.issues == []
     assert outcome.accounts == ["doubao_cn:main"]
     assert env.killed == [11, 22]  # 无端口实例全杀（probe 已失败 = 端口没开）
@@ -99,7 +99,7 @@ def test_probe_fail_relaunches_and_registers():
 
 def test_probe_fail_no_exe_is_explicit_issue():
     env = FakeDockEnv(exe=None)  # 未安装
-    outcome = adapter.kabao.dock(FakeCtx(), env=env, channel=ScriptedChannel([CdpError("down")]))
+    outcome = adapter.butler.dock(FakeCtx(), env=env, channel=ScriptedChannel([CdpError("down")]))
     assert outcome.accounts == []
     assert outcome.issues
     import sys
@@ -116,7 +116,7 @@ def test_probe_fail_no_exe_mac_message(monkeypatch):
 
     monkeypatch.setattr(sys, "platform", "darwin")
     env = FakeDockEnv(exe=None)
-    outcome = adapter.kabao.dock(FakeCtx(), env=env, channel=ScriptedChannel([CdpError("down")]))
+    outcome = adapter.butler.dock(FakeCtx(), env=env, channel=ScriptedChannel([CdpError("down")]))
     assert outcome.accounts == []
     assert "/Applications" in outcome.issues[0]
     assert "DOUBAO_EXE" in outcome.issues[0]
@@ -126,7 +126,7 @@ def test_probe_fail_no_exe_mac_message(monkeypatch):
 def test_relaunch_timeout_is_explicit_issue():
     env = FakeDockEnv(exe=object(), pids=[1])
     channel = ScriptedChannel([CdpError("down")], hold=True)  # 拉起后仍不可达
-    outcome = adapter.kabao.dock(FakeCtx(), env=env, channel=channel)
+    outcome = adapter.butler.dock(FakeCtx(), env=env, channel=channel)
     assert outcome.accounts == []
     assert outcome.issues and "超时" in outcome.issues[0]
     assert len(env.slept) == 10  # ~15s 轮询后放弃（显式，不无限等）
@@ -135,6 +135,6 @@ def test_relaunch_timeout_is_explicit_issue():
 def test_dock_is_idempotent_on_registry_side():
     register = FakeRegister()
     ctx = FakeCtx(register=register)
-    first = adapter.kabao.dock(ctx, env=FakeDockEnv(), channel=ScriptedChannel([None]))
-    second = adapter.kabao.dock(ctx, env=FakeDockEnv(), channel=ScriptedChannel([None]))
+    first = adapter.butler.dock(ctx, env=FakeDockEnv(), channel=ScriptedChannel([None]))
+    second = adapter.butler.dock(ctx, env=FakeDockEnv(), channel=ScriptedChannel([None]))
     assert first.accounts == second.accounts == ["doubao_cn:main"]  # 名册位幂等（core 语义）

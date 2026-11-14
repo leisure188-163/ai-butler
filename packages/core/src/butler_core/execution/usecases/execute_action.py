@@ -190,7 +190,7 @@ class ExecuteAction:
         不静默截断：被放弃的底层调用可能仍在后台执行至自然结束，
         该事实随 evidence 上报；重复领取由幂等键兜底。
         """
-        pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="kabao-run")
+        pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="butler-run")
         try:
             future = pool.submit(port.run, req)
             try:

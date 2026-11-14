@@ -8,8 +8,8 @@ import types
 
 import pytest
 
-from kabao_connectors import cdp
-from kabao_connectors.cdp import CdpChannel, CdpConnection, CdpError, pick_activity_target
+from butler_connectors import cdp
+from butler_connectors.cdp import CdpChannel, CdpConnection, CdpError, pick_activity_target
 
 
 class EchoWs:

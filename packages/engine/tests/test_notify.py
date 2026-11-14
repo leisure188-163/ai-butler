@@ -1,7 +1,7 @@
 """NotificationCenter 行为基线（A4-01 §3）：阈值投递、渠道隔离。"""
 
-from kabao_core.domain.event import Event, EventType, Severity
-from kabao_engine.notify.center import InAppChannel, NotificationCenter
+from butler_core.shared.events import Event, EventType, Severity
+from butler_engine.notify.center import InAppChannel, NotificationCenter
 
 
 def _event(severity: Severity) -> Event:

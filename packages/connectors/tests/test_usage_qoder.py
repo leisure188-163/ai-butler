@@ -11,9 +11,9 @@ from typing import Any
 
 import pytest
 
-from kabao_core.application.ports import UsageRequest
-from kabao_connectors.manifest import AuthSpec, HeaderPair
-from kabao_connectors.qoder_cn.usage import QoderUsagePort, build_usage_port
+from butler_core.usage.ports import UsageRequest
+from butler_connectors.manifest import AuthSpec, HeaderPair
+from butler_connectors.qoder_cn.usage import QoderUsagePort, build_usage_port
 
 _T0 = datetime(2026, 11, 12, 8, 0, 0, tzinfo=timezone.utc)
 _DEADLINE = datetime(2026, 11, 12, 8, 1, 0, tzinfo=timezone.utc)
@@ -59,7 +59,7 @@ _PAYLOAD_WITH_PLAN = {
 
 class FakeVault:
     def load(self, account_id: str, kinds: list[str]):
-        from kabao_core.domain.vault import Secret
+        from butler_core.accounts.domain import Secret
 
         return [Secret(kind) for kind in kinds]
 
@@ -72,14 +72,14 @@ class FakeTransport:
 
     def __call__(self, request, *, deadline):
         self.requests.append(request)
-        from kabao_connectors.transport import HttpResponse
+        from butler_connectors.transport import HttpResponse
 
         return HttpResponse(status_code=self.status, payload=self.payload)
 
 
 @pytest.fixture
 def fake_unlock(monkeypatch):
-    import kabao_connectors.qoder_cn.usage as mod
+    import butler_connectors.qoder_cn.usage as mod
 
     monkeypatch.setattr(mod, "unlock_all", lambda kinds, secrets: dict(_FIELDS))
 

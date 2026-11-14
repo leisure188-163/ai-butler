@@ -15,7 +15,7 @@ from butler_core.shared.errors import DomainError
 from butler_core.shared.health_level import HealthLevel, credential_level
 from butler_core.shared.time import now_utc
 
-DEFAULT_ACCOUNT_KEY = "default"
+DEFAULT_ACCOUNT_KEY = "main"
 EXPIRING_WINDOW_DAYS = 3  # CREDENTIAL_EXPIRING 预警窗（旧值不变，A2-14 §2）
 
 
@@ -42,7 +42,7 @@ def account_identity(provider: str, account_key: str = DEFAULT_ACCOUNT_KEY) -> s
 
 
 def main_account_id(provider: str) -> str:
-    """兼容名：首账号（default）的规范 id。"""
+    """兼容名：首账号（main）的规范 id——与存量 `:main` 编址零迁移兼容。"""
 
     return account_identity(provider, DEFAULT_ACCOUNT_KEY)
 
@@ -108,9 +108,15 @@ class Account:
         if not self.display_name.strip():
             raise AccountInvalid("Account 需要非空 display_name")
         if self.id != account_identity(self.provider, self.account_key):
-            raise AccountInvalid(
-                f"Account id {self.id!r} 与 (provider, account_key) 编址不一致"
-            )
+            # 存量行/适配器只带 id 时，从规范 id 反推 account_key（多账号兼容）：
+            # 形状不对就显式拒绝，绝不静默改号。
+            prefix = f"{self.provider.strip()}:"
+            suffix = self.id[len(prefix):] if self.id.startswith(prefix) else ""
+            if not suffix or ":" in suffix:
+                raise AccountInvalid(
+                    f"Account id {self.id!r} 与 (provider, account_key) 编址不一致"
+                )
+            object.__setattr__(self, "account_key", suffix)
         for cred in self.credentials:
             if cred.account_id != self.id:
                 raise AccountInvalid("凭据必须绑定本账户，禁止按应用共享")

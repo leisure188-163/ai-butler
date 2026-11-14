@@ -5,11 +5,11 @@
 
 import pytest
 
-from kabao_core.domain.action import Action, ActionInvalid, ActionKind
-from kabao_core.domain.event import Event, EventType, Severity, run_finished_event
-from kabao_core.domain.errors import DomainError
-from kabao_core.domain.results import Status
-from kabao_core.domain.run import Run, RunAlreadyFinished, RunResult
+from butler_core.execution.domain import Action, ActionInvalid, ActionKind
+from butler_core.shared.events import Event, EventType, Severity, run_finished_event
+from butler_core.shared.errors import DomainError
+from butler_core.shared.results import Status
+from butler_core.execution.domain import Run, RunAlreadyFinished, RunResult
 
 EXPECTED_ACTION_KINDS = {
     "provision.run",

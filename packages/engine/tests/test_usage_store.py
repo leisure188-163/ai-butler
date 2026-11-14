@@ -8,13 +8,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from kabao_core.domain.usage import (
-    PackageQuota,
-    QuotaLedgerEntry,
-    UsageAggregate,
-    UsageSnapshot,
-)
-from kabao_engine.usage.sqlite import SqliteUsageStore
+from butler_core.usage.domain import PackageQuota, QuotaLedgerEntry, UsageAggregate, UsageSnapshot
+from butler_engine.usage.sqlite import SqliteUsageStore
 
 _T0 = datetime(2026, 11, 12, 12, 0, tzinfo=timezone.utc)
 

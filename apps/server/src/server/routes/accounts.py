@@ -12,9 +12,9 @@ from datetime import datetime
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from kabao_core.domain.vault import CredentialHealth
+from butler_core.accounts.domain import CredentialHealth
 
-router = APIRouter(tags=["kabao"])
+router = APIRouter(tags=["butler"])
 
 
 # --- 响应形状（投影，不含语义决策）---
@@ -30,6 +30,7 @@ class CredentialOut(BaseModel):
 
 class AccountOut(BaseModel):
     account_id: str
+    account_key: str  # 应用内账号序（ADR-010：target = 应用 + 账号）
     provider: str  # 连接器 id（号册归属，A2-01 §1）
     display_name: str  # 应用名（账号册出产）
     level: str  # AssessAccountHealth 出产的五级字面量
@@ -67,6 +68,8 @@ def list_accounts(request: Request) -> list[AccountOut]:
         out.append(
             AccountOut(
                 account_id=account_id,
+                account_key=getattr(account, "account_key", None)
+                or account_id.split(":", 1)[-1],
                 provider=getattr(account, "provider", "") or "",
                 display_name=getattr(account, "display_name", "") or account_id,
                 level=health.level.value,

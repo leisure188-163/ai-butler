@@ -56,7 +56,7 @@ class Trigger:
     kind: TriggerKind
     key: str
     target: str
-    account_key: str = "default"
+    account_key: str = "main"
     enabled: bool = True
 
     def __post_init__(self) -> None:

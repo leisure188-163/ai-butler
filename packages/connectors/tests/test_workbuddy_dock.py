@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
-from kabao_connectors.workbuddy_cn import adapter
-from kabao_connectors.workbuddy_cn.localenv import InvalidOverride
+from butler_connectors.workbuddy_cn import adapter
+from butler_connectors.workbuddy_cn.localenv import InvalidOverride
 
 
 def envelope_token() -> dict:  # same fake envelope as adapter tests (duplicated to avoid cross-test-file import)
@@ -58,7 +58,7 @@ def env_with(candidates):
 def test_all_pass_registers_account(tmp_path, monkeypatch):
     write_auth(tmp_path, monkeypatch, "plain-tok")
     ctx = FakeCtx()
-    outcome = adapter.kabao.dock(ctx, env=env_with(list))
+    outcome = adapter.butler.dock(ctx, env=env_with(list))
     assert outcome.issues == []
     assert outcome.accounts == ["workbuddy_cn:main"]
     assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN")]
@@ -66,7 +66,7 @@ def test_all_pass_registers_account(tmp_path, monkeypatch):
 
 def test_missing_file_issue_without_register(tmp_path, monkeypatch):
     monkeypatch.setenv("WORKBUDDY_AUTH_FILE", str(tmp_path / "nope.info"))
-    outcome = adapter.kabao.dock(FakeCtx(), env=env_with(list))
+    outcome = adapter.butler.dock(FakeCtx(), env=env_with(list))
     assert outcome.accounts == []
     assert "客户端登录" in outcome.issues[0]
 
@@ -75,7 +75,7 @@ def test_corrupt_json_issue(tmp_path, monkeypatch):
     path = tmp_path / "wb.info"
     path.write_text("not json", encoding="utf-8")
     monkeypatch.setenv("WORKBUDDY_AUTH_FILE", str(path))
-    outcome = adapter.kabao.dock(FakeCtx(), env=env_with(list))
+    outcome = adapter.butler.dock(FakeCtx(), env=env_with(list))
     assert "不可读" in outcome.issues[0]
 
 
@@ -83,7 +83,7 @@ def test_empty_session_missing_fields_issue(tmp_path, monkeypatch):
     path = tmp_path / "wb.info"
     path.write_text(json.dumps({"auth": {}, "account": {}}), encoding="utf-8")
     monkeypatch.setenv("WORKBUDDY_AUTH_FILE", str(path))
-    outcome = adapter.kabao.dock(FakeCtx(), env=env_with(list))
+    outcome = adapter.butler.dock(FakeCtx(), env=env_with(list))
     assert "登录" in outcome.issues[0]  # MISSING_SESSION human-readable copy
 
 
@@ -93,7 +93,7 @@ def test_plaintext_skips_runtime_check(tmp_path, monkeypatch):
     def boom():
         raise AssertionError("plaintext credentials must not look up runtime")
 
-    outcome = adapter.kabao.dock(
+    outcome = adapter.butler.dock(
         FakeCtx(), env=SimpleNamespace(locate_runtime_candidates=boom)
     )
     assert outcome.issues == []
@@ -101,7 +101,7 @@ def test_plaintext_skips_runtime_check(tmp_path, monkeypatch):
 
 def test_envelope_without_runtime_issue(tmp_path, monkeypatch):
     write_auth(tmp_path, monkeypatch, envelope_token())
-    outcome = adapter.kabao.dock(FakeCtx(), env=env_with([]))
+    outcome = adapter.butler.dock(FakeCtx(), env=env_with([]))
     assert outcome.accounts == []
     assert "WORKBUDDY_EXE" in outcome.issues[0]
 
@@ -112,7 +112,7 @@ def test_envelope_without_runtime_mac_message(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sys, "platform", "darwin")
     write_auth(tmp_path, monkeypatch, envelope_token())
-    outcome = adapter.kabao.dock(FakeCtx(), env=env_with([]))
+    outcome = adapter.butler.dock(FakeCtx(), env=env_with([]))
     assert outcome.accounts == []
     assert "mac 解锁链待真机取证" in outcome.issues[0]
     assert "安装 WorkBuddy 客户端" not in outcome.issues[0]  # 客户端可能已装：不误导
@@ -125,7 +125,7 @@ def test_invalid_override_issue(tmp_path, monkeypatch):
     def bad():
         raise InvalidOverride("WORKBUDDY_EXE 不是可用的可执行文件")
 
-    outcome = adapter.kabao.dock(
+    outcome = adapter.butler.dock(
         FakeCtx(), env=SimpleNamespace(locate_runtime_candidates=bad)
     )
     assert "WORKBUDDY_EXE" in outcome.issues[0]
@@ -135,6 +135,6 @@ def test_dock_idempotent_on_registry_side(tmp_path, monkeypatch):
     write_auth(tmp_path, monkeypatch, "plain-tok")
     register = FakeRegister()
     ctx = FakeCtx(register=register)
-    first = adapter.kabao.dock(ctx, env=env_with(list))
-    second = adapter.kabao.dock(ctx, env=env_with(list))
+    first = adapter.butler.dock(ctx, env=env_with(list))
+    second = adapter.butler.dock(ctx, env=env_with(list))
     assert first.accounts == second.accounts == ["workbuddy_cn:main"]

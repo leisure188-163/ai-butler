@@ -5,7 +5,7 @@ from pathlib import Path
 HELPER = (
     Path(__file__).parents[1]
     / "src"
-    / "kabao_connectors"
+    / "butler_connectors"
     / "workbuddy_cn"
     / "helper.js"
 )

@@ -80,7 +80,7 @@ class _FakeAction:
 
 class _FakeRun:
     id = "r1"
-    account_id = "trae_cn:default"
+    account_id = "trae_cn:main"
     action = _FakeAction()
     result = _FakeResult(True)
 
@@ -89,7 +89,7 @@ def test_run_finished_event_severity():
     event = run_finished_event(_FakeRun())
     assert event.type is EventType.RUN_FINISHED
     assert event.severity is Severity.BADGE
-    assert event.account_id == "trae_cn:default"
+    assert event.account_id == "trae_cn:main"
     assert event.payload["target"] == "trae_cn"
 
 

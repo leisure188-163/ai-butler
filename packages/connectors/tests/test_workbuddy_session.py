@@ -7,9 +7,9 @@ import json
 
 import pytest
 
-from kabao_connectors.native_helper import NativeHelperError
-from kabao_connectors.workbuddy_cn import session
-from kabao_connectors.workbuddy_cn.session import (
+from butler_connectors.native_helper import NativeHelperError
+from butler_connectors.workbuddy_cn import session
+from butler_connectors.workbuddy_cn.session import (
     AUTH_REASONS,
     AuthError,
     build_headers,
@@ -250,13 +250,13 @@ def test_helper_env_strips_and_forces_node_mode():
             "NODE_OPTIONS": "x",
             "ELECTRON_RUN_AS_NODE": "0",
             "WORKBUDDY_EXE": "y",
-            "KABAO_DB": "z",
+            "BUTLER_DB": "z",
             "SystemRoot": r"C:\Windows",
         }
     )
     assert "NODE_OPTIONS" not in env
     assert "WORKBUDDY_EXE" not in env
-    assert "KABAO_DB" not in env
+    assert "BUTLER_DB" not in env
     assert env["ELECTRON_RUN_AS_NODE"] == "1"
     assert env["SystemRoot"] == r"C:\Windows"
 

@@ -5,12 +5,12 @@ ExecuteAction → 事件总线 → 审计落账 + 通知中心 → 台账持久�
 
 import json
 
-from kabao_core.application.usecases import RunRequest
-from kabao_core.domain.action import Action, ActionKind
-from kabao_core.domain.event import EventType, Severity
-from kabao_core.domain.results import Status
-from kabao_core.domain.run import RunResult
-from kabao_engine.bridge import build_engine
+from butler_core.execution.usecases.execute_action import RunRequest
+from butler_core.execution.domain import Action, ActionKind
+from butler_core.shared.events import EventType, Severity
+from butler_core.shared.results import Status
+from butler_core.execution.domain import RunResult
+from butler_engine.bridge import build_engine
 
 
 class FakePort:
@@ -21,7 +21,7 @@ class FakePort:
         self.calls = []
 
     def capabilities(self):
-        from kabao_core.application.ports import Capabilities
+        from butler_core.execution.ports import Capabilities
 
         return Capabilities(dry_run=True)
 
@@ -31,7 +31,7 @@ class FakePort:
 
 
 def test_end_to_end_claim_flow(tmp_path):
-    db = tmp_path / "kabao.db"
+    db = tmp_path / "butler.db"
     kit = build_engine(db)
     req = lambda: RunRequest(  # noqa: E731  同窗口请求
         action=Action(kind=ActionKind.PROVISION_RUN, target="trae_cn"),

@@ -6,7 +6,7 @@
 ## 1. 包结构
 
 ```
-packages/connectors/src/kabao_connectors/<id>/
+packages/connectors/src/butler_connectors/<id>/
 ├── manifest.yaml      # 身份 + 能力矩阵声明（唯一入口，注册表据此发现）
 ├── PROTOCOL.md        # 协议字典（版本化）：端点/加密/幂等/业务码——逆向结论的归宿
 ├── declarative/       # 三级扩展之一：声明式能力（仅 L1）
@@ -127,3 +127,19 @@ CI 只在 ubuntu 跑——平台特有调用（Windows DPAPI / macOS Keychain）
 4. **真上游验证 = 行为对照验收，手动真机跑**：PROTOCOL.md 附脱敏响应样本；
    样本含真实 token/uid 不得入库——先脱敏再提交。
 
+
+## 9. 多账号 dock/import 取证结论（ADR-010 §3，2026-11-14 重写 P5）
+
+core/engine/server 已按 ADR-010 支持"一应用 N 账户"（`account_key`、
+`AppOut.account_ids`、一键领取逐账户发起）。连接器侧取证结论如实登记如下，
+**不虚报未验证能力**（红线 5）：
+
+| 连接器 | dock 现状 | 多 profile 取证 |
+|---|---|---|
+| trae_cn / qoder_cn / doubao_cn / workbuddy_cn | 单账号（首账号 `main`） | 待真机验证多开/多 profile 的凭据目录布局，未取证不推断 |
+| chatgpt_web / claude_web | 单账号网页会话通道 | 多浏览器 profile 的 CDP 端口发现待真机验证 |
+
+**扩展点已预留**：`butler_core.accounts.ports.SessionSourcePort.enumerate_accounts()`
+产出 `(account_key, display_name)`，`RegisterAccount.import_from_source()` 逐账号
+入库；某连接器完成真机取证后，按其 PROTOCOL.md 新增"多 profile 目录形状"小节，
+再在 dock 流程接入，无需改 core/server 契约。

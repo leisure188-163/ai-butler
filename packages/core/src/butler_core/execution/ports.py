@@ -39,7 +39,7 @@ class ProvisionRequest:
     params: Mapping[str, str]
     deadline: datetime
     dry_run: bool = False
-    account_key: str = "default"
+    account_key: str = "main"
 
 
 class ProvisionPort(Protocol):

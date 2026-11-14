@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-router = APIRouter(tags=["kabao"])
+router = APIRouter(tags=["butler"])
 
 
 class AppOut(BaseModel):
@@ -16,7 +16,8 @@ class AppOut(BaseModel):
     capabilities: list[str]  # ActionKind.value 列表（core 词表）
     credential_kinds: list[str]
     schedule_times: list[str]  # HH:MM 触发时间
-    account_id: str | None  # {id}:main 卡位（M1 单账户），未导入 = None
+    account_id: str | None  # 首账号规范 id（兼容裸应用 id 调用），未导入 = None
+    account_ids: list[str]  # 该应用下全部账户（ADR-010 多账号）
 
 
 class ImportOut(BaseModel):
@@ -27,7 +28,7 @@ class ImportOut(BaseModel):
 
 def _import_one(registry, kit, target: str) -> ImportOut:
     """单家停靠 + 顺带采集（dock 内部扫描异常已被注册表转成 issues，编排层不重复设防）。"""
-    from kabao_connectors.registry import DockContext
+    from butler_connectors.registry import DockContext
 
     [outcome] = registry.dock(
         DockContext(vault=kit.vault, register=kit.register_account), target=target
@@ -44,10 +45,13 @@ def list_apps(request: Request) -> list[AppOut]:
     """应用名册：连接器能力矩阵（manifest 投影，端零映射）。"""
     registry = request.app.state.registry
     kit = request.app.state.kit
-    docked = {a.provider: a.id for a in kit.accounts.list_all()}
+    docked: dict[str, list[str]] = {}
+    for account in kit.accounts.list_all():
+        docked.setdefault(account.provider, []).append(account.id)
     out: list[AppOut] = []
     for app in registry.apps():
         schedule = app.manifest.schedule.get("provision.run")
+        ids = sorted(docked.get(app.manifest.id, []))
         out.append(
             AppOut(
                 id=app.manifest.id,
@@ -57,7 +61,8 @@ def list_apps(request: Request) -> list[AppOut]:
                 if app.manifest.credential
                 else [],
                 schedule_times=list(schedule.times) if schedule else [],
-                account_id=docked.get(app.manifest.id),
+                account_id=ids[0] if ids else None,
+                account_ids=ids,
             )
         )
     return out

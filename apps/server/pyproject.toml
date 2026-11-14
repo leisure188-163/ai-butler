@@ -1,5 +1,5 @@
 [project]
-name = "kabao-server"
+name = "butler-server"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
@@ -7,15 +7,15 @@ dependencies = [
     "uvicorn[standard]",
     "pydantic-settings",
     "httpx>=0.27",  # TestClient 依赖（契约冒烟测试）
-    "kabao-core",
-    "kabao-engine",
-    "kabao-connectors",  # 连接器注册表（ADR-003：端组装层装载）
+    "butler-core",
+    "butler-engine",
+    "butler-connectors",  # 连接器注册表（ADR-003：端组装层装载）
 ]
 
 [tool.uv.sources]
-kabao-core = { workspace = true }
-kabao-engine = { workspace = true }
-kabao-connectors = { workspace = true }
+butler-core = { workspace = true }
+butler-engine = { workspace = true }
+butler-connectors = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

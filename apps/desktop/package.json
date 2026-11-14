@@ -1,5 +1,5 @@
 {
-  "name": "kabao-desktop",
+  "name": "butler-desktop",
   "private": true,
   "version": "0.1.0",
   "main": "main.js",
@@ -13,8 +13,8 @@
     "electron-builder": "^25.0.0"
   },
   "build": {
-    "appId": "com.kabao.app",
-    "productName": "Kabao",
+    "appId": "com.butler.app",
+    "productName": "Butler",
     "files": ["main.js", "package.json"],
     "extraResources": [
       { "from": "sidecar/", "to": "sidecar/" }

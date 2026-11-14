@@ -83,7 +83,7 @@ function onThemeChange(event: Event) {
     <div class="sheet">
       <div class="field">
         <span class="field-label">产品</span>
-        <span class="field-value">Kabao（卡包）· AI 账号管家</span>
+        <span class="field-value">Butler（卡包）· AI 账号管家</span>
       </div>
       <div class="field">
         <span class="field-label">版本</span>
@@ -93,16 +93,16 @@ function onThemeChange(event: Event) {
       </div>
       <div class="field">
         <span class="field-label">数据位置</span>
-        <span class="field-value">kabao.db（平台标准数据根）</span>
+        <span class="field-value">butler.db（平台标准数据根）</span>
       </div>
       <div class="field">
         <span class="field-label">仓库</span>
         <a
           class="field-link"
-          href="https://gitee.com/hiclaw_520/ai-kabao"
+          href="https://gitee.com/hiclaw_520/ai-butler"
           target="_blank"
           rel="noreferrer"
-        >gitee.com/hiclaw_520/ai-kabao</a>
+        >gitee.com/hiclaw_520/ai-butler</a>
       </div>
       <div class="field">
         <span class="field-label">接口文档</span>

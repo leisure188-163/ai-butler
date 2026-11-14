@@ -1,11 +1,11 @@
 {
-  "name": "@kabao/sdk",
+  "name": "@butler/sdk",
   "version": "0.1.0",
-  "description": "Kabao (卡包) server OpenAPI contract types — single source for web DTO derivation",
+  "description": "Butler (卡包) server OpenAPI contract types — single source for web DTO derivation",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://gitee.com/hiclaw_520/ai-kabao.git"
+    "url": "git+https://gitee.com/hiclaw_520/ai-butler.git"
   },
   "type": "module",
   "types": "./src/gen/schema.d.ts",

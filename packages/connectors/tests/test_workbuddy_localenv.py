@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from kabao_connectors.workbuddy_cn import localenv
-from kabao_connectors.workbuddy_cn.localenv import (
+from butler_connectors.workbuddy_cn import localenv
+from butler_connectors.workbuddy_cn.localenv import (
     InvalidOverride,
     WorkbuddyEnv,
     _exe_from_entry,

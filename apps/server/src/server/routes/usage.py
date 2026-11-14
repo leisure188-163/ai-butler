@@ -8,9 +8,9 @@ from typing import Any
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from kabao_core.domain.usage import is_quota_low
+from butler_core.usage.domain import is_quota_low
 
-router = APIRouter(tags=["kabao"])
+router = APIRouter(tags=["butler"])
 
 
 class PackageQuotaOut(BaseModel):
@@ -94,7 +94,7 @@ def collect_usage(request: Request) -> list[CollectOutcomeOut]:
 @router.get("/usage/radar", response_model=list[RadarAccountOut])
 def usage_radar(request: Request) -> list[RadarAccountOut]:
     """额度雷达：最新快照 + 相邻差分预测 + 聚合原话 + 最近流水（每账号一行）。"""
-    from kabao_core.domain.usage import forecast_exhaustion
+    from butler_core.usage.domain import forecast_exhaustion
 
     kit = request.app.state.kit
     out: list[RadarAccountOut] = []

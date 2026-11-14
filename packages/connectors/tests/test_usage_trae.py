@@ -11,11 +11,13 @@ from typing import Any
 
 import pytest
 
-from kabao_core.application.ports import CredentialMissing, UsageRequest
-from kabao_core.domain.usage import UsageResult
+from butler_core.accounts.ports import CredentialMissing
 
-from kabao_connectors.manifest import AuthSpec, HeaderPair
-from kabao_connectors.trae_cn.usage import TraeUsagePort, build_usage_port
+from butler_core.usage.ports import UsageRequest
+from butler_core.usage.domain import UsageResult
+
+from butler_connectors.manifest import AuthSpec, HeaderPair
+from butler_connectors.trae_cn.usage import TraeUsagePort, build_usage_port
 
 _T0 = datetime(2026, 11, 12, 8, 0, 0, tzinfo=timezone.utc)
 _DEADLINE = datetime(2026, 11, 12, 8, 1, 0, tzinfo=timezone.utc)
@@ -79,7 +81,7 @@ class FakeVault:
     def load(self, account_id: str, kinds: list[str]):
         if account_id != "acc1":
             raise CredentialMissing(account_id, kinds)
-        from kabao_core.domain.vault import Secret
+        from butler_core.accounts.domain import Secret
 
         return [Secret(kind) for kind in kinds]
 
@@ -92,7 +94,7 @@ class FakeTransport:
 
     def __call__(self, request, *, deadline):
         self.requests.append(request)
-        from kabao_connectors.transport import HttpResponse
+        from butler_connectors.transport import HttpResponse
 
         return HttpResponse(status_code=self.status, payload=self.payload)
 
@@ -100,7 +102,7 @@ class FakeTransport:
 @pytest.fixture
 def fake_unlock(monkeypatch):
     """unlock_all 打桩（适配器模块命名空间）：返回固定字段字典，离线免真解密。"""
-    import kabao_connectors.trae_cn.usage as mod
+    import butler_connectors.trae_cn.usage as mod
 
     monkeypatch.setattr(mod, "unlock_all", lambda kinds, secrets: dict(_FIELDS))
 
@@ -174,7 +176,7 @@ def test_business_code_nonzero_raises(fake_unlock):
 
 def test_missing_credential_propagates(fake_unlock):
     """凭据缺失显式上抛（最小授权语义）——CollectUsage 收进 outcome.error。"""
-    from kabao_connectors.transport import HttpResponse
+    from butler_connectors.transport import HttpResponse
 
     transport = FakeTransport(_PAYLOAD)
     port = TraeUsagePort(vault=FakeVault(), transport=transport, auth=_AUTH, kinds=("ss_aes", "device_dn"))

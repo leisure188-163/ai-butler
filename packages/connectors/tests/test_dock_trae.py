@@ -5,12 +5,12 @@ import json
 
 import pytest
 
-from kabao_core.application.ports import AccountRepository
-from kabao_core.application.usecases import RegisterAccount
-from kabao_core.domain.account import Account
-from kabao_core.domain.vault import Secret
+from butler_core.accounts.ports import AccountRepository
+from butler_core.accounts.usecases.register_account import RegisterAccount
+from butler_core.accounts.domain import Account
+from butler_core.accounts.domain import Secret
 
-from kabao_connectors.registry import DockContext, load_registry
+from butler_connectors.registry import DockContext, load_registry
 from conftest import frozen_epoch, make_login_state  # noqa: F401 由 pytest 根目录可见
 
 
@@ -72,7 +72,7 @@ def test_dock_registers_account_and_stores_credentials(ctx):
 
     import sys
 
-    from kabao_connectors.ssaes import decode_stored, open_envelope
+    from butler_connectors.ssaes import decode_stored, open_envelope
 
     envelope, expires = ctx.vault.items[("trae_cn:main", "ss_aes")]
     info = open_envelope(decode_stored(envelope.expose()))

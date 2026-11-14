@@ -7,13 +7,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from kabao_core.application.ports import ProvisionRequest
-from kabao_core.domain.action import ActionKind
-from kabao_core.domain.results import Status
-from kabao_core.domain.vault import Secret
+from butler_core.execution.ports import ProvisionRequest
+from butler_core.execution.domain import ActionKind
+from butler_core.shared.results import Status
+from butler_core.accounts.domain import Secret
 
-from kabao_connectors.manifest import DeclarativeSpec, ManifestInvalid
-from kabao_connectors.transport import HttpResponse
+from butler_connectors.manifest import DeclarativeSpec, ManifestInvalid
+from butler_connectors.transport import HttpResponse
 
 CONN = "qoder_cn"  # business_codes 空 —— 列表模式不解析业务码，方言登记留空
 
@@ -55,7 +55,7 @@ def item(cid: str, claim_status: str) -> dict:
 
 
 def make_port(transport, sleep=None, fields: dict | None = None):
-    from kabao_connectors.decl import DeclarativeProvisionPort
+    from butler_connectors.decl import DeclarativeProvisionPort
 
     spec = DeclarativeSpec.model_validate(
         {
@@ -101,7 +101,7 @@ def make_port(transport, sleep=None, fields: dict | None = None):
 
 @pytest.fixture(autouse=True)
 def stable_unlock(monkeypatch):
-    import kabao_connectors.decl as decl
+    import butler_connectors.decl as decl
 
     fields = {
         "token": "T",
@@ -153,7 +153,7 @@ def test_no_envelope_code_http_ok_is_verdict_source():
 
     与真机同形：顶层直接业务字段，两项均 CLAIMED → ALREADY。
     """
-    from kabao_connectors.decl import DeclarativeProvisionPort
+    from butler_connectors.decl import DeclarativeProvisionPort
 
     spec = DeclarativeSpec.model_validate(
         {

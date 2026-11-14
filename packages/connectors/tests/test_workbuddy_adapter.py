@@ -13,18 +13,18 @@ from pathlib import Path
 
 import pytest
 
-from kabao_core.application.ports import ProvisionRequest
-from kabao_core.application.usecases import ExecuteAction, RunRequest
-from kabao_core.domain.action import Action, ActionKind
-from kabao_core.domain.results import Status, UnknownEngineCode, from_engine
-from kabao_connectors.transport import HttpResponse, TransportError
-from kabao_connectors.workbuddy_cn import adapter
-from kabao_connectors.workbuddy_cn.adapter import (
+from butler_core.execution.ports import ProvisionRequest
+from butler_core.execution.usecases.execute_action import ExecuteAction, RunRequest
+from butler_core.execution.domain import Action, ActionKind
+from butler_core.shared.results import Status, UnknownEngineCode, from_engine
+from butler_connectors.transport import HttpResponse, TransportError
+from butler_connectors.workbuddy_cn import adapter
+from butler_connectors.workbuddy_cn.adapter import (
     CONN_ID,
     WorkbuddyProvisionPort,
 )
-from kabao_connectors.workbuddy_cn.localenv import InvalidOverride, WorkbuddyEnv
-from kabao_connectors.workbuddy_cn.session import AuthError
+from butler_connectors.workbuddy_cn.localenv import InvalidOverride, WorkbuddyEnv
+from butler_connectors.workbuddy_cn.session import AuthError
 
 _PLAIN_TOKEN = "plain-tok-123"
 _PLAIN_SESSION = {

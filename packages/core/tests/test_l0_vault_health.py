@@ -9,19 +9,17 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from kabao_core.application.ports import (
-    EventSink,
-    HealthStateStore,
-    RunLedger,
-    VaultPort,
-)
-from kabao_core.application.usecases import AssessAccountHealth, ScanCredentialExpiry
-from kabao_core.domain.action import Action, ActionKind
-from kabao_core.domain.event import EventType, Severity
-from kabao_core.domain.health import HealthLevel, account_repair_hint, credential_level
-from kabao_core.domain.results import Status
-from kabao_core.domain.run import Run, RunResult
-from kabao_core.domain.vault import CredentialHealth, Secret, vault_ref
+from butler_core.shared.events import EventSink
+from butler_core.health.ports import HealthStateStore
+from butler_core.execution.ports import RunLedger
+from butler_core.accounts.ports import VaultPort
+from butler_core.health.usecases.health_scan import AssessAccountHealth, ScanCredentialExpiry
+from butler_core.execution.domain import Action, ActionKind
+from butler_core.shared.events import EventType, Severity
+from butler_core.health.domain import HealthLevel, account_repair_hint, credential_level
+from butler_core.shared.results import Status
+from butler_core.execution.domain import Run, RunResult
+from butler_core.accounts.domain import CredentialHealth, Secret, vault_ref
 
 _T0 = datetime(2026, 11, 10, 12, 0, tzinfo=timezone.utc)
 
@@ -45,7 +43,7 @@ def test_secret_expose_only_way_out():
 
 
 def test_empty_secret_rejected():
-    from kabao_core.domain.vault import EmptySecret
+    from butler_core.accounts.domain import EmptySecret
 
     with pytest.raises(EmptySecret):
         Secret("")

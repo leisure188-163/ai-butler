@@ -12,7 +12,7 @@ import tempfile
 
 import pytest
 
-from kabao_connectors.native_helper import (
+from butler_connectors.native_helper import (
     DEFAULT_INPUT_LIMIT,
     NativeHelperError,
     run_json_stdin_helper,

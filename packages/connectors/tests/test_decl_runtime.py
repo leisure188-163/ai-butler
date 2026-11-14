@@ -8,12 +8,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from kabao_core.application.ports import CredentialMissing, ProvisionRequest
-from kabao_core.domain.action import ActionKind
-from kabao_core.domain.results import Status, UnknownEngineCode
-from kabao_core.domain.vault import Secret
+from butler_core.accounts.ports import CredentialMissing
 
-from kabao_connectors.transport import HttpResponse
+from butler_core.execution.ports import ProvisionRequest
+from butler_core.execution.domain import ActionKind
+from butler_core.shared.results import Status, UnknownEngineCode
+from butler_core.accounts.domain import Secret
+
+from butler_connectors.transport import HttpResponse
 
 CONN = "testco"  # 方言在 conftest 预注册
 
@@ -58,7 +60,7 @@ def ok(payload: dict) -> HttpResponse:
 
 
 def _stub_with(monkeypatch, fields: dict) -> None:
-    import kabao_connectors.decl as decl
+    import butler_connectors.decl as decl
 
     monkeypatch.setattr(
         decl, "unlock_all", lambda kinds, secrets: dict(fields), raising=True
@@ -72,8 +74,8 @@ def stable_unlock(monkeypatch):
 
 
 def make_port(transport, vault=None, sleep=None):
-    from kabao_connectors.decl import DeclarativeProvisionPort
-    from kabao_connectors.manifest import DeclarativeSpec
+    from butler_connectors.decl import DeclarativeProvisionPort
+    from butler_connectors.manifest import DeclarativeSpec
 
     spec = DeclarativeSpec.model_validate(
         {

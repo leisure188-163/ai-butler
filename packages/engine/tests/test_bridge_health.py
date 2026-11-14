@@ -2,13 +2,13 @@
 
 import pytest
 
-from kabao_core.application.ports import Capabilities
-from kabao_core.application.usecases import ProvisionRequest
-from kabao_core.domain.action import Action, ActionKind
-from kabao_core.domain.results import Status
-from kabao_core.domain.run import RunResult
-from kabao_core.domain.vault import Secret
-from kabao_engine.bridge import build_engine
+from butler_core.execution.ports import Capabilities
+from butler_core.execution.ports import ProvisionRequest
+from butler_core.execution.domain import Action, ActionKind
+from butler_core.shared.results import Status
+from butler_core.execution.domain import RunResult
+from butler_core.accounts.domain import Secret
+from butler_engine.bridge import build_engine
 
 
 class FakeHealthPort:
@@ -28,7 +28,7 @@ class FakeHealthPort:
 
 
 def test_register_health_ports_routes_and_refuses_dupes(tmp_path):
-    kit = build_engine(tmp_path / "kabao.db")
+    kit = build_engine(tmp_path / "butler.db")
     try:
         fake = FakeHealthPort(RunResult(status=Status.ALREADY))
         kit.register_health_ports(targets={"chatgpt_web": fake})
@@ -56,7 +56,7 @@ def test_register_health_ports_routes_and_refuses_dupes(tmp_path):
 
 def test_daily_health_scan_job(tmp_path):
     """端显式启动（同到期/用量扫描纪律），_daily_health 全账号一轮；Run 落账可读回。"""
-    kit = build_engine(tmp_path / "kabao.db")
+    kit = build_engine(tmp_path / "butler.db")
     fake = FakeHealthPort(RunResult(status=Status.ALREADY))
     kit.register_health_ports(targets={"chatgpt_web": fake})
     kit.register_account.execute("chatgpt_web", "ChatGPT")  # 名册账号：provider 有探针
@@ -84,7 +84,7 @@ def test_daily_health_scan_job(tmp_path):
 
 def test_daily_health_isolates_account_failures(tmp_path):
     """单账号适配器异常：ExecuteAction 落账 FAILED 后上抛，job 兜住不拖累其余账号。"""
-    kit = build_engine(tmp_path / "kabao.db")
+    kit = build_engine(tmp_path / "butler.db")
     boom = FakeHealthPort(RunResult(status=Status.ALREADY), error=RuntimeError("探针炸了"))
     ok = FakeHealthPort(RunResult(status=Status.ALREADY))
     kit.register_health_ports(targets={"chatgpt_web": boom, "claude_web": ok})

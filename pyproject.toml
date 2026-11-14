@@ -1,14 +1,14 @@
 [project]
-name = "kabao-workspace"
+name = "butler-workspace"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "kabao-core",
-    "kabao-engine",
-    "kabao-connectors",
-    "kabao-server",
-    "kabao-cli",
-    "kabao-mcp",
+    "butler-core",
+    "butler-engine",
+    "butler-connectors",
+    "butler-server",
+    "butler-cli",
+    "butler-mcp",
 ]
 
 [dependency-groups]
@@ -34,9 +34,9 @@ members = [
 ]
 
 [tool.uv.sources]
-kabao-core = { workspace = true }
-kabao-engine = { workspace = true }
-kabao-connectors = { workspace = true }
-kabao-server = { workspace = true }
-kabao-cli = { workspace = true }
-kabao-mcp = { workspace = true }
+butler-core = { workspace = true }
+butler-engine = { workspace = true }
+butler-connectors = { workspace = true }
+butler-server = { workspace = true }
+butler-cli = { workspace = true }
+butler-mcp = { workspace = true }

@@ -3,7 +3,7 @@
  * URL 与响应形状只写此处——加端点先来这里，与 server routes/ 四域模块同构。
  *
  * 纪律：
- * - 类型派生自 ./types（其派生自 @kabao/sdk 契约，红线 4 单源不变）
+ * - 类型派生自 ./types（其派生自 @butler/sdk 契约，红线 4 单源不变）
  * - 容错语义随域函数走：getRadar / getOpenApiInfo 永不 throw（失败静默，
  *   语义注释随函数）；其余端点非 2xx 抛 ApiError（detail/status 透传，
  *   文案由调用方拼装），网络异常原样传播（不加兜底，红线 5）

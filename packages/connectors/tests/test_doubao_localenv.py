@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from kabao_connectors.doubao_cn import localenv
+from butler_connectors.doubao_cn import localenv
 
 
 def test_version_code_derivation():

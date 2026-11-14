@@ -10,7 +10,7 @@ import pytest
 
 @pytest.fixture(scope="session", autouse=True)
 def register_testco_dialect():
-    from kabao_core.domain.results import Status, register_dialect
+    from butler_core.shared.results import Status, register_dialect
 
     register_dialect(
         "testco",
@@ -34,7 +34,7 @@ def make_login_state(exp_epoch: int, master: bytes = bytes(range(32))) -> dict:
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
     from cryptography.hazmat.primitives.padding import PKCS7
 
-    from kabao_connectors.ssaes import HEADER, SALT
+    from butler_connectors.ssaes import HEADER, SALT
 
     info = {"token": make_jwt(exp_epoch), "uid": "u-1"}
     body = json.dumps(info, separators=(",", ":")).encode()

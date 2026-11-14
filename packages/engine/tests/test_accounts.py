@@ -2,8 +2,8 @@
 
 from datetime import UTC, datetime
 
-from kabao_core.domain.account import Account
-from kabao_engine.accounts.sqlite import SqliteAccountRepository
+from butler_core.accounts.domain import Account
+from butler_engine.accounts.sqlite import SqliteAccountRepository
 
 
 def acct(aid: str, provider: str, display: str) -> Account:
@@ -14,7 +14,7 @@ def acct(aid: str, provider: str, display: str) -> Account:
 
 
 def test_save_get_list_roundtrip(tmp_path):
-    repo = SqliteAccountRepository(tmp_path / "kabao.db")
+    repo = SqliteAccountRepository(tmp_path / "butler.db")
     repo.save(acct("trae_cn:main", "trae_cn", "Trae CN"))
     repo.save(acct("qoder:main", "qoder", "Qoder"))
 
@@ -26,13 +26,13 @@ def test_save_get_list_roundtrip(tmp_path):
 
 
 def test_save_upsert_idempotent(tmp_path):
-    repo = SqliteAccountRepository(tmp_path / "kabao.db")
+    repo = SqliteAccountRepository(tmp_path / "butler.db")
     repo.save(acct("trae_cn:main", "trae_cn", "Trae CN"))
     repo.save(acct("trae_cn:main", "trae_cn", "Trae CN"))  # 组合根重启幂等
     assert len(repo.list_all()) == 1
 
 
 def test_persistence_across_instances(tmp_path):
-    db = tmp_path / "kabao.db"
+    db = tmp_path / "butler.db"
     SqliteAccountRepository(db).save(acct("trae_cn:main", "trae_cn", "Trae CN"))
     assert SqliteAccountRepository(db).get("trae_cn:main") is not None

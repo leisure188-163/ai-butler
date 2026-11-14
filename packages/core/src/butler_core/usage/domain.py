@@ -1,6 +1,6 @@
 """用量域模型（A2-13）：三实体 + 阈值谓词 + 耗尽预测 + 逐调用样本。
 
-按业务域分包后从 `kabao_core/domain/usage.py` 移植语义，谓词与预测口径零改动。
+按业务域分包后从 `butler_core/domain/usage.py` 移植语义，谓词与预测口径零改动。
 依赖恒等式：只 import shared（A1-05 §2）。
 
 - 三实体都挂 account_id（A2-01 §1）：

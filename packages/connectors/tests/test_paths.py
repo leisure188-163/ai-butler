@@ -1,7 +1,7 @@
 """平台宏路径展开（paths.py）：真机 dock 扫描的根基，宏必须有回归（2026-11-11
 真机验收抓到 repl 缺 return 的真 bug——离线测试全用无宏路径，门禁拦不住）。"""
 
-from kabao_connectors.paths import expand_storage_path
+from butler_connectors.paths import expand_storage_path
 
 
 def test_windows_macro_expands_to_env_value(monkeypatch, tmp_path):

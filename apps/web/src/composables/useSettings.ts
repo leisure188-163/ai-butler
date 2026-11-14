@@ -1,6 +1,6 @@
 /**
  * 设置域（conventions/04 §2.4，业务子域分包 2026-11-14）：
- * 本机浏览器持久化（kabao.settings.v1）+ 主题应用（<html data-theme>）+ 系统跟随。
+ * 本机浏览器持久化（butler.settings.v1）+ 主题应用（<html data-theme>）+ 系统跟随。
  * 注意：THEME_NAMES 必须先于 loadSettings() 调用点声明（函数声明提升、const 不提升，
  * 否则 has() 进 TDZ 抛错被 try/catch 静默吞掉，存档主题永远回退 system）。
  */
@@ -14,7 +14,12 @@ export function useSettings() {
 
   function loadSettings(): Settings {
     try {
-      const raw = localStorage.getItem("kabao.settings.v1");
+      let raw = localStorage.getItem("butler.settings.v1");
+      if (!raw) {
+        /* 一次性迁移（A1-03 §7）：旧品牌键缺失新键时读入并回写，旧键保留不删 */
+        raw = localStorage.getItem("kabao.settings.v1");
+        if (raw) localStorage.setItem("butler.settings.v1", raw);
+      }
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<Settings>;
         return {
@@ -31,7 +36,7 @@ export function useSettings() {
 
   function updateSettings(patch: Partial<Settings>) {
     settings.value = { ...settings.value, ...patch };
-    localStorage.setItem("kabao.settings.v1", JSON.stringify(settings.value));
+    localStorage.setItem("butler.settings.v1", JSON.stringify(settings.value));
   }
 
   /* 主题：跟随系统（prefers-color-scheme 实时跟随）或指定主题；<html data-theme> 上屏 */

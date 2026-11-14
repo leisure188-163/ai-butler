@@ -92,7 +92,7 @@ PROTOCOL_CHANGED / ACCOUNT_HEALTH_CHANGED）；severity ∈ {silent, badge, push
 
 ```python
 def test_account_identity_default_key(): ...
-# Account(provider_id="trae_cn") → account_key == "default"
+# Account(provider_id="trae_cn") → account_key == "main"
 
 def test_same_provider_unique_account_key(): ...
 # 同 (provider_id, account_key) 二次建账 → AccountAlreadyExists 显式拒绝
@@ -248,7 +248,7 @@ event/threshold 触发器消费 shared 事件发起 Action；待办去重
 **Step 1: 失败测试**（A1-05 §4 / A1-03 §7 机制逐条）：
 
 ```python
-def test_first_migration_moves_db(): ...      # kabao.db → butler.db 新 schema，account_key="default"
+def test_first_migration_moves_db(): ...      # kabao.db → butler.db 新 schema，account_key="main"
 def test_idempotent_skip_when_migrated(): ...
 def test_explicit_butler_db_env_no_move(): ...
 def test_marina_legacy_prefix_collected_once(): ...  # 旧 marina 凭据前缀读出后写入新键，旧文件保留

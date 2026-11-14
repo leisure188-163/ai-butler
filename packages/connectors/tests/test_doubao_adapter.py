@@ -7,13 +7,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from kabao_core.application.ports import Capabilities, ProvisionRequest
-from kabao_core.domain.action import Action, ActionKind
-from kabao_core.domain.results import Status, UnknownEngineCode
-from kabao_core.domain.run import RunResult
-from kabao_connectors.cdp import CdpConnection, CdpError
-from kabao_connectors.doubao_cn import adapter
-from kabao_connectors.transport import HttpResponse, TransportError
+from butler_core.execution.ports import Capabilities, ProvisionRequest
+from butler_core.execution.domain import Action, ActionKind
+from butler_core.shared.results import Status, UnknownEngineCode
+from butler_core.execution.domain import RunResult
+from butler_connectors.cdp import CdpConnection, CdpError
+from butler_connectors.doubao_cn import adapter
+from butler_connectors.transport import HttpResponse, TransportError
 
 
 # --- 假件（A2-02 §8：不起浏览器，离线测全链）---
@@ -140,7 +140,7 @@ def detail_payload(checked: bool, days: int = 5, amount: int = 200) -> dict:
 
 
 def make_port(transport=None, *, env=None, channel=None, dry_run=False):
-    return adapter.kabao.build_port(
+    return adapter.butler.build_port(
         vault=object(),
         transport=transport,
         env=env if env is not None else FakeEnv(),
@@ -317,7 +317,7 @@ def test_capabilities():
 
 def test_engine_publishes_protocol_changed_on_code_2():
     """引擎联动：code=2 → FAILED 落账 + PROTOCOL_CHANGED 事件（用例层统一探测路径）。"""
-    from kabao_core.application.usecases import ExecuteAction, RunRequest
+    from butler_core.execution.usecases.execute_action import ExecuteAction, RunRequest
 
     @dataclass
     class FakeLedger:

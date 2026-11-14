@@ -224,6 +224,8 @@ export interface components {
         AccountOut: {
             /** Account Id */
             account_id: string;
+            /** Account Key */
+            account_key: string;
             /** Provider */
             provider: string;
             /** Display Name */
@@ -256,6 +258,8 @@ export interface components {
             schedule_times: string[];
             /** Account Id */
             account_id: string | null;
+            /** Account Ids */
+            account_ids: string[];
         };
         /** CollectOutcomeOut */
         CollectOutcomeOut: {
@@ -404,6 +408,11 @@ export interface components {
             /** Account Id */
             account_id?: string | null;
             /**
+             * Account Key
+             * @default main
+             */
+            account_key: string;
+            /**
              * Dry Run
              * @default false
              */
@@ -419,6 +428,8 @@ export interface components {
             target: string;
             /** Account Id */
             account_id: string;
+            /** Account Key */
+            account_key: string;
             /**
              * Started At
              * Format: date-time

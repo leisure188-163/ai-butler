@@ -10,19 +10,19 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from kabao_core.domain.health import HealthLevel
-from kabao_core.domain.vault import Secret, vault_ref
-from kabao_engine.audit.sqlite import SqliteAuditLog
-from kabao_engine.health.state import SqliteHealthStateStore
-from kabao_engine.scheduling.interval_job import IntervalJob
-from kabao_engine.vault.backends import MemoryVaultBackend
-from kabao_engine.vault.credman_windows import WindowsCredmanBackend
-from kabao_engine.vault.errors import (
+from butler_core.health.domain import HealthLevel
+from butler_core.accounts.domain import Secret, vault_ref
+from butler_engine.audit.sqlite import SqliteAuditLog
+from butler_engine.health.state import SqliteHealthStateStore
+from butler_engine.scheduling.interval_job import IntervalJob
+from butler_engine.vault.backends import MemoryVaultBackend
+from butler_engine.vault.credman_windows import WindowsCredmanBackend
+from butler_engine.vault.errors import (
     VaultCredentialMissing,
     VaultLayerUnavailable,
 )
-from kabao_engine.vault.keychain_macos import KeychainBackend
-from kabao_engine.vault.layered import LayeredVault
+from butler_engine.vault.keychain_macos import KeychainBackend
+from butler_engine.vault.layered import LayeredVault
 
 _T0 = datetime(2026, 11, 10, 12, 0, tzinfo=timezone.utc)
 
@@ -138,7 +138,7 @@ class FakeWinApi:
         try:
             return self.data[target]
         except KeyError as e:
-            from kabao_engine.vault.errors import VaultCredentialMissing
+            from butler_engine.vault.errors import VaultCredentialMissing
 
             raise VaultCredentialMissing(f"凭据管理器没有 {target!r} 的记录") from e
 
@@ -151,19 +151,22 @@ def test_windows_backend_roundtrip_with_fake_api():
     backend = WindowsCredmanBackend(api_factory=lambda: api)
     backend.put("acc1:cookie", "dpapi-protected")
     assert backend.get("acc1:cookie") == "dpapi-protected"
-    assert api.data["kabao.vault:acc1:cookie"] == b"dpapi-protected"  # blob utf-8
+    assert api.data["butler.vault:acc1:cookie"] == b"dpapi-protected"  # blob utf-8
     backend.delete("acc1:cookie")
     with pytest.raises(VaultCredentialMissing):
         backend.get("acc1:cookie")
 
 
-def test_windows_backend_reads_through_legacy_prefix():
+def test_windows_backend_migrates_legacy_prefix_once():
     api = FakeWinApi()
     api.data["marina.vault:old:cookie"] = b"legacy-secret"  # 旧品牌条目
     backend = WindowsCredmanBackend(api_factory=lambda: api)
-    assert backend.get("old:cookie") == "legacy-secret"  # 读穿迁移，对调用方透明
-    assert api.data["kabao.vault:old:cookie"] == b"legacy-secret"  # 已回写新前缀
+    assert backend.migrate_legacy_refs(["old:cookie"]) == ["old:cookie"]
+    assert api.data["butler.vault:old:cookie"] == b"legacy-secret"  # 已回写新前缀
     assert api.data["marina.vault:old:cookie"] == b"legacy-secret"  # 旧条目保留
+    assert backend.get("old:cookie") == "legacy-secret"  # 运行时只认新前缀
+    with pytest.raises(VaultCredentialMissing):
+        backend.get("ghost:cookie")  # 无运行时读穿分支
 
 
 def test_windows_backend_still_missing_when_no_legacy():
@@ -178,7 +181,7 @@ def test_windows_backend_refuses_off_windows_without_api():
 
     if sys.platform.startswith("win"):  # 真 Windows 上本来就该能建
         pytest.skip("本机即 Windows")
-    from kabao_engine.vault.errors import VaultAccessError
+    from butler_engine.vault.errors import VaultAccessError
 
     with pytest.raises(VaultAccessError):
         WindowsCredmanBackend(api_factory=None)
@@ -246,16 +249,17 @@ def test_keychain_backend_signature_and_roundtrip_with_fake_runner():
     add = runner.commands[0]
     assert add[0] == "security" and "-U" in add and "-w" in add
     assert "-a" in add and add[add.index("-a") + 1] == "acc1:token"
-    assert add[add.index("-s") + 1] == "kabao.vault"
+    assert add[add.index("-s") + 1] == "butler.vault"
 
 
-def test_keychain_reads_through_legacy_service():
+def test_keychain_migrates_legacy_service_once():
     runner = FakeRunner()
     runner.items[("marina.vault", "old:token")] = "legacy-secret"  # 旧品牌条目
     backend = KeychainBackend(runner=runner)
-    assert backend.get("old:token") == "legacy-secret"  # 读穿迁移，对调用方透明
-    assert runner.items[("kabao.vault", "old:token")] == "legacy-secret"  # 已回写
+    assert backend.migrate_legacy_refs(["old:token"]) == ["old:token"]
+    assert runner.items[("butler.vault", "old:token")] == "legacy-secret"  # 已回写
     assert runner.items[("marina.vault", "old:token")] == "legacy-secret"  # 旧条目保留
+    assert backend.get("old:token") == "legacy-secret"  # 运行时只认新 service
 
 
 def test_keychain_get_missing_maps_to_explicit_error():
@@ -270,7 +274,7 @@ def test_keychain_failure_raises_access_error():
         return _Result(1, stderr="keychain is locked")
 
     backend = KeychainBackend(runner=bad_runner)
-    from kabao_engine.vault.errors import VaultAccessError
+    from butler_engine.vault.errors import VaultAccessError
 
     with pytest.raises(VaultAccessError):
         backend.delete("acc1:token")
@@ -334,9 +338,9 @@ def test_interval_job_survives_bad_fn():
 
 
 def test_bridge_scan_flow(tmp_path):
-    from kabao_engine.bridge import build_engine
+    from butler_engine.bridge import build_engine
 
-    kit = build_engine(tmp_path / "kabao.db")
+    kit = build_engine(tmp_path / "butler.db")
     try:
         # EngineKit 装配完整性：Vault / 两个 L0 用例 / 扫描 job 未启动（端显式启动）
         assert kit.vault is not None
@@ -348,7 +352,7 @@ def test_bridge_scan_flow(tmp_path):
 
 
 def test_bridge_default_backend_selection_docs():
-    from kabao_engine.bridge import _secret_backends
+    from butler_engine.bridge import _secret_backends
 
     backends, default = _secret_backends()
     if sys_platform_is_mac():

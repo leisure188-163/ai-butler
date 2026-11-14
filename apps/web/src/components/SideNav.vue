@@ -16,7 +16,7 @@ const navItems: PageName[] = ["账号", "用量", "记录", "设置"];
 <template>
   <aside class="sidenav">
     <div class="brand">
-      <span class="brand-name">卡包 <span class="brand-latin">Kabao</span></span>
+      <span class="brand-name">AI 智能助手管家 <span class="brand-latin">Butler</span></span>
       <span class="brand-line">AI 账号管家</span>
     </div>
 
