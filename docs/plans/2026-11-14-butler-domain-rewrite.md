@@ -1,5 +1,8 @@
 # Butler 按业务域重写实施计划（P1-P6）
 
+> **状态：P0-P6 全部完成（2026-11-14）**——505 tests + 门禁九项全绿；
+> 完成记录见 `docs/STATUS.md` 置顶收官行。
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 把 `packages/core` + `packages/engine` 从零重写为五业务域 + shared 的
