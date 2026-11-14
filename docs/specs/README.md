@@ -21,9 +21,15 @@
 | 文件 | 内容 |
 |---|---|
 | [A1-01](architecture/A1-01-产品定位与能力全景.md) | 产品定位 / 品牌与词表 / L0~L7 能力 / 活动时间表 / 里程碑 / 合规边界 |
-| [A1-02](architecture/A1-02-一核多端落地.md) | 分层与依赖方向 / 领域模型概览 / Connector 机制 / 门禁 |
-| [A1-03](architecture/A1-03-品牌与业务语言标准.md) | 品牌与业务语言标准：定位 / 四铁律 + 两层词汇 / 词表 v1 / 侧边栏 IA / 主题 / 命名当前值 / 数据自动迁移 / R1-R5 |
-| [A2-01](domain/A2-01-领域模型与动作模型.md) | 聚合根 / 结果词汇单源 / Action-Run / Trigger / Event / 端口 |
+| [A1-02](architecture/A1-02-一核多端落地.md) | 分层与依赖方向 / 领域模型概览（多账号）/ Connector 机制 / 门禁 |
+| [A1-03](architecture/A1-03-品牌与业务语言标准.md) | 品牌与业务语言标准：定位 / 四铁律 + 两层词汇 / 词表 v2 / IA / 主题 / 命名当前值 / 数据自动迁移 / R1-R5 |
+| [A1-05](architecture/A1-05-按业务域重写总设计.md) | **按业务域重写总设计**：域图 / 包结构与依赖恒等式 / 多账号 / 数据迁移收口 / 阶段计划 / 验收 |
+| [A2-01](domain/A2-01-领域模型与动作模型.md) | 领域总纲：业务域地图 / 账户与多账号 / 结果词汇单源 / Action-Run / Trigger / Event / 端口总则 |
+| [A2-11](domain/A2-11-accounts域.md) | 账户域：Provider / Account 集合 / 凭据权益会话 / vault 端口 / 注册与导入 |
+| [A2-12](domain/A2-12-execution域.md) | 执行域：Action / Run / 幂等键 / 时间预算 / execute_action |
+| [A2-13](domain/A2-13-usage域.md) | 用量域：UsageSample / 额度三型语义谓词 / 耗尽预测 / collect_usage |
+| [A2-14](domain/A2-14-health域.md) | 健康域：健康分级 / 风险规则 / 到期扫描 / health_scan |
+| [A2-15](domain/A2-15-scheduling域.md) | 调度域：Trigger 三型 / 窗口 / 待办队列 / list_pending |
 | [A2-02](domain/A2-02-Connector-规范.md) | manifest / 三级扩展 / 声明式 schema / 沙箱 / PROTOCOL.md 模板 |
 | [A3-01](application/A3-01-信息架构与核心页面.md) | 侧边栏 IA / 页面规格（落地态）/ 组件结构 / 渲染纪律 |
 | [A4-01](cross-cutting/A4-01-L0-底座设计.md) | 凭据保险库 / 健康中心 / 事件总线与通知 / 审计 |

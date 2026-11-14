@@ -5,6 +5,18 @@
 
 ## 一句话现状
 
+**按业务域重写立项 + 文档换代 P0 完成（2026-11-14，ADR-012）**：盘点定位病根
+（core 未按业务域分包 + 裁决未回收 spec 导致文档漂移）后，用户六问裁决——
+core/engine **从零重写**为五业务域 + shared（accounts/execution/usage/health/
+scheduling，目录即业务，端口随域走）、**并入 ADR-010 多账号**（Account 集合化、
+幂等按账号）、品牌全面 Butler（延续 ADR-011 映射总表）、connectors 搬家适配、
+apps 壳只改 import。**P0 文档换代已落盘**：ADR-012 + A1-05 总设计（域图/包结构/
+依赖恒等式/数据迁移收口/阶段计划 P0-P6/验收）+ A1-02 v2（多账号域图、回收
+api.py 旧表述）+ A2-01 v2 领域总纲 + 五册分册 A2-11..A2-15 新建 +
+conventions/02 增补第 8 条红线（**裁决必须回收 spec，禁止静默过期**）+
+ADR-010 转 Accepted + AGENTS.md 路由换代。**下一步 = P1（butler_core 骨架：
+shared + accounts 多账号域）**；旧 kabao_core 代码在重写各阶段完成前保持可跑。
+
 **业务子域分包落地（2026-11-14）**：前端壳拆分 + core 用例层分包——App.vue 559 行
 （距 600 硬上限剩 41）拆为 **158 行纯装配壳**（对齐 api.py 聚合器纪律）+ 五 composables
 （useHashRoute / useShellData / useAccountActions / useUsageActions / useSettings）+
@@ -110,8 +122,10 @@ ALREADY 幂等回放/不存在账号 HTTP 404 显式转述附可用名单——�
 §6 回填；真失败码照旧显式抛）。验收数据垫料：本机三家真客户端导入
 （trae/qoder/workbuddy 进临时库）；doubao 因上述 bug 未导入
 （2026-11-13 重扫全链实证清账，见挂账 3）。
-**接下来：Claude 登录态补证（换有登录态环境）+ npm org 待验证
-（org 创建需账号网页交互）。**
+**接下来：按业务域重写 P1——butler_core 骨架（shared + accounts 多账号域），
+实施计划已落 `docs/plans/2026-11-14-butler-domain-rewrite.md`（19 个 Task，
+TDD + 每步门禁），**执行方式 = 并行会话（另开会话用 executing-plans 按计划推进）**；
+R3 挂账（Claude 登录态补证、npm org 创建）保持挂账不变。**
 
 ## 里程碑
 
@@ -124,6 +138,7 @@ ALREADY 幂等回放/不存在账号 HTTP 404 显式转述附可用名单——�
 | **UI 钱包视觉语言** | 去 AI 化重设计：真实卡面+墨印+账本行+钱包架（spec 2026-11-12） | **✅ 完成（2026-11-12）** |
 | **UI 矩阵改版** | ADR-009/010：四页 IA（矩阵即首页）+ 品类句「AI 账号管家」+ 去卡化中性基底 + 待办栏 | **✅ 完成（2026-11-13）** |
 | **业务子域分包** | 壳拆分（App.vue→装配壳+五 composables+api.ts 单源）+ 用例层分包（usecases.py→五用例包）+ 前端分包规则入册 conventions/04 §2.4 | **✅ 完成（2026-11-14）** |
+| **按业务域重写**（ADR-012/A1-05） | core/engine 从零重写为五域+shared、并入多账号、文档换代先行 | **P0 文档换代 ✅（2026-11-14）**；P1 shared+accounts → P6 收口，见 A1-05 §5 |
 | R3 | 网页会话捕获框架 + ChatGPT/Claude 首批 | **实现批①+R3-2 完成（2026-11-13）**：A1-04 开篇两裁决 + A2-03 细案 + `browser_cookie`/capture/探针全链 + 两家连接器 + 体检 UI + 每日体检轮询 job（真机验收过）+ **Windows cookie 真机验收批（2026-11-13，双布局/锁死兜底/v20 定性）**；余项见挂账 3（①③⑤） |
 | R4 | 网关独立进程（账号池/反代/规则引擎） | 未开始 |
 | R5 | 会话三级迁移 | 未开始 |
@@ -140,8 +155,9 @@ ALREADY 幂等回放/不存在账号 HTTP 404 显式转述附可用名单——�
      一键导入（1）/一键领取（4）/角标 2 与 server 实数吻合；.tag 五色白底
      4.73–5.68 全过 4.5:1；记录页 .stamp=0；console 零错误。真实动作按钮
      （导入/领取/体检/立即采集）agent 未触发，效果验收留用户自点
-   - ③ 层②「一人多账号」= ADR-010 占位（Proposed，不实现）——实现时另立
-     spec + 契约再生成（红线 4）
+   - ③ 层②「一人多账号」~~ADR-010 占位~~ → **ADR-012 已裁决并入按业务域重写
+     落地（2026-11-14）**：Account 集合化、target=应用+账号、幂等按账号，
+     实施随 P1（模型）与 P6（契约再生成，红线 4）
 0. **R2 收官待办（实现全绿，剩验收与归档）**：
    - **MCP stdio 薄壳（apps/mcp，ADR-008）已完成（2026-11-12）**：官方 mcp 2.x
      MCPServer；三工具 query_quota/query_usage/claim_now = server 契约 API 纯投影

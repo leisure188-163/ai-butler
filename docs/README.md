@@ -6,7 +6,7 @@
 ## 开发前必读
 
 1. [`conventions/00-项目配置.md`](conventions/00-项目配置.md) — 唯一变量入口（项目名/包名/远端/门禁命令）
-2. [`conventions/02-开发红线.md`](conventions/02-开发红线.md) — 七条硬性红线，违反 = review 打回
+2. [`conventions/02-开发红线.md`](conventions/02-开发红线.md) — 八条硬性红线，违反 = review 打回
 3. [`STATUS.md`](STATUS.md) — 活页进度卡：当前开发到哪、下一步做什么
 
 ## 目录表
@@ -14,8 +14,8 @@
 | 目录/文件 | 职责 | 内容 |
 |---|---|---|
 | `conventions/` | 强制开发规范（编号命名） | 00 项目配置（唯一变量入口）/ 01 规范模板 / 02 开发红线 / 03 命名与文案 / 08 提交信息规范 / 规范索引 |
-| `specs/architecture/` | 架构与产品规格 | A1-01 产品定位与能力全景 / A1-02 一核多端落地 / A1-03 品牌与业务语言标准（词表单源） |
-| `specs/domain/` | 领域设计 | A2-01 领域模型与动作模型 / A2-02 Connector 规范 |
+| `specs/architecture/` | 架构与产品规格 | A1-01 产品定位与能力全景 / A1-02 一核多端落地 / A1-03 品牌与业务语言标准（词表单源）/ A1-05 按业务域重写总设计 |
+| `specs/domain/` | 领域设计 | A2-01 领域总纲与业务域地图 / A2-11..A2-15 五业务域分册（accounts/execution/usage/health/scheduling）/ A2-02 Connector 规范 |
 | `specs/cross-cutting/` | 横切设计 | A4-01 L0 底座设计 |
 | `specs/application/` | 应用/前端设计 | A3-01 信息架构与核心页面 |
 | `specs/legacy/` | 旧系统知识资产 | A0-01 旧系统知识资产（auto-signin-kit = 协议字典 + 验收基准，**非移植**） |
