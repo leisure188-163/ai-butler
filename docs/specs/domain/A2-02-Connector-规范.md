@@ -14,7 +14,8 @@ packages/connectors/src/butler_connectors/<id>/
 └── adapter.py         # 三级扩展之二：Python 适配器（实现 core 端口）
 ```
 
-三级扩展之三（独立进程 Adapter）放 `apps/gateway/` 的 provider 插件（R4）。
+三级扩展之三（独立进程 Adapter）放 `apps/gateway/` 的 provider 插件（R4；
+进程边界/通信/栈见 ADR-012——gateway 进程内直调 butler_core，只做转发与计量）。
 
 ## 2. manifest.yaml
 
