@@ -10,7 +10,7 @@ defineProps<{
 
 const emit = defineEmits<{ navigate: [page: PageName]; refresh: [] }>();
 
-/* ADR-013：六页平铺，仪表盘默认；角标挂仪表盘（「今天有事吗」的回答者） */
+/* ADR-010：六页平铺，仪表盘默认；角标挂仪表盘（「今天有事吗」的回答者） */
 const navItems: PageName[] = ["仪表盘", "应用", "账户", "流量", "日志", "设置"];
 </script>
 

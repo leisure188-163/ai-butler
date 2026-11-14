@@ -5,7 +5,7 @@ version: "0.1.0"
 level: must
 ---
 
-# ADR-008 · MCP stdio 薄壳走 server 契约 API
+# ADR-007 · MCP stdio 薄壳走 server 契约 API
 
 - **状态**：Accepted
 - **日期**：2026-11-12

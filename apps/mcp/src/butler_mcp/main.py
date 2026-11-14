@@ -1,6 +1,6 @@
 """Butler MCP stdio 薄壳：把卡包三动作（查额度/查用量/触发领取）暴露给 LLM 客户端。
 
-宿主形态（ADR-008）：stdio 宿主走 server 契约 API——本包零 core/engine import，
+宿主形态（ADR-007）：stdio 宿主走 server 契约 API——本包零 core/engine import，
 纯 HTTP 投影；status/signal 字面量 core 出产直传（端零映射，红线 2）。
 server 不可达/HTTP 报错 → 显式转述给 LLM（红线 5），绝不静默兜底。
 

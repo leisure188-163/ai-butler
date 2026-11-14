@@ -30,7 +30,7 @@ class CredentialOut(BaseModel):
 
 class AccountOut(BaseModel):
     account_id: str
-    account_key: str  # 应用内账号序（ADR-010：target = 应用 + 账号）
+    account_key: str  # 应用内账号序（ADR-008：target = 应用 + 账号）
     provider: str  # 连接器 id（号册归属，A2-01 §1）
     display_name: str  # 应用名（账号册出产）
     level: str  # AssessAccountHealth 出产的五级字面量

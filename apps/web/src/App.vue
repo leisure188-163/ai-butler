@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Butler 管理台 · 应用壳（ADR-013 六页 IA，仪表盘默认）
+ * Butler 管理台 · 应用壳（ADR-010 六页 IA，仪表盘默认）
  *
  * 壳 = 装配器（conventions/4 §2.4，业务子域分包 2026-11-14；对齐 api.py 纯聚合器纪律）：
  * 只组装各域 composable 与轮询 wiring，不持业务逻辑——

@@ -62,7 +62,7 @@ class VaultPort(ABC):
 
 
 class SessionSourcePort(Protocol):
-    """本机会话/凭据扫描：多 profile 枚举（ADR-010 §3）。"""
+    """本机会话/凭据扫描：多 profile 枚举（ADR-008 §3）。"""
 
     def enumerate_accounts(self, provider: str) -> Iterable[tuple[str, str]]:
         """产出 (account_key, display_name)；不可得通道如实返回空。"""

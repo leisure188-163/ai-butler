@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 应用页（ADR-013 六页 IA）：本机接入的各家 AI 助手名册。
+ * 应用页（ADR-010 六页 IA）：本机接入的各家 AI 助手名册。
  * 六列表 + 虚线邀请行 + 行展开；数据全部来自契约既有 AppOut/AccountOut，
  * 零新端点、零语义加工（能力标签只做协议 kind 的直译，signal 只消费分类）。
  */
@@ -168,7 +168,7 @@ function toggleDetail(id: string) {
       </table>
     </div>
 
-    <!-- 未接入应用的虚位邀请行（从账户页迁入，ADR-013 §3） -->
+    <!-- 未接入应用的虚位邀请行（从账户页迁入，ADR-010 §3） -->
     <ul v-if="emptyApps.length" class="slots" aria-label="可导入应用">
       <li v-for="app in emptyApps" :key="app.id">
         <button class="slot-row" :disabled="busyTarget !== null" @click="emit('import', app.id)">

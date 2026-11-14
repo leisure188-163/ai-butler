@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 账户矩阵表（ADR-013 / T9：自 AccountsPage 拆出，语义零变化）。
+ * 账户矩阵表（ADR-010 / T9：自 AccountsPage 拆出，语义零变化）。
  * 9 列矩阵 + 筛选 + 批量条 + 行展开；状态染色只消费 core 出产的 signal 五分类，
  * 不认识 Status 字面量；repair_reason / evidence 直渲染不加工。
  */

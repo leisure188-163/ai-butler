@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 账户页（ADR-013 六页 IA）：9 列矩阵工作台 + 一键领取（n）。
+ * 账户页（ADR-010 六页 IA）：9 列矩阵工作台 + 一键领取（n）。
  * headline / 待办栏 / 导入入口已分别迁往仪表盘与应用页；
  * 矩阵交互由 components/MatrixTable.vue 承载，本页只做页头与动作下发。
  */

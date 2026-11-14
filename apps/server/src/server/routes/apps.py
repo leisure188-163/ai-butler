@@ -17,7 +17,7 @@ class AppOut(BaseModel):
     credential_kinds: list[str]
     schedule_times: list[str]  # HH:MM 触发时间
     account_id: str | None  # 首账号规范 id（兼容裸应用 id 调用），未导入 = None
-    account_ids: list[str]  # 该应用下全部账户（ADR-010 多账号）
+    account_ids: list[str]  # 该应用下全部账户（ADR-008 多账号）
 
 
 class ImportOut(BaseModel):

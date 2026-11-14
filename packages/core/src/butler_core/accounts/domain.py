@@ -1,6 +1,6 @@
 """账户域（A2-04）：Provider / Account 集合 / 凭据事实。
 
-多账号（ADR-010）：一 Provider 挂 N 个 Account，身份 = (provider, account_key)；
+多账号（ADR-008）：一 Provider 挂 N 个 Account，身份 = (provider, account_key)；
 凭据/权益/会话全部挂 account_id。凭据明文载体 Secret 与保险库引用也在本域
 ——健康分级枚举来自 shared 内核，域之间不互依（A1-05 §2 依赖恒等式）。
 """

@@ -128,9 +128,9 @@ CI 只在 ubuntu 跑——平台特有调用（Windows DPAPI / macOS Keychain）
    样本含真实 token/uid 不得入库——先脱敏再提交。
 
 
-## 9. 多账号 dock/import 取证结论（ADR-010 §3，2026-11-14 重写 P5）
+## 9. 多账号 dock/import 取证结论（ADR-008 §3，2026-11-14 重写 P5）
 
-core/engine/server 已按 ADR-010 支持"一应用 N 账户"（`account_key`、
+core/engine/server 已按 ADR-008 支持"一应用 N 账户"（`account_key`、
 `AppOut.account_ids`、一键领取逐账户发起）。连接器侧取证结论如实登记如下，
 **不虚报未验证能力**（红线 5）：
 

@@ -1,7 +1,7 @@
 /**
  * hash 路由域（conventions/4 §2.4，业务子域分包 2026-11-14）：
  * 页面状态的唯一持有者——可直链、可后退；旧直链命中别名即 replaceState
- * 静默重写为规范 hash（ADR-013 重定向表 v2，7 条）。
+ * 静默重写为规范 hash（ADR-010 重定向表 v2，7 条）。
  */
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageName } from "../types";

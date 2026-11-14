@@ -6,7 +6,7 @@
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 把 `packages/core` + `packages/engine` 从零重写为五业务域 + shared 的
-`butler_core` / `butler_engine`，并入 ADR-010 多账号模型，P6 收口切流。
+`butler_core` / `butler_engine`，并入 ADR-008 多账号模型，P6 收口切流。
 
 **Architecture:** 新旧并行——P1-P5 新建 `butler_core`/`butler_engine` 并自带测试，
 旧 `kabao_core`/`kabao_engine` 原样保留供 server 继续使用；P6 一次性切流
@@ -141,7 +141,7 @@ def test_provider_not_in_ui_vocabulary(): ...  # 静态断言 domain 无 UI 词
 
 ```python
 def test_idempotency_key_per_account(): ...
-# key(kind, account_id, window) 同账号同窗口 → 相同；不同账号 → 不同（ADR-010 §4）
+# key(kind, account_id, window) 同账号同窗口 → 相同；不同账号 → 不同（ADR-008 §4）
 
 def test_run_budget_is_first_class(): ...
 # Run 构造必填 budget；超预算判定函数返回如实语义
@@ -354,4 +354,4 @@ web 适配 → `vue-tsc` 绿 → 门禁绿。
 - **双包并存期**（P1-P5）：新旧互不依赖，旧链路测试始终绿 = 随时可停
 - **P6 切流是唯一大爆炸点**：切流前 P1-P5 全部测试绿 + 迁移脚本钉死；切流
   单独成 commit，出问题 `git revert` 单点回退
-- **多账号契约波及 MCP**：兼容层裸应用 id = 首账号，既有调用不断（ADR-010 §2）
+- **多账号契约波及 MCP**：兼容层裸应用 id = 首账号，既有调用不断（ADR-008 §2）
