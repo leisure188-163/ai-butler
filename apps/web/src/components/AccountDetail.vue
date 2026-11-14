@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 账户详情面板（ADR-009 矩阵改版）：矩阵行下展开的体检明细。
+ * 账户详情面板（六页 IA，ADR-013）：矩阵行下展开的体检明细。
  * 保留凭据清单/证据/repair_hint/能力驱动按钮。
  * 动作按钮按能力矩阵渲染（AppOut.capabilities，端零映射）：
  * provision.run = 领取；health.check = 体检（R3 网页通道）。

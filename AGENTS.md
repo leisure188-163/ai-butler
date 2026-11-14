@@ -28,7 +28,7 @@
 9. **生成任何 git 提交信息前**：读 `docs/conventions/08-提交信息规范.md`
    （格式 `<type>:[<需求单号>]: <中文主题>`，钩子 `.githooks/commit-msg` 强制校验）
 10. **环境与命令**：读 `docs/guides/01-环境与命令.md`
-11. **品牌/语言/起名**：读 `docs/specs/architecture/A1-03-品牌与业务语言标准.md`——
+11. **语言/命名/文案**：读 `docs/specs/architecture/A1-03-命名与语言标准.md`——
     用户可见词以 A1-03 §3 词表 v2 为准（强制规范收编在 conventions/03）
 12. 遵守各规范中 ❌ 禁止项；不确定方向时先读对应设计文档，文档没有的 → 提问，别发明
 

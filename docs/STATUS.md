@@ -19,7 +19,7 @@ openapi.sha256 零 diff。**验收**：vue-tsc 绿 + 门禁九项绿 + 505 tests
 六页 × 双断点（1440×900 / 375×812）× 三主题（纸墨/墨夜/暖纸）全过，
 7 条旧链重定向正确，一键导入（6）与 server apps=6 吻合、
 一键领取（0）/角标（无）与 accounts=0/pending=0 吻合，console 零错误；
-修掉窄屏顶条六项导航与品牌重叠（改两行网格 + 导航横向滚动）。
+修掉窄屏顶条六项导航与主名重叠（改两行网格 + 导航横向滚动）。
 Butler 重定位六问裁决全部落地（ADR-012 编号已被按业务域重写占用，裁决顺延
 ADR-013）。
 
@@ -50,7 +50,7 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
   加载期注册；默认 legacy 自映射；未知码显式抛 UnknownEngineCode（红线 5），
   用例层转 FAILED + evidence + PROTOCOL_CHANGED；严格字面匹配不归一。
   协议字面量七词（CLAIMED/ALREADY/FAILED/NO_AUTH/PENDING/EXPIRED/SKIPPED）
-  与旧系统 oracle 对齐，**永不改名**（ADR-007 两层词汇）
+  与旧系统 oracle 对齐，**永不改名**（两层词汇原则，收编 conventions/03 与 A1-03 §3）
 - **ADR-003**：连接器 target 级端口路由
 - **ADR-004**：qoder 接入形状 = 声明式扩展（列表领取受限形状 / DPAPI+AES-GCM
   双层凭据 / 机器身份头组 kind 化 / 静默陷阱显式化 = FAILED + repair_hint）
@@ -59,8 +59,6 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
   （不落 vault，运行时读客户端会话文件即用即弃）；信封 token 解密走 helper.js
   子进程（客户端自带 Electron runtime；「严禁搬代码」的唯一例外 = 协议契约，
   守卫测试钉 12 标记）
-- **ADR-007**：品牌 Kabao（卡包）+ 市场白话词表，标准单源 A1-03，
-  已收编 conventions/03（见下）
 - **M1 硬标准**：每个 Connector 不加特殊分支接入；要写例外 → 停下来改模型
 - **kind 收敛原则**（A2-02 §3）：应用接入面 = 声明 + 可枚举 kind 的组合，
   一套运行时 + N 份数据，绝不 per-app 平行代码；协议特殊性只以 kind 形态扩展
