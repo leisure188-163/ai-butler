@@ -36,6 +36,10 @@
 
 ## 6. 已知风险
 
+- 本机无 claude.ai 登录态：2026-11-14 mac 真机查证，Chrome 双 profile
+  （`Default`、`Profile 1`）cookie 库均无 claude.ai 行——最小 cookie 名单
+  补证维持挂账（换有登录态环境取证）
+
 - **区域阻断（2026-11-13 本机实取）**：未登录/受限网络 GET 均得
   `403 + {"type":"error","error":{"type":"permission_error","details":{"error_code":"region_unavailable"}}}`
   ——探针映射 `NO_AUTH`，evidence 摘要带出 `permission_error/region_unavailable`

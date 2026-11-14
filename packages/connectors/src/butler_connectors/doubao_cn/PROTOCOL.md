@@ -169,3 +169,21 @@ CDP DOM/截图实证（agent-explore 活动页 + doubao-chat 主聊天页）：�
   语义与 qoder 同款（上下文仪表非计费）
 - Local Storage 无结构化额度键（仅 `commerce_credit_config_enable` 开关、
   `quota_exhausted` 零散碎片）；credits 余额无本地存储
+
+## 8. 多开取证（2026-11-14，mac 运行态实证）
+
+> 结论：**客户端单实例锁为 app 级，多开不可行**——多账号 = 无据（红线 5，
+> 未推断）；现行「单账号 `main` + CDP 端口单值」模型正确，无需改。
+
+- 基线：本机豆包正以 `--remote-debugging-port=9222` 运行（主进程
+  `/Applications/Doubao.app/Contents/MacOS/Doubao`，监听进程 = "Doubao
+  Browser" helper）；默认数据目录 `~/Library/Application Support/Doubao/`
+  单 profile（`Default/` + `Local State`，无 Profile N）
+- 实验 ①：第二实例带**独立临时 user-data-dir** + `--remote-debugging-port=9223`
+  → 秒退；临时目录只建 `sdk_storage`/`update_data`（**无 Chromium profile
+  结构 = `--user-data-dir` 被客户端吞**），9223 不监听
+- 实验 ②（对照）：第二实例沿用默认目录 + `--remote-debugging-port=9224`
+  → 秒退 exit=0（单实例转发的典型语义：激活既有实例后自己退出），9224
+  不监听；全程原实例 9222 应答如常、进程清单不变
+- 推论：多账号需要「多实例各带独立数据目录 + 端口」——客户端两个前提都不
+  成立；Windows 侧既有实证同型（dock 拉起前必须杀净无端口实例，§6）

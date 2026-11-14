@@ -136,10 +136,15 @@ core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_key`、
 
 | 连接器 | dock 现状 | 多 profile 取证 |
 |---|---|---|
-| trae_cn / qoder_cn / doubao_cn / workbuddy_cn | 单账号（首账号 `main`） | 待真机验证多开/多 profile 的凭据目录布局，未取证不推断 |
-| chatgpt_web / claude_web | 单账号网页会话通道 | 多浏览器 profile 的 CDP 端口发现待真机验证 |
+| trae_cn | 单账号（首账号 `main`） | **已取证（2026-11-14 mac）**：`User/` 无 `profiles/`，登录态在共享 `globalStorage/storage.json`——客户端单登录态，无多账号形状（PROTOCOL §8） |
+| qoder_cn | 单账号（首账号 `main`） | **已取证（2026-11-14 mac）**：glob 仅命中 `com.qoder.app.stable` 单数据目录——单账号实证；多目录形状未出现，未取证不推断（PROTOCOL §8） |
+| doubao_cn | 单账号（CDP 单实例，端口单值 9222） | **已取证（2026-11-14 mac 运行态）**：app 级单实例锁——第二实例秒退 exit=0（独立 `--user-data-dir` 被客户端吞、端口不落地），多开不可行 → 多账号无据（PROTOCOL §8） |
+| workbuddy_cn | 单账号（现用现取零申报） | **已取证（2026-11-14 mac）**：凭据 = 单文件 `workbuddy-desktop.info`——单会话文件即单账号，无多 profile 形状 |
+| chatgpt_web | **多账户（ADR-011，每 profile 一槽）** | **已取证（2026-11-14 mac）**：Chrome 双 profile 均实存名单内会话令牌——多 profile 布局实证；账号同一性未验（不解密）；裁决 = 每 profile 一账户槽已接入 dock（browser.py，首个凑齐 = main 存量卡位，后续 = 目录名 slug） |
+| claude_web | **多账户（同 ADR-011 通道）** | 本机无登录态（双 profile 均无 claude.ai cookie）——通道语义已就绪，名单补证维持挂账 |
 
-**扩展点已预留**：`butler_core.accounts.ports.SessionSourcePort.enumerate_accounts()`
+**扩展点已落地**：`butler_core.accounts.ports.SessionSourcePort.enumerate_accounts()`
 产出 `(account_key, display_name)`，`RegisterAccount.import_from_source()` 逐账号
-入库；某连接器完成真机取证后，按其 PROTOCOL.md 新增"多 profile 目录形状"小节，
-再在 dock 流程接入，无需改 core/server 契约。
+入库，无需改 core/server 契约；browser_cookie 通道经 `CapturedProfile`
+（browser.py）逐槽注册入库。桌面客户端连接器按各自 PROTOCOL.md"多 profile
+目录形状"小节取证后接 dock（本机均单账号形状，暂无 N 账户数据源）。

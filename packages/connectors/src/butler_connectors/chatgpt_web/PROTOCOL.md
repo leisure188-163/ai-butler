@@ -35,7 +35,8 @@
 ## 5. 幂等与重试
 
 - 探针只读，无幂等键（非领取类写动作）；导入（session.import）可重复扫，
-  重导 = 覆盖式重存凭据 + 复用 `{target}:main` 卡位（M1 单账户）
+  重导 = 覆盖式重存凭据 + 同身份幂等回放（ADR-011：首个凑齐 profile =
+  `{target}:main` 存量卡位，后续 profile = 目录名 slug 键）
 
 ## 6. 已知风险
 
@@ -55,3 +56,12 @@
   DPAPI 实解（209B→32B）+ GCM 腿真钥匙 roundtrip PASS。**平台定性（A2-03
   §7.7）**：可读 Profile 1 的 124 条 cookie 全量 v20（Chrome 127+ 应用绑定
   加密）——本通道不做对抗解密，Windows 新版 Chrome 网页会话捕获如实落榜
+- 2026-11-14（**mac 真机多 profile 取证**，A2-02 §9）：Chrome 双 profile
+  （`Default`、`Profile 1`）cookie 库均实存名单内会话令牌
+  `__Secure-next-auth.session-token.0/.1`——**多 profile 目录布局实证**；
+  账号同一性未验（不解密不取明文，红线 5）
+- 2026-11-14（**裁决落地**，[ADR-011](../../../../docs/adr/ADR-011-网页会话通道每profile一账户.md)）：
+  每 profile 一账户槽接入 dock——首个凑齐 profile = `main`（存量卡位），
+  后续 = 目录名 slug（本机即 `profile-1`）；同目录新旧布局去重；展示名带
+  profile 目录事实（如「ChatGPT（Profile 1）」）。重复账号 → 重复槽由领取
+  幂等 ALREADY 兜底，接受

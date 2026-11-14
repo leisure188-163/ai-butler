@@ -1,8 +1,8 @@
 """浏览器会话捕获（browser.py）全链离线测试（A2-03 §6）：真 SQLite + 真 cryptography。
 
 mac CBC 链注入 Keychain 替身（monkeypatch unlock.macos_safe_storage_password）、
-win GCM 链注入 DPAPI 替身；两态导入语义、多 profile 首个凑齐者胜、临时件用后
-即删、钥匙拒绝显式出账。真机验收另批（A2-03 §7）。
+win GCM 链注入 DPAPI 替身；两态导入语义、每 profile 一账户槽（ADR-011）、
+同 profile 目录去重、临时件用后即删、钥匙拒绝显式出账。真机验收另批（A2-03 §7）。
 """
 
 import base64
@@ -23,6 +23,11 @@ from butler_connectors import unlock
 from butler_connectors.browser import _capture_kind, _webkit_to_iso, capture_cookies
 from butler_connectors.manifest import CaptureSpec
 from butler_connectors.registry import DockContext, load_registry
+
+
+def first_envelope(captured) -> str:
+    """_capture_kind 新返回形（captured, issues）：取首槽信封。"""
+    return captured[0].envelope
 
 MAC_SECRET = b"chrome-safe-storage-pass"
 WIN_KEY = bytes(range(32))  # GCM 链 32B（AES-256）
@@ -207,40 +212,6 @@ def test_capture_empty_override_issues(tmp_path, mac_env, registry):
     assert outcome.issues and "没有候选 cookie 库" in outcome.issues[0]
 
 
-def test_first_complete_profile_wins(tmp_path, mac_env):
-    """多 profile 首个凑齐者胜（M1 单账户边界）：Default 完整即不读 Profile 1。"""
-    make_cookie_db(
-        tmp_path / "Chrome" / "Default" / "Cookies",
-        mac_rows(mac_env, {COOKIES[0]: (b"v-d-0", 0), COOKIES[1]: (b"v-d-1", 0)}),
-    )
-    make_cookie_db(
-        tmp_path / "Chrome" / "Profile 1" / "Cookies",
-        mac_rows(mac_env, {COOKIES[0]: (b"v-p-0", 0), COOKIES[1]: (b"v-p-1", 0)}),
-    )
-    facts = _capture_kind(
-        capture_spec().auth, "chatgpt_web", [str(tmp_path / "Chrome/*/Cookies")]
-    )
-    envelope = json.loads(facts["browser_cookie"])
-    assert [c["value"] for c in envelope["cookies"]] == ["v-d-0", "v-d-1"]
-
-
-def test_incomplete_profile_falls_through(tmp_path, mac_env):
-    """首个 profile 缺名单 → 换下一个；全落空才报未登录。"""
-    make_cookie_db(
-        tmp_path / "Chrome" / "Default" / "Cookies",
-        mac_rows(mac_env, {COOKIES[0]: (b"v-d-0", 0)}),
-    )
-    make_cookie_db(
-        tmp_path / "Chrome" / "Profile 1" / "Cookies",
-        mac_rows(mac_env, {COOKIES[0]: (b"v-p-0", 0), COOKIES[1]: (b"v-p-1", 0)}),
-    )
-    facts = _capture_kind(
-        capture_spec().auth, "chatgpt_web", [str(tmp_path / "Chrome/*/Cookies")]
-    )
-    envelope = json.loads(facts["browser_cookie"])
-    assert [c["value"] for c in envelope["cookies"]] == ["v-p-0", "v-p-1"]
-
-
 def test_legacy_plaintext_column_accepted(tmp_path, mac_env):
     """legacy 明文 value 列（无密文）：原样收，如实。"""
     db = tmp_path / "Chrome" / "Default" / "Cookies"
@@ -251,10 +222,10 @@ def test_legacy_plaintext_column_accepted(tmp_path, mac_env):
             (DOMAIN, COOKIES[1], "plain-b", None, 0),
         ],
     )
-    facts = _capture_kind(
+    captured, _ = _capture_kind(
         capture_spec().auth, "chatgpt_web", [str(db)]
     )
-    envelope = json.loads(facts["browser_cookie"])
+    envelope = json.loads(first_envelope(captured))
     assert [c["value"] for c in envelope["cookies"]] == ["plain-a", "plain-b"]
 
 
@@ -473,35 +444,6 @@ def test_locked_db_immutable_open_failure_stays_explicit_issue(
     assert "关闭浏览器后重扫" in outcome.issues[0]
 
 
-def test_profile_failure_falls_through_to_next(tmp_path, mac_env):
-    """逐 profile 隔离：首个库读不了（垃圾形状）→ 记原因换下一个；凑齐者胜。"""
-    bad = tmp_path / "Chrome" / "Default" / "Cookies"
-    bad.parent.mkdir(parents=True, exist_ok=True)
-    bad.write_bytes(b"this is not a sqlite database")
-    make_cookie_db(
-        tmp_path / "Chrome" / "Profile 1" / "Cookies",
-        mac_rows(mac_env, {COOKIES[0]: (b"v-ok-0", 0), COOKIES[1]: (b"v-ok-1", 0)}),
-    )
-    facts = _capture_kind(
-        capture_spec().auth, "chatgpt_web", [str(tmp_path / "Chrome/*/Cookies")]
-    )
-    envelope = json.loads(facts["browser_cookie"])
-    assert [c["value"] for c in envelope["cookies"]] == ["v-ok-0", "v-ok-1"]
-
-
-def test_all_profiles_failed_reports_first_issue(tmp_path, mac_env):
-    """全 profile 失败 → 报首个显式原因（库序确定），不再误报未登录。"""
-    bad = tmp_path / "Chrome" / "Default" / "Cookies"
-    bad.parent.mkdir(parents=True, exist_ok=True)
-    bad.write_bytes(b"garbage bytes, not a database")
-    facts = _capture_kind(
-        capture_spec().auth, "chatgpt_web", [str(tmp_path / "Chrome/*/Cookies")]
-    )
-    assert "_issue" in facts
-    assert "查询失败" in facts["_issue"]
-    assert "未登录" not in facts["_issue"]
-
-
 def test_v20_appbound_cookie_explicit_issue(tmp_path, win_env):
     """v20 应用绑定加密（Chrome 127+ Windows 真机取证全量形状）：
     显式落榜、文案自足、不误导「重扫」。"""
@@ -515,12 +457,12 @@ def test_v20_appbound_cookie_explicit_issue(tmp_path, win_env):
         ),
         encoding="utf-8",
     )
-    facts = _capture_kind(
+    captured, issues = _capture_kind(
         capture_spec().auth, "chatgpt_web", [str(tmp_path / "User Data/*/Cookies")]
     )
-    assert "_issue" in facts
-    assert "v20" in facts["_issue"] and "应用绑定" in facts["_issue"]
-    assert "重扫" not in facts["_issue"]
+    assert captured == []
+    assert issues and "v20" in issues[0] and "应用绑定" in issues[0]
+    assert "重扫" not in issues[0]
 
 
 def test_decrypt_rejects_v20_with_shape_error():

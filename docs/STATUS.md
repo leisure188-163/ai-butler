@@ -5,6 +5,15 @@
 
 ## 一句话现状
 
+**网页会话多 profile 取证 + 接入（2026-11-14，[ADR-011](adr/ADR-011-网页会话通道每profile一账户.md)）**：
+六连接器真机（mac）多 profile 目录形状取证完成、如实登记 A2-02 §9
+（trae/qoder/workbuddy 单账号实证、doubao 单实例锁运行态实证、chatgpt_web
+双 profile 实存会话令牌）；裁决 = **每 profile 一账户**落地：browser.py 逐 profile
+捕获出账户槽（首个凑齐 = main 存量卡位，后续 = 目录名 slug，同目录新旧
+布局去重），chatgpt_web/claude_web 通道统一生效，core/server 契约零 diff。
+**验收**：门禁九项绿 + 508 tests 全绿（多 profile 槽测试分册
+test_browser_profiles.py）。
+
 **六页 IA 阶段二收官（2026-11-14，[ADR-010](adr/ADR-010-六页信息架构.md)）**：
 四页（账号/用量/记录/设置）→ **六页（仪表盘/应用/账户/流量/日志/设置）**，
 仪表盘默认、待办栏迁入、导入归应用、领取归账户、角标挂仪表盘；重定向表 v2
@@ -34,10 +43,15 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 
 ## 剩余挂账
 
-- **R3 网页会话通道余项**：Claude 最小 cookie 名单补证（本机无登录态，换环境取证）；
+- **R3 网页会话通道余项**：Claude 最小 cookie 名单补证（本机无登录态，换环境取证；
+  2026-11-14 mac 复核：双 Chrome profile 均无 claude.ai cookie）；
   mac v10 密文前 16B 段结构未定论（确定性相关、非 sha256/hmac，完整性验证挂账）。
 - **npm org 创建** `butler`（网页交互，发布前做；A1-03 §6 口径）。
-- **连接器多 profile 取证** 后展开「应用 → 账户」操作面（A2-02 §9）。
+
+> 连接器多 profile 取证**六家全定论**（A2-02 §9，2026-11-14 mac）：桌面四家
+> （trae/qoder/doubao/workbuddy）均单账号实证（doubao = app 级单实例锁，
+> PROTOCOL §8）；网页两家按 [ADR-011](adr/ADR-011-网页会话通道每profile一账户.md)
+> 每 profile 一账户已接入 dock。「应用 → 账户」展开无剩余前置。
 
 ## 已定关键决策（不再讨论，照做）
 

@@ -6,8 +6,10 @@
   （密文库，try/finally 用后即删；活动库被浏览器锁死 → SQLite immutable
   只读直开兜底，2026-11-13 Windows 真机取证）
 - host（domain 精确或点后缀）× 必需名单过滤 → 逐条解密（unlock 单源）
-- **逐 profile 隔离**：单库锁死/解不开 → 记首个原因换下一个 profile；
-  全落空有事故报事故，无事故按未登录如实落榜（不注册账号）
+- **每 profile 一账户**（ADR-011，2026-11-14 mac 真机取证：双 profile 均实存
+  会话令牌）：逐 profile 捕获、各自成账户槽——首个凑齐者 = `main`（存量兼容），
+  后续按 profile 目录名 slug 编键；同 profile 目录新旧布局并配只取首个库
+- **逐 profile 隔离**：单库锁死/解不开 → 记原因换下一个 profile，不中断不静默
 - 两态导入语义：无任何 profile 凑齐名单 = 未登录如实落榜（不注册账号）；
   名单凑齐但已过期 = 照常出卡（expires_at 为过去值，健康分级如实示 EXPIRED）
 - 钥匙拒绝 / 解密失败 → DockOutcome.issues（红线 5，不静默不降级）；
@@ -16,6 +18,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from butler_connectors.manifest import AuthSpec, CaptureSpec, ManifestInvalid
@@ -36,6 +39,15 @@ class ProfileUnreadable(ValueError):
     """
 
 
+@dataclass(frozen=True)
+class CapturedProfile:
+    """一个凑齐名单的 profile 账户槽：编键 + 展示名事实 + 信封。"""
+
+    profile_dir: str  # 库所在 profile 目录名（展示名与编键的事实来源）
+    account_key: str  # 首个 = main（存量兼容）；后续 = 目录名 slug（去重后缀）
+    envelope: str  # browser_cookie 信封 JSON
+
+
 def capture_cookies(
     app: ConnectorApp,
     spec: CaptureSpec,
@@ -51,30 +63,45 @@ def capture_cookies(
             issues=[f"{app.manifest.id}: 没有候选 cookie 库（声明里 auth.storage 为空）"],
         )
     try:
-        facts = _capture_kind(auth, app.manifest.id, candidates)
+        captured, capture_issues = _capture_kind(auth, app.manifest.id, candidates)
     except StorageNotFound as exc:
         return DockOutcome(target=app.manifest.id, issues=[str(exc)])
     except ManifestInvalid as exc:  # 显式事故 → 如实出账（与 dockio 同纪律）
         return DockOutcome(target=app.manifest.id, issues=[str(exc)])
 
-    if "_issue" in facts:
-        return DockOutcome(target=app.manifest.id, issues=[facts["_issue"]])
+    if not captured:
+        if capture_issues:  # 无 profile 凑齐但有过显式事故：报首个原因（库序确定），不误报未登录
+            return DockOutcome(target=app.manifest.id, issues=[capture_issues[0]])
+        return DockOutcome(
+            target=app.manifest.id,
+            issues=[
+                f"{app.manifest.id}: 未登录（Chrome 无 {auth.domain} 完整会话 cookie）——"
+                "浏览器登录后重扫（未登录不是错误，A1-04 §4.1）"
+            ],
+        )
 
     from butler_connectors.dockio import _store_credentials
 
-    account = ctx.register.execute(app.manifest.id, app.display)
-    _store_credentials(ctx, account.id, facts, kinds, auth.kind)
-    return DockOutcome(target=app.manifest.id, accounts=[account.id])
+    accounts: list[str] = []
+    for item in captured:
+        display = (
+            app.display
+            if item.account_key == "main"
+            else f"{app.display}（{item.profile_dir}）"
+        )
+        account = ctx.register.execute(app.manifest.id, display, account_key=item.account_key)
+        _store_credentials(ctx, account.id, {"browser_cookie": item.envelope}, kinds, auth.kind)
+        accounts.append(account.id)
+    return DockOutcome(target=app.manifest.id, accounts=accounts)
 
 
 def _capture_kind(
     auth: AuthSpec, conn_id: str, candidates: list[str], *, key_provider=None, dpapi=None
-) -> dict[str, str]:
-    """捕获主流程：facts = {"browser_cookie": 信封}，或 _issue / StorageNotFound。
+) -> tuple[list[CapturedProfile], list[str]]:
+    """捕获主流程：逐 profile 出账户槽（ADR-011）。
 
-    逐 profile 隔离（2026-11-13 Windows 真机取证）：活动 profile 被浏览器
-    锁死 / 解不开时**换下一个 profile 继续**，首个失败原因留存；全部落空
-    才出账（有显式原因报原因，无则按未登录如实落榜）。
+    返回 (凑齐名单的 profile 列表, 显式事故列表)；列表全空且无事故 = 未登录
+    （StorageNotFound，非错误）。钥匙一次取用，全槽共享（同一浏览器）。
     """
     from butler_connectors.unlock import CookieShapeError
 
@@ -97,12 +124,20 @@ def _capture_kind(
             if sys.platform == "darwin"
             else "请在 Chrome 可用环境下重扫（Windows 钥匙在 Local State，DPAPI 当前用户作用域）"
         )
-        return {"_issue": f"浏览器钥匙取不到（{exc}）——{tail}"}
+        return [], [f"浏览器钥匙取不到（{exc}）——{tail}"]
 
+    captured: list[CapturedProfile] = []
     issues: list[str] = []
+    seen_dirs: set[str] = set()  # 同 profile 目录新旧布局并配：首个库（路径序）获胜
+    used_keys: set[str] = set()
+    main_taken = False
     for db in dbs:
+        profile = _profile_of(db)
+        if profile in seen_dirs:
+            continue
+        seen_dirs.add(profile)
         try:
-            captured = _capture_profile(db, auth, key, gcm)
+            envelope = _capture_profile(db, auth, key, gcm)
         except CookieShapeError as exc:  # 形状显式申报（v20 等）：文案自足
             issues.append(f"{db}: {exc}")
             continue
@@ -112,14 +147,34 @@ def _capture_kind(
         except (OSError, ValueError) as exc:
             issues.append(f"{db}: cookie 解不开（{exc}）——浏览器或库形状已变，重扫")
             continue
-        if captured is not None:
-            return {"browser_cookie": captured}
-    if issues:  # 无 profile 凑齐但有过显式事故：报首个原因（库序确定），不误报未登录
-        return {"_issue": issues[0]}
-    raise StorageNotFound(
-        f"{conn_id}: 未登录（Chrome 无 {auth.domain} 完整会话 cookie）——"
-        "浏览器登录后重扫（未登录不是错误，A1-04 §4.1）"
-    )
+        if envelope is None:
+            continue  # 名单不齐 = 该 profile 无登录态：非事故，静候下一个
+        if not main_taken:
+            account_key = "main"  # 首个凑齐者保存量卡位（重导幂等回放）
+            main_taken = True
+        else:
+            slug = _profile_slug(profile)
+            account_key = slug
+            ordinal = 2
+            while account_key in used_keys or account_key == "main":
+                account_key = f"{slug}-{ordinal}"
+                ordinal += 1
+        used_keys.add(account_key)
+        captured.append(
+            CapturedProfile(profile_dir=profile, account_key=account_key, envelope=envelope)
+        )
+    return captured, issues
+
+
+def _profile_of(db: Path) -> str:
+    """库所在 profile 目录名：旧布局 <profile>/Cookies；新布局 <profile>/Network/Cookies。"""
+    return db.parent.name if db.parent.name != "Network" else db.parent.parent.name
+
+
+def _profile_slug(name: str) -> str:
+    """profile 目录名 → 账户键 slug：小写、空格连字；空名兜底 profile（显式事实仍留展示名）。"""
+    slug = name.strip().lower().replace(" ", "-").replace("_", "-")
+    return slug or "profile"
 
 
 def _cookie_dbs(candidates: list[str]) -> list[Path]:

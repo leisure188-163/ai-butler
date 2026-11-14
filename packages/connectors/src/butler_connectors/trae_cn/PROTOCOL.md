@@ -120,3 +120,12 @@ UsageSample 本义字段（tokens_in/out / model / ts）本地与 API 均无—�
 
 签到 status 响应字段 = **签到奖励包面额级**，非账户余额；账户余额看 7.1 的
 usage_summary / 包分账本。
+
+## 8. 多 profile 目录形状（2026-11-14，mac 真机取证）
+
+- 本机 `~/Library/Application Support/Trae CN/User/` 目录实存：`History` /
+  `globalStorage` / `settings.json` / `snippets` / `workspaceStorage`——
+  **无 `profiles/` 目录**，登录态在共享 `globalStorage/storage.json`
+- 结论：客户端**单登录态**，无多 profile 目录形状可枚举；多账号 = 无据
+  （与 A2-02 §9 表一致，未取证不推断）
+- dock 扫描口径不变：`_scan_ss_aes` 首个现存候选获胜 → `main` 账号

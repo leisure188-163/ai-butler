@@ -176,3 +176,12 @@ account/usage 旁证一致）。
 ### 7.4 逐调用用量：双通道 UNSUPPORTED
 
 客户端不落逐调用 tokens，服务端只给聚合 percentage + 额度快照。
+
+## 8. 多 profile 目录形状（2026-11-14，mac 真机取证）
+
+- 声明 glob `~/Library/Application Support/com.qoder.app*` 本机仅命中
+  `com.qoder.app.stable` 一个数据目录；`auth.v1.dat` + `auth.machine-id`
+  在目录根（mac 信封只带 dat，钥匙在 Keychain「Qoder App Safe Storage」）
+- 结论：**单数据目录 = 单账号实证**；多账号形状（如按渠道/实例分目录）本机
+  未出现，未取证不推断——glob 扩展点已在（多目录命中时逐目录扫，dock 现取首个）
+- 多开/多实例的凭据隔离未验证：保持 A2-02 §9 挂账口径
