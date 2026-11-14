@@ -10,8 +10,13 @@ defineProps<{
 
 const emit = defineEmits<{ navigate: [page: PageName]; refresh: [] }>();
 
-/* ADR-010：六页平铺，仪表盘默认；角标挂仪表盘（「今天有事吗」的回答者） */
-const navItems: PageName[] = ["仪表盘", "应用", "账户", "流量", "日志", "设置"];
+/* ADR-010：六页平铺（hash 直链不变），仪表盘默认；角标挂仪表盘。
+   v6.1 侧栏视觉分组：新页（网关/迁移等）挂对应组即可，IA 不动（D3 补记） */
+const navGroups: { label: string; items: PageName[] }[] = [
+  { label: "总览", items: ["仪表盘"] },
+  { label: "运营", items: ["应用", "账户", "流量", "日志"] },
+  { label: "系统", items: ["设置"] },
+];
 
 /* v6 功能图标（线性 16px，stroke=currentColor 随文字色）——
    功能性视觉锚点，非装饰（DESIGN-DECISIONS D2 v6） */
@@ -33,32 +38,35 @@ const icons: Record<PageName, string> = {
     </div>
 
     <nav class="nav" aria-label="主导航">
-      <button
-        v-for="item in navItems"
-        :key="item"
-        class="nav-item"
-        :class="{ 'nav-item--active': active === item }"
-        :aria-current="active === item ? 'page' : undefined"
-        @click="emit('navigate', item)"
-      >
-        <svg
-          class="nav-icon"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.4"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+      <div v-for="group in navGroups" :key="group.label" class="nav-group">
+        <p class="nav-group-label" aria-hidden="true">{{ group.label }}</p>
+        <button
+          v-for="item in group.items"
+          :key="item"
+          class="nav-item"
+          :class="{ 'nav-item--active': active === item }"
+          :aria-current="active === item ? 'page' : undefined"
+          @click="emit('navigate', item)"
         >
-          <path :d="icons[item]" />
-        </svg>
-        {{ item }}
-        <span
-          v-if="item === '仪表盘' && alertCount > 0"
-          class="badge"
-        >{{ alertCount > 99 ? "99+" : alertCount }}</span>
-      </button>
+          <svg
+            class="nav-icon"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path :d="icons[item]" />
+          </svg>
+          {{ item }}
+          <span
+            v-if="item === '仪表盘' && alertCount > 0"
+            class="badge"
+          >{{ alertCount > 99 ? "99+" : alertCount }}</span>
+        </button>
+      </div>
     </nav>
 
     <div class="nav-foot">
@@ -109,7 +117,14 @@ const icons: Record<PageName, string> = {
 }
 .brand-latin { display: block; font-size: var(--text-xs); color: var(--color-text-muted); font-weight: 400; }
 
-.nav { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.nav { flex: 1; display: flex; flex-direction: column; gap: var(--space-4); }
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
+.nav-group-label {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
 .nav-item {
   appearance: none;
   border: none;
@@ -193,6 +208,8 @@ const icons: Record<PageName, string> = {
     overflow-x: auto;
     gap: var(--space-1);
   }
+  .nav-group { flex-direction: row; align-items: center; gap: var(--space-1); }
+  .nav-group-label { display: none; } /* 窄屏顶条保持平铺，分组不占横向空间 */
   .nav-item { width: auto; white-space: nowrap; padding: var(--space-2); }
   .nav-foot { grid-area: foot; margin-left: 0; padding: 0; }
   .nav-foot-time { display: none; }
