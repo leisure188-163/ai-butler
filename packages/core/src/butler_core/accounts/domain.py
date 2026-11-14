@@ -1,4 +1,4 @@
-"""账户域（A2-11）：Provider / Account 集合 / 凭据事实。
+"""账户域（A2-04）：Provider / Account 集合 / 凭据事实。
 
 多账号（ADR-010）：一 Provider 挂 N 个 Account，身份 = (provider, account_key)；
 凭据/权益/会话全部挂 account_id。凭据明文载体 Secret 与保险库引用也在本域
@@ -16,7 +16,7 @@ from butler_core.shared.health_level import HealthLevel, credential_level
 from butler_core.shared.time import now_utc
 
 DEFAULT_ACCOUNT_KEY = "main"
-EXPIRING_WINDOW_DAYS = 3  # CREDENTIAL_EXPIRING 预警窗（旧值不变，A2-14 §2）
+EXPIRING_WINDOW_DAYS = 3  # CREDENTIAL_EXPIRING 预警窗（旧值不变，A2-07 §2）
 
 
 class AccountInvalid(DomainError):

@@ -124,7 +124,7 @@ Base：`https://www.doubao.com`
 
 ## 7. 用量取证（2026-11-12，M2 真机只读 spike，客户端 2.36.6 / Windows）
 
-> M2-用量取证清单 §4 四项全落；只读取证（detail/quota-records 只读试探、
+> 01-M2-用量取证清单 §4 四项全落；只读取证（detail/quota-records 只读试探、
 > CDP DOM 只读、IndexedDB 拷读），Cookie 现取未持久化。注：取证当日客户端
 > 已从 2.35.8 自动更新至 2.36.6，请求形状无变化。
 

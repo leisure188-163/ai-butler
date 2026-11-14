@@ -42,7 +42,7 @@ def claim_window(now: datetime, refresh_at: str = "00:00") -> str:
 
 
 class TriggerKind(StrEnum):
-    """触发器三型（A2-15 §2）：只发起 Run，业务判断全在用例层。"""
+    """触发器三型（A2-08 §2）：只发起 Run，业务判断全在用例层。"""
 
     CRON = "cron"
     EVENT = "event"

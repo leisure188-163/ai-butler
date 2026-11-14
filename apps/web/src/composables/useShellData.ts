@@ -1,5 +1,5 @@
 /**
- * 数据源域（conventions/04 §2.4，业务子域分包 2026-11-14）：
+ * 数据源域（conventions/4 §2.4，业务子域分包 2026-11-14）：
  * 壳的五个端点编排（loadAll）与聚合派生（todayDone / alertCount）。
  * radar / openapi 的容错已内置于 api 层（永不 throw），此处不重复 catch；
  * 四个主端点任一失败 → loadError（文案逐字保留）。

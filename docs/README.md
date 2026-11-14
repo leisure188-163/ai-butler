@@ -6,8 +6,8 @@
 ## 推荐阅读顺序（按架构与设计先后）
 
 1. **进场**：本 `README.md` → `STATUS.md`（当前在哪、下一步做什么）→ `DESIGN-DECISIONS.md`（审美基线）
-2. **规范（写代码前必读）**：`conventions/00`（变量入口）→ `02`（红线）→ `03`（命名文案）→ `04`（文件组织）→ `08`（提交信息）
-3. **架构与设计**：`specs/architecture/`（A1-01 定位 → A1-02 一核多端 → A1-03 命名与语言 → A1-04 网页会话 → A1-05 总设计）→ `specs/domain/`（A2-01 总纲 → A2-02 Connector → A2-03 网页捕获 → A2-11..15 五业务域）→ `specs/cross-cutting/`（A4-01 L0）→ `specs/application/`（A3-01 信息架构）→ `specs/legacy/`（A0-01 旧系统，仅参照）
+2. **规范（写代码前必读）**：`conventions/00`（变量入口）→ `01`（红线）→ `02`（命名文案）→ `03`（文件组织）→ `04`（提交信息）
+3. **架构与设计**：`specs/architecture/`（A1-01 定位 → A1-02 一核多端 → A1-03 命名与语言 → A1-04 网页会话 → A1-05 总设计）→ `specs/domain/`（A2-01 总纲 → A2-02 Connector → A2-03 网页捕获 → A2-04..08 五业务域）→ `specs/cross-cutting/`（A4-01 L0）→ `specs/application/`（A3-01 信息架构）→ `specs/legacy/`（A0-01 旧系统，仅参照）
 4. **决策记录**：`adr/`（ADR-001..013 + 模板，编号即时间/决策顺序）
 5. **操作与计划**：`guides/01`（环境与命令）→ `plans/`（交付计划）
 
@@ -18,16 +18,16 @@
 | `README.md` | 本文件：文档导航与阅读顺序 | — |
 | `STATUS.md` | 活页进度卡（多终端同步进度的唯一机制） | 当前现状 / 剩余挂账 / 已定决策 / 环境备忘 |
 | `DESIGN-DECISIONS.md` | 审美决策记录（verify 门禁必产物） | 产品名 / 主题 / IA / 可访问性 / 桌面端 |
-| `conventions/` | 强制开发规范（编号命名） | 00 项目配置（唯一变量入口）/ 01 规范模板 / 02 开发红线 / 03 命名与文案 / 04 代码文件组织 / 08 提交信息 / 规范索引 |
+| `conventions/` | 强制开发规范（编号命名） | 00 项目配置（唯一变量入口）/ 01 开发红线 / 02 命名与文案 / 03 代码文件组织 / 04 提交信息 / 05 规范模板 / 规范索引 |
 | `specs/architecture/` | 架构与产品规格 | A1-01 产品定位 / A1-02 一核多端 / A1-03 命名与语言 / A1-04 网页会话通道 / A1-05 按业务域重写总设计 |
-| `specs/domain/` | 领域设计 | A2-01 领域总纲 / A2-02 Connector 规范 / A2-03 网页捕获通道 / A2-11..A2-15 五业务域（accounts/execution/usage/health/scheduling） |
+| `specs/domain/` | 领域设计 | A2-01 领域总纲 / A2-02 Connector 规范 / A2-03 网页捕获通道 / A2-04..A2-08 五业务域（accounts/execution/usage/health/scheduling） |
 | `specs/cross-cutting/` | 横切设计 | A4-01 L0 底座设计 |
 | `specs/application/` | 应用/前端设计 | A3-01 信息架构与核心页面 |
 | `specs/legacy/` | 旧系统知识资产 | A0-01 旧系统知识资产（auto-signin-kit，非移植） |
 | `specs/README.md` | specs 入口：层级字母↔子目录映射 + 文档清单 + 阅读顺序 | A 前缀避开能力分层 L0~L7 |
 | `adr/` | 架构决策记录（一文件一决策，标题即结论） | ADR-001..013 + 模板 |
 | `guides/` | 操作指南 | 01 环境与命令 |
-| `plans/` | 交付计划 | 2026-11-14-butler-domain-rewrite（19 任务总账）/ M2-用量取证清单 |
+| `plans/` | 交付计划 | 02-2026-11-14-butler-domain-rewrite（19 任务总账）/ 01-M2-用量取证清单 |
 
 ## 治理规则
 

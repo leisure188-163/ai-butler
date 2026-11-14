@@ -15,21 +15,21 @@
 3. **动任何代码前**：读 `docs/specs/architecture/A1-05-按业务域重写总设计.md`
    （域图/包结构/多账号/阶段计划）+ `docs/specs/architecture/A1-02-一核多端落地.md`
 4. **写 core / 接入新应用**：读 `docs/specs/domain/A2-01-领域模型与动作模型.md`（总纲）
-   + 要写的那个域的分册 `docs/specs/domain/A2-11..A2-15`（accounts/execution/usage/
+   + 要写的那个域的分册 `docs/specs/domain/A2-04..A2-08`（accounts/execution/usage/
    health/scheduling）+ `docs/specs/domain/A2-02-Connector-规范.md`
 5. **碰凭据/事件/审计**：读 `docs/specs/cross-cutting/A4-01-L0-底座设计.md`
 6. **改 UI**：读 `docs/specs/application/A3-01-信息架构与核心页面.md` + `docs/DESIGN-DECISIONS.md`
 7. **想参考旧项目 auto-signin-kit**：先读 `docs/specs/legacy/A0-01-旧系统知识资产.md`（**必读**）
-8. **任何编码/review 前**：读 `docs/conventions/02-开发红线.md`（八条红线，违反 = 打回；
+8. **任何编码/review 前**：读 `docs/conventions/01-开发红线.md`（八条红线，违反 = 打回；
    含第 8 条「裁决必须回收 spec」）；
-   起名/写文案 → `docs/conventions/03-命名与文案规范.md`；
-   新增/改路由端点、新建代码文件 → `docs/conventions/04-代码文件组织与长度约束.md`
+   起名/写文案 → `docs/conventions/02-命名与文案规范.md`；
+   新增/改路由端点、新建代码文件 → `docs/conventions/03-代码文件组织与长度约束.md`
    （一业务域一模块，600 行硬上限门禁机检）
-9. **生成任何 git 提交信息前**：读 `docs/conventions/08-提交信息规范.md`
+9. **生成任何 git 提交信息前**：读 `docs/conventions/04-提交信息规范.md`
    （格式 `<type>:[<需求单号>]: <中文主题>`，钩子 `.githooks/commit-msg` 强制校验）
 10. **环境与命令**：读 `docs/guides/01-环境与命令.md`
 11. **语言/命名/文案**：读 `docs/specs/architecture/A1-03-命名与语言标准.md`——
-    用户可见词以 A1-03 §3 词表 v2 为准（强制规范收编在 conventions/03）
+    用户可见词以 A1-03 §3 词表 v2 为准（强制规范收编在 conventions/3）
 12. 遵守各规范中 ❌ 禁止项；不确定方向时先读对应设计文档，文档没有的 → 提问，别发明
 
 ## 会话纪律

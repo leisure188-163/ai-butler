@@ -1,7 +1,7 @@
 """动作执行用例（A2-01 §3 编排语义）：幂等键 / 时间预算 / dry_run 硬承诺 / 协议变更探测。
 
 触发器只负责"发起 Run"，所有业务判断都在这里（A2-01 §4）。
-（自 application/usecases.py 按用例边界分出——conventions/04 §2.3，2026-11-14。）
+（自 application/usecases.py 按用例边界分出——conventions/4 §2.3，2026-11-14。）
 """
 
 from __future__ import annotations

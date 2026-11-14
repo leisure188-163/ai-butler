@@ -7,7 +7,7 @@
 - 名称：**Butler**，产品名「**AI 智能助手管家**」；产品名本身即定位句，
   不再维护第二行句式；定位「通用 AI 助手管家」，策略广度优先
 - 命名与词表标准单源 [specs A1-03](specs/architecture/A1-03-命名与语言标准.md)，
-  强制收编见 [conventions/03](conventions/03-命名与文案规范.md)
+  强制收编见 [conventions/3](conventions/02-命名与文案规范.md)
 
 ## D2 · 主题定位
 

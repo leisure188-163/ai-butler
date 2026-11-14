@@ -24,7 +24,7 @@
 | [A4-01 L0 底座设计](docs/specs/cross-cutting/A4-01-L0-底座设计.md) | 凭据保险库 / 健康中心 / 事件总线与通知 / 审计 |
 | [A0-01 旧系统知识资产](docs/specs/legacy/A0-01-旧系统知识资产.md) | auto-signin-kit = 协议字典 + 验收基准（**非移植**）；带/不带清单 |
 | [design-decisions 设计决策](docs/design-decisions.md) | 品牌 / 主题 / IA / 可访问性 / 桌面端 |
-| [conventions 开发规范](docs/conventions/规范索引.md) | 00 项目配置（变量唯一入口）/ 02 开发红线 / 03 命名与文案 |
+| [conventions 开发规范](docs/conventions/规范索引.md) | 00 项目配置（变量唯一入口）/ 01 开发红线 / 02 命名与文案 |
 | [STATUS 进度卡](docs/STATUS.md) | 当前现状 / 里程碑 / 下一步 / 已定决策（每次会话开始先读） |
 
 ## 架构（一核多端）

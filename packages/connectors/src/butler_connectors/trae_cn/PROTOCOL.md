@@ -88,7 +88,7 @@ body  = 登录态 JSON：{ "token": <Cloud-IDE-JWT>, ... }
 
 ## 7. 用量取证（2026-11-12，M2 真机只读 spike，客户端 2.3.102035 / Windows）
 
-> M2-用量取证清单 §2 四项全落；只读取证（storage.json/state.vscdb 只读打开，
+> 01-M2-用量取证清单 §2 四项全落；只读取证（storage.json/state.vscdb 只读打开，
 > API 试探最小头一次），token/凭据未进任何记录。
 
 ### 7.1 API 用量接口（主通道，鉴权复用 M1 凭据链验证通过）

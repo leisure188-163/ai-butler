@@ -1,4 +1,4 @@
-"""执行域（A2-12）：Action / Run / 结果 / 幂等键 / 时间预算。
+"""执行域（A2-05）：Action / Run / 结果 / 幂等键 / 时间预算。
 
 依赖恒等式：只 import shared；Status 由 shared.results 单源，这里再导出是为了
 让旧调用形态 `from butler_core.execution.domain import Status` 仍成立。
@@ -78,7 +78,7 @@ class RunAlreadyFinished(DomainError):
 
 
 class BudgetExceeded(DomainError):
-    """时间预算耗尽：停止等待并如实上报，不静默截断（A2-12 §2）。"""
+    """时间预算耗尽：停止等待并如实上报，不静默截断（A2-05 §2）。"""
 
     def __init__(self, budget: timedelta) -> None:
         self.budget = budget

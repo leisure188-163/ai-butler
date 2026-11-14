@@ -1,5 +1,5 @@
 /**
- * 账户域动作（conventions/04 §2.4，业务子域分包 2026-11-14）：
+ * 账户域动作（conventions/4 §2.4，业务子域分包 2026-11-14）：
  * 导入（本机接入扫描）/ 领取（手动）/ 体检（R3 网页通道）/ 一键批量 / 勾选批量。
  *
  * 纪律：busyTarget/actionMsg 归本域（collectUsage 用 collecting，无跨域共享）；

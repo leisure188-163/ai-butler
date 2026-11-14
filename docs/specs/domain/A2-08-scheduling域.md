@@ -1,4 +1,4 @@
-# A2-15 · 调度域（scheduling）
+# A2-08 · 调度域（scheduling）
 
 > 状态：**生效 v1.0（2026-11-14）**　总纲：[A2-01](A2-01-领域模型与动作模型.md)
 > 用户词：**时间表**（Schedule）。本域回答"什么时候干什么"。
@@ -17,7 +17,7 @@ Trigger：
   cron       进程内调度器默认通道；系统级定时任务为兜底触发器（A2-01 §4）
   event      事件总线驱动（如 CREDENTIAL_EXPIRED → health.check）
   threshold  阈值 watcher（如 QUOTA_LOW → 通知/规则引擎）
-窗口（Window）：签到/领取窗口判定；幂等键的时间维度来源（A2-12 §2）
+窗口（Window）：签到/领取窗口判定；幂等键的时间维度来源（A2-05 §2）
 待办（Pending）：到期待办 = 窗口未跑 + is_attention 结果 + 即将到期凭据，
   聚合口径与 UI 角标一致（A1-03 §4）
 ```

@@ -1,4 +1,4 @@
-"""账户域端口（A2-11 §3）：端口随域走，废止全库单一 ports.py。"""
+"""账户域端口（A2-04 §3）：端口随域走，废止全库单一 ports.py。"""
 
 from __future__ import annotations
 

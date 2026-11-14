@@ -17,7 +17,7 @@
   6. 契约新鲜度 —— 重算 server openapi 指纹与 packages/sdk 记录比对
   7. 无空包残留 —— 改名/重构遗留的空包目录当场报错
   8. 文件长度上限 —— packages/apps/scripts 下代码文件 >600 行 FAIL
-     (conventions/04 §2.2: 超长文件 = 认知负载黑洞, 按 域/职责 拆分;
+     (conventions/4 §2.2: 超长文件 = 认知负载黑洞, 按 域/职责 拆分;
       排除 gen/ node_modules 等派生物; 文档不进本检查)
   9. 测试通过性 —— (--test) uv run pytest 跑根 pyproject testpaths 全量
      (core/engine/connectors/server) + web 端 vue-tsc 类型检查
@@ -341,7 +341,7 @@ def check_empty_packages(root: Path) -> list[str]:
     return fails
 
 
-FILE_HARD_LIMIT = 600  # 行（conventions/04 §2.2 硬上限；软警戒 400 归 review 把关）
+FILE_HARD_LIMIT = 600  # 行（conventions/4 §2.2 硬上限；软警戒 400 归 review 把关）
 _LENGTH_SCAN_SUFFIXES = ("*.py", "*.ts", "*.tsx", "*.vue", "*.js", "*.mjs")
 _LENGTH_EXCLUDE_PARTS = {
     "node_modules", ".venv", "__pycache__", "gen", "dist", "coverage", "build",
@@ -349,7 +349,7 @@ _LENGTH_EXCLUDE_PARTS = {
 
 
 def check_file_length(root: Path) -> list[str]:
-    """文件长度硬上限门禁（conventions/04）：代码文件 >600 行 FAIL。
+    """文件长度硬上限门禁（conventions/4）：代码文件 >600 行 FAIL。
 
     背景: api.py 单文件混堆 10 端点/4 业务域到 482 行——超长文件不是
     一次事故,是持续的管理债,人工 review 拦不住线性增长,必须机检。
@@ -370,7 +370,7 @@ def check_file_length(root: Path) -> list[str]:
                 if lines > FILE_HARD_LIMIT:
                     fails.append(
                         f"文件超长: {f.relative_to(root)} {lines} 行 > "
-                        f"{FILE_HARD_LIMIT}（conventions/04 §2.2，按域/职责拆分）"
+                        f"{FILE_HARD_LIMIT}（conventions/4 §2.2，按域/职责拆分）"
                     )
     return fails
 

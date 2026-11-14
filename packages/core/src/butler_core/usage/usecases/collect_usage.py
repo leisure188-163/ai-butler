@@ -2,7 +2,7 @@
 
 三段可空各存各的（快照/聚合/流水，record_id 幂等去重）；
 QUOTA_LOW 变更检测（记忆 = 上一帧快照），单家失败不拖累编排（不静默）。
-（自 application/usecases.py 按用例边界分出——conventions/04 §2.3，2026-11-14。）
+（自 application/usecases.py 按用例边界分出——conventions/4 §2.3，2026-11-14。）
 """
 
 from __future__ import annotations

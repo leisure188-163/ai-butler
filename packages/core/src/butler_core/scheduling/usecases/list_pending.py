@@ -1,7 +1,7 @@
-"""待办聚合用例（A2-15 §4）：is_attention 结果的 Run，新→旧、按账号去重。
+"""待办聚合用例（A2-08 §4）：is_attention 结果的 Run，新→旧、按账号去重。
 
 "什么算待处理" = core 谓词（端零映射，红线 2）；同一 (kind, account, 窗口)
-的待办只呈现一条（A2-15 §2 不变量 3）。
+的待办只呈现一条（A2-08 §2 不变量 3）。
 """
 
 from __future__ import annotations

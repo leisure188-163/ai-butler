@@ -13,18 +13,18 @@
 （apps 改 import、契约再生成、删旧包）。每阶段验收 = 新增测试全绿 + 门禁九项全绿。
 
 **Tech Stack:** Python 3 + uv workspace + pytest；契约 openapi-typescript（P6）；
-规范依据：A1-05（总设计）、A2-01（总纲）、A2-11..A2-15（域分册）、
-conventions/02（八条红线）、conventions/04（一域一模块 600 行）、conventions/08（提交格式）。
+规范依据：A1-05（总设计）、A2-01（总纲）、A2-04..A2-08（域分册）、
+conventions/2（八条红线）、conventions/4（一域一模块 600 行）、conventions/8（提交格式）。
 
 **执行纪律（每个 Task 都适用）：**
 
 1. TDD：先写失败测试 → 跑确认失败 → 最小实现 → 跑绿 → 提交
-2. 提交格式（conventions/08，钩子强制）：`<type>:[0]: <动词开头中文主题>`，
+2. 提交格式（conventions/8，钩子强制）：`<type>:[0]: <动词开头中文主题>`，
    单行 ≤100 字符、不加句号
 3. 每次 Task 收尾跑门禁：`python scripts/verify_project.py --project . --test` 九项全绿
 4. 新文件单文件 ≤600 行（硬上限）/ 400 行软警戒；一业务域一模块
 5. 禁止 import 旧 `kabao_core`（新代码独立自洽）；禁止从 auto-signin-kit 搬代码
-6. 核心规则出处：A2-01/A2-11..15 是实体与不变量的唯一事实源，本文只给落位与步骤
+6. 核心规则出处：A2-01/A2-04..15 是实体与不变量的唯一事实源，本文只给落位与步骤
 
 ---
 
@@ -91,7 +91,7 @@ PROTOCOL_CHANGED / ACCOUNT_HEALTH_CHANGED）；severity ∈ {silent, badge, push
 - Create: `packages/core/src/butler_core/accounts/domain.py`
 - Test: `packages/core/tests/butler_core/test_accounts_domain.py`
 
-**Step 1: 失败测试**（A2-11 §2 不变量逐条）：
+**Step 1: 失败测试**（A2-04 §2 不变量逐条）：
 
 ```python
 def test_account_identity_default_key(): ...
@@ -175,7 +175,7 @@ target 改为"应用 + 账号"编址。**Step 4:** PASS；门禁绿。
   （`SchedulerPort` / `TriggerRepoPort`）+ `usecases/list_pending.py`
 - Test: `packages/core/tests/butler_core/test_scheduling.py`
 
-**Step 1: 失败测试**（A2-15 §2 不变量）：窗口判定只在 scheduling；
+**Step 1: 失败测试**（A2-08 §2 不变量）：窗口判定只在 scheduling；
 event/threshold 触发器消费 shared 事件发起 Action；待办去重
 （同 (kind, account, 窗口) 只一条）。
 **Step 2-4:** FAIL → 移植旧 `schedule.py` + `list_pending.py` → PASS。
@@ -192,7 +192,7 @@ event/threshold 触发器消费 shared 事件发起 Action；待办去重
   （`UsageCollectorPort` / `UsageRepoPort`）+ `usecases/collect_usage.py`
 - Test: `packages/core/tests/butler_core/test_usage.py`
 
-**Step 1: 失败测试**（A2-13 §2）：样本必带 source 否则拒绝入账；样本只增不改；
+**Step 1: 失败测试**（A2-06 §2）：样本必带 source 否则拒绝入账；样本只增不改；
 `is_quota_low` / `forecast_exhaustion` 谓词输出与旧 `usage.py`（204 行）对齐
 （**移植后用旧实现的已知输入输出对做 oracle 测试**）；QUOTA_LOW 按账号隔离。
 **Step 2-4:** FAIL → 移植 → PASS。**Step 5:**
@@ -206,7 +206,7 @@ event/threshold 触发器消费 shared 事件发起 Action；待办去重
   （含 assess_account_health）
 - Test: `packages/core/tests/butler_core/test_health.py`
 
-**Step 1: 失败测试**（A2-14 §2）：分级是纯函数（同输入同输出）；预警窗常量
+**Step 1: 失败测试**（A2-07 §2）：分级是纯函数（同输入同输出）；预警窗常量
 随域迁入（旧 `vault.py` 常量值不变，oracle 对齐）；到期 N 天 → 对应事件；
 扫描失败如实上报不静默视为健康。
 **Step 2-4:** FAIL → 移植旧 `health.py` + `health_scan.py` → PASS。**Step 5:**

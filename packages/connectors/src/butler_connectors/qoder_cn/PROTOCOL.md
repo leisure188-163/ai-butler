@@ -138,7 +138,7 @@ Base：`https://openapi.qoder.com.cn`
 
 ## 7. 用量取证（2026-11-12，M2 真机只读 spike，客户端 0.4.8 / Windows）
 
-> M2-用量取证清单 §3 四项全落；只读取证（main.sqlite 拷副本只读、API 最小头
+> 01-M2-用量取证清单 §3 四项全落；只读取证（main.sqlite 拷副本只读、API 最小头
 > 一次），token/凭据未进任何记录。
 
 ### 7.1 API 用量接口（主通道，鉴权复用 M1 凭据链验证通过）

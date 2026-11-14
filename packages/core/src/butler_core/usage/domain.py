@@ -1,4 +1,4 @@
-"""用量域模型（A2-13）：三实体 + 阈值谓词 + 耗尽预测 + 逐调用样本。
+"""用量域模型（A2-06）：三实体 + 阈值谓词 + 耗尽预测 + 逐调用样本。
 
 按业务域分包后从 `butler_core/domain/usage.py` 移植语义，谓词与预测口径零改动。
 依赖恒等式：只 import shared（A1-05 §2）。
@@ -207,7 +207,7 @@ def forecast_exhaustion(
     return tuple(out)
 
 
-# --- 逐调用明细（A2-13 §2，R4 网关计量通道预留）---
+# --- 逐调用明细（A2-06 §2，R4 网关计量通道预留）---
 
 
 @dataclass(frozen=True)

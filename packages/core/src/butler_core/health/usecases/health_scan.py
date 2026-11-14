@@ -2,7 +2,7 @@
 
 分级谓词在 core 单源重算，时钟可注入（测试确定性）；
 事件 severity 按 A4-01 §2 分级（预警=徽标不 push，风险=push）。
-（自 application/usecases.py 按用例边界分出——conventions/04 §2.3，2026-11-14。）
+（自 application/usecases.py 按用例边界分出——conventions/4 §2.3，2026-11-14。）
 """
 
 from __future__ import annotations

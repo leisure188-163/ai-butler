@@ -1,6 +1,6 @@
 #!/bin/sh
 # 本仓库（butler）的提交信息强制校验：与 skill monorepo-scaffold 生成的钩子同源（除注释外逻辑一致）。
-# 根据：docs/conventions/08-提交信息规范.md；启用：git config core.hooksPath .githooks
+# 根据：docs/conventions/04-提交信息规范.md；启用：git config core.hooksPath .githooks
 #
 # 合法形式（单号必填，无关联需求占位 [0]）：
 #   <type>:[<需求单号>]: <主题>             例：feat:[0]: 提交信息钩子
@@ -17,7 +17,7 @@ esac
 
 fail() {
   echo "" >&2
-  echo "✗ 提交信息不符合规范（conventions/08 格式约定）" >&2
+  echo "✗ 提交信息不符合规范（conventions/8 格式约定）" >&2
   echo "  要求格式：<type>:[<需求单号>]: <中文主题>，单行、动词开头、≤100 字、不加句号" >&2
   echo "  type 取值：feat / fix / refactor / docs / chore / build / test" >&2
   echo "  需求单号：必填，无关联用 [0]（本仓库惯例）" >&2
@@ -32,7 +32,7 @@ fi
 
 rest=$(printf '%s' "$first" | sed -E 's/^(feat|fix|refactor|docs|chore|build|test)(\([a-zA-Z0-9_-]+\))?://')
 
-# 单号必填：] 后冒号可省，但必须有空格接主题（conventions/08：无关联用 [0]）
+# 单号必填：] 后冒号可省，但必须有空格接主题（conventions/8：无关联用 [0]）
 if printf '%s' "$rest" | grep -Eq '^\[[^][]+\]:? .+'; then
   subject=$(printf '%s' "$rest" | sed -E 's/^\[[^][]+\]:? //')
 else

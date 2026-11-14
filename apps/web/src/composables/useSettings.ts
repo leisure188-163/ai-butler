@@ -1,5 +1,5 @@
 /**
- * 设置域（conventions/04 §2.4，业务子域分包 2026-11-14）：
+ * 设置域（conventions/4 §2.4，业务子域分包 2026-11-14）：
  * 本机浏览器持久化（butler.settings.v1）+ 主题应用（<html data-theme>）+ 系统跟随。
  * 注意：THEME_NAMES 必须先于 loadSettings() 调用点声明（函数声明提升、const 不提升，
  * 否则 has() 进 TDZ 抛错被 try/catch 静默吞掉，存档主题永远回退 system）。

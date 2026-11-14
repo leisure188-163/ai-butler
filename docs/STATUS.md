@@ -50,7 +50,7 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
   加载期注册；默认 legacy 自映射；未知码显式抛 UnknownEngineCode（红线 5），
   用例层转 FAILED + evidence + PROTOCOL_CHANGED；严格字面匹配不归一。
   协议字面量七词（CLAIMED/ALREADY/FAILED/NO_AUTH/PENDING/EXPIRED/SKIPPED）
-  与旧系统 oracle 对齐，**永不改名**（两层词汇原则，收编 conventions/03 与 A1-03 §3）
+  与旧系统 oracle 对齐，**永不改名**（两层词汇原则，收编 conventions/3 与 A1-03 §3）
 - **ADR-003**：连接器 target 级端口路由
 - **ADR-004**：qoder 接入形状 = 声明式扩展（列表领取受限形状 / DPAPI+AES-GCM
   双层凭据 / 机器身份头组 kind 化 / 静默陷阱显式化 = FAILED + repair_hint）
@@ -84,7 +84,7 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 - **docs 体系**：设计文档入 specs/ 分层子目录，强制规范入 conventions/
   （00-项目配置为唯一变量入口），决策入 adr/；STATUS.md 代替 TODO.md（避免双源）；
   specs 文件命名 `A{层级}-{NN}{分册字母}-{主题}.md`
-- **文件组织与长度**（conventions/04）：一业务域 = 一模块 = 一文件（路由按
+- **文件组织与长度**（conventions/4）：一业务域 = 一模块 = 一文件（路由按
   accounts/apps/runs/usage 分域，api.py 纯聚合器）；代码文件软警戒 400 行 /
   **硬上限 600 行门禁机检**（verify 第八项，packages/apps/scripts 下
   py/ts/tsx/vue/js/mjs，gen 等派生物除外；文档不进机检）；
@@ -110,7 +110,7 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 - pnpm-lock.yaml 已提交，CI 用 `--frozen-lockfile`
 - 提交信息规范接入提交钩子三件套 `.githooks/commit-msg` +
   `scripts/install_hooks.py` + `scripts/setup_hooks.cjs`（pnpm postinstall 自动
-  启用），规范正文 `conventions/08-提交信息规范.md`。**v2.0.0 严格版（2026-11-12
+  启用），规范正文 `conventions/04-提交信息规范.md`。**v2.0.0 严格版（2026-11-12
   起，与 cross-platform-arch skill 同源）**：单号必填（无关联占位 `[0]`），
   超长/句号结尾钩子强制拒绝
 - 契约指纹：`generate.mjs` 与 verify 都是

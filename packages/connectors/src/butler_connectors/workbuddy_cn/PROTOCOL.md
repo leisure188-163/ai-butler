@@ -107,7 +107,7 @@ NO_AUTH 演练走 :8011 第二实例 + `WORKBUDDY_AUTH_FILE` 覆盖，真凭据�
 
 ## 7. 用量取证（2026-11-12，M2 真机只读 spike，WorkBuddy 5.9.3 / CodeBuddy CN 4.12.3 / Windows）
 
-> M2-用量取证清单 §5 四项全落；只读取证（API 最小头试探，M1 凭据链原样
+> 01-M2-用量取证清单 §5 四项全落；只读取证（API 最小头试探，M1 凭据链原样
 > 复用——$wbEncrypted 信封解链一次通过），token/凭据未进任何记录。
 
 ### 7.1 额度主通道：get-user-resource = 85 包分账本（额度雷达全量输入）
