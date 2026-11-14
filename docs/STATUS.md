@@ -44,9 +44,13 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 ## 剩余挂账
 
 - **R3 网页会话通道余项**：Claude 最小 cookie 名单补证（本机无登录态，换环境取证；
-  2026-11-14 mac 复核：双 Chrome profile 均无 claude.ai cookie）；
-  mac v10 密文前 16B 段结构未定论（确定性相关、非 sha256/hmac，完整性验证挂账）。
+  2026-11-14 mac 复核：双 Chrome profile 均无 claude.ai cookie）。
 - **npm org 创建** `butler`（网页交互，发布前做；A1-03 §6 口径）。
+
+> mac v10 密文前 16B 段挂账**已闭环**（2026-11-14 真机 528/528，A1-04 §4.1-8）：
+> 单条 CBC 链，头 32B = sha256(host_key) 域绑定标签（91 host = 91 seg、跨
+> profile 恒定），「16B IV」实为链第二块；前缀切法输出 = 载荷 = cookie 真值；
+> `verify_mac_cookie_header` 落地 capture 层完整性校验。
 
 > 连接器多 profile 取证**六家全定论**（A2-02 §9，2026-11-14 mac）：桌面四家
 > （trae/qoder/doubao/workbuddy）均单账号实证（doubao = app 级单实例锁，

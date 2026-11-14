@@ -275,11 +275,13 @@ def decrypt_chromium_cookie(blob: bytes, key: bytes, *, gcm: bool) -> bytes:
             raise ValueError(f"cookie GCM 解密失败（钥匙或密文不符）: {exc}") from exc
     if len(key) != _CBC_KEY_LEN:
         raise ValueError(f"mac cookie 钥匙应为 16 字节，得 {len(key)}")
-    # mac CBC 双形状（A2-03 §1 真机取证 2026-11-13）：
-    # - 经典：体 = 密文，IV 固定 16 空格（Chromium 旧版文档形状）
-    # - 前缀：体 = 16B 未定论段 + 16B 真 IV + 密文（本机 Chrome 全量 528/528 实证；
-    #   首段与明文值呈确定性相关，结构未定论，完整性验证挂账）
-    # 两种形状补位都可能有效（CBC 链尾数学一致），只有明文可 UTF-8 能区分。
+    # mac 形状定论（A1-04 §4.1-8，2026-11-14 真机闭环 528/528）：
+    # 体 = E(IV=16空格, sha256(host_key)[:32] ‖ PKCS7(value))——单条 CBC 链，
+    # 头 32B = 域绑定完整性标签。因此：
+    # - 经典切法（IV=空格、体全解）必败：头 32B 是二进制哈希，UTF-8 过不了
+    # - 「前缀」切法（IV=体[16:32]、密文=体[32:]）= 跳过头的载荷链——
+    #   输出即 cookie 真值（CBC 链式延续的数学必然，非独立形状）
+    # - 完整性可验：体[:32] 解密 == sha256(host_key)，browser.py 捕获层落地校验
     fallback: bytes | None = None
     for iv, ct in ((b" " * _CBC_KEY_LEN, body), (body[16 : 2 * _CBC_KEY_LEN], body[2 * _CBC_KEY_LEN :])):
         if not ct or len(ct) % _CBC_KEY_LEN != 0:
@@ -301,6 +303,24 @@ def decrypt_chromium_cookie(blob: bytes, key: bytes, *, gcm: bool) -> bytes:
     if fallback is not None:
         return fallback
     raise ValueError("cookie 解密失败（经典/前缀两种形状均不符——钥匙或形状已变）")
+
+
+def verify_mac_cookie_header(blob: bytes, key: bytes, host_key: str) -> bool:
+    """mac v10 cookie 域绑定头校验（A1-04 §4.1-8）：体[:32] 解密 == sha256(host_key)。
+
+    单条 CBC 链（IV=16 空格）的头 32B = sha256(host_key)——不符 = 钥匙错位或
+    库形状已变，capture 层据此显式落榜。形状短于两块/非 v10 = False（调用方
+    决定语义），真机全量 528/528 通过。
+    """
+    import hashlib
+
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    if not blob.startswith(_V10_MAGIC) or len(blob) < 3 + 2 * _CBC_KEY_LEN:
+        return False
+    dec = Cipher(algorithms.AES(key), modes.CBC(b" " * _CBC_KEY_LEN)).decryptor()
+    header = (dec.update(blob[3 : 3 + 2 * _CBC_KEY_LEN]) + dec.finalize())
+    return header == hashlib.sha256(host_key.encode("utf-8")).digest()
 
 
 def load_browser_cookie(secret: Secret) -> dict[str, str]:

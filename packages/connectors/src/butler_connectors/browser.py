@@ -238,16 +238,25 @@ def _chrome_key(example_db: Path, *, key_provider=None, dpapi=None) -> tuple[byt
 
 
 def _capture_profile(db: Path, auth: AuthSpec, key: bytes, gcm: bool) -> str | None:
-    """单 profile 捕获：凑齐必需名单 → 信封 JSON；名单不齐 → None（换下一个 profile）。"""
-    from butler_connectors.unlock import decrypt_chromium_cookie
+    """单 profile 捕获：凑齐必需名单 → 信封 JSON；名单不齐 → None（换下一个 profile）。
+
+    mac 链（gcm=False）落地域绑定头校验（A1-04 §4.1-8）：头 32B 解密
+    ≠ sha256(host_key) = 钥匙错位/库形状已变 → ValueError 显式出账，不静默。
+    """
+    from butler_connectors.unlock import decrypt_chromium_cookie, verify_mac_cookie_header
 
     rows = _read_cookie_rows(db, auth.domain)
     wanted: dict[str, str | None] = {name: None for name in auth.cookies}
     expires: dict[str, int] = {}
-    for name, encrypted, legacy, expires_utc in rows:
+    for name, host_key, encrypted, legacy, expires_utc in rows:
         if name not in wanted or wanted[name] is not None:
             continue  # 每名只取首行（同名跨 host 的重复 cookie 无增量）
         if encrypted:
+            if not gcm and not verify_mac_cookie_header(encrypted, key, host_key):
+                raise ValueError(
+                    f"cookie {name!r}（host={host_key}）域绑定头不符——"
+                    "钥匙错位或库形状已变，重扫"
+                )
             plain = decrypt_chromium_cookie(encrypted, key, gcm=gcm)
             try:
                 wanted[name] = plain.decode("utf-8")
@@ -277,8 +286,9 @@ def _capture_profile(db: Path, auth: AuthSpec, key: bytes, gcm: bool) -> str | N
     )
 
 
-def _read_cookie_rows(db: Path, domain: str) -> list[tuple[str, bytes, str | None, int]]:
-    """cookie 行只读读取，两条路（A2-03 §2，2026-11-13 Windows 真机取证补）：
+def _read_cookie_rows(db: Path, domain: str) -> list[tuple[str, str, bytes, str | None, int]]:
+    """cookie 行只读读取（name, host_key, encrypted_value, value, expires_utc），
+    两条路（A2-03 §2，2026-11-13 Windows 真机取证补）：
 
     ①字节拷贝临时件 → 临时件只读查询（拷的是密文库，用后即删，绝不落明文）；
     ②活动库被浏览器锁死（Windows 真 Chrome：连 Python open 都 PermissionError，
@@ -291,7 +301,7 @@ def _read_cookie_rows(db: Path, domain: str) -> list[tuple[str, bytes, str | Non
     import sqlite3
 
     sql = (
-        "SELECT name, encrypted_value, value, expires_utc FROM cookies "
+        "SELECT name, host_key, encrypted_value, value, expires_utc FROM cookies "
         "WHERE host_key = ? OR host_key LIKE ?"
     )
     args = (domain, f"%.{domain}")
@@ -339,8 +349,8 @@ def _temp_copy_encrypted_db(db: Path) -> Path | None:
     return tmp
 
 
-def _query_rows(conn, sql: str, args: tuple) -> list[tuple[str, bytes, str | None, int]]:
-    return [(row[0], row[1], row[2], row[3]) for row in conn.execute(sql, args)]
+def _query_rows(conn, sql: str, args: tuple) -> list[tuple[str, str, bytes, str | None, int]]:
+    return [(row[0], row[1], row[2], row[3], row[4]) for row in conn.execute(sql, args)]
 
 
 def _webkit_to_iso(micros: int) -> str | None:

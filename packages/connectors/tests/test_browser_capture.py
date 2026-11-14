@@ -6,6 +6,7 @@ win GCM 链注入 DPAPI 替身；两态导入语义、每 profile 一账户槽�
 """
 
 import base64
+import hashlib
 import json
 import sqlite3
 import sys
@@ -48,12 +49,14 @@ def webkit_micros(dt: datetime) -> int:
     return int((dt - datetime(1601, 1, 1, tzinfo=UTC)).total_seconds() * 1_000_000)
 
 
-def cbc_seal(plain: bytes, key: bytes) -> bytes:
-    """mac 链加密（经典形状，与 decrypt_chromium_cookie(gcm=False) 互逆）：v10 + AES-128-CBC。"""
+def cbc_seal(plain: bytes, key: bytes, host: str = DOMAIN) -> bytes:
+    """mac 链真形状（A1-04 §4.1-8，2026-11-14 定论）：v10 + 单条 CBC 链——
+    明文 = sha256(host)[:32] ‖ PKCS7(plain)，IV = 16 空格（域绑定头随链加密）。"""
+    header = hashlib.sha256(host.encode()).digest()
     padder = PKCS7(128).padder()
     padded = padder.update(plain) + padder.finalize()
     enc = Cipher(algorithms.AES(key), modes.CBC(b" " * 16)).encryptor()
-    return b"v10" + enc.update(padded) + enc.finalize()
+    return b"v10" + enc.update(header + padded) + enc.finalize()
 
 
 def cbc_seal_prefixed(plain: bytes, key: bytes, junk: bytes = bytes(range(16))) -> bytes:
@@ -327,6 +330,39 @@ def test_capture_windows_missing_local_state(tmp_path, win_env, registry):
 
 
 # --- 机械 ---
+
+
+def test_verify_mac_cookie_header(tmp_path, mac_env):
+    """域绑定头校验（A1-04 §4.1-8）：真形状 → True；host 篡改/短形状 → False。"""
+    from butler_connectors.unlock import verify_mac_cookie_header
+
+    blob = cbc_seal(b"v", mac_env)
+    assert verify_mac_cookie_header(blob, mac_env, DOMAIN) is True
+    assert verify_mac_cookie_header(blob, mac_env, "evil.com") is False
+    assert verify_mac_cookie_header(b"v10" + bytes(20), mac_env, DOMAIN) is False  # 短形状
+    assert verify_mac_cookie_header(b"v11" + bytes(64), mac_env, DOMAIN) is False  # 非 v10
+
+
+def test_domain_header_mismatch_is_explicit_issue(tmp_path, mac_env, registry):
+    """头不符（host 与密文域绑定标签不一致）→ 显式出账，不静默入库（红线 5）。"""
+    from butler_connectors.unlock import verify_mac_cookie_header
+
+    # 行 host = 带点域（入库真实形状），但密文头按裸域构造 → 校验必败
+    db = tmp_path / "Chrome" / "Default" / "Cookies"
+    make_cookie_db(db, mac_rows(mac_env, {COOKIES[0]: (b"v-0", 0), COOKIES[1]: (b"v-1", 0)}))
+    # 重建：把行 host 改成 ".chatgpt.com"（仍命中 domain 过滤），密文头按裸域生成
+    import sqlite3 as sqlite3_mod
+
+    conn = sqlite3_mod.connect(db)
+    try:
+        conn.execute("UPDATE cookies SET host_key = ?", (f".{DOMAIN}",))
+        conn.commit()
+    finally:
+        conn.close()
+    outcome = _capture_via_registry(registry, str(tmp_path / "Chrome/*/Cookies"), MemVault())
+    assert outcome.accounts == []
+    assert outcome.issues and "域绑定头不符" in outcome.issues[0]
+    assert verify_mac_cookie_header(cbc_seal(b"x", mac_env, f".{DOMAIN}"), mac_env, f".{DOMAIN}")
 
 
 def test_mac_cbc_dual_shape_decrypt():
