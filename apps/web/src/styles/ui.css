@@ -49,15 +49,71 @@
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* ---- KPI 卡（v6 · 仪表盘速览）：数字是锚点，标签安静 ---- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.kpi {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.kpi-label {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.kpi-value {
+  margin: 0;
+  font-size: var(--text-3xl);
+  font-weight: 650;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kpi-value--sm { font-size: var(--text-xl); line-height: 1.45; }
+.kpi-value--ok { color: var(--color-ok-ink); }
+.kpi-value--attention { color: var(--color-attention-ink); }
+.kpi-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 22px;
+}
+@media (max-width: 1280px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ---- 面板与行 ----
-   容器一律 .sheet 细线框（浮板退役）；列表也可裸账本行；
+   容器一律 .sheet 细线框 + 轻阴影（v6：容器边界感回归，但保持安静——
+   无渐变无重阴影）；列表也可裸账本行；
    状态一律行尾结果徽（.tag），不再有圆点灯与印章。 */
 .sheet {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
 }
 .rows { list-style: none; margin: 0; padding: 0; }
 .row {

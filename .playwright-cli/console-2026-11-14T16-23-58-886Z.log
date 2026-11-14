@@ -1,0 +1,10 @@
+[     293ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:1
+[  177951ms] [WARNING] [Vue warn]: Property "lastLog" was accessed during render but is not defined on instance. 
+  at <DashboardPage accounts= [Object, Object, Object, Object, Object] apps= [Object, Object, Object, Object, Object, Object] runs= [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object]  ... > 
+  at <App> @ http://localhost:5173/node_modules/.vite/deps/vue.js?v=24634f96:2306
+[  180176ms] [WARNING] [Vue warn]: Property "lastLog" was accessed during render but is not defined on instance. 
+  at <DashboardPage accounts= [Object, Object, Object, Object, Object] apps= [Object, Object, Object, Object, Object, Object] runs= [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object]  ... > 
+  at <App> @ http://localhost:5173/node_modules/.vite/deps/vue.js?v=24634f96:2306
+[  180220ms] [WARNING] [Vue warn]: Property "lastLog" was accessed during render but is not defined on instance. 
+  at <DashboardPage accounts= [Object, Object, Object, Object, Object] apps= [Object, Object, Object, Object, Object, Object] runs= [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object]  ... > 
+  at <App> @ http://localhost:5173/node_modules/.vite/deps/vue.js?v=24634f96:2306

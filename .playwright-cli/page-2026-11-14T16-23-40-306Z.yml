@@ -1,0 +1,75 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: ASK
+      - generic [ref=e8]: 签到管理台
+    - menu [ref=e9]:
+      - group [ref=e10]:
+        - generic [ref=e11]: 总览
+        - menuitem "签到总览" [ref=e13]:
+          - img [ref=e14] [cursor=pointer]
+          - text: 签到总览
+      - group [ref=e20]:
+        - generic [ref=e21]: 签到运营
+        - generic [ref=e22]:
+          - menuitem "账户管理" [ref=e23]:
+            - img [ref=e24] [cursor=pointer]
+            - text: 账户管理
+          - menuitem "积分统计" [ref=e28]:
+            - img [ref=e29] [cursor=pointer]
+            - text: 积分统计
+          - menuitem "签到台账" [ref=e33]:
+            - img [ref=e34] [cursor=pointer]
+            - text: 签到台账
+          - menuitem "定时任务" [ref=e38]:
+            - img [ref=e39] [cursor=pointer]
+            - text: 定时任务
+      - group [ref=e42]:
+        - generic [ref=e43]: 系统
+        - generic [ref=e44]:
+          - menuitem "应用管理" [ref=e45]:
+            - img [ref=e46] [cursor=pointer]
+            - text: 应用管理
+          - menuitem "域配置" [ref=e57]:
+            - img [ref=e58] [cursor=pointer]
+            - text: 域配置
+          - menuitem "体检" [ref=e61]:
+            - img [ref=e62] [cursor=pointer]
+            - text: 体检
+          - menuitem "设置" [ref=e66]:
+            - img [ref=e67] [cursor=pointer]
+            - text: 设置
+    - generic [ref=e72]: "只绑 127.0.0.1数据来源: SQLite 台账"
+    - generic [ref=e74] [cursor=pointer]
+  - generic [ref=e79]:
+    - banner [ref=e80]:
+      - heading "签到总览" [level=1] [ref=e81]
+    - main [ref=e82]:
+      - generic [ref=e83]:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic: 今日已签
+                - generic: 0/0
+                - generic: 按各域台账当日成功行
+            - generic:
+              - generic:
+                - generic: 今日需关注
+                - generic: "0"
+                - generic: 登录过期/失败,需人工介入
+            - generic:
+              - generic:
+                - generic: 今日积分
+                - generic: "+0"
+                - generic: 最长连签 0 天
+            - generic:
+              - generic:
+                - generic: 下次自动
+                - generic: "-"
+                - generic: 已注册 0/0 个任务
+          - generic:
+            - heading "最近运行":
+              - heading "最近运行"
+            - generic: 还没有任何运行记录
+        - img "loading" [ref=e85]

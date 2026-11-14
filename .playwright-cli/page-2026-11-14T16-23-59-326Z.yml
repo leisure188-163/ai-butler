@@ -1,0 +1,64 @@
+- generic [ref=f1e3]:
+  - complementary [ref=f1e4]:
+    - generic [ref=f1e5]: AI 智能助手管家 Butler
+    - navigation "主导航" [ref=f1e7]:
+      - button "仪表盘 3" [ref=f1e8] [cursor=pointer]:
+        - text: 仪表盘
+        - generic [ref=f1e9]: "3"
+      - button "应用" [ref=f1e10] [cursor=pointer]
+      - button "账户" [ref=f1e11] [cursor=pointer]
+      - button "流量" [ref=f1e12] [cursor=pointer]
+      - button "日志" [ref=f1e13] [cursor=pointer]
+      - button "设置" [ref=f1e14] [cursor=pointer]
+    - generic [ref=f1e15]:
+      - button "刷新" [ref=f1e16] [cursor=pointer]
+      - generic [ref=f1e17]: 00:23
+  - main [ref=f1e18]:
+    - generic [ref=f1e19]:
+      - heading "2 项待处理" [level=1] [ref=f1e20]
+      - paragraph [ref=f1e21]: 处理完即可清静
+    - region "速览" [ref=f1e22]:
+      - heading "速览" [level=2] [ref=f1e23]
+      - list [ref=f1e24]:
+        - listitem [ref=f1e25]:
+          - generic [ref=f1e26]:
+            - paragraph [ref=f1e27]: 账户健康分布
+            - paragraph [ref=f1e28]:
+              - generic [ref=f1e29]: 正常 4
+              - generic [ref=f1e30]: 留意 1
+        - listitem [ref=f1e31]:
+          - paragraph [ref=f1e33]: 今日自动动作
+          - generic [ref=f1e34]: 3 完成 · 3 未完成
+        - listitem [ref=f1e35]:
+          - paragraph [ref=f1e37]: 流量
+          - generic [ref=f1e38]: 最近采集于 00:23，额度未见预警
+        - listitem [ref=f1e39]:
+          - paragraph [ref=f1e41]: 最近一条日志
+          - generic [ref=f1e42]: 11/15 00:16 · provision.run
+    - region "待办" [ref=f1e43]:
+      - heading "待办" [level=2] [ref=f1e44]
+      - complementary "待办" [ref=f1e45]:
+        - generic [ref=f1e46]:
+          - paragraph [ref=f1e47]: 已自动完成
+          - paragraph [ref=f1e48]: 今日已自动处理 自动巡检：0/1 正常
+        - generic [ref=f1e49]:
+          - paragraph [ref=f1e50]: 需要你处理（2）
+          - list [ref=f1e51]:
+            - listitem [ref=f1e52]:
+              - generic [ref=f1e53]:
+                - paragraph [ref=f1e54]: qoder_cn:main provision.run · qoder_cn
+                - paragraph [ref=f1e55]: 缺凭据 kind=dpapi_gcm_v10——重新停靠（dock）本机客户端后重试
+                - group [ref=f1e56]:
+                  - generic "查看详情" [ref=f1e57] [cursor=pointer]
+              - generic [ref=f1e58]: 留意
+              - button "领取" [ref=f1e59] [cursor=pointer]
+            - listitem [ref=f1e60]:
+              - generic [ref=f1e61]:
+                - paragraph [ref=f1e62]: claude_web:main health.check · claude_web
+                - paragraph [ref=f1e63]: 缺凭据 kind=browser_cookie——重新导入：浏览器登录后重扫（dock）
+                - group [ref=f1e64]:
+                  - generic "查看详情" [ref=f1e65] [cursor=pointer]
+              - generic [ref=f1e66]: 留意
+        - generic [ref=f1e67]:
+          - paragraph [ref=f1e68]: 即将到期（0）
+          - paragraph [ref=f1e69]: 暂无临期凭据。

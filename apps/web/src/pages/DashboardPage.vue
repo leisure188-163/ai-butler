@@ -72,8 +72,25 @@ const todayActions = computed(() => {
   };
 });
 
-const trafficGlance = computed(() => {
+const lastLog = computed(() => {
+  const first = props.runs[0];
+  return first ? `${fmtTime(first.started_at)} · ${first.kind}` : "—";
+});
+
+/* ---- KPI 卡（v6）：数字是锚点——健康/动作取数为主数字，流量/日志为文本卡 ---- */
+const healthyCount = computed(
+  () => props.accounts.filter((a) => a.signal === "ok").length,
+);
+const unwellCount = computed(
+  () => props.accounts.length - healthyCount.value,
+);
+const trafficMain = computed(() => {
   if (!props.radarRows.length) return "尚未采集";
+  const lowest = props.radarRows.find((r) => r.quota_low.length > 0);
+  return lowest ? `最低额度 ${lowest.account_id}` : "额度未见预警";
+});
+const trafficSub = computed(() => {
+  if (!props.radarRows.length) return "到「流量」页发起采集";
   const collected = props.loadedAt
     || props.radarRows
       .map((r) => r.collected_at ?? "")
@@ -81,23 +98,8 @@ const trafficGlance = computed(() => {
       .sort()
       .pop()
     || "—";
-  const lowest = props.radarRows.find((r) => r.quota_low.length > 0);
-  return `最近采集于 ${collected}，${lowest ? `最低额度 ${lowest.account_id}` : "额度未见预警"}`;
+  return `最近采集于 ${collected}`;
 });
-
-const lastLog = computed(() => {
-  const first = props.runs[0];
-  return first ? `${fmtTime(first.started_at)} · ${first.kind}` : "—";
-});
-
-const glanceRows = computed(() => [
-  { title: "账户健康分布", value: "" },
-  { title: "今日自动动作", value: todayActions.value.total
-    ? `${todayActions.value.done} 完成 · ${todayActions.value.undone} 未完成`
-    : "今日还没有动作" },
-  { title: "流量", value: trafficGlance.value },
-  { title: "最近一条日志", value: lastLog.value },
-]);
 </script>
 
 <template>
@@ -115,23 +117,45 @@ const glanceRows = computed(() => [
 
   <section class="section" aria-label="速览">
     <h2 class="section-title">速览</h2>
-    <ul class="rows sheet">
-      <li v-for="row in glanceRows" :key="row.title" class="row">
-        <span class="row-main">
-          <p class="row-title">{{ row.title }}</p>
-          <p v-if="row.title === '账户健康分布'" class="row-sub glance-tags">
-            <span
-              v-for="g in healthGroups"
-              :key="g.signal"
-              class="tag"
-              :class="`tag--${g.signal}`"
-            >{{ signalText(g.signal) }} {{ g.count }}</span>
-            <span v-if="!healthGroups.length" class="faint">—</span>
-          </p>
-        </span>
-        <span v-if="row.value" class="row-time glance-value">{{ row.value }}</span>
-      </li>
-    </ul>
+    <div class="kpi-grid">
+      <div class="kpi" aria-label="账户健康">
+        <p class="kpi-label">账户健康</p>
+        <p class="kpi-value" :class="unwellCount ? 'kpi-value--attention' : 'kpi-value--ok'">
+          {{ loading ? "—" : healthyCount }}<span
+            v-if="!loading"
+            class="kpi-total"
+          >/{{ props.accounts.length }}</span>
+        </p>
+        <p class="kpi-sub">
+          <span
+            v-for="g in healthGroups"
+            :key="g.signal"
+            class="tag"
+            :class="`tag--${g.signal}`"
+          >{{ signalText(g.signal) }} {{ g.count }}</span>
+          <span v-if="!healthGroups.length" class="faint">—</span>
+        </p>
+      </div>
+      <div class="kpi" aria-label="今日自动动作">
+        <p class="kpi-label">今日自动动作</p>
+        <p class="kpi-value">{{ todayActions.total ? todayActions.done : "0" }}</p>
+        <p class="kpi-sub">
+          {{ todayActions.total
+            ? `${todayActions.undone} 未完成 · 共 ${todayActions.total}`
+            : "今日还没有动作" }}
+        </p>
+      </div>
+      <div class="kpi" aria-label="流量">
+        <p class="kpi-label">流量</p>
+        <p class="kpi-value kpi-value--sm">{{ trafficMain }}</p>
+        <p class="kpi-sub">{{ trafficSub }}</p>
+      </div>
+      <div class="kpi" aria-label="最近日志">
+        <p class="kpi-label">最近一条日志</p>
+        <p class="kpi-value kpi-value--sm">{{ lastLog }}</p>
+        <p class="kpi-sub">完整记录见「日志」</p>
+      </div>
+    </div>
   </section>
 
   <section class="section" aria-label="待办">
@@ -149,7 +173,11 @@ const glanceRows = computed(() => [
 
 <style scoped>
 .head { padding-top: var(--space-2); }
-.glance-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-.glance-value { white-space: normal; }
+.kpi-total {
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: var(--color-text-faint);
+  margin-left: 2px;
+}
 .faint { color: var(--color-text-faint); }
 </style>
