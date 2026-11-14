@@ -232,6 +232,13 @@ class WorkbuddyProvisionPort(ProvisionPort):
             return self._recheck(endpoint, headers, deadline, status, credit=credit)
         if isinstance(payload, dict) and ("code" in payload or "msg" in payload):
             raw = payload.get("code")
+            if raw == 0 and 200 <= http < 300:
+                # 业务成功信封（与 status 同款 code=0 msg=OK data=载荷；2026-11-14 mac
+                # 真机取证补，PROTOCOL §4）：复查账本确认 CLAIMED/ALREADY
+                return self._recheck(
+                    endpoint, headers, deadline, status,
+                    via="领取请求受理（复查账本确认）",
+                )
             if raw is not None:
                 # Dialect decision ({"10001": ALREADY}): unknown codes → UnknownEngineCode (red line 5, use
                 # case layer FAILED + PROTOCOL_CHANGED, not silent fallback)

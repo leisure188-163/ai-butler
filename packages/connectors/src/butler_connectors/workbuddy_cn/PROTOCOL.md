@@ -54,7 +54,8 @@ Base：`https://copilot.tencent.com`（凭据 `auth.endpoint` 覆盖规则见 §
 | status `today_checked_in in (true, 1)` | **ALREADY** | 附 `streak_days` / `total_credits` 证据 |
 | claim 返回 `null` / HTTP 400 且 `code==10001` / msg 含「已签」 | **ALREADY** | 服务端判定已领——复查 status 取最新证据（复查失败用首次 status 兜底，不致命） |
 | claim 返回 `credit` | **CLAIMED** | 复查 status 组装连签/累计证据 |
-| claim 返回**其他** `code` | UnknownEngineCode 上抛 | 用例层 FAILED + PROTOCOL_CHANGED 事件（红线 5，禁静默兜底） |
+| claim 返回 `code==0` + `msg=="OK"`（2xx） | **复查账本定 CLAIMED/ALREADY** | **业务成功信封（2026-11-14 mac 真机取证补）**：与 status 同款信封形态（code=0 msg=OK data=载荷），无 credit 字段——复查 status 取最新证据，人话「领取请求受理（复查账本确认）」 |
+| claim 返回**其他** `code` | UnknownEngineCode 上抛 | 用例层 FAILED + PROTOCOL_CHANGED 事件（红线 5，禁静默兜底；code=0 但非 2xx 同此） |
 | TransportError（网络不可达/超时/响应非 JSON） | **FAILED** + evidence | transport 契约如实上报；调度高密度触发自然兜底 |
 | HTTP 5xx | **FAILED** + evidence | 服务端故障如实上报 |
 

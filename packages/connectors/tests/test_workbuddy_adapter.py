@@ -227,6 +227,29 @@ def test_claim_null_5xx_not_already(tmp_path, monkeypatch):
     assert "未识别的领取返回" in result.evidence[0].summary
 
 
+def test_claim_success_envelope_code0_rechecks(tmp_path, monkeypatch):
+    """业务成功信封（code=0 msg=OK，2026-11-14 mac 真机取证，PROTOCOL §4 补）：
+    无 credit 字段 → 复查账本确认，不误判 FAILED。"""
+    write_auth(tmp_path, monkeypatch, _PLAIN_TOKEN)
+    transport = FakeTransport([ok(_STATUS_OK), ok({"code": 0, "msg": "OK"}), ok(_STATUS_DONE)])
+    result = make_port(transport).run(request())
+    assert result.status is Status.ALREADY
+    assert "领取请求受理" in result.evidence[0].summary
+    assert "连续 3 天" in result.evidence[0].summary
+    assert len(transport.requests) == 3
+
+
+def test_claim_success_envelope_5xx_not_success(tmp_path, monkeypatch):
+    """code=0 但非 2xx：不视为成功信封 → 未知码显式上抛（红线 5，用例层转 FAILED）。"""
+    from butler_core.shared.results import UnknownEngineCode
+
+    write_auth(tmp_path, monkeypatch, _PLAIN_TOKEN)
+    with pytest.raises(UnknownEngineCode):
+        make_port(
+            FakeTransport([ok(_STATUS_OK), ok({"code": 0, "msg": "OK"}, status_code=502)])
+        ).run(request())
+
+
 def test_claim_400_10001_already(tmp_path, monkeypatch):
     write_auth(tmp_path, monkeypatch, _PLAIN_TOKEN)
     transport = FakeTransport(

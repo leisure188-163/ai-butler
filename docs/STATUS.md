@@ -52,6 +52,15 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 > profile 恒定），「16B IV」实为链第二块；前缀切法输出 = 载荷 = cookie 真值；
 > `verify_mac_cookie_header` 落地 capture 层完整性校验。
 
+**mac 真机签到调通批次（2026-11-14）**：六连接器真机领取全跑一遍——
+trae CLAIMED、doubao ALREADY（CDP 通道真机生效，连签 7 天幂等判定正确）、
+workbuddy ALREADY（连签 46 天；**修复 claim 成功信封识别**：上游 code=0/msg=OK
+无 credit 字段曾被误判 FAILED——决策表 §3 补行 + 2 测试，复查账本路径生效）；
+chatgpt_web 无签到动作（导入+健康卡），真机验证 ADR-011 落榜路径（Profile 1
+令牌已被浏览器清理 → 单槽如实）；claude_web 如实未登录。**遗留**：qoder_cn
+会话过期（status/usage 双 401，需客户端重登录后重导——外部状态非代码问题）；
+CLI `claim` 硬编码 `:main`，多账户卡领取入口待补（当前无实际影响）。
+
 ## 下一步（当前焦点）
 
 **R4 网关独立进程：架构裁决完成（ADR-012）+ mac 侧推理通道取证完成（2026-11-14）**：
