@@ -152,3 +152,20 @@ get-enterprise-user-usage 个人账号不适用未探）：
 WorkBuddy logs（daemon/AgentModelResolver 生命周期，无用量数据）；
 CodeBuddyExtension Data = IDE 会话缓存（check-point/file-tree/history/
 genie-cache），无用量文件。逐调用 tokens 双通道 UNSUPPORTED。
+
+## 9. 推理通道取证（2026-11-14，mac 资源串侧 · R4 G0）
+
+> 结论：**WorkBuddy 的推理通道 = 自带多 provider LLM 客户端（BYO-key），
+> 不是腾讯自有推理 API**——M1 会话凭据（workbuddy-desktop.info）是
+> credits/账户侧，与推理调用解耦。
+
+- app.asar 内嵌完整 LLM provider 矩阵：openrouter.ai/api/v1（最高频）、
+  ai-gateway.vercel.sh、bedrock、huggingface router、cloudflare gateway、
+  openai/v1、mistral 等——**标准 OpenAI-compatible 客户端形态**
+- 自定义模型配置面：`static.workbuddy.cn/connectors-config-v2/custom-model/
+  customModelSettings.json`（远程分发）
+- 自有业务域（凭据/账户侧）：`open.workbuddy.cn`（生产）、staging.*；
+  凭据刷新 `oneid/authz/wb/wecom/token/refresh`（企业微信 SSO）
+- 对反代（ADR-012）的含义：workbuddy 不适合做「反代上游」（它本身是
+  BYO-key 客户端）；其 credits 账本（85 包）管理的模型调用在自有云侧，
+  形状待真机网络观察

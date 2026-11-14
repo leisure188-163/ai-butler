@@ -129,3 +129,26 @@ usage_summary / 包分账本。
 - 结论：客户端**单登录态**，无多 profile 目录形状可枚举；多账号 = 无据
   （与 A2-02 §9 表一致，未取证不推断）
 - dock 扫描口径不变：`_scan_ss_aes` 首个现存候选获胜 → `main` 账号
+
+## 9. 推理通道取证（2026-11-14，mac 资源串侧 · R4 G0）
+
+> 结论：**推理通道形状清晰，反代上游候选一号**；真机网络观察与请求体
+> 形状待验（Windows/运行态侧），未取证不推断（红线 5）。
+
+- Agent 核心 = Rust `icube_server_rs/llm-client`（modules/ai-agent
+  libai_agent.dylib）：**自带多协议 LLM 路由器**——OpenAI 形
+  `/models/chat/completions`、`/v1/models`、Anthropic 形 `/v1/messages`
+  共存（provider 名单含 openrouter/openai/anthropic/aws/gemini）
+- 服务域：`api.trae.com.cn`（product.json `iCubeAgent`；账号面
+  `api.trae.cn` = M1 已通）
+- 端点串（libai_agent.dylib）：`api/ide/v1/llm_raw_chat`、
+  `api/ide/v2/llm_raw_chat`（**raw 模型调用**）、`api/ide/v1/chat`、
+  `api/ide/v1/get_model_list`、`api/agent/v3/llm_utils_chat`、
+  `api/agent/v3/workflow/start`；鉴权线索 `x-ide-token` 头
+- **响应自带逐调用 usage 结构**（NativeLLMUsage
+  prompt/completion/total_tokens + Anthropic input/output_tokens 双形）——
+  ADR-012 裁决 7（Meter 直读上游 usage）在本 provider 天然可行
+- 余额面：`api/v1/commercial/check_estimated_balance`、
+  `api/v1/commercial/get_session_usage`（Router 输入候选）
+- 流式：遥测键 `icube_ai_agent_model_llm_stream` 证实 SSE/流式存在；
+  请求体形状与头组待真机验证

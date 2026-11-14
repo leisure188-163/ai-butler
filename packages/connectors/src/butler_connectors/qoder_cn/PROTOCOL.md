@@ -185,3 +185,13 @@ account/usage 旁证一致）。
 - 结论：**单数据目录 = 单账号实证**；多账号形状（如按渠道/实例分目录）本机
   未出现，未取证不推断——glob 扩展点已在（多目录命中时逐目录扫，dock 现取首个）
 - 多开/多实例的凭据隔离未验证：保持 A2-02 §9 挂账口径
+
+## 9. 推理通道取证（2026-11-14，mac 资源串侧 · R4 G0）
+
+- 服务域：`api.qoder.com`（M1 Cosy v2 API 同域）；新见
+  `api.qoder.com/api/v1/cloud`（云工具链）、`qoder.com/product-service`
+- 自带 SSE 客户端栈（app.asar client/sse.js + sseKeepAlive.js）——流式
+  形态存在
+- **路径形状取证薄**：主 asar 为云工具链/CLI 运行时（下载/发布路径为主），
+  IDE 推理路径未在资源串中显式出现——推理端点形状待真机网络观察
+  （Windows/运行态），未取证不推断

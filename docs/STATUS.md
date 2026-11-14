@@ -54,13 +54,13 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 
 ## 下一步（当前焦点）
 
-**R4 网关独立进程：架构裁决已完成（[ADR-012](adr/ADR-012-R4网关独立进程八项架构裁决.md)，2026-11-14）**：
-进程内直调 core、HTTP 通信、凭据现用现取+TTL kind、随机 key 鉴权、Router
-最小集=优先级+故障转移、规则=声明式路由配置、Meter 优先读上游 usage 字段
-（逐调用 tokens 首次可得）、Python+FastAPI+httpx。任务书裁决点全勾
-（plans/02）。**下一会话动作 = G0 收尾**：推理通道取证 spike
-（plans/02 §3 四家 + web 两家范围裁决；多在 Windows 真机侧）——取证不全的
-provider 不开工（ADR-012 约束）；取证回收后按 G1-G6 开工。
+**R4 网关独立进程：架构裁决完成（ADR-012）+ mac 侧推理通道取证完成（2026-11-14）**：
+四家桌面连接器 PROTOCOL §9 已登记——**trae = 反代上游候选一号**
+（api.trae.com.cn + llm_raw_chat + x-ide-token + 响应自带 usage 结构 +
+check_estimated_balance）；workbuddy = BYO-key 客户端（不适合做上游）；
+qoder 域已定路径待网络观察；doubao CDP 驱动可行但发消息属写动作归 G5。
+**余项**：trae 请求体/头组/流式形状待 Windows 运行态验证；web 两家是否纳入
+反代首版待用户裁（plans/02 §3）。裁决 + 取证回收后按 G1-G6 开工。
 
 > 连接器多 profile 取证**六家全定论**（A2-02 §9，2026-11-14 mac）：桌面四家
 > （trae/qoder/doubao/workbuddy）均单账号实证（doubao = app 级单实例锁，
