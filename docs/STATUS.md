@@ -34,7 +34,6 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 
 ## 剩余挂账
 
-- **Gitee 远端改名** `ai-kabao`→`ai-butler`（用户手工；改完同步 `conventions/00` 远端值）。
 - **R3 网页会话通道余项**：Claude 最小 cookie 名单补证（本机无登录态，换环境取证）；
   mac v10 密文前 16B 段结构未定论（确定性相关、非 sha256/hmac，完整性验证挂账）。
 - **npm org 创建** `butler`（网页交互，发布前做；A1-03 §6 口径）。
@@ -91,9 +90,8 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 
 ## 环境备忘
 
-- 远端 origin = `git@gitee_hiclaw520_126:hiclaw_520/ai-kabao.git`（main；
-  2026-11-12 仓库已由 `ai-marina` 更名为 `ai-kabao`）。**Gitee 远端改名 `ai-kabao`→`ai-butler`
-  待用户手工（改完同步 conventions/00）**。
+- 远端 origin = `git@gitee_hiclaw520_126:hiclaw_520/ai-butler.git`（main；
+  2026-11-14 远端已由 `ai-kabao` 更名 `ai-butler`，本地 remote 同步完成）。
   推送口径（2026-11-12 起 SSH 别名直推）：远端 URL 必须用 `~/.ssh/config`
   别名 `gitee_hiclaw520_126`（hiclaw_520 账号专用钥匙）——裸 `git@gitee.com:`
   走默认钥匙（xiaoyaojiugui 账号）对 hiclaw_520 仓库报 Access denied；
