@@ -40,8 +40,6 @@ def check_manifest(root: Path, pkg: str) -> list[str]:
         "pyproject.toml", "pnpm-workspace.yaml", "package.json",
         f"packages/core/pyproject.toml",
         f"packages/core/src/{pkg}_core/__init__.py",
-        f"packages/core/src/{pkg}_core/domain/__init__.py",
-        f"packages/core/src/{pkg}_core/application/__init__.py",
         "apps/server/pyproject.toml",
         "apps/server/src/server/main.py",
         "apps/server/src/server/routes/__init__.py",
@@ -62,6 +60,19 @@ def check_manifest(root: Path, pkg: str) -> list[str]:
         ".env.example",  # docker-compose.yml 已删（2026-11-12）：postgres/JWT_SECRET
                          # 与 SQLite 单机架构漂移（M2 取证清单顺手项），非必需产物
     ]
+    # ADR-012：butler_core 按业务域分包（shared + 五域）；旧包仍是分层结构。
+    # 双包并存期按检出的包名走对应结构，删除旧包后只保留分支一。
+    core_dir = f"packages/core/src/{pkg}_core"
+    if pkg == "butler":
+        required += [
+            f"{core_dir}/{d}/__init__.py"
+            for d in ("shared", "accounts", "execution", "usage", "health", "scheduling")
+        ]
+    else:
+        required += [
+            f"{core_dir}/domain/__init__.py",
+            f"{core_dir}/application/__init__.py",
+        ]
     missing = [p for p in required if not (root / p).exists()]
     # 测试目录至少要有一个测试文件(具体文件名随业务命名,不硬编码)
     tests_dir = root / "packages/core/tests"
@@ -113,6 +124,37 @@ def check_dep_direction(root: Path) -> list[str]:
         for kw in ("apps/", "fastapi", "typer"):
             if f'"{kw}' in text:
                 fails.append(f"核心不得依赖任何端（packages/core/pyproject.toml 含 '{kw}'）")
+    return fails
+
+
+def check_domain_isolation(root: Path) -> list[str]:
+    """ADR-012 依赖恒等式机检：业务域 domain.py 只准 import shared。
+
+    域间编排必须经用例层组合端口；domain.py 直接 import 另一个业务域 = 边界失守。
+    """
+    core = root / "packages/core/src/butler_core"
+    if not core.is_dir():
+        return []
+    domains = {"accounts", "execution", "usage", "health", "scheduling"}
+    fails: list[str] = []
+    for name in sorted(domains):
+        path = core / name / "domain.py"
+        if not path.exists():
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            mods: list[str] = []
+            if isinstance(node, ast.ImportFrom) and node.module:
+                mods = [node.module]
+            elif isinstance(node, ast.Import):
+                mods = [a.name for a in node.names]
+            for mod in mods:
+                parts = mod.split(".")
+                if parts[0] == "butler_core" and len(parts) > 1 and parts[1] != "shared":
+                    fails.append(
+                        f"业务域边界违规: {path.relative_to(root)} import 了 {mod} "
+                        "——domain.py 只准依赖 shared（A1-05 §2）"
+                    )
     return fails
 
 
@@ -365,6 +407,7 @@ def main() -> int:
     fails += check_manifest(root, pkg)
     fails += check_core_purity(root, pkg)
     fails += check_dep_direction(root)
+    fails += check_domain_isolation(root)
     fails += check_hexagonal(root)
     fails += check_token_closure(root)
     fails += check_sdk_freshness(root)
