@@ -72,4 +72,4 @@ SQLite 仓储、事件总线落地、调度器这些适配器**需要被 server 
 
 - 多一个包与 bridge 装配纪律；端绕过 bridge 直 import 会被 verify 拦截，属预期
 - bridge 装配发生在 engine → engine 依赖 core，注意不要反向（check_dep_direction 兜底）
-- 本决策豁免流程走 R9：后续任何"端直连适配器"的需求须先记 design-decisions 再实施
+- 本决策豁免流程走 R9：后续任何"端直连适配器"的需求须先记 DESIGN-DECISIONS 再实施

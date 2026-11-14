@@ -46,7 +46,7 @@ def check_manifest(root: Path, pkg: str) -> list[str]:
         "apps/cli/pyproject.toml",
         "apps/web/package.json", "apps/web/vite.config.ts",
         "apps/web/src/styles/tokens.css",
-        "docs/design-decisions.md",   # 阶段 3.5 设计包流程的必产物(决策可追溯)
+        "docs/DESIGN-DECISIONS.md",   # 阶段 3.5 设计包流程的必产物(决策可追溯)
         "apps/desktop/main.py" if (root / "apps/desktop/main.py").exists()
         else "apps/desktop/main.js",
         "packages/sdk/generate.mjs",

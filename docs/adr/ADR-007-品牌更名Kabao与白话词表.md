@@ -11,7 +11,7 @@ level: must
 - **日期**：2026-11-12
 - **决策者**：hiclaw520 + AI
 - **关联**：[A1-03 品牌与业务语言标准](../specs/architecture/A1-03-品牌与业务语言标准.md)（唯一事实来源）、
-  A1-01（定位）、design-decisions D1/D2/D3、ADR-002（协议字面量不动）、conventions/03（词表收编）
+  A1-01（定位）、DESIGN-DECISIONS D1/D2/D3、ADR-002（协议字面量不动）、conventions/03（词表收编）
 
 ## 背景
 

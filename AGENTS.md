@@ -18,7 +18,7 @@
    + 要写的那个域的分册 `docs/specs/domain/A2-11..A2-15`（accounts/execution/usage/
    health/scheduling）+ `docs/specs/domain/A2-02-Connector-规范.md`
 5. **碰凭据/事件/审计**：读 `docs/specs/cross-cutting/A4-01-L0-底座设计.md`
-6. **改 UI**：读 `docs/specs/application/A3-01-信息架构与核心页面.md` + `docs/design-decisions.md`
+6. **改 UI**：读 `docs/specs/application/A3-01-信息架构与核心页面.md` + `docs/DESIGN-DECISIONS.md`
 7. **想参考旧项目 auto-signin-kit**：先读 `docs/specs/legacy/A0-01-旧系统知识资产.md`（**必读**）
 8. **任何编码/review 前**：读 `docs/conventions/02-开发红线.md`（八条红线，违反 = 打回；
    含第 8 条「裁决必须回收 spec」）；
@@ -36,5 +36,5 @@
 
 - 完成一个里程碑/步骤 → **更新 `docs/STATUS.md`**（这是多终端同步进度的唯一机制）
 - 架构裁决 → 追加 `docs/adr/`（`ADR-编号-结论式标题.md`），**同一提交内回收受影响的
-  spec**（红线 8）；审美裁决 → `docs/design-decisions.md`
+  spec**（红线 8）；审美裁决 → `docs/DESIGN-DECISIONS.md`
 - 新文档放哪 / 文档体系规则 → `docs/README.md`

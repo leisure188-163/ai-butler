@@ -1,36 +1,38 @@
 # docs · 文档导航
 
-> butler 的 docs 是一个有标准结构的仓库：conventions 管强制规范、specs 管设计、
-> adr 管决策、AGENTS.md（仓库根）管 AI 进场路由。
+> butler 文档按「规范 → 设计 → 决策 → 操作 → 计划」组织。本文件是导航，
+> 规则在 `conventions/`、设计在 `specs/`、决策在 `adr/`，AI 进场路由在仓库根 `AGENTS.md`。
 
-## 开发前必读
+## 推荐阅读顺序（按架构与设计先后）
 
-1. [`conventions/00-项目配置.md`](conventions/00-项目配置.md) — 唯一变量入口（项目名/包名/远端/门禁命令）
-2. [`conventions/02-开发红线.md`](conventions/02-开发红线.md) — 八条硬性红线，违反 = review 打回
-3. [`STATUS.md`](STATUS.md) — 活页进度卡：当前开发到哪、下一步做什么
+1. **进场**：本 `README.md` → `STATUS.md`（当前在哪、下一步做什么）→ `DESIGN-DECISIONS.md`（审美基线）
+2. **规范（写代码前必读）**：`conventions/00`（变量入口）→ `02`（红线）→ `03`（命名文案）→ `04`（文件组织）→ `08`（提交信息）
+3. **架构与设计**：`specs/architecture/`（A1-01 定位 → A1-02 一核多端 → A1-03 品牌 → A1-04 网页会话 → A1-05 总设计）→ `specs/domain/`（A2-01 总纲 → A2-02 Connector → A2-03 网页捕获 → A2-11..15 五业务域）→ `specs/cross-cutting/`（A4-01 L0）→ `specs/application/`（A3-01 信息架构）→ `specs/legacy/`（A0-01 旧系统，仅参照）
+4. **决策记录**：`adr/`（ADR-001..013 + 模板，编号即时间/决策顺序）
+5. **操作与计划**：`guides/01`（环境与命令）→ `plans/`（交付计划）
 
 ## 目录表
 
 | 目录/文件 | 职责 | 内容 |
 |---|---|---|
-| `conventions/` | 强制开发规范（编号命名） | 00 项目配置（唯一变量入口）/ 01 规范模板 / 02 开发红线 / 03 命名与文案 / 08 提交信息规范 / 规范索引 |
-| `specs/architecture/` | 架构与产品规格 | A1-01 产品定位与能力全景 / A1-02 一核多端落地 / A1-03 品牌与业务语言标准（词表单源）/ A1-05 按业务域重写总设计 |
-| `specs/domain/` | 领域设计 | A2-01 领域总纲与业务域地图 / A2-11..A2-15 五业务域分册（accounts/execution/usage/health/scheduling）/ A2-02 Connector 规范 |
+| `README.md` | 本文件：文档导航与阅读顺序 | — |
+| `STATUS.md` | 活页进度卡（多终端同步进度的唯一机制） | 当前现状 / 剩余挂账 / 已定决策 / 环境备忘 |
+| `DESIGN-DECISIONS.md` | 审美决策记录（verify 门禁必产物） | 品牌 / 主题 / IA / 可访问性 / 桌面端 |
+| `conventions/` | 强制开发规范（编号命名） | 00 项目配置（唯一变量入口）/ 01 规范模板 / 02 开发红线 / 03 命名与文案 / 04 代码文件组织 / 08 提交信息 / 规范索引 |
+| `specs/architecture/` | 架构与产品规格 | A1-01 产品定位 / A1-02 一核多端 / A1-03 品牌与语言 / A1-04 网页会话通道 / A1-05 按业务域重写总设计 |
+| `specs/domain/` | 领域设计 | A2-01 领域总纲 / A2-02 Connector 规范 / A2-03 网页捕获通道 / A2-11..A2-15 五业务域（accounts/execution/usage/health/scheduling） |
 | `specs/cross-cutting/` | 横切设计 | A4-01 L0 底座设计 |
 | `specs/application/` | 应用/前端设计 | A3-01 信息架构与核心页面 |
-| `specs/legacy/` | 旧系统知识资产 | A0-01 旧系统知识资产（auto-signin-kit = 协议字典 + 验收基准，**非移植**） |
-| `specs/README.md` | specs 入口：层级字母↔子目录映射 + 文档清单 | A 前缀避开能力分层 L0~L7 |
-| `adr/` | 架构决策记录（一文件一决策，标题即结论） | ADR-模板 |
+| `specs/legacy/` | 旧系统知识资产 | A0-01 旧系统知识资产（auto-signin-kit，非移植） |
+| `specs/README.md` | specs 入口：层级字母↔子目录映射 + 文档清单 + 阅读顺序 | A 前缀避开能力分层 L0~L7 |
+| `adr/` | 架构决策记录（一文件一决策，标题即结论） | ADR-001..013 + 模板 |
 | `guides/` | 操作指南 | 01 环境与命令 |
-| `plans/` | 交付计划 | M2-用量取证清单（R2 立项取证，待执行）；里程碑总账记于 STATUS.md / A1-01 §6 |
-| `scripts/` | 文档配套协作脚本 | — |
-| `STATUS.md` | 活页进度卡（多终端同步进度的唯一机制） | 当前现状 / 里程碑 / 下一步 / 已定决策 |
-| `design-decisions.md` | 审美决策记录（verify 门禁必产物） | 品牌 / 主题 / IA / 可访问性 / 桌面端 |
+| `plans/` | 交付计划 | 2026-11-14-butler-domain-rewrite（19 任务总账）/ M2-用量取证清单 |
 
 ## 治理规则
 
 - 单一事实来源；文档描述与实现不一致 → 先改文档再动代码
-- 架构裁决 → `adr/ADR-编号-结论式标题.md`；审美裁决 → `design-decisions.md`
+- 架构裁决 → `adr/ADR-编号-结论式标题.md`；审美裁决 → `DESIGN-DECISIONS.md`
 - 一份新文档不知道放哪：是"必须遵守的约束" → `conventions/`；是"一次决策及理由" → `adr/`；
   其余按用途：怎么做 → `guides/`；长什么样 → `specs/`；什么时候做 → `plans/`
 

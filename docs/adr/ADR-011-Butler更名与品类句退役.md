@@ -13,8 +13,9 @@ level: must
 - **关联**：取代 [ADR-007](ADR-007-品牌更名Kabao与白话词表.md) 的**品牌裁决部分**
   （其「两层词汇原则」继续有效）；[A1-03](../specs/architecture/A1-03-品牌与业务语言标准.md)
   v2（唯一事实来源）、[A1-02](../specs/architecture/A1-02-一核多端落地.md)、
-  ADR-009（IA 裁决继续有效）、design-decisions D1/D2、conventions/03 v3（词表收编）、
-  实施计划 `docs/superpowers/plans/2026-11-14-butler-repositioning-tasks.md`
+  ADR-009（IA 裁决继续有效）、DESIGN-DECISIONS D1/D2、  conventions/03 v3（词表收编）、
+  落地总设计 [A1-05](../specs/architecture/A1-05-按业务域重写总设计.md)（历史任务书
+  docs/superpowers/ 已于 2026-11-14 按用户清理要求删除）
 
 ## 背景
 
@@ -61,7 +62,8 @@ ADR-007 把品牌定为 Kabao（卡包）并采用市场白话词表 v1。实践
    机制、token 值、`THEME_NAMES` 内部值（paper/dark/warm）全不动。
 
 **明确排除项**：协议字面量与业务码字典不动；git 历史不改写；历史裁决文档
-（ADR-001..010、A0-01、docs/superpowers/ 历史任务书）保留原词，新文档标注取代关系；
+（ADR-001..010、A0-01）保留原词，docs/superpowers/ 历史任务书已于 2026-11-14 清理删除；
+新文档标注取代关系；
 API 语义零变化；本次不新增功能（新 IA 站稳后下一阶段立项）。
 
 ## 后果
