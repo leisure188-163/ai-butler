@@ -105,6 +105,67 @@
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* ---- 水位条（v6.2 · 流量 KPI 卡）：快照型数据用进度条不用时间序列 ---- */
+.meter {
+  height: 6px;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+.meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-chip);
+  background: var(--color-ok);
+  transition: width var(--motion-base) var(--ease-out);
+}
+.meter-fill--low { background: var(--color-attention); }
+
+/* ---- 签到日历条带（v6.2）：账户行 × 天列点阵（GitHub 条带风，内联零依赖） ---- */
+.cal-sheet { padding: var(--space-3) var(--space-4) var(--space-2); }
+.cal-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+}
+.cal-account {
+  flex: none;
+  width: 150px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-dots {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.cal-dot {
+  flex: 1;
+  height: 10px;
+  border-radius: 3px;
+  min-width: 0;
+}
+.cal-dot--ok { background: var(--color-ok); opacity: 0.85; }
+.cal-dot--fail { background: var(--color-attention); opacity: 0.85; }
+.cal-dot--none { background: var(--color-surface-2); }
+.cal-dot--today { outline: 1.5px solid var(--color-ink); outline-offset: 1px; }
+.cal-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0 var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.cal-legend .cal-dot { flex: none; width: 10px; height: 10px; }
+.cal-hint { margin-left: auto; color: var(--color-text-faint); }
+.cal-empty { padding: var(--space-2) 0; font-size: var(--text-sm); }
+
 /* ---- 面板与行 ----
    容器一律 .sheet 细线框 + 轻阴影（v6：容器边界感回归，但保持安静——
    无渐变无重阴影）；列表也可裸账本行；

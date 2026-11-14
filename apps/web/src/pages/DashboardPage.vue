@@ -77,6 +77,60 @@ const lastLog = computed(() => {
   return first ? `${fmtTime(first.started_at)} · ${first.kind}` : "—";
 });
 
+/* ---- 签到日历条带（v6.2）：账户行 × 近 30 天列，任一班次 ok = 绿——
+   连签/断签一眼化；数据 = ledger 真实 run，不编造（红线 2）---- */
+const CAL_DAYS = 30;
+
+const calDays = computed(() =>
+  Array.from({ length: CAL_DAYS }, (_, i) => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - (CAL_DAYS - 1 - i));
+    return d;
+  }),
+);
+
+const calRows = computed(() => {
+  const byAccount: Record<string, Record<string, "ok" | "fail">> = {};
+  for (const r of props.runs) {
+    if (r.kind !== "provision.run") continue;
+    const key = new Date(r.started_at).toDateString();
+    const row = (byAccount[r.account_id] ??= {});
+    if (r.signal === "ok" || row[key] !== "ok") {
+      row[key] = r.signal === "ok" ? "ok" : "fail";
+    }
+  }
+  const seen = new Set(Object.keys(byAccount));
+  const order = [
+    ...props.accounts.map((a) => a.account_id).filter((id) => seen.has(id)),
+    ...Object.keys(byAccount).filter((id) => !props.accounts.some((a) => a.account_id === id)),
+  ];
+  return order.map((id) => ({ account: id, cells: byAccount[id] }));
+});
+
+function calDotClass(
+  cells: Record<string, "ok" | "fail"> | undefined,
+  day: Date,
+): string {
+  const state = cells?.[day.toDateString()];
+  return state ? `cal-dot--${state}` : "cal-dot--none";
+}
+
+/* ---- 额度水位（v6.2）：流量 KPI 卡迷你水位条——最低活跃包 remaining/total ---- */
+const waterLevel = computed(() => {
+  let min: number | null = null;
+  for (const row of props.radarRows) {
+    for (const pkg of row.packages) {
+      if (pkg.total <= 0) continue;
+      const level = Math.max(0, Math.min(1, pkg.remaining / pkg.total));
+      if (min === null || level < min) min = level;
+    }
+  }
+  return min;
+});
+/* 低水位色随 core 谓词（quota_low），前端不自定阈值（红线 2） */
+const quotaLow = computed(() => props.radarRows.some((r) => r.quota_low.length > 0));
+
 /* ---- KPI 卡（v6）：数字是锚点——健康/动作取数为主数字，流量/日志为文本卡 ---- */
 const healthyCount = computed(
   () => props.accounts.filter((a) => a.signal === "ok").length,
@@ -148,12 +202,55 @@ const trafficSub = computed(() => {
       <div class="kpi" aria-label="流量">
         <p class="kpi-label">流量</p>
         <p class="kpi-value kpi-value--sm">{{ trafficMain }}</p>
+        <div
+          v-if="waterLevel !== null"
+          class="meter"
+          role="img"
+          :aria-label="`最低额度水位 ${Math.round(waterLevel * 100)}%`"
+        >
+          <span
+            class="meter-fill"
+            :class="quotaLow ? 'meter-fill--low' : ''"
+            :style="{ width: `${Math.max(4, Math.round(waterLevel * 100))}%` }"
+          />
+        </div>
         <p class="kpi-sub">{{ trafficSub }}</p>
       </div>
       <div class="kpi" aria-label="最近日志">
         <p class="kpi-label">最近一条日志</p>
         <p class="kpi-value kpi-value--sm">{{ lastLog }}</p>
         <p class="kpi-sub">完整记录见「日志」</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-label="签到日历">
+    <h2 class="section-title">近 30 天签到</h2>
+    <div class="sheet cal-sheet">
+      <div
+        v-for="row in calRows"
+        :key="row.account"
+        class="cal-row"
+      >
+        <span class="cal-account mono">{{ row.account }}</span>
+        <span class="cal-dots" role="img" :aria-label="`${row.account} 近 30 天签到点阵`">
+          <i
+            v-for="(day, i) in calDays"
+            :key="i"
+            class="cal-dot"
+            :class="[
+              calDotClass(row.cells, day),
+              { 'cal-dot--today': i === calDays.length - 1 },
+            ]"
+          />
+        </span>
+      </div>
+      <p v-if="!calRows.length" class="cal-empty faint">还没有领取记录——签到后这里会出现日历条带</p>
+      <div class="cal-legend">
+        <span class="cal-dot cal-dot--ok" /> 已签
+        <span class="cal-dot cal-dot--fail" /> 未成
+        <span class="cal-dot cal-dot--none" /> 未跑
+        <span class="cal-hint">右侧为今天</span>
       </div>
     </div>
   </section>

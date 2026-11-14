@@ -71,7 +71,7 @@ export function importAllApps(): Promise<ImportResult[]> {
 /* ---- 运行域 ---- */
 
 export function getRuns(): Promise<RunItem[]> {
-  return request<RunItem[]>(`${apiBase}/runs?limit=50`);
+  return request<RunItem[]>(`${apiBase}/runs?limit=200`);
 }
 
 export function getPending(): Promise<RunItem[]> {
