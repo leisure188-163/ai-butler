@@ -7,15 +7,15 @@ defineProps<{ runs: RunItem[] }>();
 
 <template>
   <header class="head">
-    <h1 class="page-title">记录</h1>
+    <h1 class="page-title">日志</h1>
     <p class="page-sub">操作台账——每次动作都留痕。</p>
   </header>
 
-  <section class="section" aria-label="领取记录">
+  <section class="section" aria-label="动作日志">
     <div v-if="runs.length" class="log-wrap sheet">
       <table class="log">
         <thead>
-          <tr><th>时间</th><th>动作</th><th>应用</th><th>账号</th><th>结果</th></tr>
+          <tr><th>时间</th><th>动作</th><th>应用</th><th>账户</th><th>结果</th></tr>
         </thead>
         <tbody>
           <tr v-for="run in runs" :key="run.id">
@@ -38,7 +38,7 @@ defineProps<{ runs: RunItem[] }>();
         </tbody>
       </table>
     </div>
-    <p v-else class="quietline">领取记录还是空白——领取类动作执行后会在这里留痕。</p>
+    <p v-else class="quietline">日志还是空白——领取类动作执行后会在这里留痕。</p>
   </section>
 </template>
 

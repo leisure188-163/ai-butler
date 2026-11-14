@@ -18,7 +18,7 @@ export function useShellData() {
   const loadError = ref("");
   const loadedAt = ref("");
   const serverInfo = ref<{ title: string; version: string } | null>(null);
-  /* 用量数据上收壳（矩阵额度列与用量页共用；radar 拉取失败静默为 []，不阻塞主数据） */
+  /* 流量数据上收壳（账户矩阵额度列与流量页共用；radar 拉取失败静默为 []，不阻塞主数据） */
   const radarRows = ref<RadarRow[]>([]);
   const usageLoadedAt = ref("");
 
@@ -57,7 +57,7 @@ export function useShellData() {
     if (info) serverInfo.value = info;
   }
 
-  /* 今日自动巡检一句话（待办栏/矩阵页头用）：体检类 runs 按本地自然日聚合 */
+  /* 今日自动巡检一句话（待办栏/仪表盘速览用）：体检类 runs 按本地自然日聚合 */
   const todayDone = computed(() => {
     const today = runs.value.filter((r) => r.kind === "health.check" && isToday(r.started_at));
     if (!today.length) return null;
@@ -68,7 +68,7 @@ export function useShellData() {
     };
   });
 
-  /* 提醒角标 = 待处理 + 非正常卡 + 即将到期凭据（条目数，不去重） */
+  /* 提醒角标 = 待处理 + 非正常账户 + 即将到期凭据（条目数，不去重） */
   const alertCount = computed(
     () =>
       pending.value.length +

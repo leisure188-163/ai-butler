@@ -5,6 +5,27 @@
 
 ## 一句话现状
 
+**六页 IA 阶段二收官（2026-11-14，[ADR-013](adr/ADR-013-六页信息架构.md)）**：
+四页（账号/用量/记录/设置）→ **六页（仪表盘/应用/账户/流量/日志/设置）**，
+仪表盘默认、待办栏迁入、导入归应用、领取归账户、角标挂仪表盘；重定向表 v2
+7 条旧链 + 运行中 hashchange 重写全过（`#/usage`/`#/log` 降级为旧链）；
+页名词表 v2 一次到位，主题显示名「纸墨/墨夜/暖纸」与关于节产品名回收阶段一
+遗留；`AccountsPage` 485 行 → 页头 76 行 + `MatrixTable.vue` 321 行。
+**影响面仅 `apps/web/src/` + 文档**：`api.ts` 零 diff，composables 仅注释/
+动作消息换词（数据接口不变），
+server/engine/connectors/sdk/mcp/desktop/cli 零 diff，OpenAPI 与
+openapi.sha256 零 diff。**验收**：vue-tsc 绿 + 门禁九项绿 + 505 tests 全绿；
+浏览器走查 server:8000 + Vite:5173（隔离 BUTLER_DB=/tmp 临时库）——
+六页 × 双断点（1440×900 / 375×812）× 三主题（纸墨/墨夜/暖纸）全过，
+7 条旧链重定向正确，一键导入（6）与 server apps=6 吻合、
+一键领取（0）/角标（无）与 accounts=0/pending=0 吻合，console 零错误；
+修掉窄屏顶条六项导航与品牌重叠（改两行网格 + 导航横向滚动）。
+历史任务书 T0→T11 全部完成（ADR-012 编号已被按业务域重写占用，裁决顺延
+ADR-013）。
+**剩余挂账**：① Gitee 远端改名 `ai-kabao`→`ai-butler`（用户手工，改完同步
+conventions/00）；② R3 的 Claude 登录态补证 / npm org 创建；
+③ 连接器多 profile 取证后展开「应用 → 账户」操作面（A2-02 §9）。
+
 **按业务域重写 P0-P6 全部完成（2026-11-14，ADR-012）**：`butler_core` 五业务域
 + shared 内核从零落地（端口随域走、依赖恒等式入门禁机检），`butler_engine` 按同
 域图重写，旧 `kabao_core/kabao_engine` 已删除；全库 six 包/CLI/env/db/存储键/
@@ -14,9 +35,7 @@ npm 包名统一 butler（仅 Gitee 远端改名待用户手工）；多账号�
 优先级 + vault 旧前缀装配期回写，运行时零 legacy 分支）；OpenAPI 契约已再生成、
 web vue-tsc 绿。**验收：全量测试 505 passed + 门禁九项全绿**。
 A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）。
-**剩余挂账**：① Gitee 远端改名 `ai-kabao`→`ai-butler`（用户手工，改完同步
-conventions/00）；② 六页 IA 阶段二（ADR-011 路线 A 既定，非本次范围）；
-③ R3 的 Claude 登录态补证 / npm org 创建。
+（原挂账「六页 IA 阶段二」已由 ADR-013 销账；当前挂账见置顶收官行。）
 
 **按业务域重写立项 + 文档换代 P0 完成（2026-11-14，ADR-012）**：盘点定位病根
 （core 未按业务域分包 + 裁决未回收 spec 导致文档漂移）后，用户六问裁决——
@@ -135,9 +154,11 @@ ALREADY 幂等回放/不存在账号 HTTP 404 显式转述附可用名单——�
 §6 回填；真失败码照旧显式抛）。验收数据垫料：本机三家真客户端导入
 （trae/qoder/workbuddy 进临时库）；doubao 因上述 bug 未导入
 （2026-11-13 重扫全链实证清账，见挂账 3）。
-**接下来：按业务域重写已收官**（实施计划 `docs/plans/2026-11-14-butler-domain-rewrite.md`
-19 个 Task 全部完成）。剩余挂账见置顶收官行：Gitee 远端改名（用户手工）、
-六页 IA 阶段二、R3 的 Claude 登录态补证 / npm org 创建。
+**接下来：按业务域重写 + 六页 IA 均已收官**（重写实施计划
+`docs/plans/2026-11-14-butler-domain-rewrite.md` 19 个 Task 全部完成；
+Butler 重定位任务书 T0→T11 全部完成）。剩余挂账见置顶收官行：
+Gitee 远端改名（用户手工）、R3 的 Claude 登录态补证 / npm org 创建、
+连接器多 profile 取证后的账户操作面。
 
 ## 里程碑
 

@@ -205,7 +205,7 @@
   display: inline-block;
 }
 
-/* ---- 矩阵表（行 = 账号；选中态后置以胜过 hover）---- */
+/* ---- 矩阵表（行 = 账户；选中态后置以胜过 hover）---- */
 .matrix { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .matrix th {
   text-align: left;

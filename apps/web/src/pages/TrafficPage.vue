@@ -1,13 +1,13 @@
 <script setup lang="ts">
 /**
- * 用量页（ADR-009 矩阵改版，原「额度雷达」改名换皮）：
- * 各家套餐余额、用量流水与耗尽预测，一页看全。
+ * 流量页（ADR-013 六页 IA；原用量页改名换词）：
+ * 各家账户余额、额度流水与耗尽预测，一页看全。
  *
  * 渲染纪律（红线 2）：余额/预测/流水都是 server 投影的 core 出产数据，
  * 页面不做语义加工——forecast 缺失（不足两帧差分）如实显示「采集中」；
  * quota_low 是 core 谓词（is_quota_low）出产的包名列表，只做布尔标记；
  * aggregate_summary 是连接器原话，折叠直渲染不重排。
- * 数据流改为壳下发（rows/collecting 由 App.vue 持有，轮询自动覆盖），本组件纯展示。
+ * 数据流：壳下发（rows/collecting 由 App.vue 持有，轮询自动覆盖），本组件纯展示。
  */
 import type { PackageRow, RadarRow } from "../types";
 import { faceOf, fmtTime } from "../utils";
@@ -23,7 +23,7 @@ defineProps<{
 
 const emit = defineEmits<{ refresh: []; collect: [] }>();
 
-/* ---- 展示辅助（纯格式化，不做语义决策）——自旧额度雷达页原样迁入 ---- */
+/* ---- 展示辅助（纯格式化，不做语义决策）---- */
 
 const numFmt = new Intl.NumberFormat("zh-CN");
 
@@ -58,8 +58,8 @@ function aggText(s: { [key: string]: unknown }): string {
   <header class="head">
     <div class="head-row">
       <div>
-        <h1 class="page-title">用量</h1>
-        <p class="page-sub">各家套餐余额、用量流水与耗尽预测。</p>
+        <h1 class="page-title">流量</h1>
+        <p class="page-sub">各家账户余额、额度流水与耗尽预测。</p>
       </div>
       <div class="head-actions">
         <span v-if="loadedAt" class="row-time">更新于 {{ loadedAt }}</span>
@@ -130,7 +130,7 @@ function aggText(s: { [key: string]: unknown }): string {
           </template>
         </div>
 
-        <!-- 历史耗尽包（remaining=0 的签到/裂变包）折叠收纳：数据如实全保留，默认不喧哗 -->
+        <!-- 历史耗尽包（remaining=0 的领取/活动包）折叠收纳：数据如实全保留，默认不喧哗 -->
         <details v-if="row.packages.some((p) => p.remaining <= 0)" class="fold history-fold">
           <summary>
             已耗尽的历史包（{{ row.packages.filter((p) => p.remaining <= 0).length }} 个）
@@ -172,7 +172,7 @@ function aggText(s: { [key: string]: unknown }): string {
     </article>
   </div>
   <p v-else-if="!loading" class="quietline">
-    还没有可观测的账号——先到「账号」页导入应用。
+    还没有可观测的账户——先到「应用」页导入。
   </p>
 </template>
 

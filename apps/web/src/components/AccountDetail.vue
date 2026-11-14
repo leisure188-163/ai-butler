@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * 账号详情面板（ADR-009 矩阵改版）：矩阵行下展开的体检明细。
- * 改自卡详情面板：去卡面，保留凭据清单/证据/repair_hint/能力驱动按钮。
+ * 账户详情面板（ADR-009 矩阵改版）：矩阵行下展开的体检明细。
+ * 保留凭据清单/证据/repair_hint/能力驱动按钮。
  * 动作按钮按能力矩阵渲染（AppOut.capabilities，端零映射）：
  * provision.run = 领取；health.check = 体检（R3 网页通道）。
  */
@@ -52,7 +52,7 @@ const hasHealth = computed(() => props.app?.capabilities.includes("health.check"
         <span class="tag" :class="`tag--${cred.signal}`">{{ signalText(cred.signal) }}</span>
       </li>
     </ul>
-    <p v-else class="quietline">该账号还没有凭据记录。</p>
+    <p v-else class="quietline">该账户还没有凭据。</p>
 
     <p v-if="account.evidence.length" class="detail-evidence">
       {{ account.evidence.join("；") }}
@@ -75,7 +75,7 @@ const hasHealth = computed(() => props.app?.capabilities.includes("health.check"
       >体检</button>
     </span>
   </div>
-  <p v-else class="detail-empty">在矩阵里点一行账号，看它的凭据与体检详情。</p>
+  <p v-else class="detail-empty">在矩阵里点一行账户，看它的凭据与体检详情。</p>
 </template>
 
 <style scoped>

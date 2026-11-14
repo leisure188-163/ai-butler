@@ -30,7 +30,7 @@ function onThemeChange(event: Event) {
         <label class="field-label" for="set-theme">主题</label>
         <select id="set-theme" class="input" :value="settings.theme" @change="onThemeChange">
           <option value="system">跟随系统</option>
-          <option value="paper">卡纸与墨（浅）</option>
+          <option value="paper">纸墨（浅）</option>
           <option value="dark">墨夜（深）</option>
           <option value="warm">暖纸（浅）</option>
         </select>
@@ -83,7 +83,7 @@ function onThemeChange(event: Event) {
     <div class="sheet">
       <div class="field">
         <span class="field-label">产品</span>
-        <span class="field-value">Butler（卡包）· AI 账号管家</span>
+        <span class="field-value">AI 智能助手管家（Butler）</span>
       </div>
       <div class="field">
         <span class="field-label">版本</span>

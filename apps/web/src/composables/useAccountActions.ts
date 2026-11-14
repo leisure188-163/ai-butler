@@ -1,5 +1,5 @@
 /**
- * 账号域动作（conventions/04 §2.4，业务子域分包 2026-11-14）：
+ * 账户域动作（conventions/04 §2.4，业务子域分包 2026-11-14）：
  * 导入（本机接入扫描）/ 领取（手动）/ 体检（R3 网页通道）/ 一键批量 / 勾选批量。
  *
  * 纪律：busyTarget/actionMsg 归本域（collectUsage 用 collecting，无跨域共享）；
@@ -27,7 +27,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
           ? `已导入：${imported.join("、")}` + (issues.length ? ` · ${issues.join("；")}` : "")
           : issues.length
             ? issues.join("；")
-            : "没有发现可导入的卡。",
+            : "没有发现可导入的应用。",
         tone: imported.length ? "ok" : "warn",
       };
     } catch (e) {
@@ -93,7 +93,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
-  /* 一键批量（R2 补）：导入全部未泊位 / 领取全部已泊位——选卡语义在 server，端只发起与转述 */
+  /* 一键批量（R2 补）：导入全部未接入 / 领取全部已接入——筛选语义在 server，端只发起与转述 */
   async function importAllApps() {
     busyTarget.value = "batch";
     actionMsg.value = { text: "正在扫描本机客户端…", tone: "ok" };
@@ -107,7 +107,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
       const text =
         [
           imported.length ? `已导入：${imported.join("、")}` : "",
-          empty.length ? `未发现卡：${empty.join("、")}` : "",
+          empty.length ? `未发现登录态：${empty.join("、")}` : "",
           ...issues,
         ]
           .filter(Boolean)
@@ -130,7 +130,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
 
   async function claimAllApps() {
     busyTarget.value = "batch";
-    actionMsg.value = { text: "正在逐张领取…", tone: "ok" };
+    actionMsg.value = { text: "正在逐个领取…", tone: "ok" };
     try {
       const rows = await api.claimAllRuns();
       const done = rows.filter((r) => r.signal === "ok").length;
@@ -141,8 +141,8 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
             `${r.target}：${r.status ?? "未终态"}${r.repair_reason ? `（${r.repair_reason}）` : ""}`,
         );
       const text = rows.length
-        ? `共发起 ${rows.length} 张，完成 ${done} 张` + (rest.length ? ` · ${rest.join(" · ")}` : "")
-        : "还没有已泊位的卡——先导入应用。";
+        ? `共发起 ${rows.length} 个账户，完成 ${done} 个` + (rest.length ? ` · ${rest.join(" · ")}` : "")
+        : "还没有已导入的应用——先到「应用」页导入。";
       actionMsg.value = { text, tone: rest.length ? "warn" : "ok" };
     } catch (e) {
       if (e instanceof api.ApiError) {
@@ -159,7 +159,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
-  /* 勾选批量领取（矩阵页）：逐个顺序执行（与 claim 单发同语义），结果如实逐条转述 */
+  /* 勾选批量领取（账户矩阵）：逐个顺序执行（与 claim 单发同语义），结果如实逐条转述 */
   async function claimMany(targets: string[]) {
     if (!targets.length) return;
     busyTarget.value = "batch";

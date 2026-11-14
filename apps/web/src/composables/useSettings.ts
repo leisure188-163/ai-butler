@@ -47,7 +47,7 @@ export function useSettings() {
     const resolved: Exclude<ThemeName, "system"> =
       pref === "system" ? (systemDark.matches ? "dark" : "paper") : pref;
     if (resolved === "paper") {
-      delete document.documentElement.dataset.theme; /* :root 即卡纸与墨 */
+      delete document.documentElement.dataset.theme; /* :root 即纸墨 */
     } else {
       document.documentElement.dataset.theme = resolved;
     }

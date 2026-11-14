@@ -10,14 +10,14 @@ defineProps<{
 
 const emit = defineEmits<{ navigate: [page: PageName]; refresh: [] }>();
 
-const navItems: PageName[] = ["账号", "用量", "记录", "设置"];
+/* ADR-013：六页平铺，仪表盘默认；角标挂仪表盘（「今天有事吗」的回答者） */
+const navItems: PageName[] = ["仪表盘", "应用", "账户", "流量", "日志", "设置"];
 </script>
 
 <template>
   <aside class="sidenav">
     <div class="brand">
       <span class="brand-name">AI 智能助手管家 <span class="brand-latin">Butler</span></span>
-      <span class="brand-line">AI 账号管家</span>
     </div>
 
     <nav class="nav" aria-label="主导航">
@@ -31,7 +31,7 @@ const navItems: PageName[] = ["账号", "用量", "记录", "设置"];
       >
         {{ item }}
         <span
-          v-if="item === '账号' && alertCount > 0"
+          v-if="item === '仪表盘' && alertCount > 0"
           class="badge"
         >{{ alertCount > 99 ? "99+" : alertCount }}</span>
       </button>
@@ -65,9 +65,8 @@ const navItems: PageName[] = ["账号", "用量", "记录", "设置"];
   padding: 0 var(--space-2);
   margin-bottom: var(--space-6);
 }
-.brand-name { font-size: var(--text-lg); font-weight: 650; }
+.brand-name { font-size: var(--text-lg); font-weight: 650; white-space: nowrap; }
 .brand-latin { font-size: var(--text-xs); color: var(--color-text-muted); font-weight: 400; }
-.brand-line { font-size: var(--text-xs); color: var(--color-text-faint); }
 
 .nav { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .nav-item {
@@ -124,22 +123,34 @@ const navItems: PageName[] = ["账号", "用量", "记录", "设置"];
 .nav-foot-time { color: var(--color-text-faint); font-size: var(--text-xs); }
 
 @media (max-width: 900px) {
+  /* 顶条两行网格：品牌+刷新一行，六项导航一行（窄屏横向滚动，不与品牌重叠） */
   .sidenav {
     position: static;
     height: auto;
     width: 100%;
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand foot"
+      "nav nav";
     align-items: center;
-    gap: var(--space-4);
+    gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
     border-right: none;
     border-bottom: 1px solid var(--color-border);
   }
-  .brand { margin-bottom: 0; padding: 0; }
-  .brand-line { display: none; }
-  .nav { flex-direction: row; align-items: center; }
-  .nav-item { width: auto; }
-  .nav-foot { margin-left: auto; padding: 0; }
+  .brand { grid-area: brand; margin-bottom: 0; padding: 0; }
+  .nav {
+    grid-area: nav;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    gap: var(--space-1);
+  }
+  .nav-item { width: auto; white-space: nowrap; padding: var(--space-2); }
+  .nav-foot { grid-area: foot; margin-left: 0; padding: 0; }
   .nav-foot-time { display: none; }
 }
 </style>

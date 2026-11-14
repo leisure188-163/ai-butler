@@ -13,7 +13,7 @@ type Contract = components["schemas"];
 
 export type Signal = "ok" | "notice" | "attention" | "danger" | "quiet";
 
-export type PageName = "账号" | "用量" | "记录" | "设置";
+export type PageName = "仪表盘" | "应用" | "账户" | "流量" | "日志" | "设置";
 
 /** signal 窄化包装：除 signal 外的形状全部继承契约 */
 type WithSignal<T> = Omit<T, "signal"> & { signal: Signal };
@@ -29,7 +29,7 @@ export type ImportResult = Contract["ImportOut"];
 export type EvidenceItem = Contract["EvidenceOut"];
 export type RunItem = WithSignal<Contract["RunOut"]>;
 
-/** 额度雷达（R2-E）：同样全部契约派生；quota_low 是 core 谓词出产的包名列表，UI 只做布尔渲染 */
+/** 流量数据（R2-E）：同样全部契约派生；quota_low 是 core 谓词出产的包名列表，UI 只做布尔渲染 */
 export type PackageRow = Contract["PackageQuotaOut"];
 export type ForecastRow = Contract["ForecastOut"];
 export type LedgerRow = Contract["LedgerEntryOut"];

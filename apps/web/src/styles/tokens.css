@@ -1,22 +1,22 @@
-/* 设计 token 唯一来源（红线 6）——「卡纸与墨 Cardstock & Ink」(design-decisions D2 v5)
-   2026-11-13 矩阵改版 v5（ADR-009）：去卡面装饰，中性工作台基底——
-   真比例卡面/压印卡号/金箔芯片/墨印章/卡扇动画退役；卡面身份色降级为
+/* 设计 token 唯一来源（红线 6）——「纸墨 Cardstock & Ink」(design-decisions D2 v5)
+   2026-11-13 矩阵改版 v5（ADR-009）：去拟物装饰，中性工作台基底——
+   真比例拟物/压印编号/金箔芯片/墨印章/扇面动画退役；身份色降级为
    AppBadge 小徽单色（--card-face-1..6 保留单值，渐变对待退役）；语义五色不变。
    语义五色只消费 core 出产的 signal 分类（红线 2），填充用 base、正文用 ink 档（白底 ≥4.5:1）。
-   多主题（D2 v5）：:root = 卡纸与墨（浅，默认），[data-theme="dark"] = 墨夜，[data-theme="warm"] = 暖纸；
+   多主题（D2 v5）：:root = 纸墨（浅，默认），[data-theme="dark"] = 墨夜，[data-theme="warm"] = 暖纸；
    覆盖块只覆写颜色类令牌，字体/字号/尺寸/动效天然继承。主题偏好由 App.vue 挂 <html data-theme>。 */
 :root {
   /* 纸与墨 */
   --color-bg: #f1f3f4;            /* 案面：冷纸灰 */
-  --color-surface: #ffffff;       /* 卡纸白 */
+  --color-surface: #ffffff;       /* 纸白 */
   --color-surface-2: #e8ebed;     /* 凹槽层 */
   --color-border: #d9dee1;        /* 纸绳线 */
   --color-ink: #182831;           /* 墨青——主文本与主按钮 */
   --color-text: var(--color-ink);
   --color-text-muted: #54646d;    /* 雾墨（白底 ≥4.5:1） */
   --color-text-faint: #84939b;    /* 仅装饰/占位，不承载正文 */
-  --color-accent: #8a5d14;        /* 卡面金·文本级（白底 ≈4.9:1）——品牌与激活态唯一彩 */
-  --color-accent-bright: #c89b3c; /* 金箔——仅卡面芯片/品牌符等装饰 */
+  --color-accent: #8a5d14;        /* 品牌金·文本级（白底 ≈4.9:1）——品牌与激活态唯一彩 */
+  --color-accent-bright: #c89b3c; /* 金箔——仅品牌符等装饰 */
   --color-accent-weak: rgba(200, 155, 60, 0.14);
   --color-on-ink: #ffffff;        /* 墨底（主按钮/徽标）上的文字色，随主题翻转 */
   --color-ink-strong: #223743;    /* 墨底 hover：再压一档 */
@@ -38,7 +38,7 @@
   --color-quiet-ink: #64737c;
   --color-quiet-weak: rgba(132, 147, 155, 0.16);
 
-  /* 卡面身份色（按应用分配，白字对比全部 ≥6:1）；单值 = AppBadge 小徽用（矩阵改版 v5） */
+  /* 应用身份色（按应用分配，白字对比全部 ≥6:1）；单值 = AppBadge 小徽用（矩阵改版 v5） */
   --card-face-1: #24466b;
   --card-face-2: #1f4a3d;
   --card-face-3: #3e3a5c;
@@ -74,7 +74,7 @@
   --space-10: 48px;
   --sidebar-w: 216px;
 
-  /* 深浅：唯一 indulgence 给卡，其余安静 */
+  /* 深浅：唯一 indulgence 给应用小徽，其余安静 */
   --shadow-card: 0 1px 2px rgba(23, 38, 48, 0.06), 0 10px 28px rgba(23, 38, 48, 0.1);
 
   /* 动效（按压反馈为主；prefers-reduced-motion 全归零） */
@@ -108,7 +108,7 @@ body {
 /* ---- 墨夜（深色）：墨青夜底 + 纸白文字 + 金箔提亮；语义五色整体提亮一档保深底对比 ---- */
 [data-theme="dark"] {
   --color-bg: #10181e;            /* 墨青夜底 */
-  --color-surface: #17222a;       /* 夜里卡纸 */
+  --color-surface: #17222a;       /* 夜里底色 */
   --color-surface-2: #1d2b34;     /* 凹槽层 */
   --color-border: #2b3b46;        /* 纸绳线 */
   --color-ink: #e8edf0;           /* 纸白——主文本与主按钮 */
@@ -137,7 +137,7 @@ body {
   --color-quiet-ink: #95a8b2;
   --color-quiet-weak: rgba(127, 147, 158, 0.2);
 
-  /* 卡面身份色：夜色下微提亮（白字对比仍 ≥6:1；AppBadge 小徽用） */
+  /* 应用身份色：夜色下微提亮（白字对比仍 ≥6:1；AppBadge 小徽用） */
   --card-face-1: #2f5580;
   --card-face-2: #28584a;
   --card-face-3: #4a4670;
@@ -152,14 +152,14 @@ body {
 /* ---- 暖纸（浅色护眼）：米黄纸底 + 暖墨；语义五色向暖压深半档保米底对比 ---- */
 [data-theme="warm"] {
   --color-bg: #f4ecdd;            /* 案面：米黄纸 */
-  --color-surface: #fbf6ea;       /* 暖卡纸 */
+  --color-surface: #fbf6ea;       /* 暖纸底色 */
   --color-surface-2: #ece1cb;     /* 凹槽层 */
   --color-border: #ded1b6;        /* 纸绳线 */
   --color-ink: #3a3226;           /* 暖墨——主文本与主按钮 */
   --color-text: var(--color-ink);
   --color-text-muted: #6e6049;    /* 暖雾墨（暖纸底 ≥4.5:1） */
   --color-text-faint: #9c8b6f;    /* 仅装饰/占位 */
-  --color-accent: #8a5d14;        /* 卡面金·文本级（暖纸底 ≈5:1） */
+  --color-accent: #8a5d14;        /* 品牌金·文本级（暖纸底 ≈5:1） */
   --color-accent-bright: #b98a2e;
   --color-accent-weak: rgba(185, 138, 46, 0.16);
   --color-on-ink: #fbf6ea;        /* 暖墨底上的暖纸白 */
@@ -181,7 +181,7 @@ body {
   --color-quiet-ink: #6d6148;
   --color-quiet-weak: rgba(148, 131, 106, 0.16);
 
-  /* 卡面身份色：跨主题保持一致（AppBadge 小徽用） */
+  /* 应用身份色：跨主题保持一致（AppBadge 小徽用） */
   --card-face-1: #24466b;
   --card-face-2: #1f4a3d;
   --card-face-3: #3e3a5c;

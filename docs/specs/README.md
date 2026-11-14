@@ -31,6 +31,6 @@
 | [A2-14](domain/A2-14-health域.md) | 健康域：健康分级 / 风险规则 / 到期扫描 / health_scan |
 | [A2-15](domain/A2-15-scheduling域.md) | 调度域：Trigger 三型 / 窗口 / 待办队列 / list_pending |
 | [A2-02](domain/A2-02-Connector-规范.md) | manifest / 三级扩展 / 声明式 schema / 沙箱 / PROTOCOL.md 模板 |
-| [A3-01](application/A3-01-信息架构与核心页面.md) | 侧边栏 IA / 页面规格（落地态）/ 组件结构 / 渲染纪律 |
+| [A3-01](application/A3-01-信息架构与核心页面.md) | **v2 六页 IA**（仪表盘/应用/账户/流量/日志/设置）/ 页面规格 / 组件结构 / 重定向表 v2 / 渲染纪律 |
 | [A4-01](cross-cutting/A4-01-L0-底座设计.md) | 凭据保险库 / 健康中心 / 事件总线与通知 / 审计 |
 | [A0-01](legacy/A0-01-旧系统知识资产.md) | auto-signin-kit = 协议字典 + 行为验收基准（**非移植**） |

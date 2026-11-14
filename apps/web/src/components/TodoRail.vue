@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 常驻待办栏（ADR-009 矩阵改版）：「AI 账号管家」叙事的落点。
+ * 常驻待办栏（ADR-013 迁入仪表盘）：「AI 智能助手管家」叙事的落点。
  * 三节聚合语义沿用旧提醒页口径（待处理/到期规则不发明新值）：
  * - 已自动完成：今日自动巡检一句话（数据由壳组装；系统只汇报真做过的动作）
  * - 需要你处理：pending runs + 人话原因 + 证据折叠 + 能力驱动的领取按钮
@@ -8,7 +8,7 @@
  * 空态诚实：「没有需要你操心的事。」
  */
 import { computed } from "vue";
-import type { AccountItem, CredentialItem, RunItem } from "../types";
+import type { AccountItem, CredentialItem, PageName, RunItem } from "../types";
 import { fmtTime, signalText } from "../utils";
 
 const props = defineProps<{
@@ -20,9 +20,8 @@ const props = defineProps<{
   claimable: Set<string>;
 }>();
 
-/* navigate 暂以 string 出参（PageName 四页化在壳切换批 T8 收紧） */
 const emit = defineEmits<{
-  navigate: [page: string];
+  navigate: [page: PageName];
   claim: [target: string];
 }>();
 
@@ -96,7 +95,7 @@ const nothingTodo = computed(() => !props.pending.length && !expiring.value.leng
             </p>
           </div>
           <span class="tag tag--notice">{{ signalText(cred.signal) }}</span>
-          <button class="btn btn--ghost" @click="emit('navigate', '账号')">去账号</button>
+          <button class="btn btn--ghost" @click="emit('navigate', '账户')">去账户</button>
         </li>
       </ul>
       <p v-else class="quietline">暂无临期凭据。</p>
