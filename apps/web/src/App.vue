@@ -24,6 +24,7 @@ import { useShellData } from "./composables/useShellData";
 import { useAccountActions } from "./composables/useAccountActions";
 import { useUsageActions } from "./composables/useUsageActions";
 import { useSettings } from "./composables/useSettings";
+import { useGatewayRoutes } from "./composables/useGatewayRoutes";
 
 /* ---- 装配（各域 composable；解构保模板绑定名）---- */
 const { active, navigate } = useHashRoute();
@@ -31,6 +32,15 @@ const data = useShellData();
 const account = useAccountActions({ refresh: data.loadAll });
 const usage = useUsageActions({ refresh: data.loadAll, radarRows: data.radarRows });
 const { settings, updateSettings } = useSettings();
+const {
+  routes: gatewayRoutes,
+  takesEffect,
+  loadingRoutes,
+  savingRoutes,
+  routesMsg,
+  loadRoutes,
+  saveRoutes,
+} = useGatewayRoutes();
 
 const {
   accounts,
@@ -85,6 +95,12 @@ watch(() => [settings.value.autoRefresh, settings.value.intervalSec], schedulePo
 onMounted(() => {
   loadAll();
   schedulePoll();
+  if (active.value === "设置") loadRoutes();
+});
+
+/* 进设置页时装载路由表（设置页局部数据不进轮询，R4-G6） */
+watch(active, (page) => {
+  if (page === "设置") loadRoutes();
 });
 
 onBeforeUnmount(() => {
@@ -148,7 +164,14 @@ onBeforeUnmount(() => {
         v-else-if="active === '设置'"
         :settings="settings"
         :server-info="serverInfo"
+        :gateway-routes="gatewayRoutes"
+        :takes-effect="takesEffect"
+        :routes-loading="loadingRoutes"
+        :routes-busy="savingRoutes"
+        :routes-msg="routesMsg"
         @update="updateSettings"
+        @save-routes="saveRoutes"
+        @reload-routes="loadRoutes"
       />
       <!-- 仪表盘：默认页 + 兜底（resolveActive 无 hash 也落这里） -->
       <DashboardPage

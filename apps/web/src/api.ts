@@ -12,6 +12,8 @@ import type {
   AccountItem,
   AppItem,
   CollectOutcome,
+  GatewayRouteRule,
+  GatewayRoutes,
   ImportResult,
   RadarRow,
   RunItem,
@@ -99,6 +101,22 @@ export async function getRadar(): Promise<RadarRow[]> {
 
 export function collectUsage(): Promise<CollectOutcome[]> {
   return request<CollectOutcome[]>(`${apiBase}/usage/collect`, post());
+}
+
+/* ---- 网关域（R4-G6）---- */
+
+/** 路由表读取（上抛：设置页转文案展示，不静默——管理面读不到 = 需要被看见） */
+export function getGatewayRoutes(): Promise<GatewayRoutes> {
+  return request<GatewayRoutes>(`${apiBase}/gateway/routes`);
+}
+
+/** 整表替换（声明式配置，无增量 PATCH）：非法表 server 422，detail 直显不加工 */
+export function putGatewayRoutes(routes: GatewayRouteRule[]): Promise<GatewayRoutes> {
+  return request<GatewayRoutes>(`${apiBase}/gateway/routes`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ routes }),
+  });
 }
 
 /* ---- 系统域 ---- */

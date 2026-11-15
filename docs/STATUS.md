@@ -5,6 +5,16 @@
 
 ## 一句话现状
 
+**R4-G6 web 消费落地（2026-11-15）**：设置页增「网关路由」节（A3-01 已收编
+四节）——`useGatewayRoutes` composable（装载/整表保存，进入设置页时拉取不进
+轮询）+ types 契约派生 + api.ts 网关域端点；编辑器 = 模型名+账户池逗号分隔
+行（添加/移除/重置/保存），校验单源在 core（UI 只做表单完整性预处理：全空
+行剔除、半空行本地拦下；422 detail 直显）。真机闭环：playwright 走通
+「装载回填 gpt-x → 空行保存被剔 → 保存成功文案（含网关重启生效时机）」；
+server PUT 落盘数据根 gateway-routes.json 与网关装载同源已验。顺带发现并
+纠正：复用 shell 的 BUTLER_* 临时 env 污染了 server 进程，已干净重启。
+vue-tsc/build 全绿。
+
 **R4-G6 路由管理面契约落地（2026-11-15）**：路由表校验**单源收进 core**——
 `execution/gateway_routes.py`（RouteRule/RouteTable + to_dict/from_dict 对称，
 模型重复 = 歧义显式拒绝）+ `GatewayRoutesStore` 端口 + `manage_gateway_routes`

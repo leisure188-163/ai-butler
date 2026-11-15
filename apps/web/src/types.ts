@@ -36,6 +36,10 @@ export type LedgerRow = Contract["LedgerEntryOut"];
 export type RadarRow = Contract["RadarAccountOut"];
 export type CollectOutcome = Contract["CollectOutcomeOut"];
 
+/** 网关路由管理面（R4-G6）：契约派生；校验单源在 core（UI 不复写规则，422 detail 直显） */
+export type GatewayRouteRule = Contract["RouteRuleOut"];
+export type GatewayRoutes = Contract["GatewayRoutesOut"];
+
 export type ThemeName = "system" | "paper" | "dark" | "warm";
 
 export interface Settings {
