@@ -5,6 +5,15 @@
 
 ## 一句话现状
 
+**R4-G1 网关进程骨架落地（2026-11-15）**：`apps/gateway` 入 workspace（dist
+`butler-gateway`，包 `butler_gateway`，FastAPI+httpx 同 server 栈）——`/health`
+健康可观测（uptime/key 指纹/主控可达性 TTL 缓存 30s 惰性刷新）、鉴权 key
+启动生成 0600 落数据根（`gateway-auth-key`，重启不换 key，指纹入 health 不泄
+key 本体）、主控通信 = HTTP 拉 server `/health`（ADR-012 裁决 2，transport
+可注入）；真机冒烟：网关 8100 起停 + key 文件 0600 + 对运行中 server 探测
+命中（17.3ms）。9 项 gateway 测试 + 门禁九项绿（全量 521 passed）。
+**server/OpenAPI/web 零 diff**（主控通信只读复用既有端点）。
+
 **全库 schema 生成视图落地 + 规范漂移回收（2026-11-15）**：仓库根新增 `db/`
 （README + `schema.sql`）+ `scripts/dump_db_schema.py`——临时目录按运行时同款
 适配器真实建库 → dump `sqlite_master`，**9 张表 / 5 个索引**按业务域分节（账户/
@@ -91,6 +100,12 @@ chatgpt_web 无签到动作（导入+健康卡），真机验证 ADR-011 落榜�
 CLI `claim` 硬编码 `:main`，多账户卡领取入口待补（当前无实际影响）。
 
 ## 下一步（当前焦点）
+
+**R4 G1 已落地（2026-11-15），接下来 G2 凭据池**：CredentialPool 端口（core）+
+vault 现用现取适配（短 TTL 缓存按 provider kind 声明为数据，全审计走 LayeredVault
+同步落账）。随后 G3 Router+Limiter（固定优先级 + 故障转移）、G4 Meter+Audit、
+G5 双协议面（trae 请求体/头组/流式形状待 **Windows 运行态取证**，取证不全 =
+该 provider 不开工）；web 两家是否纳入反代首版**待用户裁**（plans/02 §3）。
 
 **R4 网关独立进程：架构裁决完成（ADR-012）+ mac 侧推理通道取证完成（2026-11-14）**：
 四家桌面连接器 PROTOCOL §9 已登记——**trae = 反代上游候选一号**

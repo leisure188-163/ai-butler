@@ -1,0 +1,23 @@
+[project]
+name = "butler-gateway"
+version = "0.1.0"
+description = "butler 网关独立进程（R4，ADR-012）：反代/账户池/计量，基础设施进程非 UI 薄壳"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]",
+    "httpx>=0.27",
+    "butler-core",
+    "butler-engine",  # 数据根/凭据池经 bridge 触达（裁决 1：进程内直调 core）
+]
+
+[tool.uv.sources]
+butler-core = { workspace = true }
+butler-engine = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/butler_gateway"]

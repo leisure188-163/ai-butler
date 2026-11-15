@@ -9,6 +9,7 @@ dependencies = [
     "butler-server",
     "butler-cli",
     "butler-mcp",
+    "butler-gateway",
 ]
 
 [dependency-groups]
@@ -21,6 +22,7 @@ testpaths = [
     "packages/connectors/tests",
     "apps/server/tests",
     "apps/mcp/tests",
+    "apps/gateway/tests",
 ]
 
 [tool.uv.workspace]
@@ -31,6 +33,7 @@ members = [
     "apps/server",
     "apps/cli",
     "apps/mcp",
+    "apps/gateway",
 ]
 
 [tool.uv.sources]
@@ -40,3 +43,4 @@ butler-connectors = { workspace = true }
 butler-server = { workspace = true }
 butler-cli = { workspace = true }
 butler-mcp = { workspace = true }
+butler-gateway = { workspace = true }

@@ -13,6 +13,7 @@ members = [
     "butler-connectors",
     "butler-core",
     "butler-engine",
+    "butler-gateway",
     "butler-mcp",
     "butler-server",
     "butler-workspace",
@@ -119,6 +120,27 @@ dependencies = [
 requires-dist = [{ name = "butler-core", editable = "packages/core" }]
 
 [[package]]
+name = "butler-gateway"
+version = "0.1.0"
+source = { editable = "apps/gateway" }
+dependencies = [
+    { name = "butler-core" },
+    { name = "butler-engine" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "butler-core", editable = "packages/core" },
+    { name = "butler-engine", editable = "packages/engine" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "uvicorn", extras = ["standard"] },
+]
+
+[[package]]
 name = "butler-mcp"
 version = "0.1.0"
 source = { editable = "apps/mcp" }
@@ -167,6 +189,7 @@ dependencies = [
     { name = "butler-connectors" },
     { name = "butler-core" },
     { name = "butler-engine" },
+    { name = "butler-gateway" },
     { name = "butler-mcp" },
     { name = "butler-server" },
 ]
@@ -182,6 +205,7 @@ requires-dist = [
     { name = "butler-connectors", editable = "packages/connectors" },
     { name = "butler-core", editable = "packages/core" },
     { name = "butler-engine", editable = "packages/engine" },
+    { name = "butler-gateway", editable = "apps/gateway" },
     { name = "butler-mcp", editable = "apps/mcp" },
     { name = "butler-server", editable = "apps/server" },
 ]
