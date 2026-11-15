@@ -12,7 +12,15 @@
 不变），改表后重跑导出随批提交，新表未登记 `_SECTIONS` 显式报错（防漂移守卫已
 实战拦截 3 个用量索引）。同批**回收规范漂移（红线 8）**：A4-01 §5 / A1-02 §6 /
 A2-06 §3·§6 的 `usage_samples` 旧说法改为现状三表（快照/汇总 REPLACE、流水
-IGNORE 幂等）+ 时序独立表降级为 R 系列方向；A1-05 目录树 db/ 注释校正。运行数据仍禁入仓库（数据根规则不动）。
+IGNORE 幂等）+ 时序独立表降级为 R 系列方向；A1-05 目录树 db/ 注释校正。
+
+**旧 kit 历史数据迁移准备（2026-11-15）**：勘察结论 = 本机旧库全表 0 行
+（kabao/ai-marina 平台目录是 butler 自家前代品牌搬迁链，与 auto-signin-kit
+无关），数据源确认为 Windows 侧旧 kit。落地 `scripts/import_legacy_kit.py`
+（干跑默认 + 备份 + 幂等 + 行数验证 + 源只读；词汇映射逐词核对入 A0-01 §2.4：
+CLAIMED/ALREADY/FAILED 同词直迁、NO_AUTH→EXPIRED、NETWORK→FAILED，无诚实
+对应词 status=NULL + verbatim 档案进 params_json.legacy_kit）——合成夹具四步
+验证 + server 读路径实测全过。**待 Windows 拷库后真迁**（真迁前停 server）。运行数据仍禁入仓库（数据根规则不动）。
 
 **网页会话多 profile 取证 + 接入（2026-11-14，[ADR-011](adr/ADR-011-网页会话通道每profile一账户.md)）**：
 六连接器真机（mac）多 profile 目录形状取证完成、如实登记 A2-02 §9
@@ -52,6 +60,13 @@ A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）�
 
 ## 剩余挂账
 
+- **旧 kit 历史数据真迁待源库**（2026-11-15）：本机旧库 `auto-signin-kit.db`
+  全表 0 行（勘察结论：无数据可迁；今晨 00:37 写入仅为 UI 服务只读打开），
+  数据源确认为 **Windows 侧旧 kit**——待拷 `data/database/auto-signin-kit.db`
+  （含 -wal/-shm）到本机后执行 `scripts/import_legacy_kit.py --source <路径> --commit`
+  （脚本已落地并过四步验证：夹具干跑/真迁副本逐行核验/幂等重跑 0 新增/未知
+  操作词显式中止；server 读路径 list_recent 35 行无炸，旧 NO_AUTH→EXPIRED
+  不触健康连败判定）。真迁前须停 butler server（-wal 非空拒绝）。
 - **R3 网页会话通道余项**：Claude 最小 cookie 名单补证（本机无登录态，换环境取证；
   2026-11-14 mac 复核：双 Chrome profile 均无 claude.ai cookie）。
 - **npm org 创建** `butler`（网页交互，发布前做；A1-03 §6 口径）。
