@@ -27,7 +27,8 @@ UsageSample：tokens_in / tokens_out / model / ts / source(client|gateway|api)
 ## 3. 端口（usage/ports.py）
 
 - `UsageCollectorPort`：连接器侧采集（如实申报支持度；不支持 → 通道 SKIPPED）
-- `UsageRepoPort`：时序持久化（SQLite `usage_samples` 按天分区，A1-02 §6）
+- `UsageRepoPort`：用量持久化（SQLite 三表：usage_snapshots / usage_aggregates /
+  quota_ledger，DDL 视图 `db/schema.sql`；时序独立表 = R 系列方向，A4-01 §5）
 
 ## 4. 用例
 
@@ -44,4 +45,4 @@ UsageSample：tokens_in / tokens_out / model / ts / source(client|gateway|api)
 
 - ❌ 额度/预测语义写进端或连接器（core 唯一出处）
 - ❌ 采集失败静默丢弃（如实上报，红线 5）
-- ❌ 非时序业务数据混入 usage_samples 表
+- ❌ 非用量数据混入 usage 三表（快照/汇总/额度流水只收用量域事实）
