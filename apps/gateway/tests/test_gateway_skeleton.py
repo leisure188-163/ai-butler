@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import stat
 from pathlib import Path
@@ -78,6 +79,9 @@ def _make_client(
     handler,
 ) -> TestClient:
     monkeypatch.setenv("BUTLER_GATEWAY_KEY_FILE", str(tmp_path / "gateway-auth-key"))
+    monkeypatch.setenv(
+        "BUTLER_GATEWAY_ROUTES_FILE", str(tmp_path / "gateway-routes.json")
+    )
     monkeypatch.setenv("BUTLER_SERVER_URL", "http://control.test")
     import butler_gateway.app as gw_app
 
@@ -108,6 +112,7 @@ def test_health_with_server_up(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     assert isinstance(ctl["latency_ms"], float)
     assert ctl["error"] is None
     assert calls and calls[0].url.path == "/health"
+    assert body["routes"]["rule_count"] == 0  # 路由文件缺失 = 空表（合法初始态）
 
 
 def test_health_with_server_down_still_ok(
@@ -122,6 +127,28 @@ def test_health_with_server_down_still_ok(
     assert body["control"]["reachable"] is False
     assert "ConnectError" in body["control"]["error"]
     assert body["control"]["latency_ms"] is None
+
+
+def test_health_reflects_loaded_routes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """G3：/health 暴露路由表装载态——文件规则进 health 可观测（网关只读）。"""
+    routes_path = tmp_path / "gateway-routes.json"
+    routes_path.write_text(
+        json.dumps({"routes": [{"model": "m1", "accounts": ["a", "b", "c"]}]}),
+        encoding="utf-8",
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "ok"})
+
+    with _make_client(monkeypatch, tmp_path, handler) as client:
+        body = client.get("/health").json()
+    routes = body["routes"]
+    assert routes["rules_file"].endswith("gateway-routes.json")
+    assert routes["rule_count"] == 1
+    assert routes["models"] == ["m1"]
+    assert routes["account_count"] == 3
 
 
 def test_probe_ttl_reuses_result(

@@ -5,6 +5,8 @@
   测试/便携模式）；数据根复用 butler_engine.bridge.default_db_path() 的目录
   （A4-01 §5 数据布局；端只准经 bridge 触引擎）
 - 主控 server 地址默认 `http://127.0.0.1:8000`，`BUTLER_SERVER_URL` 覆盖
+- 路由表文件默认 = 数据根 `gateway-routes.json`（`BUTLER_GATEWAY_ROUTES_FILE`
+  覆盖，测试/便携模式）；声明式规则、网关只读（ADR-012 裁决 6，G3）
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from pathlib import Path
 DEFAULT_PORT = 8100
 DEFAULT_SERVER_URL = "http://127.0.0.1:8000"
 KEY_FILE_NAME = "gateway-auth-key"
+ROUTES_FILE_NAME = "gateway-routes.json"
 
 
 def gateway_host() -> str:
@@ -42,6 +45,15 @@ def key_file() -> Path:
     from butler_engine.bridge import default_db_path  # 端触引擎只经 bridge（ADR-001）
 
     return default_db_path().parent / KEY_FILE_NAME
+
+
+def routes_file() -> Path:
+    explicit = os.environ.get("BUTLER_GATEWAY_ROUTES_FILE")
+    if explicit:
+        return Path(explicit).expanduser()
+    from butler_engine.bridge import default_db_path  # 端触引擎只经 bridge（ADR-001）
+
+    return default_db_path().parent / ROUTES_FILE_NAME
 
 
 def server_url() -> str:
