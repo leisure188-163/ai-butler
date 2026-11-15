@@ -10,7 +10,7 @@
 import { computed } from "vue";
 import TodoRail from "../components/TodoRail.vue";
 import type { AccountItem, AppItem, PageName, RadarRow, RunItem, Signal } from "../types";
-import { fmtTime, isToday, signalText } from "../utils";
+import { isToday, signalText } from "../utils";
 
 const props = defineProps<{
   accounts: AccountItem[];
@@ -72,9 +72,33 @@ const todayActions = computed(() => {
   };
 });
 
-const lastLog = computed(() => {
-  const first = props.runs[0];
-  return first ? `${fmtTime(first.started_at)} · ${first.kind}` : "—";
+/* ---- 下次班次（v6.2 ③）：全应用班次时刻并集中取下一个未来时刻——
+   时刻来自 apps 真实排班（schedule_times），不到点不编造状态 ---- */
+const shiftTimes = computed(() =>
+  [...new Set(props.apps.flatMap((a) => a.schedule_times))]
+    .filter((t) => /^\d{1,2}:\d{2}$/.test(t))
+    .sort(),
+);
+
+const nextShift = computed(() => {
+  const all = shiftTimes.value.map((t) => {
+    const [h, m] = t.split(":").map(Number);
+    return { t, m: h * 60 + m };
+  });
+  if (!all.length) return null;
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const todayLeft = all.filter((x) => x.m > mins);
+  if (todayLeft.length) {
+    return {
+      time: todayLeft[0].t,
+      sub: `约 ${todayLeft[0].m - mins} 分钟后 · 今日还剩 ${todayLeft.length} 个班次`,
+    };
+  }
+  return {
+    time: all[0].t,
+    sub: `明日最早 · ${1440 + all[0].m - mins} 分钟后`,
+  };
 });
 
 /* ---- 签到日历条带（v6.2）：账户行 × 近 30 天列，任一班次 ok = 绿——
@@ -216,10 +240,13 @@ const trafficSub = computed(() => {
         </div>
         <p class="kpi-sub">{{ trafficSub }}</p>
       </div>
-      <div class="kpi" aria-label="最近日志">
-        <p class="kpi-label">最近一条日志</p>
-        <p class="kpi-value kpi-value--sm">{{ lastLog }}</p>
-        <p class="kpi-sub">完整记录见「日志」</p>
+      <div class="kpi" aria-label="下次班次">
+        <p class="kpi-label">下次班次</p>
+        <p class="kpi-value mono" v-if="nextShift">{{ nextShift.time }}</p>
+        <p class="kpi-value kpi-value--sm" v-else>未排班</p>
+        <p class="kpi-sub">
+          {{ nextShift ? nextShift.sub : "到「应用」页为应用排班" }}
+        </p>
       </div>
     </div>
   </section>
