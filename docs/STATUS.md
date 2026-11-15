@@ -5,6 +5,14 @@
 
 ## 一句话现状
 
+**butler-feature-dev skill 落地（2026-11-15）**：把已落地功能的分层模式提炼为
+项目级 skill `.codebuddy/skills/butler-feature-dev/`（SKILL.md + 5 分册
+references + 5 个代码骨架模板 assets）——标准动线 = domain→ports→usecase→
+engine 适配器→bridge 装配→server/gateway 端点→web→四层测试→门禁九项→
+文档同提交收编；并从既有通用 skill 集合（cross-platform-arch）收编三块：
+六边形规约 R1-R9/R7 模型分层、表设计纪律适用子集、门禁验收纪律（SKIP≠PASS、
+测试没跑≠通过）。AGENTS.md 路由表已加 skill 入口（第 0 条）。未提交。
+
 **管理台视觉升级 v6 系列落地（2026-11-15）**：对比旧系统（8688）取证后实施
 「纸墨 v6」三层视觉锚点（KPI 数字卡/侧栏线性图标/容器轻阴影，token 只动
 tokens.css），v6.1 侧栏三层视觉分组（总览/运营/系统，纯视觉层 hash 不变），

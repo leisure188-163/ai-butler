@@ -10,6 +10,8 @@
 
 写代码或改文档前：
 
+0. **新增/修改业务功能**：用 skill `.codebuddy/skills/butler-feature-dev/`
+   （分层标准动线 + 各层代码格式模板 + 门禁纪律；规约正文仍以下列 docs 为准）
 1. **每次会话开始**：读 [docs/STATUS.md](docs/STATUS.md)（活页进度卡：当前在哪、下一步做什么）
 2. **查写死值（项目名/包名/远端/命令）**：读 `docs/conventions/00-项目配置.md`（唯一变量入口）
 3. **动任何代码前**：读 `docs/specs/architecture/A1-05-按业务域重写总设计.md`

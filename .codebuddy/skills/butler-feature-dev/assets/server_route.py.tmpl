@@ -1,0 +1,46 @@
+# ai-butler 模板：server 域路由模块
+# 用法：另存为 apps/server/src/server/routes/<域>.py，然后：
+#       1) 在 routes/api.py 按序 include（顺序 = OpenAPI 首现顺序，防契约指纹漂移）
+#       2) 立刻跑 pnpm gen:sdk 刷契约（忘跑 = 门禁 FAIL）
+#       禁止把端点回塞进 api.py（一业务域 = 一模块 = 一文件）。
+
+"""<域> API（<需求编号>）：<一句话投影语义>。"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Request
+from pydantic import BaseModel
+
+router = APIRouter(tags=["butler"])
+
+
+class <Thing>Out(BaseModel):
+    """<投影语义：无数据 = 什么表现，如实分列>。"""
+
+    account_id: str
+    # 逐字段显式映射 core 返回（禁 **dataclass 透传 DO——模型分层 R7）
+    status: str                 # core 出产词表原样传递，端零映射
+
+
+@router.post("/<域>/<动作>", response_model=list[<Thing>Out])
+def <action>(request: Request) -> list[<Thing>Out]:
+    """<一句话语义>。"""
+    kit = request.app.state.kit
+    outcomes = [...]            # 只调 kit 用例，不写业务规则
+    return [
+        <Thing>Out(
+            account_id=o.account_id,
+            status=o.status,
+        )
+        for o in outcomes
+    ]
+
+
+@router.get("/<域>/<资源>", response_model=list[<Thing>Out])
+def <list_action>(request: Request) -> list[<Thing>Out]:
+    """<一句话语义>。"""
+    kit = request.app.state.kit
+    out: list[<Thing>Out] = []
+    for account in kit.accounts.list_all():
+        ...                     # 需要 core 谓词就 import core 纯函数，禁止路由内重写判断
+    return out

@@ -1,0 +1,39 @@
+# ai-butler 模板：core 领域模型（domain.py 追加段）
+# 用法：复制到 packages/core/src/butler_core/<域>/domain.py，替换 <占位符>；
+#       删除与本功能无关的行。校验只加业务必需的，不为校验而校验。
+
+"""<域> 领域模型（A2-0<分册号> §<节>）：<一句话职责>。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime
+
+from butler_core.shared.errors import DomainError
+from butler_core.shared.ids import new_id
+from butler_core.shared.time import now_utc
+
+
+class <Entity>Invalid(DomainError):
+    """<实体> 输入非法（调用方 bug，显式上抛不吞——红线 5）。"""
+
+
+@dataclass(frozen=True)
+class <Entity>:
+    """<实体>：<一句话语义与不变量，引 spec 编号>。"""
+
+    id: str = field(default_factory=new_id)
+    account_id: str
+    ts: datetime = field(default_factory=now_utc)
+    # ... 业务字段（敏感字段单独建值对象并覆写 __repr__/__str__ = "[REDACTED]"）
+
+    def __post_init__(self) -> None:
+        if not self.account_id.strip():
+            raise <Entity>Invalid("account_id 不得为空")
+        # ... 业务不变量校验，逐条 raise <Entity>Invalid("<中文原因>")
+
+
+# 谓词纯函数单源（端零映射载体）：端/server 只消费结果，不重写判断
+def is_<predicate>(x: <Entity>) -> bool:
+    """<判断语义>。"""
+    return ...

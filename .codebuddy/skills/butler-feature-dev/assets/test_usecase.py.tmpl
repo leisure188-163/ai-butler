@@ -1,0 +1,65 @@
+# ai-butler 模板：core 用例测试（+ engine 分册测试要点见文件尾注释）
+# 用法：另存为 packages/core/tests/test_<域>.py 或并入既有域测试文件。
+#       全部裸 assert；不 mock 被测对象本身；非法输入断言精确异常类型。
+
+"""<用例名> 用例测试：<口径/幂等/失败语义>（对应 <用例文件名>.py）。"""
+
+from __future__ import annotations
+
+import pytest
+
+from butler_core.<域>.domain import <Entity>Invalid, <Entity>
+from butler_core.<域>.usecases.<动词> import <UseCaseName>
+
+
+class FakeStore:
+    """Fake 端口：内存记录，可注入故障。"""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.items: list[<Entity>] = []
+        self._fail = fail
+
+    def append_<entity>(self, entity: <Entity>) -> None:
+        if self._fail:
+            raise OSError("simulated store failure")
+        self.items.append(entity)
+
+
+class FakeAudit:
+    def __init__(self) -> None:
+        self.rows: list[dict] = []
+
+    def record(self, **kw) -> None:
+        self.rows.append(kw)
+
+
+def _make(**over):               # 工厂函数：默认实例 + 逐参覆写
+    kwargs = dict(account_id="acct_demo", ...)
+    kwargs.update(over)
+    return <UseCaseName>(store=FakeStore(), audit=FakeAudit(), **kwargs)
+
+
+def test_干净路径_落库并返回True() -> None:
+    uc = _make()
+    assert uc.<domain_verb>(account_id="acct_demo", ...) is True
+
+
+def test_非法输入_显式上抛不吞() -> None:
+    uc = _make()
+    with pytest.raises(<Entity>Invalid):
+        uc.<domain_verb>(account_id="", ...)
+
+
+def test_侧效应失败_审计留痕返回False_不打断主流程() -> None:
+    store, audit = FakeStore(fail=True), FakeAudit()
+    uc = <UseCaseName>(store=store, audit=audit)
+    assert uc.<domain_verb>(account_id="acct_demo", ...) is False
+    assert audit.rows and audit.rows[0]["outcome"].startswith("error:")
+
+
+# ---- engine 分册测试要点（另存 packages/engine/tests/test_<域>_store.py）----
+# 1. store：@pytest.fixture 真 SQLite（tmp_path）→ 写入读回 frozen dataclass
+#    全字段相等（assert row == s）→ 排序契约 → limit 守卫
+# 2. bridge：build_engine(tmp_path / "butler.db") → kit.register_*_ports 注入
+#    Fake 端口 → 执行 → kit.bus.drain() 断事件 → 关 kit 重开第二个 kit 验持久化
+# 3. 时钟用假时钟注入（lambda: 固定 datetime），不 sleep

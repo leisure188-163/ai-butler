@@ -1,0 +1,65 @@
+# ai-butler 模板：core 用例（一用例一文件）
+# 用法：另存为 packages/core/src/butler_core/<域>/usecases/<动词>.py。
+#       docstring 三段语义（口径 / 非法输入 / 侧效应失败）必须写实，编造引用 = 红线 8。
+
+"""<用例名>（<需求/裁决编号>）：<一句话语义>。
+
+- 口径：<数据从哪来、缺什么怎么如实记、绝不猜>
+- 输入非法（<情形>）= 调用方 bug：<XxxInvalid> 显式上抛不吞（红线 5）
+- <侧效应>失败 = <台账/留痕语义>：<审计留痕> 后返回 False，不打断主流程；
+  时钟可注入（core 用例同款先例）
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Callable, Protocol
+
+from butler_core.shared.ids import new_id
+from butler_core.shared.time import now_utc
+from butler_core.<域>.domain import <Entity>, <Entity>Invalid
+from butler_core.<域>.ports import <Store>
+
+
+class <AuditSink>(Protocol):
+    """审计落账口（engine SqliteAuditLog 同款 record 签名）。"""
+
+    def record(
+        self,
+        *,
+        actor: str,
+        action: str,
+        outcome: str,
+        account_id: str | None = None,
+        credential_ref: str | None = None,
+    ) -> None: ...
+
+
+@dataclass
+class <UseCaseName>:
+    """<一句话职责>。"""
+
+    store: <Store>
+    audit: <AuditSink>
+    clock: Callable[[], datetime] = field(default=now_utc)
+
+    def <domain_verb>(self, *, account_id: str, ...) -> bool:
+        # 非法输入：显式抛（先校验，后副作用）
+        if <非法情形>:
+            raise <Entity>Invalid("<中文原因>")
+
+        entity = <Entity>(..., ts=self.clock())
+
+        # 侧效应失败：台账语义——审计留痕 + 返回 False，不打断主流程
+        try:
+            self.store.append_<entity>(entity)
+        except Exception as exc:  # noqa: BLE001 —— 留痕后不吞、不打断主流程
+            self.audit.record(
+                actor="<actor>",
+                action="<域>.<动作>",
+                outcome=f"error:{type(exc).__name__}",
+                account_id=account_id,
+            )
+            return False
+        return True
