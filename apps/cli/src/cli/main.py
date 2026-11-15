@@ -97,6 +97,9 @@ def import_cmd(target: str) -> None:
 @app.command()
 def claim(
     target: str,
+    account: str = typer.Option(
+        "main", "--account", "-a", help="账户 key（多账户卡；完整卡号 = <target>:<key>）"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="只演练不落账"),
 ) -> None:
     """手动领取：立即跑一次 provision.run（窗口按 core 时间表规则）。"""
@@ -111,6 +114,14 @@ def claim(
             app_obj = registry.get(target)
         except KeyError:
             _unknown_target(target)
+        account_id = f"{target}:{account}"
+        if kit.accounts.get(account_id) is None:
+            known = [a.id for a in kit.accounts.list_by_provider(target)]
+            console.print(
+                f"[red]卡不存在: {account_id}[/red]"
+                f"（该应用已有: {', '.join(known) or '未导入——先跑 import'}）"
+            )
+            raise typer.Exit(code=2)
         _mount_ports(kit)
         entry = next(
             (e for e in registry.schedule_entries() if e["target"] == target), None
@@ -119,7 +130,7 @@ def claim(
         run = kit.execute_action.execute(
             RunRequest(
                 action=Action(kind=ActionKind.PROVISION_RUN, target=target),
-                account_id=f"{target}:main",
+                account_id=account_id,
                 window=window,
                 dry_run=dry_run,
                 budget=timedelta(seconds=app_obj.provision_budget("provision.run")),

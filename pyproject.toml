@@ -23,6 +23,7 @@ testpaths = [
     "apps/server/tests",
     "apps/mcp/tests",
     "apps/gateway/tests",
+    "apps/cli/tests",
 ]
 
 [tool.uv.workspace]

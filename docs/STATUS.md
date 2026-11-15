@@ -5,6 +5,13 @@
 
 ## 一句话现状
 
+**CLI claim 账户参数化落地（2026-11-15）**：`claim` 增 `--account/-a`（默认
+main，完整卡号 = `<target>:<key>`），领取前号册校验——卡不存在显式红字列
+出该应用已有卡（未导入提示先 import），校验失败不触执行；CLI 测试目录首建
+（apps/cli/tests，testpaths 收编第 7 目录），5 项 CliRunner 测试（FakeKit +
+真连接器注册表，Run 必回/result 可空契约钉死）。遗留项「CLI claim 硬编码
+:main」收口。门禁九项绿。
+
 **R4-G6 web 消费落地（2026-11-15）**：设置页增「网关路由」节（A3-01 已收编
 四节）——`useGatewayRoutes` composable（装载/整表保存，进入设置页时拉取不进
 轮询）+ types 契约派生 + api.ts 网关域端点；编辑器 = 模型名+账户池逗号分隔
