@@ -5,6 +5,13 @@
 
 ## 一句话现状
 
+**qoder 领取链复现升级（2026-11-15）**：用户重登（auth.v1.dat 20:57 重写）
+→ 重扫入库 → 解锁链全绿（dt- token + refreshToken）→ 直连仍
+`401 TOKEN_EXPIRE`——「重启客户端重扫」旧处置口径**失效**，新 token 即被
+服务端判 not active = 行为变化（疑似接口收紧会话校验）。**挂账转 Windows
+oracle 对照**：Windows 也 401 → 链路转观察项不硬绕；Windows 正常 → 对照
+mac 头组差异。PROTOCOL qoder §1 已收编。
+
 **R5-S1 会话扫描入库落地（2026-11-15）**：Session 实体补 `kind`
 （SessionKind: workspace|conversation）+ `SessionLevel` 枚举化；端口增
 `scan_sessions`（SessionSighting：location/kind/level/device_ref=供应商侧
