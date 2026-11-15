@@ -5,6 +5,18 @@
 
 ## 一句话现状
 
+**管理台视觉升级 v6 系列落地（2026-11-15）**：对比旧系统（8688）取证后实施
+「纸墨 v6」三层视觉锚点（KPI 数字卡/侧栏线性图标/容器轻阴影，token 只动
+tokens.css），v6.1 侧栏三层视觉分组（总览/运营/系统，纯视觉层 hash 不变），
+v6.2 仪表盘图形化三件套（①近 30 天签到日历条带=ledger 真实 run；②流量卡内嵌
+水位条=最低 remaining/total、低水位色只随 core `quota_low` 谓词；③「下次班次」
+卡替代「最近一条日志」卡=schedule_times 并集取下一个未来时刻+分钟倒计时）。
+裁决补记 DESIGN-DECISIONS D2/D3 + 仪表盘图形化条目；runs 拉取 limit 50→200
+（端点上限已支持）。vue-tsc/build/门禁全绿，已提交推送。真机签到批次同日完成
+（六连接器领取全过+workbuddy 成功信封修复）。挂账：qoder_cn 401 等用户在
+Qoder 客户端人工重登后跑 import+claim 闭环；claude_web 本机无登录态；
+chatgpt_web Profile 1 令牌过期。
+
 **R4-G4 Meter+样本表落地（2026-11-15）**：`UsageSample` 增 `duration_ms`（可
 缺省）+ model/account 非空校验；`UsageStore` 端口增 `append_sample`/
 `list_samples`，engine SqliteUsageStore 实现 **usage_samples 四表**（只增不改
