@@ -30,12 +30,26 @@ Run = id / action / account_id / idempotency_key / started_at / budget
 - `ProvisionPort`：capabilities() 如实申报（dry_run / 多账户 / 幂等窗口）+
   run(ProvisionRequest) → 结构化 RunResult（不返回退出码）
 - `RunRepoPort`：Run 记录持久化与幂等回放查询
+- `GatewayRoutesStore`（R4-G6，ADR-012 裁决 6）：网关路由表文件存储——
+  load（缺失 = 空表合法初始态）/ save（整表替换 + 原子写）；校验**单源**在
+  `gateway_routes.RouteTable.from_dict`（server 写入与网关装载共用，永不漂移）
+
+## 3.1 路由表模型（execution/gateway_routes.py，R4-G6）
+
+- `RouteRule` = (model, accounts: 有序元组)——**账户顺序即优先级**，失败转移
+  由网关调用方按序重试（ADR-012 裁决 5，M1 精确匹配）
+- 校验不变量：routes 数组必在；model/accounts 非空；模型重复 = 歧义配置显式
+  拒绝（ValueError 逐条中文报错，红线 5）；`to_dict/from_dict` 对称往返
+- 落点 = 数据根 `gateway-routes.json`（engine `gateway/routes_file.py` 实现
+  端口，原子写防半截文件）；server 管理面写（PUT /gateway/routes）、网关
+  进程只读装载（M1 启动时装载一次，变更重启生效）
 
 ## 4. 用例
 
 | 用例 | 语义 |
 |---|---|
 | `execute_action` | 校验能力申报 → 幂等查询 → 时间预算内执行 → 结构化 Result + RUN_FINISHED 事件 |
+| `manage_gateway_routes` | `replace(data)` 先校验后落盘（非法绝不写盘）；`current()` 只读装载 |
 
 ## 5. 事件联动
 

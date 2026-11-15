@@ -5,6 +5,19 @@
 
 ## 一句话现状
 
+**R4-G6 路由管理面契约落地（2026-11-15）**：路由表校验**单源收进 core**——
+`execution/gateway_routes.py`（RouteRule/RouteTable + to_dict/from_dict 对称，
+模型重复 = 歧义显式拒绝）+ `GatewayRoutesStore` 端口 + `manage_gateway_routes`
+用例（replace 先校验后落盘，非法绝不写盘让网关拒启）；engine 新增
+`gateway/routes_file.py`（数据根 gateway-routes.json，原子写 tmp+os.replace，
+缺失 = 空表合法态），bridge 装配 `manage_gateway_routes`/`gateway_routes_store`
+（`routes_file` kwarg 覆盖）；server 新域模块 `routes/gateway.py`（GET/PUT
+/gateway/routes，PUT 非法 422、生效时机=网关重启如实注明），聚合器按序挂载 +
+`pnpm gen:sdk` 契约刷新；gateway `routing.py` 瘦身为纯装载（模型 re-export
+自 core），**顺修 G5 遗留**：gateway `_build_kit` 裸 `build_engine()` 落 CWD
+库 → 改 `build_engine(default_db_path())`。新测试 17 项（core 7 + engine 5 +
+server 5），gateway 回归 47 项全绿。门禁九项绿。A2-05 §3/§3.1/§4 已收编。
+
 **R4-G5 双协议面+失败转移落地（2026-11-15）**：`apps/gateway` 新增三模块——
 `upstream.py`（ProviderUpstream 端口+注册表，A2-02 §3 插件禁声明式；**真上游
 适配器零编造**，取证未回收的 provider 如实 skipped）、`forwarder.py`（转移
@@ -168,13 +181,13 @@ CLI `claim` 硬编码 `:main`，多账户卡领取入口待补（当前无实际
 
 ## 下一步（当前焦点）
 
-**R4 G1-G5 已落地（2026-11-15），余项按取证节奏推进**：G5 协议面+转移编排
-就绪（Fake 上游端到端验证过），真上游适配器按 `upstream.register_upstream`
-落位即可——卡 **Windows 运行态取证**（trae 请求体/头组/流式形状，PROTOCOL
-§9；取证不全 = 该 provider 不开工，已由 upstream_not_ready skipped 如实表
-达）；doubao 发测试消息需用户授权。web 两家是否纳入反代首版**待用户裁**
-（plans/02 §3）。server 管理面（路由规则 CRUD 契约）挂账 G6 契约批次
-（含 gen:sdk——gateway 协议面不经 OpenAPI 契约，客户端直连标准路径）。
+**R4 G1-G6 已落地（2026-11-15），余项按取证节奏推进**：G5 协议面+转移编排、
+G6 路由管理面契约均就绪（Fake 上游端到端验证过），真上游适配器按
+`upstream.register_upstream` 落位即可——卡 **Windows 运行态取证**（trae 请求
+体/头组/流式形状，PROTOCOL §9；取证不全 = 该 provider 不开工，已由
+upstream_not_ready skipped 如实表达）；doubao 发测试消息需用户授权。web 两家
+是否纳入反代首版**待用户裁**（plans/02 §3）。可选后续批次：web 路由管理页
+消费 /gateway/routes 契约；路由热装载（G5+ 增量，M1 重启生效）。
 
 **R4 网关独立进程：架构裁决完成（ADR-012）+ mac 侧推理通道取证完成（2026-11-14）**：
 四家桌面连接器 PROTOCOL §9 已登记——**trae = 反代上游候选一号**

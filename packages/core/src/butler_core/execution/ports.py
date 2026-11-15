@@ -9,9 +9,11 @@ from datetime import datetime
 from typing import Protocol
 
 from butler_core.execution.domain import Action, ActionKind, Run, RunResult
+from butler_core.execution.gateway_routes import RouteTable
 
 __all__ = [
     "Capabilities",
+    "GatewayRoutesStore",
     "PortSelector",
     "ProvisionPort",
     "ProvisionRequest",
@@ -79,3 +81,19 @@ class RunLedger(ABC):
 
     @abstractmethod
     def list_recent(self, *, limit: int) -> list[Run]: ...
+
+
+class GatewayRoutesStore(Protocol):
+    """网关路由表存储端口（R4-G6，ADR-012 裁决 6）：server 管、网关只读。
+
+    实现 = 数据根 JSON 文件（网关 M1 启动时装载的唯一规则源）；校验单源在
+    RouteTable.from_dict（core），存储实现只管文件 IO 与原子性。
+    """
+
+    def load(self) -> RouteTable:
+        """装载当前路由表；文件缺失 = 空表合法初始态；非法 = 显式 ValueError。"""
+        ...
+
+    def save(self, table: RouteTable) -> None:
+        """整表替换落盘（声明式配置，无增量 PATCH）；原子写防半截文件。"""
+        ...

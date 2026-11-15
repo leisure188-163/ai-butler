@@ -199,6 +199,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gateway/routes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Gateway Routes
+         * @description 当前网关路由表（只读投影）。
+         */
+        get: operations["get_gateway_routes_api_v1_gateway_routes_get"];
+        /**
+         * Put Gateway Routes
+         * @description 整表替换路由规则：先校验后落盘，非法显式 422（不静默丢规则）。
+         */
+        put: operations["put_gateway_routes_api_v1_gateway_routes_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -318,6 +342,24 @@ export interface components {
             /** Exhausted On */
             exhausted_on: string | null;
         };
+        /**
+         * GatewayRoutesIn
+         * @description 整表替换入参（声明式配置）。
+         */
+        GatewayRoutesIn: {
+            /** Routes */
+            routes: components["schemas"]["RouteRuleIn"][];
+        };
+        /**
+         * GatewayRoutesOut
+         * @description 路由表投影：takes_effect 如实注明生效时机（M1 = 网关重启装载）。
+         */
+        GatewayRoutesOut: {
+            /** Routes */
+            routes: components["schemas"]["RouteRuleOut"][];
+            /** Takes Effect */
+            takes_effect: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -391,6 +433,23 @@ export interface components {
             aggregate_collected_at: string | null;
             /** Recent Ledger */
             recent_ledger: components["schemas"]["LedgerEntryOut"][];
+        };
+        /**
+         * RouteRuleIn
+         * @description 一条路由规则入参：模型名 → 有序账户池（先 = 优先）。
+         */
+        RouteRuleIn: {
+            /** Model */
+            model: string;
+            /** Accounts */
+            accounts: string[];
+        };
+        /** RouteRuleOut */
+        RouteRuleOut: {
+            /** Model */
+            model: string;
+            /** Accounts */
+            accounts: string[];
         };
         /**
          * RunIn
@@ -712,6 +771,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RadarAccountOut"][];
+                };
+            };
+        };
+    };
+    get_gateway_routes_api_v1_gateway_routes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayRoutesOut"];
+                };
+            };
+        };
+    };
+    put_gateway_routes_api_v1_gateway_routes_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GatewayRoutesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayRoutesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

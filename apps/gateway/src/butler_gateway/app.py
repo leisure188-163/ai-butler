@@ -43,9 +43,9 @@ def _build_kit() -> object:
     factory = _kit_factory
     if factory is not None:
         return factory()
-    from butler_engine.bridge import build_engine  # 端触引擎只经 bridge（ADR-001）
+    from butler_engine.bridge import build_engine, default_db_path  # 端触引擎只经 bridge（ADR-001）
 
-    return build_engine()
+    return build_engine(default_db_path())
 
 
 @asynccontextmanager

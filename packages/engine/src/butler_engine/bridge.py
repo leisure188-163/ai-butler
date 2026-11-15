@@ -26,6 +26,7 @@ from butler_core.health.usecases.health_scan import AssessAccountHealth, ScanCre
 from butler_core.usage.usecases.collect_usage import CollectUsage
 from butler_core.usage.usecases.record_sample import RecordUsageSample
 from butler_core.execution.usecases.execute_action import ExecuteAction, RunRequest
+from butler_core.execution.usecases.manage_gateway_routes import ManageGatewayRoutes
 from butler_core.scheduling.usecases.list_pending import ListPending
 from butler_core.accounts.usecases.register_account import RegisterAccount
 from butler_core.bootstrap import execute_action as _assemble_execute_action
@@ -37,6 +38,7 @@ from butler_core.execution.domain import Action, ActionKind
 from butler_engine.accounts.sqlite import SqliteAccountRepository
 from butler_engine.audit.sqlite import AuditSubscriber, SqliteAuditLog
 from butler_engine.db.migrate import migrate_legacy_db, migrate_legacy_vault
+from butler_engine.gateway.routes_file import FileGatewayRoutesStore, ROUTES_FILE_NAME
 from butler_engine.events.bus import EventBus
 from butler_engine.health.state import SqliteHealthStateStore
 from butler_engine.ledger.sqlite import SqliteRunLedger
@@ -106,6 +108,8 @@ class EngineKit:
     usage_store: SqliteUsageStore
     collect_usage: CollectUsage
     record_usage_sample: RecordUsageSample
+    gateway_routes_store: FileGatewayRoutesStore
+    manage_gateway_routes: ManageGatewayRoutes
     scan_job: IntervalJob | None = None
     checkin_schedule: CheckinSchedule | None = None
     checkin_job: IntervalJob | None = None
@@ -324,6 +328,7 @@ def build_engine(
     db_path: str | Path = DEFAULT_DB,
     *,
     pool_policies: Mapping[str, CachePolicy] | None = None,
+    routes_file: str | Path | None = None,
 ) -> EngineKit:
     """组装根：把适配器接到端口，构造用例（A1-02 §1：start 层职责）。
 
@@ -331,6 +336,8 @@ def build_engine(
     未接入动作显式拒绝（UnsupportedAction）。每日扫描 job 默认不启动，由端
     （server/desktop 组合层）显式 start_expiry_scans()。凭据池策略按 kind
     声明注入（ADR-012 裁决 3；未声明 kind = 不缓存，严格现用现取）。
+    路由表文件存储（R4-G6 裁决 6）默认 = db 同目录 gateway-routes.json，
+    ``routes_file`` 覆盖（测试/便携模式）。
     """
     bus = EventBus()
     ledger = SqliteRunLedger(db_path)
@@ -365,6 +372,11 @@ def build_engine(
     collect_usage = CollectUsage(ports={}, store=usage_store, sink=bus)
     record_usage_sample = RecordUsageSample(store=usage_store, audit=audit)
 
+    gateway_routes_store = FileGatewayRoutesStore(
+        Path(routes_file) if routes_file else Path(db_path).parent / ROUTES_FILE_NAME
+    )
+    manage_gateway_routes = ManageGatewayRoutes(store=gateway_routes_store)
+
     return EngineKit(
         bus=bus,
         ledger=ledger,
@@ -381,4 +393,6 @@ def build_engine(
         usage_store=usage_store,
         collect_usage=collect_usage,
         record_usage_sample=record_usage_sample,
+        gateway_routes_store=gateway_routes_store,
+        manage_gateway_routes=manage_gateway_routes,
     )
