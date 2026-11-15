@@ -10,7 +10,8 @@ CREATE TABLE accounts (
     id            TEXT PRIMARY KEY,
     provider      TEXT NOT NULL,
     display_name  TEXT NOT NULL,
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL,
+    sessions      TEXT NOT NULL DEFAULT '[]'
 );
 CREATE INDEX idx_accounts_provider ON accounts (provider);
 

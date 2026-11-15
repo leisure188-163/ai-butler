@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from typing import Callable
 
 from butler_core.shared.errors import DomainError
@@ -79,13 +80,47 @@ class Entitlement:
     last_claim_window: str = ""
 
 
+class SessionKind(StrEnum):
+    """会话种类（ADR-013 裁决 1）：迁移对象按 kind 分列，词表单源。"""
+
+    WORKSPACE = "workspace"  # 工作区/配置上下文（纯文件，R5 首批迁移对象）
+    CONVERSATION = "conversation"  # 对话历史（写风险高，逐家取证后再开）
+
+
+class SessionLevel(StrEnum):
+    """可迁移级别（A1-01 §3 L4）：local=本地文件迁移 / inject=摘要注入 /
+    server=官方共享能力。产品承诺口径 = 可迁移+可回退，不承诺无缝。"""
+
+    LOCAL = "local"
+    INJECT = "inject"
+    SERVER = "server"
+
+
 @dataclass(frozen=True)
 class Session:
-    """本机会话：存储位置 + 可迁移级别。"""
+    """本机会话：存储位置 + 种类 + 可迁移级别（R5-S1，ADR-013）。"""
 
     account_id: str
     location: str
-    level: str = "local"  # local | inject | server
+    kind: SessionKind
+    level: SessionLevel = SessionLevel.LOCAL
+
+    def __post_init__(self) -> None:
+        if not self.account_id.strip() or not self.location.strip():
+            raise AccountInvalid("会话需要非空的 account_id 与 location")
+
+
+@dataclass(frozen=True)
+class SessionSighting:
+    """一次只读扫描的会话观测（扫描器出产，非持久实体）。
+
+    device_ref = 供应商侧账户标识（trae = Aha 数字设备号，即 state.vscdb
+    key 前缀）；绑定不可得时如实为 None——不猜归属。"""
+
+    location: str
+    kind: SessionKind
+    level: SessionLevel = SessionLevel.LOCAL
+    device_ref: str | None = None
 
 
 @dataclass(frozen=True)

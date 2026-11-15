@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/accounts/{account_id}/sessions/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan Account Sessions
+         * @description 扫一次本机会话并入库（只读枚举；重复扫描幂等）。
+         */
+        post: operations["scan_account_sessions_api_v1_accounts__account_id__sessions_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/apps": {
         parameters: {
             query?: never;
@@ -264,6 +284,8 @@ export interface components {
             repair_hint: string | null;
             /** Credentials */
             credentials: components["schemas"]["CredentialOut"][];
+            /** Sessions */
+            sessions: components["schemas"]["SessionOut"][];
         };
         /**
          * AppOut
@@ -507,6 +529,34 @@ export interface components {
             /** Repair Action Id */
             repair_action_id: string | null;
         };
+        /**
+         * SessionOut
+         * @description 会话投影：kind/level = core 词表原样（端零映射）。
+         */
+        SessionOut: {
+            /** Location */
+            location: string;
+            /** Kind */
+            kind: string;
+            /** Level */
+            level: string;
+        };
+        /**
+         * SessionsScanOut
+         * @description 扫描结果如实分列：unbound 观测原文回传（绑定不可得不是错误）。
+         */
+        SessionsScanOut: {
+            /** Account Id */
+            account_id: string;
+            /** Scanned */
+            scanned: number;
+            /** Added */
+            added: number;
+            /** Sessions */
+            sessions: components["schemas"]["SessionOut"][];
+            /** Unbound Locations */
+            unbound_locations: string[];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -545,6 +595,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountOut"][];
+                };
+            };
+        };
+    };
+    scan_account_sessions_api_v1_accounts__account_id__sessions_scan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionsScanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -17,7 +17,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 from butler_core.execution.ports import ProvisionPort
 
@@ -29,6 +29,7 @@ from butler_core.execution.usecases.execute_action import ExecuteAction, RunRequ
 from butler_core.execution.usecases.manage_gateway_routes import ManageGatewayRoutes
 from butler_core.scheduling.usecases.list_pending import ListPending
 from butler_core.accounts.usecases.register_account import RegisterAccount
+from butler_core.accounts.usecases.scan_sessions import ScanSessions
 from butler_core.bootstrap import execute_action as _assemble_execute_action
 from butler_core.bootstrap import list_pending as _assemble_list_pending
 from butler_core.bootstrap import register_account as _assemble_register_account
@@ -110,6 +111,7 @@ class EngineKit:
     record_usage_sample: RecordUsageSample
     gateway_routes_store: FileGatewayRoutesStore
     manage_gateway_routes: ManageGatewayRoutes
+    session_scan: ScanSessions | None = None  # R5-S1：会话扫描源未装配 = None（如实）
     scan_job: IntervalJob | None = None
     checkin_schedule: CheckinSchedule | None = None
     checkin_job: IntervalJob | None = None
@@ -139,6 +141,17 @@ class EngineKit:
             self._target_ports[tid] = port
         self._kind_ports.update(kinds or {})
         self.execute_action.ports = self._selector()
+
+    def register_session_source(self, source: Any) -> None:
+        """装配会话扫描源（R5-S1，ADR-013）：只准装配一次（重复 = 装配 bug 显式爆）。
+
+        source.scan_sessions(provider) 需按 provider 分发（trae 扫描器只认
+        trae_cn）；未装配 = session_scan 保持 None（端侧如实 503，不猜）。"""
+        if self.session_scan is not None:
+            raise ValueError("会话扫描源重复装配——显式拒绝（红线 5）")
+        self.session_scan = ScanSessions(
+            source=source, accounts=self.accounts, vault=self.vault
+        )
 
     def register_usage_ports(
         self,

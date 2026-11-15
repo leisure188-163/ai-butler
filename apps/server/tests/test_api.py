@@ -86,6 +86,7 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
                     {"account_id": "acc1", "kind": "cookie", "level": "healthy",
                      "signal": "ok", "expires_at": None}
                 ],
+                "sessions": [],  # R5-S1：名册投影带会话清单（vault-only 账号如实空）
             }
         ]
 

@@ -40,6 +40,10 @@ export type CollectOutcome = Contract["CollectOutcomeOut"];
 export type GatewayRouteRule = Contract["RouteRuleOut"];
 export type GatewayRoutes = Contract["GatewayRoutesOut"];
 
+/** 会话清单（R5-S1）：kind/level = core 词表原样，UI 只渲染不判类 */
+export type SessionItem = Contract["SessionOut"];
+export type SessionsScan = Contract["SessionsScanOut"];
+
 export type ThemeName = "system" | "paper" | "dark" | "warm";
 
 export interface Settings {

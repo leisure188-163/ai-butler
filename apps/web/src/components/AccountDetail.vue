@@ -10,6 +10,12 @@ import type { AccountItem, AppItem } from "../types";
 import { earliestExpiry, faceOf, fmtTime, signalText } from "../utils";
 import AppBadge from "./AppBadge.vue";
 
+/** 会话 location 是绝对路径：卡片里只显示末段（目录名/文件名），全名 title 提示 */
+function sessionLabel(location: string): string {
+  const parts = location.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? location;
+}
+
 const props = defineProps<{
   account: AccountItem | null;
   app: AppItem | null;
@@ -19,6 +25,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   claim: [target: string];
   health: [target: string];
+  scanSessions: [accountId: string];
   close: [];
 }>();
 
@@ -54,6 +61,16 @@ const hasHealth = computed(() => props.app?.capabilities.includes("health.check"
     </ul>
     <p v-else class="quietline">该账户还没有凭据。</p>
 
+    <p class="detail-label">会话（R5 首批 = 工作区/配置上下文）</p>
+    <ul v-if="account.sessions.length" class="cred-rows">
+      <li v-for="(s, i) in account.sessions" :key="i" class="cred-row">
+        <span class="cred-kind session-loc">{{ sessionLabel(s.location) }}</span>
+        <span class="row-sub">{{ s.kind }}</span>
+        <span class="row-sub num">{{ s.level }}</span>
+      </li>
+    </ul>
+    <p v-else class="quietline">还没有入库会话——点「扫会话」做一次只读枚举。</p>
+
     <p v-if="account.evidence.length" class="detail-evidence">
       {{ account.evidence.join("；") }}
     </p>
@@ -73,6 +90,9 @@ const hasHealth = computed(() => props.app?.capabilities.includes("health.check"
         :disabled="busy"
         @click="emit('health', app.id)"
       >体检</button>
+      <button class="btn btn--ghost" :disabled="busy" @click="emit('scanSessions', account.account_id)">
+        扫会话
+      </button>
     </span>
   </div>
   <p v-else class="detail-empty">在矩阵里点一行账户，看它的凭据与体检详情。</p>
@@ -134,6 +154,12 @@ const hasHealth = computed(() => props.app?.capabilities.includes("health.check"
 .cred-kind { font-weight: 600; }
 .cred-exp { margin-left: auto; white-space: nowrap; }
 .cred-row .tag { flex: none; align-self: center; }
+.session-loc {
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .detail-evidence {
   margin: var(--space-3) 0 0;

@@ -36,7 +36,9 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 - `CredentialPool`：凭据池端口（ADR-012 裁决 3：现用现取 + 短 TTL 缓存，策略 =
   `CachePolicy` kind 数据；网关反代热路径唯一取凭据入口，任何 acquire 含缓存
   命中全审计；缺凭据显式抛承 VaultPort.load 语义）
-- `SessionSourcePort`：本机会话/凭据扫描与导入（dock/浏览器通道的数据面）
+- `SessionSourcePort`：本机会话/凭据扫描与导入（dock/浏览器通道的数据面）；
+  R5-S1 增 `scan_sessions(provider)`——只读枚举 `SessionSighting`
+  (location, kind, level, device_ref=供应商侧账户标识)，绑定不可得如实 None
 - `AccountRepoPort`：账户集合的持久化（Repository 接口隔离，A1-02 §6）
 
 ## 4. 用例
@@ -45,6 +47,17 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 |---|---|
 | `register_account` | 建立 Provider 下账户并落库；`(provider, account_key)` 冲突 → 显式拒绝 |
 | 导入多账号 | SessionSourcePort 枚举本机多 profile/多开，逐账号入库（ADR-003 §3；连接器侧逐家取证随 P5 落地，见 A2-02 §5 沙箱） |
+| `scan_sessions`（R5-S1，ADR-013） | 只读枚举 → device_ref 绑定（vault device 类凭据匹配）→ 组 Session 追加聚合（(location,kind,level) 去重幂等）→ repo 回写；绑定不可得 = 如实 unbound 分列不入库 |
+
+### 4.1 会话实体与绑定（R5-S1）
+
+- `Session`：account_id / location / kind（`SessionKind`: workspace \| conversation，
+  ADR-013 裁决 1 首批只 workspace）/ level（`SessionLevel`: local \| inject \| server）
+- 持久化：accounts 表 `sessions` JSON 列（随聚合整体替换；老库 ALTER 自迁移）
+- 绑定键约定：扫描器 device_ref = 供应商侧账户标识；trae = state.vscdb key
+  账户数字前缀（PROTOCOL §10）。**device_dn ≠ 账户 id**——trae 绑定数据面
+  待 dock 增捕 `aha_account_id`（S1.5，storage.json `icube_gtm`/`checkin1024.*`
+  键名明文可取，非敏感）；本机真跑 38 观测全 unbound = 台账语义如实呈现
 
 ## 5. 事件联动
 

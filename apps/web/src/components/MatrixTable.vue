@@ -22,6 +22,7 @@ const emit = defineEmits<{
   claim: [target: string];
   health: [target: string];
   claimMany: [targets: string[]];
+  scanSessions: [accountId: string];
 }>();
 
 /* ---- 筛选（只影响表格行与全选范围，不影响计数按钮）---- */
@@ -281,6 +282,7 @@ function lastRunAtOf(accountId: string): string | null {
                   :busy="busyTarget !== null"
                   @claim="emit('claim', $event)"
                   @health="emit('health', $event)"
+                  @scan-sessions="emit('scanSessions', $event)"
                   @close="toggleDetail(account.account_id)"
                 />
               </td>

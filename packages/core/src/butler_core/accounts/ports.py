@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from typing import Protocol
 
-from butler_core.accounts.domain import Account, CredentialHealth, Secret
+from butler_core.accounts.domain import Account, CredentialHealth, Secret, SessionSighting
 from butler_core.shared.errors import DomainError
 
 
@@ -78,8 +78,15 @@ class CredentialPool(Protocol):
 
 
 class SessionSourcePort(Protocol):
-    """本机会话/凭据扫描：多 profile 枚举（ADR-003 §3）。"""
+    """本机会话/凭据扫描：多 profile 枚举（ADR-003 §3）+ 会话观测（R5-S1）。"""
 
     def enumerate_accounts(self, provider: str) -> Iterable[tuple[str, str]]:
         """产出 (account_key, display_name)；不可得通道如实返回空。"""
+        ...
+
+    def scan_sessions(self, provider: str) -> Iterable[SessionSighting]:
+        """只读枚举本机会话位置（R5-S1，ADR-013 裁决 1：首批 workspace）。
+
+        适配器契约：看形状即止，禁写动作；客户端运行中持锁等读不了的情况
+        如实跳过（不上报猜测的形状）；账户绑定不可得时 device_ref=None。"""
         ...

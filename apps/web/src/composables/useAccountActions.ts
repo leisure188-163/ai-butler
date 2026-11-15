@@ -193,6 +193,32 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
+  /* 会话扫描（R5-S1）：只读枚举 + 幂等入库，结果如实转述（unbound 不是错误） */
+  async function scanSessions(accountId: string) {
+    busyTarget.value = accountId;
+    actionMsg.value = null;
+    try {
+      const body = await api.scanAccountSessions(accountId);
+      const unbound = body.unbound_locations.length;
+      actionMsg.value = {
+        text:
+          `扫描完成：入库 ${body.added} 条` +
+          (body.added ? `（${body.account_id} 现有 ${body.sessions.length} 处会话）` : "") +
+          (unbound ? ` · ${unbound} 处未能绑定账户（如实跳过）` : ""),
+        tone: "ok",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `扫描失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
   return {
     busyTarget,
     actionMsg,
@@ -202,5 +228,6 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     importAllApps,
     claimAllApps,
     claimMany,
+    scanSessions,
   };
 }

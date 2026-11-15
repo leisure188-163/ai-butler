@@ -24,6 +24,7 @@ const emit = defineEmits<{
   health: [target: string];
   claimMany: [targets: string[]];
   claimAll: [];
+  scanSessions: [accountId: string];
 }>();
 
 /* 一键领取计数：申报了 provision.run 且已导入的应用才计数（不虚报） */
@@ -64,6 +65,7 @@ const claimableCount = computed(
       @claim="emit('claim', $event)"
       @health="emit('health', $event)"
       @claim-many="emit('claimMany', $event)"
+      @scan-sessions="emit('scanSessions', $event)"
     />
   </section>
 </template>

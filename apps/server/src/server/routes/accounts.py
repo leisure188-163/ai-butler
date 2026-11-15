@@ -1,4 +1,4 @@
-"""卡与凭据域 API（卡名册 + 逐卡健康，A4-01 §2）。
+"""卡与凭据域 API（卡名册 + 逐卡健康，A4-01 §2；会话扫描 R5-S1）。
 
 序列化纪律（红线 2）：本模块只做 domain 对象 → JSON 的形状投影，
 level / signal / repair_hint 等**语义字面量由 core 出产并原样传递**；
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from butler_core.accounts.domain import CredentialHealth
@@ -28,6 +28,14 @@ class CredentialOut(BaseModel):
     expires_at: datetime | None
 
 
+class SessionOut(BaseModel):
+    """会话投影：kind/level = core 词表原样（端零映射）。"""
+
+    location: str
+    kind: str
+    level: str
+
+
 class AccountOut(BaseModel):
     account_id: str
     account_key: str  # 应用内账号序（ADR-003：target = 应用 + 账号）
@@ -38,6 +46,7 @@ class AccountOut(BaseModel):
     evidence: list[str]
     repair_hint: str | None  # core 出产文案，前端直渲染
     credentials: list[CredentialOut]
+    sessions: list[SessionOut]  # R5-S1：已入库会话清单（扫描后随名册可见）
 
 
 def _credential_out(hp: CredentialHealth) -> CredentialOut:
@@ -77,6 +86,49 @@ def list_accounts(request: Request) -> list[AccountOut]:
                 evidence=list(health.evidence),
                 repair_hint=health.repair_hint,
                 credentials=[_credential_out(hp) for hp in creds],
+                sessions=[
+                    SessionOut(location=s.location, kind=s.kind.value, level=s.level.value)
+                    for s in (getattr(account, "sessions", None) or ())
+                ],
             )
         )
     return out
+
+
+# --- 会话扫描（R5-S1，ADR-013）：只读枚举 + 绑定 + 幂等入库 ---
+
+
+class SessionsScanOut(BaseModel):
+    """扫描结果如实分列：unbound 观测原文回传（绑定不可得不是错误）。"""
+
+    account_id: str
+    scanned: int
+    added: int
+    sessions: list[SessionOut]
+    unbound_locations: list[str]
+
+
+@router.post("/accounts/{account_id}/sessions/scan", response_model=SessionsScanOut)
+def scan_account_sessions(account_id: str, request: Request) -> SessionsScanOut:
+    """扫一次本机会话并入库（只读枚举；重复扫描幂等）。"""
+    kit = request.app.state.kit
+    if kit.session_scan is None:
+        raise HTTPException(
+            status_code=503, detail="该部署未装配会话扫描源（R5-S1 装配口径，如实拒绝）"
+        )
+    account = kit.accounts.get(account_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail=f"卡不存在: {account_id}")
+    outcome = kit.session_scan.scan(account.provider)
+    refreshed = kit.accounts.get(account_id)
+    sessions = refreshed.sessions if refreshed else account.sessions
+    return SessionsScanOut(
+        account_id=account_id,
+        scanned=outcome.scanned,
+        added=outcome.added,
+        sessions=[
+            SessionOut(location=s.location, kind=s.kind.value, level=s.level.value)
+            for s in sessions
+        ],
+        unbound_locations=[u.location for u in outcome.unbound],
+    )

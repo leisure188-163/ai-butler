@@ -17,6 +17,7 @@ import type {
   ImportResult,
   RadarRow,
   RunItem,
+  SessionsScan,
 } from "./types";
 
 const apiBase = "/api/v1";
@@ -101,6 +102,16 @@ export async function getRadar(): Promise<RadarRow[]> {
 
 export function collectUsage(): Promise<CollectOutcome[]> {
   return request<CollectOutcome[]>(`${apiBase}/usage/collect`, post());
+}
+
+/* ---- 会话域（R5-S1）---- */
+
+/** 扫一次本机会话并入库（只读枚举 + 幂等）；503 = 部署未装配扫描源，detail 直显 */
+export function scanAccountSessions(accountId: string): Promise<SessionsScan> {
+  return request<SessionsScan>(
+    `${apiBase}/accounts/${encodeURIComponent(accountId)}/sessions/scan`,
+    post(),
+  );
 }
 
 /* ---- 网关域（R4-G6）---- */

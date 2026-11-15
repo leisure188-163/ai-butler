@@ -5,6 +5,22 @@
 
 ## 一句话现状
 
+**R5-S1 会话扫描入库落地（2026-11-15）**：Session 实体补 `kind`
+（SessionKind: workspace|conversation）+ `SessionLevel` 枚举化；端口增
+`scan_sessions`（SessionSighting：location/kind/level/device_ref=供应商侧
+账户标识，绑定不可得如实 None）；core 用例 `scan_sessions`（vault device
+凭据匹配绑定 → (location,kind,level) 去重幂等入库 → repo 回写；绑定不可得
+如实 unbound 分列不入库）；trae 扫描器实装（registry 显式工厂契约
+`build_session_source()`；只读 `mode=ro` 查 key 名不取值；坏库/锁死如实跳
+过）；bridge `register_session_source`（防撞车）+ server
+`POST /accounts/{id}/sessions/scan`（未装配如实 503）+ 名册投影带 sessions
++ web 账户详情「会话」节 + 「扫会话」按钮（四层 emit 链）。accounts 表增
+sessions JSON 列（ALTER 自迁移）+ schema.sql 同步。**取证发现（S1.5 挂账）**：
+trae `device_dn`=设备号 ≠ state.vscdb 前缀=账户 id（本机两账户 135…/236…）
+——绑定数据面待 dock 增捕 `aha_account_id`（storage.json `icube_gtm`/
+`checkin1024.*` 键名明文可取）；真机 38 观测全 unbound = 台账语义如实呈现
+非缺陷。新测试 18 项，门禁九项绿，A2-04 §3/§4.1 已收编。
+
 **R5-S0 收口（2026-11-15）**：ADR-013 六项裁决落档（A3 分 kind 首批
 workspace / trae 先行 / 模板注入 / 官方能力边界 / accounts 域编排 /
 session-snapshots 两代 + CLI restore）；trae_cn 只读取证 spike 回收

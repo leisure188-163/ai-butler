@@ -81,6 +81,12 @@ class DockOutcome:
     issues: list[str] = field(default_factory=list)
 
 
+#: 会话扫描源模块（R5-S1，ADR-013）：按连接器 id 显式登记，未登记 = None
+_SESSION_SOURCE_MODULES: dict[str, str] = {
+    "trae_cn": "butler_connectors.trae_cn.sessions",
+}
+
+
 class Registry:
     """连接器家族注册表：端（server/cli）组装层的唯一入口。"""
 
@@ -97,6 +103,24 @@ class Registry:
             return self._apps[target]
         except KeyError:
             raise KeyError(f"连接器未接入: {target!r}（可用: {self.ids()}）") from None
+
+    def session_source(self, conn_id: str) -> Any | None:
+        """连接器会话扫描器（R5-S1）：模块须暴露 ``build_session_source()`` 工厂。
+
+        未登记/工厂缺失 = None（装配侧如实不装，不猜）；工厂坏 = 装载期
+        显式爆（红线 5）。"""
+        module_path = _SESSION_SOURCE_MODULES.get(conn_id)
+        if module_path is None:
+            return None
+        from importlib import import_module
+
+        module = import_module(module_path)
+        factory = getattr(module, "build_session_source", None)
+        if factory is None:
+            raise ManifestInvalid(
+                f"{conn_id}: 会话源模块 {module_path} 缺 build_session_source() 工厂"
+            )
+        return factory()
 
     def apps(self) -> list[ConnectorApp]:
         return [self._apps[i] for i in self.ids()]

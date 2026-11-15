@@ -66,6 +66,7 @@ const {
   importAllApps,
   claimAllApps,
   claimMany,
+  scanSessions,
 } = account;
 const { collecting, usageMsg, collectUsage } = usage;
 
@@ -148,6 +149,7 @@ onBeforeUnmount(() => {
         @health="healthApp"
         @claim-many="claimMany"
         @claim-all="claimAllApps"
+        @scan-sessions="scanSessions"
       />
       <TrafficPage
         v-else-if="active === '流量'"

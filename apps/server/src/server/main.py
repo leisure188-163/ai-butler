@@ -38,6 +38,11 @@ def _assemble_connectors(kit) -> None:
     kit.register_usage_ports(
         targets=registry.usage_ports(vault=kit.vault, transport=None)
     )
+    # 会话扫描源（R5-S1，ADR-013）：逐家登记的连接器装配；未登记家 = None 跳过
+    for conn_id in registry.ids():
+        source = registry.session_source(conn_id)
+        if source is not None:
+            kit.register_session_source(source)
     entries = [
         ScheduleEntry(
             target=entry["target"],
