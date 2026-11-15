@@ -5,6 +5,15 @@
 
 ## 一句话现状
 
+**R5-S0 收口（2026-11-15）**：ADR-013 六项裁决落档（A3 分 kind 首批
+workspace / trae 先行 / 模板注入 / 官方能力边界 / accounts 域编排 /
+session-snapshots 两代 + CLI restore）；trae_cn 只读取证 spike 回收
+PROTOCOL §10——**workspace kind 本地可迁**（workspaceStorage 目录级 +
+globalStorage/settings/snippets，**多账户 = key 前缀隔离**不能整库拷）、
+**conversation 本地不可迁**（ChatSessionStore.index 仅 26 字节指向云端，
+正文在服务端 → server 级），裁决 A3 被取证验证。下一步 S1：
+Session 实体补 kind + SessionSourcePort 实装（trae）。
+
 **R5 立项：会话迁移设计前置清单出炉（2026-11-15）**：`docs/plans/03-R5-会话
 迁移设计前置清单.md`——汇编既有锚点（Session 实体/SessionSourcePort 已留
 零装配、网页两家排除首批、无 legacy oracle），列 6 个概念裁决点（**裁决 A

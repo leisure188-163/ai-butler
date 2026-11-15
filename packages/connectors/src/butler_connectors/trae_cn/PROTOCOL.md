@@ -152,3 +152,32 @@ usage_summary / 包分账本。
   `api/v1/commercial/get_session_usage`（Router 输入候选）
 - 流式：遥测键 `icube_ai_agent_model_llm_stream` 证实 SSE/流式存在；
   请求体形状与头组待真机验证
+
+## 10. 会话/工作区形状取证（2026-11-15，mac 真机只读 spike · R5 S0）
+
+> 只读取证（ADR-013 裁决 1：首批只做 workspace kind）；数据根
+> `~/Library/Application Support/Trae CN/`（VS Code 家族布局）。
+
+### 10.1 workspace kind（本地可迁 ✅）
+
+- `User/workspaceStorage/<hash>/workspace.json`（`folder` = `file://` 工作区
+  绑定）+ `state.vscdb`（SQLite `ItemTable` KV）+ 扩展目录——**workspace
+  绑定与工作区级状态**，R5 首批迁移对象；快照/还原 = 目录级拷贝
+- 全局侧：`User/globalStorage/state.vscdb`（920K，311 keys）+
+  `User/settings.json` + `User/snippets/` + `User/History/`
+- **多账户隔离 = key 前缀**：`<账户数字id>:draft:session:*` /
+  `<账户数字id>_ai-chat:sessionRelation:*`——同一 db 两套账户 key 并存，
+  迁移/还原须按账户前缀过滤，不能整库拷贝（会串账户）
+
+### 10.2 conversation kind（本地不可迁 ❌ → server 级）
+
+- `chat.ChatSessionStore.index` 仅 26 字节（云端索引指针）；`ChatStore` 1KB；
+  本地无对话正文——**trae 会话正文在服务端**，本地迁移不可行；
+  对话级 = 官方导出/共享能力（server kind，裁决 4）或后续逐家取证
+
+### 10.3 风险与边界
+
+- `state.vscdb` 为 SQLite 活库（客户端运行中持锁）：快照须 `mode=ro` 读或
+  客户端退出后拷贝；还原 = 客户端退出 + 目录级替换 + 前缀过滤
+- `chatHistoryNeedToBeMigrated-<账户id>` key 存在——官方自身有历史迁移机制
+  痕迹，后续 server 级取证时留意官方同步开关
