@@ -1,4 +1,4 @@
--- butler.db 全库 schema（生成视图 · 9 张表）
+-- butler.db 全库 schema（生成视图 · 10 张表）
 --
 -- 权威单源 = 各域适配器的 DDL 常量（A4-01 §5：SQL 只存在于 butler_engine 适配器层，
 -- 表按域分置）；本文件是 scripts/dump_db_schema.py 的产物，**勿手改**。
@@ -56,12 +56,24 @@ CREATE TABLE quota_ledger (
     raw_json TEXT,
     PRIMARY KEY (account_id, record_id)
 );
+CREATE TABLE usage_samples (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    tokens_in INTEGER NOT NULL,
+    tokens_out INTEGER NOT NULL,
+    model TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    source TEXT NOT NULL,
+    duration_ms REAL
+);
 CREATE INDEX idx_usage_snapshots_account
     ON usage_snapshots(account_id, collected_at);
 CREATE INDEX idx_usage_aggregates_account
     ON usage_aggregates(account_id, collected_at);
 CREATE INDEX idx_quota_ledger_account
     ON quota_ledger(account_id, occurred_at);
+CREATE INDEX idx_usage_samples_account
+    ON usage_samples(account_id, ts);
 
 -- ═══ 健康域 · health/state.py ═══
 CREATE TABLE health_state (

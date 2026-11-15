@@ -215,6 +215,8 @@ class UsageSample:
     """一次用量流水：tokens_in/out / model / ts / source，按账号隔离。
 
     样本只增不改；source 必填（无来源样本拒绝入账，不静默兜底）。
+    duration_ms = 请求时长（ADR-012 裁决 7：上游 usage 缺失时样本记 0/0 +
+    时长，绝不猜 token 数）；None = 该来源无时长语义。
     """
 
     id: str
@@ -224,11 +226,16 @@ class UsageSample:
     model: str
     ts: datetime
     source: str  # client | gateway | api
+    duration_ms: float | None = None
 
     def __post_init__(self) -> None:
         if not self.account_id.strip():
             raise UsageInvalid("UsageSample 需要非空 account_id")
+        if not self.model.strip():
+            raise UsageInvalid("UsageSample 需要非空 model")
         if self.source not in ("client", "gateway", "api"):
             raise UsageInvalid(f"UsageSample source 非法: {self.source!r}")
         if self.tokens_in < 0 or self.tokens_out < 0:
             raise UsageInvalid("UsageSample token 数不可为负")
+        if self.duration_ms is not None and self.duration_ms < 0:
+            raise UsageInvalid("UsageSample duration_ms 不可为负")

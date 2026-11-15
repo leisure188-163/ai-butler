@@ -5,6 +5,17 @@
 
 ## 一句话现状
 
+**R4-G4 Meter+样本表落地（2026-11-15）**：`UsageSample` 增 `duration_ms`（可
+缺省）+ model/account 非空校验；`UsageStore` 端口增 `append_sample`/
+`list_samples`，engine SqliteUsageStore 实现 **usage_samples 四表**（只增不改
+时序事实，ts 倒序读，account 可选全表），db/schema.sql 重新生成（10 表，表数
+计数改动态防漂移）；core 新用例 `RecordUsageSample`（usage/usecases/
+record_sample.py）——**口径 = 裁决 7**：source 固定 gateway、tokens 读上游
+usage 字段缺失 0/0 不猜、duration_ms 记请求时长；落库失败 = 台账语义（审计
+留痕 gateway-meter + 返回 False，不打断转发），输入非法显式抛。bridge 装配
+`kit.record_usage_sample`。13 项新测试（core meter 8 + engine 样本 5），
+门禁九项绿（559 passed）。A2-06 §2/§3/§4 同步收编。
+
 **R4-G3 路由表+限流器落地（2026-11-15）**：`routing.py`（RouteRule/RouteTable/load_routes——
 模型→账户池**有序映射即优先级**，M1 精确匹配，失败转移由 G5 调用方按序重试；
 校验显式报错：缺 routes 键/空模型/空账户/重复模型/非数组 accounts/坏 JSON
@@ -122,12 +133,13 @@ CLI `claim` 硬编码 `:main`，多账户卡领取入口待补（当前无实际
 
 ## 下一步（当前焦点）
 
-**R4 G1+G2+G3 已落地（2026-11-15），接下来 G4 Meter+Audit**：计量口径按
-裁决 7——优先读上游响应 usage 字段，缺失如实记请求级计数（次数/时长）不猜，
-入账 `UsageSample(source="gateway")` 走既有 usage 通道。随后 G5 双协议面
-（trae 请求体/头组/流式形状待 **Windows 运行态取证**，取证不全 = 该 provider
-不开工；协议面以 `auth.require_bearer` 挂载，循 RouteTable 候选按序重试 +
-AccountLimiter 持槽）；web 两家是否纳入反代首版**待用户裁**（plans/02 §3）。
+**R4 G1-G4 已落地（2026-11-15），接下来 G5 双协议面**（OpenAI-compatible +
+Anthropic-compatible，ADR-012 裁决 1/4/5/7 已备齐：`kit.credential_pool` /
+routing 只读表 / limiter 槽 / `kit.record_usage_sample`）——卡 **Windows 运行态
+取证**（trae 请求体/头组/流式形状，取证不全 = 该 provider 不开工）；协议面
+以 `auth.require_bearer` 挂载，循 RouteTable 候选按序重试 + limiter 持槽 +
+逐请求 Meter 入账。web 两家是否纳入反代首版**待用户裁**（plans/02 §3）。
+server 管理面（路由规则 CRUD 契约）挂账 G6 契约批次。
 
 **R4 网关独立进程：架构裁决完成（ADR-012）+ mac 侧推理通道取证完成（2026-11-14）**：
 四家桌面连接器 PROTOCOL §9 已登记——**trae = 反代上游候选一号**

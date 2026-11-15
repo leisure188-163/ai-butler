@@ -14,6 +14,7 @@
 
 ```
 UsageSample：tokens_in / tokens_out / model / ts / source(client|gateway|api)
+  + duration_ms（请求时长，可缺省——R4 Meter，ADR-012 裁决 7）
   ——一律挂 account_id，按账号隔离（is_quota_low 等谓词输入随账号）
 额度三型语义谓词（domain 内，端零映射的 core 端落点）：
   is_quota_low / 余额分级 / forecast_exhaustion（耗尽时间预测）
@@ -21,20 +22,26 @@ UsageSample：tokens_in / tokens_out / model / ts / source(client|gateway|api)
 
 不变量：
 1. 样本只增不改（时序事实）；写入失败不影响业务主流程（台账语义，A1-02 §6）
+   ——Meter 落库失败 = 审计留痕（gateway-meter）+ 返回失败，绝不静默也绝不打断转发
 2. 阈值谓词只在本域定义——端上/其他域不得复制阈值逻辑
 3. 采集样本必须有来源标注（source），无来源样本拒绝入账
+4. 样本 token 数不可为负；model/account_id 非空；duration_ms 非负或缺省
+5. 上游 usage 字段缺失时记 0/0 + 时长（请求级计数 = 样本条数本身），绝不猜数
+   （ADR-012 裁决 7；网关面首个让逐调用 tokens 可得的通道）
 
 ## 3. 端口（usage/ports.py）
 
 - `UsageCollectorPort`：连接器侧采集（如实申报支持度；不支持 → 通道 SKIPPED）
-- `UsageRepoPort`：用量持久化（SQLite 三表：usage_snapshots / usage_aggregates /
-  quota_ledger，DDL 视图 `db/schema.sql`；时序独立表 = R 系列方向，A4-01 §5）
+- `UsageRepoPort`：用量持久化（SQLite 四表：usage_snapshots / usage_aggregates /
+  quota_ledger / **usage_samples**（R4 逐调用时序事实，ADR-012 裁决 7），
+  DDL 视图 `db/schema.sql`；SQL 只在 engine 适配器）
 
 ## 4. 用例
 
 | 用例 | 语义 |
 |---|---|
 | `collect_usage` | 按账号采集 → 样本校验（来源必填）→ 入账 → 触发阈值谓词 → QUOTA_LOW 事件（达阈值时） |
+| `record_sample` | R4 Meter（ADR-012 裁决 7）：网关逐调用入账——一请求一样本（source=gateway），tokens 读上游 usage 字段、缺失 0/0 不猜 + duration_ms；落库失败审计留痕并返回 False（台账语义，不打断转发） |
 
 ## 5. 事件联动
 

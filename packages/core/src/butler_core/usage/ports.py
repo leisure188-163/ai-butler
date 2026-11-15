@@ -14,6 +14,7 @@ from butler_core.usage.domain import (
     QuotaLedgerEntry,
     UsageAggregate,
     UsageResult,
+    UsageSample,
     UsageSnapshot,
 )
 
@@ -50,7 +51,10 @@ class UsagePort(Protocol):
 
 
 class UsageStore(ABC):
-    """三实体落库 + 账号维度读取（SQL 只在 engine 适配器）。"""
+    """四实体落库 + 账号维度读取（SQL 只在 engine 适配器）。
+
+    样本通道（R4，ADR-012 裁决 7）：usage_samples 时序事实表，只增不改。
+    """
 
     @abstractmethod
     def save_snapshot(self, snapshot: UsageSnapshot) -> None: ...
@@ -69,3 +73,11 @@ class UsageStore(ABC):
 
     @abstractmethod
     def list_ledger(self, account_id: str, *, limit: int) -> list[QuotaLedgerEntry]: ...
+
+    @abstractmethod
+    def append_sample(self, sample: UsageSample) -> None: ...
+
+    @abstractmethod
+    def list_samples(
+        self, account_id: str | None = None, *, limit: int
+    ) -> list[UsageSample]: ...

@@ -32,9 +32,11 @@ _SECTIONS: dict[str, str] = {
     "usage_snapshots": "用量域 · usage/sqlite.py",
     "usage_aggregates": "用量域 · usage/sqlite.py",
     "quota_ledger": "用量域 · usage/sqlite.py",
+    "usage_samples": "用量域 · usage/sqlite.py",
     "idx_usage_snapshots_account": "用量域 · usage/sqlite.py",
     "idx_usage_aggregates_account": "用量域 · usage/sqlite.py",
     "idx_quota_ledger_account": "用量域 · usage/sqlite.py",
+    "idx_usage_samples_account": "用量域 · usage/sqlite.py",
     # 健康域（health/state.py）
     "health_state": "健康域 · health/state.py",
     # 保管层（vault/layered.py；A4-01 §4 凭据元数据）
@@ -47,7 +49,7 @@ _SECTIONS: dict[str, str] = {
 _ORDER = list(_SECTIONS)  # 输出顺序 = 映射登记顺序
 
 _HEADER = """\
--- butler.db 全库 schema（生成视图 · 9 张表）
+-- butler.db 全库 schema（生成视图 · {table_count} 张表）
 --
 -- 权威单源 = 各域适配器的 DDL 常量（A4-01 §5：SQL 只存在于 butler_engine 适配器层，
 -- 表按域分置）；本文件是 scripts/dump_db_schema.py 的产物，**勿手改**。
@@ -98,7 +100,9 @@ def main() -> int:
         tmp = Path(td)
         _build_temp_db(tmp)
         rows = _dump(tmp)
-    parts: list[str] = [_HEADER.rstrip("\n")]
+    tables = sum(1 for t, _n, _s in rows if t == "table")
+    indexes = sum(1 for t, _n, _s in rows if t != "table")
+    parts: list[str] = [_HEADER.format(table_count=tables).rstrip("\n")]
     section: str | None = None
     for _type, name, sql in rows:
         sec = _SECTIONS[name]
@@ -108,8 +112,6 @@ def main() -> int:
         parts.append(sql.strip() + ";")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(parts) + "\n", encoding="utf-8")
-    tables = sum(1 for t, _n, _s in rows if t == "table")
-    indexes = sum(1 for t, _n, _s in rows if t != "table")
     print(f"已生成 {OUT.relative_to(ROOT)}：{tables} 张表 / {indexes} 个索引")
     return 0
 

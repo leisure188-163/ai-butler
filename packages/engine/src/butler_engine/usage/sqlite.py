@@ -17,7 +17,13 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from butler_core.usage.ports import UsageStore
-from butler_core.usage.domain import PackageQuota, QuotaLedgerEntry, UsageAggregate, UsageSnapshot
+from butler_core.usage.domain import (
+    PackageQuota,
+    QuotaLedgerEntry,
+    UsageAggregate,
+    UsageSample,
+    UsageSnapshot,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS usage_snapshots (
@@ -53,6 +59,19 @@ CREATE TABLE IF NOT EXISTS quota_ledger (
 );
 CREATE INDEX IF NOT EXISTS idx_quota_ledger_account
     ON quota_ledger(account_id, occurred_at);
+
+CREATE TABLE IF NOT EXISTS usage_samples (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    tokens_in INTEGER NOT NULL,
+    tokens_out INTEGER NOT NULL,
+    model TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    source TEXT NOT NULL,
+    duration_ms REAL
+);
+CREATE INDEX IF NOT EXISTS idx_usage_samples_account
+    ON usage_samples(account_id, ts);
 """
 
 _SNAPSHOT_COLUMNS = "id, account_id, target, collected_at, packages_json"
@@ -152,6 +171,48 @@ class SqliteUsageStore(UsageStore):
             ).fetchall()
         return [_load_entry(row) for row in rows]
 
+    # --- 样本（R4，ADR-012 裁决 7：只增不改的时序事实）---
+
+    def append_sample(self, sample: UsageSample) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO usage_samples "
+                "(id, account_id, tokens_in, tokens_out, model, ts, source, duration_ms)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    sample.id,
+                    sample.account_id,
+                    sample.tokens_in,
+                    sample.tokens_out,
+                    sample.model,
+                    sample.ts.isoformat(),
+                    sample.source,
+                    sample.duration_ms,
+                ),
+            )
+
+    def list_samples(
+        self, account_id: str | None = None, *, limit: int
+    ) -> list[UsageSample]:
+        """样本按 ts 倒序；account_id=None 读全账号（网关/契约观测面用）。"""
+        if limit <= 0:
+            return []
+        with closing(self._connect()) as conn, conn:
+            if account_id is None:
+                rows = conn.execute(
+                    "SELECT id, account_id, tokens_in, tokens_out, model, ts, source, duration_ms "
+                    "FROM usage_samples ORDER BY ts DESC, rowid DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT id, account_id, tokens_in, tokens_out, model, ts, source, duration_ms "
+                    "FROM usage_samples WHERE account_id = ? "
+                    "ORDER BY ts DESC, rowid DESC LIMIT ?",
+                    (account_id, limit),
+                ).fetchall()
+        return [_load_sample(row) for row in rows]
+
     # --- 内部 ---
 
     def _connect(self) -> sqlite3.Connection:
@@ -235,4 +296,27 @@ def _load_entry(row: tuple) -> QuotaLedgerEntry:
         unit=unit,
         kind=kind or "",
         raw=json.loads(raw_json) if raw_json else None,
+    )
+
+
+def _load_sample(row: tuple) -> UsageSample:
+    (
+        sid,
+        account_id,
+        tokens_in,
+        tokens_out,
+        model,
+        ts,
+        source,
+        duration_ms,
+    ) = row
+    return UsageSample(
+        id=sid,
+        account_id=account_id,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        model=model,
+        ts=datetime.fromisoformat(ts),
+        source=source,
+        duration_ms=duration_ms,
     )

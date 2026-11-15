@@ -24,6 +24,7 @@ from butler_core.execution.ports import ProvisionPort
 from butler_core.usage.ports import UsagePort
 from butler_core.health.usecases.health_scan import AssessAccountHealth, ScanCredentialExpiry
 from butler_core.usage.usecases.collect_usage import CollectUsage
+from butler_core.usage.usecases.record_sample import RecordUsageSample
 from butler_core.execution.usecases.execute_action import ExecuteAction, RunRequest
 from butler_core.scheduling.usecases.list_pending import ListPending
 from butler_core.accounts.usecases.register_account import RegisterAccount
@@ -104,6 +105,7 @@ class EngineKit:
     assess_account_health: AssessAccountHealth
     usage_store: SqliteUsageStore
     collect_usage: CollectUsage
+    record_usage_sample: RecordUsageSample
     scan_job: IntervalJob | None = None
     checkin_schedule: CheckinSchedule | None = None
     checkin_job: IntervalJob | None = None
@@ -361,6 +363,7 @@ def build_engine(
 
     usage_store = SqliteUsageStore(db_path)
     collect_usage = CollectUsage(ports={}, store=usage_store, sink=bus)
+    record_usage_sample = RecordUsageSample(store=usage_store, audit=audit)
 
     return EngineKit(
         bus=bus,
@@ -377,4 +380,5 @@ def build_engine(
         assess_account_health=assess,
         usage_store=usage_store,
         collect_usage=collect_usage,
+        record_usage_sample=record_usage_sample,
     )

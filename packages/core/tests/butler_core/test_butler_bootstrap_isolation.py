@@ -37,6 +37,8 @@ class _Store(UsageStore):
     def latest_aggregate(self, account_id): return None
     def append_ledger(self, entries): return 0
     def list_ledger(self, account_id, *, limit): return []
+    def append_sample(self, sample): pass
+    def list_samples(self, account_id=None, *, limit): return []
 
 
 def test_build_kit_assembles_five_domains():
