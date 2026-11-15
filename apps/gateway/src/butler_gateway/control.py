@@ -1,7 +1,7 @@
 """主控通信（ADR-012 裁决 2：HTTP localhost，复用 server 契约 API，不发明新 IPC）。
 
-G1 范围 = 可达性观测（拉 server ``GET /health``）；配置拉取 / 观测上报
-在 G3+（Router 规则、Meter）按需扩展，走同一 client。
+G1 范围 = 可达性观测（拉 server ``GET /health``）；G6 热装载扩路由契约拉取
+（``fetch_routes``）——同一 client、同一注入纪律。
 
 transport 可注入（测试用 httpx.MockTransport，不碰真网络）——与 engine
 Windows 凭据适配器的 api_factory 注入先例同构。
@@ -15,8 +15,11 @@ from datetime import datetime, timezone
 
 import httpx
 
+from butler_core.execution.gateway_routes import RouteTable
+
 PING_TTL_SECONDS = 30.0  # /health 惰性刷新窗口：窗口内复用上次探测结果
 PING_TIMEOUT_SECONDS = 2.0
+ROUTES_TIMEOUT_SECONDS = 3.0
 
 
 def _now_iso() -> str:
@@ -80,6 +83,18 @@ class ControlClient:
         self._last = probe
         self._last_monotonic = time.monotonic()
         return probe
+
+    async def fetch_routes(self) -> RouteTable | None:
+        """拉 server 路由契约；不可达/响应非法返回 None（来源层如实保值，不猜）。"""
+        try:
+            resp = await self._client.get(
+                f"{self._server_url}/api/v1/gateway/routes",
+                timeout=ROUTES_TIMEOUT_SECONDS,
+            )
+            resp.raise_for_status()
+            return RouteTable.from_dict(resp.json())
+        except (httpx.HTTPError, OSError, ValueError):
+            return None
 
     async def aclose(self) -> None:
         await self._client.aclose()

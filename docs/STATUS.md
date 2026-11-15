@@ -5,6 +5,15 @@
 
 ## 一句话现状
 
+**网关路由热装载落地（2026-11-15）**：gateway `routes_source.py`（RoutesSource：
+server 契约为真相、文件为启动兜底、最近已知好表保值——TTL 30s 闸 + 后台 15s
+节拍刷新，时钟可注入；server 可达即采纳**含空表**=管理面清空如实生效，不可达
+保持 server_fallback 好表不回滚文件）+ `ControlClient.fetch_routes`（不可达/
+非法返回 None 不猜）；app lifespan 后台刷新任务同步 forwarder.routes，
+/health routes 节增 source。真机三态验：文件兜底 → 15s 采纳 server 表 →
+清空采纳（40s 越过双闸）→ 恢复。5 项新测试（假时钟），gateway 60 项全绿，
+门禁九项绿。M1 陈旧上限 = 15-45s（双闸），单机场景够用。
+
 **CLI claim 账户参数化落地（2026-11-15）**：`claim` 增 `--account/-a`（默认
 main，完整卡号 = `<target>:<key>`），领取前号册校验——卡不存在显式红字列
 出该应用已有卡（未导入提示先 import），校验失败不触执行；CLI 测试目录首建
