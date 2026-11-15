@@ -5,6 +5,13 @@
 
 ## 一句话现状
 
+**R5 立项：会话迁移设计前置清单出炉（2026-11-15）**：`docs/plans/03-R5-会话
+迁移设计前置清单.md`——汇编既有锚点（Session 实体/SessionSourcePort 已留
+零装配、网页两家排除首批、无 legacy oracle），列 6 个概念裁决点（**裁决 A
+「会话」定义** = 对话历史 vs 工作区上下文 vs 分 kind、首批家数、inject 执行
+者、server 级边界、kind 编排归属、回退形态）+ 逐家只读取证清单 + S0-S4 阶段
+拆解。**等用户逐条裁决后**：S0 出 ADR + 取证 spike。
+
 **网关路由热装载落地（2026-11-15）**：gateway `routes_source.py`（RoutesSource：
 server 契约为真相、文件为启动兜底、最近已知好表保值——TTL 30s 闸 + 后台 15s
 节拍刷新，时钟可注入；server 可达即采纳**含空表**=管理面清空如实生效，不可达
