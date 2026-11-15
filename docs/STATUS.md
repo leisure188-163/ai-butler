@@ -5,6 +5,21 @@
 
 ## 一句话现状
 
+**R4-G5 双协议面+失败转移落地（2026-11-15）**：`apps/gateway` 新增三模块——
+`upstream.py`（ProviderUpstream 端口+注册表，A2-02 §3 插件禁声明式；**真上游
+适配器零编造**，取证未回收的 provider 如实 skipped）、`forwarder.py`（转移
+编排：循 RouteTable 候选按序重试，5xx/429/connect 转移、401/403 先
+pool.invalidate 再转移、其余 4xx 判请求问题不转移原样回传；每尝试 Meter
+入账=裁决 7，Meter 失败不打断=台账语义；意外异常冒泡=红线 5）、`proxy.py`
+（OpenAI `/v1/chat/completions` + Anthropic `/v1/messages` 双标准面，
+require_bearer 挂载，usage 方言解析收敛在协议面，M1 仅非流式——stream 真值
+422 显式拒绝，流式取证未回收不猜形状）。lifespan `build_engine` 直装 kit
+（裁决 1 进程内直调，`kit_factory` 注入测试），/health 增 proxy 节（surfaces/
+adapters/limiter_in_use）。47 项 gateway 测试全绿；真机冒烟：临时数据根起
+8123 → 未鉴权 401、鉴权后走完候选循环 502 带逐尝试台账。门禁九项绿。
+**真上游接入挂账取证**：trae Windows 运行态请求体/头组/流式（PROTOCOL §9）
+→ 适配器按注册表落位；doubao 发测试消息需用户授权。
+
 **butler-feature-dev skill 落地（2026-11-15）**：把已落地功能的分层模式提炼为
 项目级 skill `.codebuddy/skills/butler-feature-dev/`（SKILL.md + 5 分册
 references + 5 个代码骨架模板 assets）——标准动线 = domain→ports→usecase→
@@ -153,13 +168,13 @@ CLI `claim` 硬编码 `:main`，多账户卡领取入口待补（当前无实际
 
 ## 下一步（当前焦点）
 
-**R4 G1-G4 已落地（2026-11-15），接下来 G5 双协议面**（OpenAI-compatible +
-Anthropic-compatible，ADR-012 裁决 1/4/5/7 已备齐：`kit.credential_pool` /
-routing 只读表 / limiter 槽 / `kit.record_usage_sample`）——卡 **Windows 运行态
-取证**（trae 请求体/头组/流式形状，取证不全 = 该 provider 不开工）；协议面
-以 `auth.require_bearer` 挂载，循 RouteTable 候选按序重试 + limiter 持槽 +
-逐请求 Meter 入账。web 两家是否纳入反代首版**待用户裁**（plans/02 §3）。
-server 管理面（路由规则 CRUD 契约）挂账 G6 契约批次。
+**R4 G1-G5 已落地（2026-11-15），余项按取证节奏推进**：G5 协议面+转移编排
+就绪（Fake 上游端到端验证过），真上游适配器按 `upstream.register_upstream`
+落位即可——卡 **Windows 运行态取证**（trae 请求体/头组/流式形状，PROTOCOL
+§9；取证不全 = 该 provider 不开工，已由 upstream_not_ready skipped 如实表
+达）；doubao 发测试消息需用户授权。web 两家是否纳入反代首版**待用户裁**
+（plans/02 §3）。server 管理面（路由规则 CRUD 契约）挂账 G6 契约批次
+（含 gen:sdk——gateway 协议面不经 OpenAPI 契约，客户端直连标准路径）。
 
 **R4 网关独立进程：架构裁决完成（ADR-012）+ mac 侧推理通道取证完成（2026-11-14）**：
 四家桌面连接器 PROTOCOL §9 已登记——**trae = 反代上游候选一号**

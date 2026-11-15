@@ -14,6 +14,8 @@ import secrets
 import stat
 from pathlib import Path
 
+from fastapi import HTTPException, Request
+
 _KEY_BYTES = 32  # token_urlsafe(32) ≈ 43 字符，熵 256bit
 
 
@@ -68,3 +70,9 @@ def check_bearer(authorization: str | None, key: str) -> bool:
     if scheme.lower() != "bearer" or not token.strip():
         return False
     return secrets.compare_digest(token.strip(), key)
+
+
+def require_bearer(request: Request) -> None:
+    """协议面鉴权依赖（G5 挂载点，裁决 4）：key 来自 app.state（lifespan 装载）。"""
+    if not check_bearer(request.headers.get("Authorization"), request.app.state.gateway_key):
+        raise HTTPException(status_code=401, detail="invalid bearer key")
