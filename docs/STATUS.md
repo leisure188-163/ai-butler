@@ -5,6 +5,15 @@
 
 ## 一句话现状
 
+**R4-G2 凭据池落地（2026-11-15）**：`CredentialPool` 端口进 core accounts 域
+（ports.py）+ `CachePolicy` kind 数据进 domain.py（未声明 kind = ttl 0 严格
+现用现取，保守默认）；实现 `VaultCredentialPool` 落 engine vault/pool.py——
+现用现取走 LayeredVault（缺凭据原样上抛），**每次 acquire 全审计**
+（gateway-pool：hit/miss/error，miss 叠加 vault.load 自带审计，无未审计读取），
+TTL 时钟可注入；bridge 装配 `kit.credential_pool`（build_engine 增
+`pool_policies` kwarg，G3 Router/G5 协议面消费）。8 项分册测试全绿
+（真 vault+审计+假时钟），A2-04 §3 / A4-01 §4 已同步收编。
+
 **R4-G1 网关进程骨架落地（2026-11-15）**：`apps/gateway` 入 workspace（dist
 `butler-gateway`，包 `butler_gateway`，FastAPI+httpx 同 server 栈）——`/health`
 健康可观测（uptime/key 指纹/主控可达性 TTL 缓存 30s 惰性刷新）、鉴权 key
@@ -101,11 +110,11 @@ CLI `claim` 硬编码 `:main`，多账户卡领取入口待补（当前无实际
 
 ## 下一步（当前焦点）
 
-**R4 G1 已落地（2026-11-15），接下来 G2 凭据池**：CredentialPool 端口（core）+
-vault 现用现取适配（短 TTL 缓存按 provider kind 声明为数据，全审计走 LayeredVault
-同步落账）。随后 G3 Router+Limiter（固定优先级 + 故障转移）、G4 Meter+Audit、
-G5 双协议面（trae 请求体/头组/流式形状待 **Windows 运行态取证**，取证不全 =
-该 provider 不开工）；web 两家是否纳入反代首版**待用户裁**（plans/02 §3）。
+**R4 G1+G2 已落地（2026-11-15），接下来 G3 Router+Limiter**：固定优先级 +
+故障转移（M1 最小集，ADR-012 裁决 5），路由规则 = 声明式配置（server 管理、
+网关只读）；消费 G2 的 `kit.credential_pool`。随后 G4 Meter+Audit、G5 双协议面
+（trae 请求体/头组/流式形状待 **Windows 运行态取证**，取证不全 = 该 provider
+不开工）；web 两家是否纳入反代首版**待用户裁**（plans/02 §3）。
 
 **R4 网关独立进程：架构裁决完成（ADR-012）+ mac 侧推理通道取证完成（2026-11-14）**：
 四家桌面连接器 PROTOCOL §9 已登记——**trae = 反代上游候选一号**

@@ -61,6 +61,22 @@ class VaultPort(ABC):
     def health(self) -> list[CredentialHealth]: ...
 
 
+class CredentialPool(Protocol):
+    """凭据池端口（ADR-012 裁决 3）：现用现取 + 短 TTL 缓存，读取全审计。
+
+    网关反代热路径取凭据的唯一入口；实现必须让任何 acquire（含缓存命中）
+    都有审计留痕（plans/02 §0 红线级）。缺凭据显式抛（承 VaultPort.load
+    语义，不静默给空）。"""
+
+    def acquire(self, account_id: str, kind: str) -> Secret:
+        """取一个最小授权凭据（一次只解密申报的一个 kind）。"""
+        ...
+
+    def invalidate(self, account_id: str, kind: str) -> None:
+        """失效指定缓存项（凭据轮换/健康降级时由调用方触发）。"""
+        ...
+
+
 class SessionSourcePort(Protocol):
     """本机会话/凭据扫描：多 profile 枚举（ADR-003 §3）。"""
 

@@ -33,6 +33,9 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 ## 3. 端口（accounts/ports.py）
 
 - `VaultPort`：凭据存取/解锁（engine 实现；本地凭据解锁链，承袭 M1 收敛裁决 ADR-008）
+- `CredentialPool`：凭据池端口（ADR-012 裁决 3：现用现取 + 短 TTL 缓存，策略 =
+  `CachePolicy` kind 数据；网关反代热路径唯一取凭据入口，任何 acquire 含缓存
+  命中全审计；缺凭据显式抛承 VaultPort.load 语义）
 - `SessionSourcePort`：本机会话/凭据扫描与导入（dock/浏览器通道的数据面）
 - `AccountRepoPort`：账户集合的持久化（Repository 接口隔离，A1-02 §6）
 

@@ -30,6 +30,7 @@ from butler_core.accounts.usecases.register_account import RegisterAccount
 from butler_core.bootstrap import execute_action as _assemble_execute_action
 from butler_core.bootstrap import list_pending as _assemble_list_pending
 from butler_core.bootstrap import register_account as _assemble_register_account
+from butler_core.accounts.domain import CachePolicy
 from butler_core.execution.domain import Action, ActionKind
 
 from butler_engine.accounts.sqlite import SqliteAccountRepository
@@ -42,6 +43,7 @@ from butler_engine.notify.center import InAppChannel, NotificationCenter
 from butler_engine.scheduling.checkin import CheckinSchedule, ScheduleEntry
 from butler_engine.scheduling.interval_job import IntervalJob
 from butler_engine.usage.sqlite import SqliteUsageStore
+from butler_engine.vault.pool import VaultCredentialPool
 from butler_engine.vault.backends import MemoryVaultBackend, SecretBackend
 from butler_engine.vault.keychain_macos import KeychainBackend
 from butler_engine.vault.layered import LayeredVault
@@ -97,6 +99,7 @@ class EngineKit:
     register_account: RegisterAccount
     list_pending: ListPending
     vault: LayeredVault
+    credential_pool: VaultCredentialPool
     scan_credential_expiry: ScanCredentialExpiry
     assess_account_health: AssessAccountHealth
     usage_store: SqliteUsageStore
@@ -315,12 +318,17 @@ def _secret_backends() -> tuple[dict[str, SecretBackend], str]:
     return backends, "memory"
 
 
-def build_engine(db_path: str | Path = DEFAULT_DB) -> EngineKit:
+def build_engine(
+    db_path: str | Path = DEFAULT_DB,
+    *,
+    pool_policies: Mapping[str, CachePolicy] | None = None,
+) -> EngineKit:
     """组装根：把适配器接到端口，构造用例（A1-02 §1：start 层职责）。
 
     provision 类端口由端按 ADR-005 注册（连接器注册表 → register_provision_ports）；
     未接入动作显式拒绝（UnsupportedAction）。每日扫描 job 默认不启动，由端
-    （server/desktop 组合层）显式 start_expiry_scans()。
+    （server/desktop 组合层）显式 start_expiry_scans()。凭据池策略按 kind
+    声明注入（ADR-012 裁决 3；未声明 kind = 不缓存，严格现用现取）。
     """
     bus = EventBus()
     ledger = SqliteRunLedger(db_path)
@@ -344,6 +352,7 @@ def build_engine(db_path: str | Path = DEFAULT_DB) -> EngineKit:
     )
     health_state = SqliteHealthStateStore(db_path)
     accounts = SqliteAccountRepository(db_path)
+    credential_pool = VaultCredentialPool(vault, audit, policies=pool_policies)
 
     expiry = ScanCredentialExpiry(vault=vault, sink=bus, states=health_state)
     assess = AssessAccountHealth(
@@ -363,6 +372,7 @@ def build_engine(db_path: str | Path = DEFAULT_DB) -> EngineKit:
         register_account=_assemble_register_account(accounts),
         list_pending=_assemble_list_pending(ledger=ledger),
         vault=vault,
+        credential_pool=credential_pool,
         scan_credential_expiry=expiry,
         assess_account_health=assess,
         usage_store=usage_store,

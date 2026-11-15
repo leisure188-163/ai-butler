@@ -184,6 +184,17 @@ class CredentialHealth:
 
 
 @dataclass(frozen=True)
+class CachePolicy:
+    """凭据池缓存策略（ADR-012 裁决 3）：策略 = kind 数据，非 per-app 分支。
+
+    ttl_seconds = 0 表示该 kind 不缓存（严格现用现取）；未声明的 kind 一律
+    按不缓存处理（保守默认）。网关热路径按 kind 声明 TTL（引擎装配注入）。"""
+
+    kind: str
+    ttl_seconds: float = 0.0
+
+
+@dataclass(frozen=True)
 class AccountDraft:
     """注册用例的入参形状（避免在用例签名里堆参数）。"""
 
