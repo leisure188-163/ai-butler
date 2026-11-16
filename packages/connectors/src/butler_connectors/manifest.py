@@ -45,6 +45,9 @@ class AuthSpec(_Strict):
     token_header: HeaderPair | None = None
     static_headers: dict[str, str] = Field(default_factory=dict)
     dynamic_headers: dict[str, str] = Field(default_factory=dict)  # "{field}" 模板
+    #: HTTP 状态码申报：命中即「登录态失效」，归 NO_AUTH 而非 FAILED（A2-02 §4）。
+    #: 空 = 不申报（非鉴权类 4xx/5xx 继续按通道故障 FAILED 处理）。
+    reauth_status_codes: list[int] = Field(default_factory=list)
     # --- browser_cookie 专用字段（A2-03 §2）：其余 kind 一律禁填 ---
     browser: str = ""  # 浏览器 kind（首批唯一值 chrome）
     domain: str = ""  # registrable domain（host 精确或点后缀匹配）

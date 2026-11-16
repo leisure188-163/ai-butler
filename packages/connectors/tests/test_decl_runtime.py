@@ -73,7 +73,7 @@ def stable_unlock(monkeypatch):
     _stub_with(monkeypatch, {"token": "T", "device_dn": "12345678"})
 
 
-def make_port(transport, vault=None, sleep=None):
+def make_port(transport, vault=None, sleep=None, *, reauth_status_codes=()):
     from butler_connectors.decl import DeclarativeProvisionPort
     from butler_connectors.manifest import DeclarativeSpec
 
@@ -81,6 +81,7 @@ def make_port(transport, vault=None, sleep=None):
         {
             "auth": {
                 "kind": "ss_aes",
+                "reauth_status_codes": list(reauth_status_codes),
                 "token_header": {"name": "Authorization", "prefix": "JWT "},
                 "static_headers": {"X-Region": "cn"},
                 "dynamic_headers": {"x-device-id": "{device_dn}"},
@@ -252,3 +253,21 @@ def test_http_500_is_failed_not_retry():
     result = make_port(transport).run(request())
     assert result.status is Status.FAILED
     assert "HTTP 500" in result.evidence[0].summary
+
+
+def test_declared_401_is_no_auth_with_relogin_hint():
+    """登录态失效归 NO_AUTH（A2-02 §6）：进待办、带重登修复动作，不记 FAILED。"""
+    transport = FakeTransport([HttpResponse(status_code=401, payload={})])
+    result = make_port(transport, reauth_status_codes=(401, 403)).run(request())
+    assert result.status is Status.NO_AUTH
+    assert result.repair_hint is not None
+    assert result.repair_hint.action_id == "relogin"
+    assert "401" in result.evidence[0].summary
+
+
+def test_undeclared_401_stays_failed():
+    """未申报鉴权码的连接器保持 FAILED——不替连接器猜 HTTP 语义。"""
+    transport = FakeTransport([HttpResponse(status_code=401, payload={})])
+    result = make_port(transport).run(request())
+    assert result.status is Status.FAILED
+    assert "HTTP 401" in result.evidence[0].summary

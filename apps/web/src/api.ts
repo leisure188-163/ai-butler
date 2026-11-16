@@ -81,7 +81,11 @@ export function getPending(): Promise<RunItem[]> {
   return request<RunItem[]>(`${apiBase}/pending?limit=20`);
 }
 
-export function createRun(body: { target: string; kind?: string }): Promise<RunItem> {
+export function createRun(body: {
+  target: string;
+  kind?: string;
+  account_id?: string;
+}): Promise<RunItem> {
   return request<RunItem>(`${apiBase}/runs`, post(body));
 }
 

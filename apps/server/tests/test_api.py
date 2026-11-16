@@ -17,13 +17,14 @@ from butler_core.execution.ports import routing_ports
 from butler_core.execution.usecases.execute_action import RunRequest
 from butler_core.execution.domain import Action, ActionKind
 from butler_core.shared.results import Status
-from butler_core.execution.domain import RunResult
+from butler_core.execution.domain import Evidence, RepairHint, RunResult
 from butler_core.accounts.domain import Secret
 
 
 def _client(tmp_path: Path) -> TestClient:
     os.environ["BUTLER_DB"] = str(tmp_path / "butler.db")
     os.environ["BUTLER_SCHEDULE"] = "0"  # 关调度：用量 job 启动补扫会与假件端口竞态
+    os.environ["BUTLER_SYSTEM_NOTIFY"] = "0"  # 测试不真弹系统通知（ADR-015）
     from server.main import app
 
     return TestClient(app)
@@ -137,6 +138,41 @@ def test_post_runs_unknown_target_is_404(tmp_path):
         resp = client.post("/api/v1/runs", json={"target": "no_such_app"})
         assert resp.status_code == 404
         assert "未接入" in resp.json()["detail"]
+
+
+def test_no_auth_run_enters_pending_with_relogin_hint(tmp_path):
+    """登录态失效 → 待办可见 + 带修复动作（ADR-015 端到端契约）。"""
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        kit.vault.store("acc1", "cookie", Secret("x"), expires_at=None)
+        kit.execute_action.ports = routing_ports(
+            {
+                ActionKind.PROVISION_RUN: FakePort(
+                    RunResult(
+                        status=Status.NO_AUTH,
+                        evidence=(
+                            Evidence(
+                                summary="鉴权被拒（HTTP 401）——登录态已失效",
+                                raw_code="401",
+                            ),
+                        ),
+                        repair_hint=RepairHint(
+                            reason="登录态已失效——重新登录后重新扫描",
+                            action_id="relogin",
+                        ),
+                    )
+                )
+            },
+            {},
+        )
+        row = client.post(
+            "/api/v1/runs", json={"target": "trae_cn", "account_id": "acc1"}
+        ).json()
+        assert row["status"] == "NO_AUTH"
+        assert row["signal"] == "attention"
+        assert row["repair_action_id"] == "relogin"
+        pending = client.get("/api/v1/pending").json()
+        assert [p["account_id"] for p in pending] == ["acc1"]
 
 
 # --- R3 体检探针（health.check 走 /runs 通道，A2-03）---

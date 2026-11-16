@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 from typing import Annotated
 
@@ -15,7 +16,20 @@ from butler_core.execution.domain import Run
 
 router = APIRouter(tags=["butler"])
 
+logger = logging.getLogger(__name__)
+
 _MAX_LIMIT = 200
+
+
+def _assess_after_run(kit, account_id: str) -> None:
+    """动作落地后即时评估健康（ADR-015）：登录态失效立刻进待办 + 发事件。
+
+    评估失败只记日志，不回滚也不改变已落账的执行结果（通知是副作用）。
+    """
+    try:
+        kit.assess_account_health.execute(account_id)
+    except Exception:
+        logger.exception("动作后健康评估失败（已隔离，Run 台账不受影响）")
 
 
 class RunIn(BaseModel):
@@ -112,6 +126,7 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
                 budget=timedelta(seconds=app.provision_budget("health.check")),
             )
         )
+        _assess_after_run(kit, resolved_account)
         return _run_out(run)
     if kind is not ActionKind.PROVISION_RUN:
         raise HTTPException(
@@ -133,6 +148,7 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
             budget=timedelta(seconds=app.provision_budget("provision.run")),
         )
     )
+    _assess_after_run(kit, resolved_account)
     return _run_out(run)
 
 
@@ -168,6 +184,7 @@ def claim_all_runs(request: Request) -> list[RunOut]:
                 )
             )
             out.append(_run_out(run))
+            _assess_after_run(kit, account_id)
     return out
 
 

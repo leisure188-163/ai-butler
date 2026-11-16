@@ -15,6 +15,7 @@ from butler_core.execution.usecases.execute_action import RunRequest
 from butler_core.accounts.domain import Account
 from butler_core.execution.domain import Run, RunResult, Status
 from butler_core.scheduling.domain import claim_window
+from butler_core.shared.health_level import HealthLevel
 
 from butler_engine.scheduling.checkin import CheckinSchedule, ScheduleEntry
 
@@ -88,13 +89,49 @@ def schedule(
     accounts: MemAccounts,
     entries: tuple[ScheduleEntry, ...],
     clock: Callable[[], datetime],
+    assess=None,
 ) -> CheckinSchedule:
     return CheckinSchedule(
         execute_action=usecase,  # 鸭子型：RecordingUseCase 提供 execute 协议面
         accounts=accounts,
         entries=entries,
         clock=clock,
+        assess_health=assess,
     )
+
+
+class FakeHealth:
+    def __init__(self, level: HealthLevel) -> None:
+        self.level = level
+
+
+def test_health_gate_skips_invalid_and_risk():
+    """失效账户不再按班次反复打上游（ADR-015）：invalid/expired/risk 一律跳过。"""
+    for level in (HealthLevel.INVALID, HealthLevel.EXPIRED, HealthLevel.RISK):
+        usecase, repo = RecordingUseCase(), MemAccounts(account())
+        sch = schedule(
+            usecase,
+            repo,
+            (entry("trae_cn", ("09:05",)),),
+            clock=local_time(0, 9, 5, 30),
+            assess=lambda _aid, level=level: FakeHealth(level),
+        )
+        assert sch.tick() == []
+        assert usecase.requests == []
+
+
+def test_health_gate_allows_healthy_account():
+    """健康账户照常触发；闸门不误拦（评估结果只读）。"""
+    usecase, repo = RecordingUseCase(), MemAccounts(account())
+    sch = schedule(
+        usecase,
+        repo,
+        (entry("trae_cn", ("09:05",)),),
+        clock=local_time(0, 9, 5, 30),
+        assess=lambda _aid: FakeHealth(HealthLevel.HEALTHY),
+    )
+    assert len(sch.tick()) == 1
+    assert len(usecase.requests) == 1
 
 
 def test_fires_at_slot_within_grace():

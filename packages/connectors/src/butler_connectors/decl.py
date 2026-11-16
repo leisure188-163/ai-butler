@@ -229,7 +229,7 @@ class DeclarativeProvisionPort(ProvisionPort):
         except _Verdict as verdict:
             return self._verdict_result(verdict)
         except TransportError as exc:
-            return self._failed(str(exc))
+            return self._transport_result(exc)
         except (DomainError, KeyError, ValueError) as exc:
             # 响应形状与声明不符等协议事故 → FAILED 留证据；UnknownEngineCode
             # 不在这里吞（协议变更探测由 ExecuteAction 统一收口产事件）
@@ -250,7 +250,9 @@ class DeclarativeProvisionPort(ProvisionPort):
         spec = self._spec.status
         resp = self._send(spec.request, headers, deadline)
         if not resp.ok:
-            raise TransportError(f"status HTTP {resp.status_code}")
+            raise TransportError(
+                f"status HTTP {resp.status_code}", status_code=resp.status_code
+            )
         if spec.code_path:
             # 有外壳业务码的协议（trae）；code_path 留空 = 无外壳（qoder 取证
             # 2026-11-11：顶层即业务字段，HTTP 200 即 ok）
@@ -302,7 +304,9 @@ class DeclarativeProvisionPort(ProvisionPort):
         while True:
             resp = self._send(spec.request, headers, req.deadline)
             if not resp.ok:
-                raise TransportError(f"claim HTTP {resp.status_code}")
+                raise TransportError(
+                    f"claim HTTP {resp.status_code}", status_code=resp.status_code
+                )
             found, code = _path_get(resp.payload, spec.code_path)
             if not found:
                 raise UnknownEngineCode(f"{spec.code_path} 缺失", self._id)
@@ -344,7 +348,8 @@ class DeclarativeProvisionPort(ProvisionPort):
                     break
                 if attempt >= len(backoff):
                     raise TransportError(
-                        f"claim 第 {idx}/{total} 项 HTTP {resp.status_code}"
+                        f"claim 第 {idx}/{total} 项 HTTP {resp.status_code}",
+                        status_code=resp.status_code,
                     )
                 self._sleep_for(backoff[attempt], req)
                 attempt += 1
@@ -428,6 +433,29 @@ class DeclarativeProvisionPort(ProvisionPort):
 
     def _failed(self, why: str) -> RunResult:
         return RunResult(status=Status.FAILED, evidence=(Evidence(summary=why),))
+
+    def _transport_result(self, exc: TransportError) -> RunResult:
+        """HTTP 非 2xx 的归档：申报为鉴权码 → NO_AUTH（进待办、可修），否则 FAILED。
+
+        登录态过期若记 FAILED，会绕过健康连败/修复提示/待办聚合（A2-02 §4
+        声明式 schema 的鉴权码申报）——这里是该语义的唯一翻译点。
+        """
+        code = exc.status_code
+        if code is not None and code in self._spec.auth.reauth_status_codes:
+            return RunResult(
+                status=Status.NO_AUTH,
+                evidence=(
+                    Evidence(
+                        summary=f"鉴权被拒（HTTP {code}）——登录态已失效",
+                        raw_code=str(code),
+                    ),
+                ),
+                repair_hint=RepairHint(
+                    reason="登录态已失效——在客户端重新登录后，回到待办点「重新登录」重试",
+                    action_id="relogin",
+                ),
+            )
+        return self._failed(str(exc))
 
 
 def _response_digest(resp: object) -> str:

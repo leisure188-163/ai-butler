@@ -156,3 +156,24 @@ def test_list_pending_dedups_by_idempotency_key():
     duplicate = Run(id="r2", action=action, account_id="a", idempotency_key="k1")
     duplicate.finish(RunResult(status=Status.EXPIRED))
     assert len(ListPending(ledger=_Ledger([run, duplicate])).execute()) == 1
+
+
+def test_list_pending_latest_result_supersedes_older_failure():
+    """最新已恢复 → 旧 NO_AUTH 不再挂待办（修好后待办必须消失，ADR-015）。"""
+    action = Action(kind=ActionKind.PROVISION_RUN, target="trae_cn")
+    old = Run(id="old", action=action, account_id="a", idempotency_key="k1")
+    old.finish(RunResult(status=Status.NO_AUTH))
+    fixed = Run(id="fixed", action=action, account_id="a", idempotency_key="k2")
+    fixed.finish(RunResult(status=Status.CLAIMED))
+    assert ListPending(ledger=_Ledger([fixed, old])).execute() == []
+
+
+def test_list_pending_latest_attention_is_kept():
+    """最新仍是 attention → 保留最新一条，不显示更旧的同类失败。"""
+    action = Action(kind=ActionKind.PROVISION_RUN, target="qoder_cn")
+    older = Run(id="older", action=action, account_id="q", idempotency_key="k1")
+    older.finish(RunResult(status=Status.NO_AUTH))
+    latest = Run(id="latest", action=action, account_id="q", idempotency_key="k2")
+    latest.finish(RunResult(status=Status.NO_AUTH))
+    rows = ListPending(ledger=_Ledger([latest, older])).execute()
+    assert [r.id for r in rows] == ["latest"]

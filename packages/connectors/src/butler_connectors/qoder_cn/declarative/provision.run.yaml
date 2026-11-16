@@ -2,6 +2,7 @@
 # 协议依据：PROTOCOL.md §2/§3（NOTE-02 取证 + 2026-11-11 真机只读取证回填）
 auth:
   kind: dpapi_gcm_v10
+  reauth_status_codes: [401, 403]  # 登录态失效归 NO_AUTH（进待办 + 重登修复，A2-02 §4）
   storage:                       # 数据目录候选（glob；每目录含 auth.v1.dat + Local State）
     - ~/Library/Application Support/com.qoder.app*
     - "%APPDATA%/com.qodercn.app*"

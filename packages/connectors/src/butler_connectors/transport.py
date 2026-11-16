@@ -13,7 +13,16 @@ from typing import Any, Mapping, Protocol
 
 
 class TransportError(RuntimeError):
-    """网络/超时/解码层面的故障（区别于业务码）：当 FAIL 处理并留证据。"""
+    """网络/超时/解码层面的故障（区别于业务码）：默认当 FAIL 处理并留证据。
+
+    ``status_code`` 只在「HTTP 非 2xx」时携带——声明式连接器据此把
+    401/403 归为凭据失效（A2-02 §6），而不是普通 FAIL（避免登录态过期
+    被误记成执行失败、进不了待办）。
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @dataclass(frozen=True)

@@ -18,6 +18,7 @@ from butler_core.execution.usecases.execute_action import ExecuteAction, RunRequ
 from butler_core.execution.domain import Action, ActionKind
 from butler_core.execution.domain import now_utc
 from butler_core.scheduling.domain import claim_window
+from butler_core.shared.health_level import HealthLevel
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +48,16 @@ class CheckinSchedule:
     entries: tuple[ScheduleEntry, ...]
     clock: Callable[[], datetime] = now_utc
     grace: timedelta = timedelta(minutes=2)  # tick 间隔抖动容差
+    #: 健康闸门（ADR-015）：返回当前健康评定；失效账户不再按班次反复打上游。
+    assess_health: Callable[[str], object] | None = None
     _fired: set[tuple[str, str, str, str]] = field(default_factory=set)
+    _skipped: set[tuple[str, str, str]] = field(default_factory=set)
 
     def tick(self) -> list[str]:
         """返回本轮实际落账的 run id（供测试与运维观测）。"""
         now = self.clock()
         self._fired = {k for k in self._fired if k[3] == self._current_window(now)}
+        self._skipped = {k for k in self._skipped if k[2] == self._current_window(now)}
         started: list[str] = []
         for entry in self.entries:
             window = claim_window(now, entry.refresh_at)
@@ -60,6 +65,16 @@ class CheckinSchedule:
                 if not self._due(now, slot):
                     continue
                 for account in self.accounts.list_by_provider(entry.target):
+                    if self._blocked(account.id):
+                        key = (entry.target, account.id, window)
+                        if key not in self._skipped:
+                            self._skipped.add(key)
+                            logger.info(
+                                "跳过 %s × %s：登录态失效，等待修复后手动重试",
+                                entry.target,
+                                account.id,
+                            )
+                        continue
                     key = (entry.target, account.id, slot, window)
                     if key in self._fired:
                         continue
@@ -67,7 +82,31 @@ class CheckinSchedule:
                     run_id = self._fire(entry, account.id, window)
                     if run_id:
                         started.append(run_id)
+                        self._assess(account.id)
         return started
+
+    def _blocked(self, account_id: str) -> bool:
+        """健康闸门：invalid/expired/risk 不自动重试（修复后由手动重试恢复）。
+
+        只读健康评定，不改事实；未知形状（无 level）按未失效处理（不误拦）。
+        """
+        if self.assess_health is None:
+            return False
+        level = getattr(self.assess_health(account_id), "level", None)
+        return level in (
+            HealthLevel.INVALID,
+            HealthLevel.EXPIRED,
+            HealthLevel.RISK,
+        )
+
+    def _assess(self, account_id: str) -> None:
+        """动作落地后即时评估（登录态失效立刻产健康事件）；失败不打断调度。"""
+        if self.assess_health is None:
+            return
+        try:
+            self.assess_health(account_id)
+        except Exception:
+            logger.exception("触发后健康评估失败（已隔离，本条已落账）")
 
     # --- 内部 ---
 

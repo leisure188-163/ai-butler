@@ -37,8 +37,10 @@ _CRED_EVENT_LEVELS = (
 _ACCOUNT_SEVERITY = {
     HealthLevel.HEALTHY: Severity.SILENT,  # 恢复健康 = 好消息零打扰（A4-01 §2 静默）
     HealthLevel.EXPIRING: Severity.BADGE,
-    HealthLevel.EXPIRED: Severity.BADGE,
-    HealthLevel.INVALID: Severity.BADGE,
+    # 硬失效/凭据被拒是阻塞性事实（领不了、用不了），升级 push：
+    # 用户不打开界面也必须知道（ADR-015；A4-01 §2 分级同步收编）
+    HealthLevel.EXPIRED: Severity.PUSH,
+    HealthLevel.INVALID: Severity.PUSH,
     HealthLevel.RISK: Severity.PUSH,  # 封号风险 push 通知（A4-01 §2）
 }
 

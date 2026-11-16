@@ -2,6 +2,7 @@
 # 协议依据：PROTOCOL.md §2/§4（NOTE-03 取证，2026-10-21 复核）
 auth:
   kind: ss_aes
+  reauth_status_codes: [401, 403]  # 登录态失效归 NO_AUTH（进待办 + 重登修复，A2-02 §4）
   storage:                       # 数据目录候选（按平台展开；首个现存文件获胜）
     - ~/Library/Application Support/Trae CN/User/globalStorage/storage.json
     - ~/Library/Application Support/Trae/User/globalStorage/storage.json

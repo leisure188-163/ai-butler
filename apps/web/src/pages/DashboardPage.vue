@@ -32,7 +32,12 @@ const emit = defineEmits<{
   claim: [target: string];
   health: [target: string];
   navigate: [page: PageName];
+  repair: [target: string, accountId: string];
 }>();
+
+function onRepair(target: string, accountId: string) {
+  emit("repair", target, accountId);
+}
 
 /* ---- 今日一句话结论（逐字沿用原账户页谓词，按词表 v2 换词）---- */
 const headline = computed(() => {
@@ -331,6 +336,7 @@ const trafficSub = computed(() => {
         :claimable="claimable"
         @claim="emit('claim', $event)"
         @navigate="emit('navigate', $event)"
+        @repair="onRepair"
       />
     </section>
     <aside class="dash-side">

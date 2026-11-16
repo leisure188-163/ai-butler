@@ -93,6 +93,33 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
+  /* 修复重试（ADR-015）：用户已在客户端重新登录后，按 account_id 立即再领一次。
+   * 登录动作不自动化；这里只发起重试并如实转述结果。 */
+  async function repairAccount(target: string, accountId: string) {
+    busyTarget.value = accountId;
+    actionMsg.value = null;
+    try {
+      const body = await api.createRun({ target, account_id: accountId });
+      const ok = body.status === "CLAIMED" || body.status === "ALREADY";
+      actionMsg.value = {
+        text: ok
+          ? `重试成功（${body.status}）`
+          : `重试未通过：${body.status ?? "未终态"}` +
+            (body.repair_reason ? ` —— ${body.repair_reason}` : ""),
+        tone: ok ? "ok" : "warn",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `重试失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
   /* 一键批量（R2 补）：导入全部未接入 / 领取全部已接入——筛选语义在 server，端只发起与转述 */
   async function importAllApps() {
     busyTarget.value = "batch";
@@ -225,6 +252,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     importApp,
     claimApp,
     healthApp,
+    repairAccount,
     importAllApps,
     claimAllApps,
     claimMany,

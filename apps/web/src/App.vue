@@ -63,6 +63,7 @@ const {
   importApp,
   claimApp,
   healthApp,
+  repairAccount,
   importAllApps,
   claimAllApps,
   claimMany,
@@ -193,6 +194,7 @@ onBeforeUnmount(() => {
         @claim="claimApp"
         @health="healthApp"
         @navigate="navigate"
+        @repair="repairAccount"
       />
     </main>
   </div>

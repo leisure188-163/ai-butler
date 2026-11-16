@@ -247,7 +247,7 @@ def test_single_no_auth_is_invalid_with_hint():
     health = uc.execute("a")
     assert health.level is HealthLevel.INVALID
     assert health.repair_hint == "打开登录页"
-    assert sink.events[0].severity is Severity.BADGE
+    assert sink.events[0].severity is Severity.PUSH  # 阻塞性事实升级 push（ADR-015）
 
 
 def test_three_streak_is_risk_with_push():

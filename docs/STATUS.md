@@ -5,6 +5,8 @@
 
 ## 一句话现状
 
+**登录态失效四段闭环（2026-11-16，[ADR-015](adr/ADR-015-登录态失效必须可见可修并停止自动重试.md)）**：qoder `HTTP 401` 原被记 `FAILED`——不进待办、无修复提示、每班次重打。①**归类**：`TransportError.status_code` + `AuthSpec.reauth_status_codes`（trae/qoder 申报 401/403）→ `NO_AUTH` + `RepairHint(action_id=relogin)`；未申报码仍 `FAILED`。②**可见**：`expired/invalid` 严重度 BADGE→PUSH；动作落地后立即评估健康；新增 `SystemChannel`（macOS `osascript` / Linux `notify-send`，server `BUTLER_SYSTEM_NOTIFY` 默认开、测试关；投递失败入日志，不假装送达）。③**可修**：`/pending` 带 `repair_reason/repair_action_id`；TodoRail 行内「重新登录 → 我已登录，立即重试」（`POST /runs` 带 `account_id`）；待办聚合改为每个 (kind,target,account) 只看最新结果，修好后旧失败自动让位。④**熔断**：`CheckinSchedule` 注入 `assess_health`，`invalid/expired/risk` 跳过自动触发，每窗口只记一条日志；手动重试不受限。**明确不做**自动清会话/强制登出（桌面登录态在客户端，清库只会丢证据；登录不自动化 ADR-007）。**实测**：重启后 qoder 重试返回 `NO_AUTH`（证据「鉴权被拒（HTTP 401）——登录态已失效」，pending 带 `relogin`），账户健康 `invalid`。测试四包 **591 passed + 10 skipped**，vue-tsc 0 错误，九项门禁 PASS；门禁顺带修 `pnpm --dir apps/web exec` 在 pnpm 7 下不注入 `.bin` → 改为在 `apps/web` cwd 执行 `pnpm exec`。
+
 **第二批复审修复（2026-11-16）：P1-P4 全修 + 低危四项**。①**网关数据根
 split-brain（P1 高）**：`start-server.ps1` 只固化 server 的 `BUTLER_DB`，网关
 key/routes/engine 三落点全回落 `%APPDATA%\butler`（正是本机虚拟化层吃 journal

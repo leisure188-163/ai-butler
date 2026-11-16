@@ -7,7 +7,7 @@
  * - 即将到期：signal=notice 的凭据 + 有效期
  * 空态诚实：「没有需要你操心的事。」
  */
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { AccountItem, CredentialItem, PageName, RunItem } from "../types";
 import { fmtTime, signalText } from "../utils";
 
@@ -23,7 +23,25 @@ const props = defineProps<{
 const emit = defineEmits<{
   navigate: [page: PageName];
   claim: [target: string];
+  repair: [target: string, accountId: string];
 }>();
+
+/* ---- 修复入口（ADR-015）：待办行内展开「重新登录 → 我已登录，重试」----
+ * 只做引导与发起：登录动作永远由用户在客户端完成（切号/登录不自动化）。 */
+const repairingId = ref<string | null>(null);
+
+function openRepair(item: RunItem) {
+  repairingId.value = item.id;
+}
+
+function confirmRepair(item: RunItem) {
+  repairingId.value = null;
+  emit("repair", item.target, item.account_id);
+}
+
+function repairLabel(actionId: string | null | undefined): string {
+  return actionId === "relogin" ? "重新登录" : "重新扫描";
+}
 
 /* 即将到期 = signal=notice 的凭据（旧提醒页同口径） */
 const expiring = computed<{ account: AccountItem; cred: CredentialItem }[]>(() =>
@@ -68,13 +86,32 @@ const nothingTodo = computed(() => !props.pending.length && !expiring.value.leng
                 </li>
               </ul>
             </details>
+            <div v-if="repairingId === item.id" class="repair-panel">
+              <p class="repair-steps">
+                1. 打开 {{ item.target }} 客户端并完成登录<br />
+                2. 回到这里点「我已登录，立即重试」
+              </p>
+              <div class="repair-actions">
+                <button class="btn btn--primary" @click="confirmRepair(item)">
+                  我已登录，立即重试
+                </button>
+                <button class="btn btn--ghost" @click="repairingId = null">取消</button>
+              </div>
+            </div>
           </div>
           <span class="tag" :class="`tag--${item.signal}`">{{ signalText(item.signal) }}</span>
-          <button
-            v-if="claimable.has(item.target)"
-            class="btn btn--ghost"
-            @click="emit('claim', item.target)"
-          >领取</button>
+          <div class="row-actions">
+            <button
+              v-if="item.repair_action_id"
+              class="btn btn--ghost"
+              @click="openRepair(item)"
+            >{{ repairLabel(item.repair_action_id) }}</button>
+            <button
+              v-if="claimable.has(item.target)"
+              class="btn btn--ghost"
+              @click="emit('claim', item.target)"
+            >领取</button>
+          </div>
         </li>
       </ul>
       <p v-else class="quietline">暂无待处理事项。</p>
@@ -104,3 +141,19 @@ const nothingTodo = computed(() => !props.pending.length && !expiring.value.leng
     <p v-if="nothingTodo" class="quietline">没有需要你操心的事。</p>
   </aside>
 </template>
+
+<style scoped>
+.repair-panel {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-sm);
+}
+.repair-steps {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.repair-actions { display: flex; gap: var(--space-2); }
+</style>

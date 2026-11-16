@@ -39,6 +39,14 @@ HealthGrade：账户健康分级（正常 / 注意 / 异常，承袭 health.py �
 
 - `CREDENTIAL_EXPIRING` / `CREDENTIAL_EXPIRED` / `ACCOUNT_HEALTH_CHANGED`；
   到期扫描的定时发起由 scheduling 域 cron 触发器驱动（本域只提供扫描用例）。
+- **严重度（ADR-015）**：`healthy=silent`、`expiring=badge`、
+  `expired / invalid / risk=push`；级别**变化**才发 `ACCOUNT_HEALTH_CHANGED`
+  （同一级别不重复弹窗）。
+- **登录态失效语义**：连接器申报的 401/403 → `NO_AUTH`；有 NO_AUTH 证据但
+  未连续 3 次 → `invalid`，`repair_hint` 指向「在客户端重新登录后重试」
+  （`action_id=relogin`）；连续 ≥3 次 NO_AUTH → `risk`。
+- **评估时机**：`POST /runs`、`claim-all`、调度触发落地后立即评估一次
+  （失败隔离，不回滚已落账 Run）；手动体检走 `health.check`。
 
 ## 6. 禁止
 

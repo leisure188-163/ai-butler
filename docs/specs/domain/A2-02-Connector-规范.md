@@ -65,6 +65,7 @@ domains/trae 与 domains/qoder 各写一份 service/api/auth，同一签到逻�
 # declarative/provision.run.yaml
 auth:
   kind: session-file              # 凭据来源（vault 负责解锁）
+  reauth_status_codes: [401, 403] # 登录态失效判定（ADR-015；缺省=不申报）
   paths: ["%APPDATA%/Trae CN/User/globalStorage/storage.json"]
 status:                           # 查询接口：判断"今天领了吗"
   request: { method: GET, url: "https://…/api/xxx", headers: {…} }
@@ -80,6 +81,13 @@ window: { refresh_at: "00:00" }   # 签到窗口（签到日 ≠ 自然日）
 
 规则：business_codes 是声明式与 core 的**唯一翻译边界**；声明里出现
 schema 外字段直接报错（`extra=forbid`，继承旧仓库"显式报错不静默兜底"的教训）。
+
+**登录态失效申报（ADR-015）**：
+- `auth.reauth_status_codes` 显式列出"哪些 HTTP 码代表登录态失效"，默认空 =
+  不申报；连接器申报后才启用该判定，禁止引擎对任意 401/403 自行猜测。
+- 运行时命中申报码 → `NO_AUTH` + 证据「鉴权被拒（HTTP xxx）——登录态已失效」+
+  `RepairHint(action_id="relogin")`；未申报的 4xx/5xx 仍 `FAILED`。
+- 新接入应用必须在 PROTOCOL.md §2「认证与凭据」写明失效码，再回填本字段。
 
 ## 5. 沙箱边界（L7 市场的前置条件，M1 起就执行）
 

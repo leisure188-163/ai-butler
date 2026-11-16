@@ -43,7 +43,7 @@ from butler_engine.gateway.routes_file import FileGatewayRoutesStore, ROUTES_FIL
 from butler_engine.events.bus import EventBus
 from butler_engine.health.state import SqliteHealthStateStore
 from butler_engine.ledger.sqlite import SqliteRunLedger
-from butler_engine.notify.center import InAppChannel, NotificationCenter
+from butler_engine.notify.center import InAppChannel, NotificationCenter, SystemChannel
 from butler_engine.scheduling.checkin import CheckinSchedule, ScheduleEntry
 from butler_engine.scheduling.interval_job import IntervalJob
 from butler_engine.usage.sqlite import SqliteUsageStore
@@ -206,6 +206,7 @@ class EngineKit:
             execute_action=self.execute_action,
             accounts=self.accounts,
             entries=tuple(entries),
+            assess_health=self.assess_account_health.execute,
         )
         return self.checkin_schedule
 
@@ -345,6 +346,7 @@ def build_engine(
     *,
     pool_policies: Mapping[str, CachePolicy] | None = None,
     routes_file: str | Path | None = None,
+    system_notifications: bool = False,
 ) -> EngineKit:
     """组装根：把适配器接到端口，构造用例（A1-02 §1：start 层职责）。
 
@@ -354,12 +356,17 @@ def build_engine(
     声明注入（ADR-012 裁决 3；未声明 kind = 不缓存，严格现用现取）。
     路由表文件存储（R4-G6 裁决 6）默认 = db 同目录 gateway-routes.json，
     ``routes_file`` 覆盖（测试/便携模式）。
+    ``system_notifications`` 由端显式开启（server 生产开、测试/CLI 关）——
+    引擎库默认不弹系统通知（ADR-015）。
     """
     bus = EventBus()
     ledger = SqliteRunLedger(db_path)
     audit = SqliteAuditLog(db_path)
     in_app = InAppChannel()
-    notification_center = NotificationCenter(channels=[in_app])
+    channels = [in_app]
+    if system_notifications:
+        channels.append(SystemChannel())
+    notification_center = NotificationCenter(channels=channels)
 
     bus.subscribe(AuditSubscriber(audit).on_event)     # 写操作审计（A4-01 §4）
     bus.subscribe(notification_center.on_event)        # 通知中心 = 事件唯一通知出口（§3）

@@ -69,7 +69,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     from butler_engine.bridge import EngineKit, build_engine, default_db_path
 
     db_path = os.environ.get("BUTLER_DB") or default_db_path()
-    kit: EngineKit = build_engine(db_path)
+    kit: EngineKit = build_engine(
+        db_path,
+        system_notifications=os.environ.get("BUTLER_SYSTEM_NOTIFY", "1") != "0",
+    )
     app.state.kit = kit
     _assemble_connectors(kit)
     yield
