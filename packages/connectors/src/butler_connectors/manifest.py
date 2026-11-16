@@ -225,6 +225,7 @@ class ConnectorManifest(_Strict):
     capabilities: dict[str, CapabilitySpec]
     credential: CredentialSpec | None = None
     schedule: dict[str, ScheduleSpec] = Field(default_factory=dict)
+    retired: bool = False  # 退役：代码保留审计/回滚，不再出现在应用名册与一键导入
 
     def model_post_init(self, __context: Any) -> None:
         bad = set(self.capabilities) - _CAPABILITY_IDS

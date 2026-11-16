@@ -11,3 +11,4 @@ capabilities:
 credential:
   kinds: [browser_cookie]
   unlock: browser
+retired: true

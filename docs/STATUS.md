@@ -5,9 +5,25 @@
 
 ## 一句话现状
 
+**AgentRouter 接入 + 通用网页状态底座（2026-11-16）**：新增 `butler_connectors/web_ui.py`
+（CDP 只读页面 `localStorage.user` 非密字段，找不到页面/未登录抛 `WebPageUnavailable`，不新开标签、
+不读 token/cookie）与 `agentrouter` adapter 连接器。真机取证：AgentRouter（New API，
+`ps.air-outer.com`）**登录即签到**——登录成功发 $25，无独立 `/api/user/checkin`（POST 404、
+普通用户 GET 权限不足，模型 API key 不适用 dashboard 路由）。连接器 `provision.run` 读页面
+`checked_in`：true → `ALREADY`，false → `PENDING` + `relogin`（提示退出后重新登录），
+页面不可用 → `NO_AUTH` + `relogin`；凭据只存 `browser_session` 非密定位
+`{domain,port,user_id}`。已重启主控、`/apps` 出现 `agentrouter`、import 登记
+`agentrouter:main`（显示名 `AgentRouter（github_437667）`），`POST /runs` 返回 `ALREADY`
+（证据 `checked_in=true`，用户 id 437667）。`claim-all` 中 agentrouter/doubao/trae/workbuddy
+均通过，qoder 仍 `NO_AUTH`（本地凭据已撤销，见下条）。ChatGPT/Claude 网页连接器改
+`retired: true`（代码保留审计/回滚，账户/历史已清），不再出现在 `/apps` 与一键导入；
+`/apps` 现只剩 agentrouter/doubao/qoder/trae/workbuddy。import 仍会报
+`连接器 'agentrouter' 未接入用量采集通道`（预期：本连接器只做签到，不采额度）。全量
+**679 passed + 10 skipped**。
+
 **登录态失效四段闭环（2026-11-16，[ADR-015](adr/ADR-015-登录态失效必须可见可修并停止自动重试.md)）**：qoder `HTTP 401` 原被记 `FAILED`——不进待办、无修复提示、每班次重打。①**归类**：`TransportError.status_code` + `AuthSpec.reauth_status_codes`（trae/qoder 申报 401/403）→ `NO_AUTH` + `RepairHint(action_id=relogin)`；未申报码仍 `FAILED`。②**可见**：`expired/invalid` 严重度 BADGE→PUSH；动作落地后立即评估健康；新增 `SystemChannel`（macOS `osascript` / Linux `notify-send`，server `BUTLER_SYSTEM_NOTIFY` 默认开、测试关；投递失败入日志，不假装送达）。③**可修**：`/pending` 带 `repair_reason/repair_action_id`；TodoRail 行内「重新登录 → 我已登录，立即重试」（`POST /runs` 带 `account_id`）；待办聚合改为每个 (kind,target,account) 只看最新结果，修好后旧失败自动让位。④**熔断**：`CheckinSchedule` 注入 `assess_health`，`invalid/expired/risk` 跳过自动触发，每窗口只记一条日志；手动重试不受限。**明确不做**自动清客户端会话/强制登出（桌面登录态在客户端，清库只会丢证据；登录不自动化 ADR-007）；butler 自己的本地副本撤销按 [ADR-016](adr/ADR-016-失效凭据只撤销管家本地副本.md)。**实测**：重启后 qoder 重试返回 `NO_AUTH`（证据「鉴权被拒（HTTP 401）——登录态已失效」，pending 带 `relogin`），账户健康 `invalid`。测试四包 **591 passed + 10 skipped**，vue-tsc 0 错误，九项门禁 PASS；门禁顺带修 `pnpm --dir apps/web exec` 在 pnpm 7 下不注入 `.bin` → 改为在 `apps/web` cwd 执行 `pnpm exec`。
 
-**失效副本自动撤销（2026-11-16，[ADR-016](adr/ADR-016-失效凭据只撤销管家本地副本.md)）**：真机抓取确认 Qoder/Trae/豆包桌面端「退出登录」= 客户端本地清凭据（Qoder 日志仅 `User signed out` + `AuthStore clear`，无远程 logout 请求），WorkBuddy 属腾讯客户端不支持 GUI；网页端远程 signout 会吊销浏览器共享会话。按用户裁决**只清管家副本**：`VaultPort.revoke` 把旧值归档到 `#seq`、删主引用、`vault_items` 保留 `revoked_at/revoked_reason`；`AssessAccountHealth` 在有 NO_AUTH 连败（含由此判出的 `invalid/risk`）或凭据 `expired` 时自动撤销（`risk` 若来自其它信号不触发，幂等，失败只加证据），`load` 命中已撤销 → `CredentialRevoked` 仍按 NO_AUTH 处理；`/accounts` 带 `revoked/revoked_at/revoked_reason`，账户详情标「本地副本已撤销，等待重新停靠」。修复重试改为先 `POST /apps/{target}/import` 重新停靠读取客户端新凭据，再 `POST /runs(account_id)`，否则会撞已撤销空引用。**边界**：不调用远程 signout、不删客户端凭据、不强制客户端登出；桌面退出/登录仍由用户手动完成。
+**失效副本自动撤销（2026-11-16，[ADR-016](adr/ADR-016-失效凭据只撤销管家本地副本.md)）**：真机抓取确认 Qoder/Trae/豆包桌面端「退出登录」= 客户端本地清凭据（Qoder 日志仅 `User signed out` + `AuthStore clear`，无远程 logout 请求），WorkBuddy 属腾讯客户端不支持 GUI；网页端远程 signout 会吊销浏览器共享会话。按用户裁决**只清管家副本**：`VaultPort.revoke` 把旧值归档到 `#seq`、删主引用、`vault_items` 保留 `revoked_at/revoked_reason`；`AssessAccountHealth` 在有 NO_AUTH 连败（含由此判出的 `invalid/risk`）或凭据 `expired` 时自动撤销（`risk` 若来自其它信号不触发，幂等，失败只加证据），**连败只算最近一次停靠/轮换（`stored_at`）之后的失败，重新导入的新凭据不被旧失败连坐；全部副本撤销时至少判 `invalid`**；`load` 命中已撤销 → `CredentialRevoked` 仍按 NO_AUTH 处理；`/accounts` 带 `revoked/revoked_at/revoked_reason`，账户详情标「本地副本已撤销，等待重新停靠」。修复重试改为先 `POST /apps/{target}/import` 重新停靠读取客户端新凭据，再 `POST /runs(account_id)`，否则会撞已撤销空引用。**边界**：不调用远程 signout、不删客户端凭据、不强制客户端登出；桌面退出/登录仍由用户手动完成。
 
 **第二批复审修复（2026-11-16）：P1-P4 全修 + 低危四项**。①**网关数据根
 split-brain（P1 高）**：`start-server.ps1` 只固化 server 的 `BUTLER_DB`，网关

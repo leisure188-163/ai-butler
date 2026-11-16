@@ -411,6 +411,15 @@ class _BatchRegistry:
         return [DockOutcome(target=target, accounts=[f"{target}:main"])]
 
 
+def test_apps_hidden_retired_web_connectors(tmp_path):
+    """退役连接器不再出现在应用名册；代码保留用于回滚/审计。"""
+    with _client(tmp_path) as client:
+        ids = [row["id"] for row in client.get("/api/v1/apps").json()]
+        assert "chatgpt_web" not in ids
+        assert "claude_web" not in ids
+        assert "agentrouter" in ids
+
+
 def test_import_triggers_usage_collect_and_reports_errors(tmp_path):
     """R2-F dock 顺带采集：导入成功即产第一帧；采集失败如实进 issues，不打断导入。"""
     with _client(tmp_path) as client:

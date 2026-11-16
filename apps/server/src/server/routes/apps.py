@@ -50,6 +50,8 @@ def list_apps(request: Request) -> list[AppOut]:
         docked.setdefault(account.provider, []).append(account.id)
     out: list[AppOut] = []
     for app in registry.apps():
+        if getattr(app.manifest, "retired", False):
+            continue
         schedule = app.manifest.schedule.get("provision.run")
         ids = sorted(docked.get(app.manifest.id, []))
         out.append(
@@ -91,5 +93,5 @@ def import_all_apps(request: Request) -> list[ImportOut]:
     return [
         _import_one(registry, kit, app.manifest.id)
         for app in registry.apps()
-        if app.manifest.id not in docked
+        if app.manifest.id not in docked and not getattr(app.manifest, "retired", False)
     ]

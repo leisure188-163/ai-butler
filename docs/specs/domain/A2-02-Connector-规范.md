@@ -33,11 +33,13 @@ credential:
   unlock: local-client            # 解锁方式: local-client | vault | manual
 schedule:                         # 调度声明（cron 缺省值，用户可在 UI 改）
   provision.run: ["09:05", "13:05", "19:05", "23:05"]
+retired: false                    # 可选：退役连接器不进入应用名册/一键导入（代码保留）
 ```
 
 规则：
 - 注册表只读 manifest，不 import 业务代码；能力未声明 = UI 不渲染该能力的入口
 - `display` 用产品名（用户语言），`id` 是稳定技术标识
+- `retired: true` 仅用于已下线但仍需保留代码/审计的连接器；账户与历史应另行清理
 
 ## 3. 三级扩展与适用边界
 
