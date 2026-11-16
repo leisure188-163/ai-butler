@@ -8,11 +8,19 @@ claim（领取）/ check（体检）/ records（领取记录）。全部经 brid
 from __future__ import annotations
 
 import os
+import sys
 from datetime import datetime, timedelta
 
 import typer
 from rich.console import Console
 from rich.table import Table
+
+if sys.platform == "win32":
+    # Windows GBK 控制台：rich 的 ✔/表格边框字符触发 UnicodeEncodeError——
+    # 输出流强制 UTF-8（等效 PYTHONIOENCODING=utf-8；非 TTY/测试桩无 reconfigure 则跳过）
+    for _stream in (sys.stdout, sys.stderr):
+        if _stream is not None and hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
 
 app = typer.Typer(help="Butler · 你的 AI 卡包（执行器/排障）")
 cards = typer.Typer(help="卡（账号）管理")
