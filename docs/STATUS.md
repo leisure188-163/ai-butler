@@ -10,16 +10,19 @@
 不读 token/cookie）与 `agentrouter` adapter 连接器。真机取证：AgentRouter（New API，
 `ps.air-outer.com`）**登录即签到**——登录成功发 $25，无独立 `/api/user/checkin`（POST 404、
 普通用户 GET 权限不足，模型 API key 不适用 dashboard 路由）。连接器 `provision.run` 读页面
-`checked_in`：true → `ALREADY`，false → `PENDING` + `relogin`（提示退出后重新登录），
-页面不可用 → `NO_AUTH` + `relogin`；凭据只存 `browser_session` 非密定位
+`checked_in`：true → `ALREADY`，false → 自动「退出 → GitHub 登录 → 回调 host 换为
+ps.air-outer.com」→ `CLAIMED`（登录即签到）；页面在登录页/localStorage 无用户时也尝试
+`force_login` 自动回登录；GitHub 会话也失效才 `NO_AUTH` + `relogin`。凭据只存 `browser_session` 非密定位
 `{domain,port,user_id}`。已重启主控、`/apps` 出现 `agentrouter`、import 登记
 `agentrouter:main`（显示名 `AgentRouter（github_437667）`），`POST /runs` 返回 `ALREADY`
 （证据 `checked_in=true`，用户 id 437667）。`claim-all` 中 agentrouter/doubao/trae/workbuddy
 均通过，qoder 仍 `NO_AUTH`（本地凭据已撤销，见下条）。ChatGPT/Claude 网页连接器改
 `retired: true`（代码保留审计/回滚，账户/历史已清），不再出现在 `/apps` 与一键导入；
 `/apps` 现只剩 agentrouter/doubao/qoder/trae/workbuddy。import 仍会报
-`连接器 'agentrouter' 未接入用量采集通道`（预期：本连接器只做签到，不采额度）。全量
-**682 passed + 10 skipped**。
+`连接器 'agentrouter' 未接入用量采集通道`（预期：本连接器只做签到，不采额度）。站点
+`checked_in` 每日 00:00 重置，调度已改为 **`00:05` 主触发 + `09:05` 兜底**；真机
+`_relogin()` 已验证自动退出/回调前缀替换后回到 `checked_in=true`。全量
+**684 passed + 10 skipped**。
 
 **登录态失效四段闭环（2026-11-16，[ADR-015](adr/ADR-015-登录态失效必须可见可修并停止自动重试.md)）**：qoder `HTTP 401` 原被记 `FAILED`——不进待办、无修复提示、每班次重打。①**归类**：`TransportError.status_code` + `AuthSpec.reauth_status_codes`（trae/qoder 申报 401/403）→ `NO_AUTH` + `RepairHint(action_id=relogin)`；未申报码仍 `FAILED`。②**可见**：`expired/invalid` 严重度 BADGE→PUSH；动作落地后立即评估健康；新增 `SystemChannel`（macOS `osascript` / Linux `notify-send`，server `BUTLER_SYSTEM_NOTIFY` 默认开、测试关；投递失败入日志，不假装送达）。③**可修**：`/pending` 带 `repair_reason/repair_action_id`；TodoRail 行内「重新登录 → 我已登录，立即重试」（`POST /runs` 带 `account_id`）；待办聚合改为每个 (kind,target,account) 只看最新结果，修好后旧失败自动让位。④**熔断**：`CheckinSchedule` 注入 `assess_health`，`invalid/expired/risk` 跳过自动触发，每窗口只记一条日志；手动重试不受限。**明确不做**自动清客户端会话/强制登出（桌面登录态在客户端，清库只会丢证据；登录不自动化 ADR-007）；butler 自己的本地副本撤销按 [ADR-016](adr/ADR-016-失效凭据只撤销管家本地副本.md)。**实测**：重启后 qoder 重试返回 `NO_AUTH`（证据「鉴权被拒（HTTP 401）——登录态已失效」，pending 带 `relogin`），账户健康 `invalid`。测试四包 **591 passed + 10 skipped**，vue-tsc 0 错误，九项门禁 PASS；门禁顺带修 `pnpm --dir apps/web exec` 在 pnpm 7 下不注入 `.bin` → 改为在 `apps/web` cwd 执行 `pnpm exec`。
 
@@ -87,6 +90,12 @@ home 目录全被锁 D 盘可写；历史台账已迁移；启动脚本 `scripts
 职能整体迁 `data/sql/`（README 纪律并入，`dump_db_schema.py` OUT 改 `data/sql/butler-schema.sql`
 并修 Windows 临时目录清理时序），A4-01 §5 数据根条款同批收编用户裁决（项目内数据根 +
 journal_mode=OFF + 原禁止条款适用前提注记），db/ 删除。
+
+**豆包签到 710010702 平台错误补证（2026-11-17）**：用户反馈「签到失败，请稍后重试」；
+真机复现：CDP 页面点击与**客户端自己的「立即签到」XHR** 都返回 `code=710010702 系统错误`
+（客户端请求 `version_code=20800&aid=582478`，带完整 `msToken/a_bogus`）。**结论：非本连接器
+参数/页面通道回归，是豆包平台/会话侧错误**；已停止连续点击，保留下一自动班次 09:15 重试。
+PROTOCOL §2 已记录该证据与「702 停止连点」处置。
 
 **豆包签到误判根因修复 + 页内 fetch 取证（2026-11-16）**：用户反馈豆包每次
 签到弹窗且常判失败需人工补签 → CDP Network spike 取证两项定案：①当日两次

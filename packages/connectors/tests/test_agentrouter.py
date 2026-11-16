@@ -102,15 +102,48 @@ def test_rewrite_host_keeps_oauth_query():
     )
 
 
-def test_unavailable_page_is_no_auth_with_relogin(port, monkeypatch):
+def test_unavailable_page_attempts_forced_relogin(port, monkeypatch):
+    def _raise() -> WebPageState:
+        raise WebPageUnavailable("ps.air-outer.com 页面未登录")
+
+    calls: list[bool] = []
+
+    def _relogin(*, force_login: bool = False) -> WebPageState:
+        calls.append(force_login)
+        return _state(checked_in=True)
+
+    monkeypatch.setattr(adapter, "_state", _raise)
+    monkeypatch.setattr(adapter, "_relogin", _relogin)
+    result = port.run(_request())
+    assert result.status is Status.CLAIMED
+    assert calls == [True]
+
+
+def test_unavailable_page_relogin_failure_is_no_auth(port, monkeypatch):
     def _raise() -> WebPageState:
         raise WebPageUnavailable("浏览器未打开 ps.air-outer.com 页面")
 
+    def _fail(*, force_login: bool = False) -> WebPageState:
+        raise adapter.ReloginError("浏览器未打开 ps.air-outer.com 页面")
+
     monkeypatch.setattr(adapter, "_state", _raise)
+    monkeypatch.setattr(adapter, "_relogin", _fail)
     result = port.run(_request())
     assert result.status is Status.NO_AUTH
     assert result.repair_hint is not None
     assert result.repair_hint.action_id == "relogin"
+
+
+def test_unavailable_page_dry_run_does_not_relogin(port, monkeypatch):
+    def _raise() -> WebPageState:
+        raise WebPageUnavailable("ps.air-outer.com 页面未登录")
+
+    monkeypatch.setattr(adapter, "_state", _raise)
+    monkeypatch.setattr(
+        adapter, "_relogin", lambda **_: pytest.fail("dry_run 不应触发重登")
+    )
+    result = port.run(_request(dry_run=True))
+    assert result.status is Status.NO_AUTH
 
 
 def test_non_provision_action_rejected(port):

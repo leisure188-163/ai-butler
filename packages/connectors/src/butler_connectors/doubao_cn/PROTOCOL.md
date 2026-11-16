@@ -64,7 +64,7 @@ Base：`https://www.doubao.com`
 
 - 公共查询参数**缺一不可**：`version_code=<派生>&language=zh&device_platform=web&doubao_device_platform=web&aid=497858&real_aid=497858&pkg_type=release_version`；`version_code` 写死会在客户端升级后回 710010702（旧系统 NOTE-04 §4.5 复盘）
 - 头：`Cookie`（CDP 现取，按 name 去重）、`Content-Type: application/json`、`Origin`、`Referer: https://www.doubao.com/pc/agent-explore`、`User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) … Chrome/147.0.0.0 Safari/537.36 SamanthaDoubao/<version>`（spike 实证串）
-- 业务码：`0`=ok；`2`=campaign not found（**活动换季**——更新声明的 campaign 常量）；`710012001`=登录过期 → NO_AUTH（旧系统按 `710012*` 前缀判过期）；`710010702`=system error（**三义**：请求不合法/会话被降权/服务端故障——界面通道下签名合法仍 702 = 后两者，不猜，指引手工点一次判定）
+- 业务码：`0`=ok；`2`=campaign not found（**活动换季**——更新声明的 campaign 常量）；`710012001`=登录过期 → NO_AUTH（旧系统按 `710012*` 前缀判过期）；`710010702`=system error（**三义**：请求不合法/会话被降权/服务端故障——界面通道下签名合法仍 702 = 后两者，不猜，指引手工点一次判定）。**2026-11-17 真机补证**：客户端自己右侧「立即签到」发出的 XHR 也返回 `710010702`（`version_code=20800`、`aid=582478`，带完整 `msToken/a_bogus`），说明 702 不是本连接器页面通道/参数导致；遇到 702 停止连续点击，等平台恢复或重启客户端后再试。
 - **detail 判定字段路径**：`data.tasks[]` 里 `campaign_code=="daily_signin"` 的项 → `.daily_checkin` 子结构：`checked_in_today`（布尔权威）/`reward.reward_amount`/`continuous_days`/`last_checkin_date`（2026-11-11 旧仓库 oracle 提炼 + spike 实证）
 - 本机 127.0.0.1 的 CDP HTTP 探测必须**绕系统代理**（旧系统实测：系统代理开着时 urllib 会把调试端口请求发给代理，直连失败）
 

@@ -16,5 +16,5 @@ credential:
   unlock: local-browser
 schedule:
   provision.run:
-    times: ["09:05"]
+    times: ["00:05", "09:05"]
     refresh_at: "00:00"

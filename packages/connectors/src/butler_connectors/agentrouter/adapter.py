@@ -63,11 +63,12 @@ def _display_for(state: WebPageState) -> str:
     return f"{DISPLAY}（{state.username}）" if state.username else DISPLAY
 
 
-def _relogin() -> WebPageState:
+def _relogin(*, force_login: bool = False) -> WebPageState:
     """自动执行「退出 → GitHub 登录 → 回调前缀替换」，返回重登后的页面状态。
 
-    只在 checked_in=false 时调用；不读取/保存 GitHub 凭据，依赖浏览器已有 GitHub
-    会话。任何一步找不到控件/跳转超时都抛 ReloginError，由 run() 转成人工 relogin
+    在 checked_in=false（含页面在登录页、localStorage 用户被清）时调用；不读取/保存
+    GitHub 凭据，依赖浏览器已有 GitHub 会话。任何一步找不到控件/跳转超时都抛
+    ReloginError，由 run() 转成人工 relogin
     提示，绝不假装签到成功。
     """
     channel = CdpChannel(DEBUG_PORT, http_get=http_json, ws_factory=ws_connect)
@@ -78,7 +79,16 @@ def _relogin() -> WebPageState:
 
     with channel.attach(page) as conn:
         conn.call("Page.bringToFront", wait=3.0)
-        if path.startswith(CONSOLE_PATH):
+        if force_login and not path.startswith(LOGIN_PATH):
+            # 页面在控制台但 localStorage 已经没有用户（会话被清/页面刚恢复）：
+            # 直接回登录页，避免在无用户菜单的页面上空点。
+            conn.call(
+                "Page.navigate",
+                {"url": f"https://{DOMAIN}{LOGIN_PATH}"},
+                wait=5.0,
+            )
+            channel.sleep(1.5)
+        elif path.startswith(CONSOLE_PATH):
             if not click_selector(
                 channel,
                 conn,
@@ -137,6 +147,37 @@ def _no_auth(why: str) -> RunResult:
     )
 
 
+def _after_relogin(state: WebPageState) -> RunResult:
+    """自动重登后的统一结果：真签到 → CLAIMED，否则 PENDING 并提示人工。"""
+    if state.checked_in:
+        return RunResult(
+            status=Status.CLAIMED,
+            evidence=(
+                Evidence(
+                    summary=(
+                        "已自动退出并重新登录，登录即签到完成——"
+                        f"{state_digest(state, display=DISPLAY)}"
+                    )
+                ),
+            ),
+        )
+    return RunResult(
+        status=Status.PENDING,
+        evidence=(
+            Evidence(
+                summary=(
+                    "自动重登已完成，但站点未标记 checked_in=true——"
+                    f"{state_digest(state, display=DISPLAY)}"
+                )
+            ),
+        ),
+        repair_hint=RepairHint(
+            reason="自动重登后仍未签到，请确认 GitHub 登录完成，再点「重新登录」重试",
+            action_id="relogin",
+        ),
+    )
+
+
 @dataclass
 class AgentRouterPort:
     """provision.run 端口：读页面状态；未签到时自动退出并重新登录。"""
@@ -156,7 +197,19 @@ class AgentRouterPort:
         try:
             state = _state()
         except WebPageUnavailable as exc:
-            return _no_auth(str(exc))
+            # 页面在登录页 / localStorage 用户被清：也尝试自动回登录，
+            # 而不是直接判死；GitHub 会话也失效时仍转人工 relogin。
+            if req.dry_run:
+                return _no_auth(str(exc))
+            try:
+                state = _relogin(force_login=True)
+            except ReloginError as relogin_exc:
+                return _no_auth(f"自动重登未完成：{relogin_exc}")
+            except Exception as relogin_exc:  # noqa: BLE001
+                return _no_auth(
+                    f"自动重登异常：{type(relogin_exc).__name__}: {relogin_exc}"
+                )
+            return _after_relogin(state)
         except Exception as exc:
             return RunResult(
                 status=Status.FAILED,
@@ -188,33 +241,7 @@ class AgentRouterPort:
         except Exception as exc:  # noqa: BLE001 —— 浏览器链路异常转成可修复态
             return _no_auth(f"自动重登异常：{type(exc).__name__}: {exc}")
 
-        if state.checked_in:
-            return RunResult(
-                status=Status.CLAIMED,
-                evidence=(
-                    Evidence(
-                        summary=(
-                            "已自动退出并重新登录，登录即签到完成——"
-                            f"{state_digest(state, display=DISPLAY)}"
-                        )
-                    ),
-                ),
-            )
-        return RunResult(
-            status=Status.PENDING,
-            evidence=(
-                Evidence(
-                    summary=(
-                        "自动重登已完成，但站点未标记 checked_in=true——"
-                        f"{state_digest(state, display=DISPLAY)}"
-                    )
-                ),
-            ),
-            repair_hint=RepairHint(
-                reason="自动重登后仍未签到，请确认 GitHub 登录完成，再点「重新登录」重试",
-                action_id="relogin",
-            ),
-        )
+        return _after_relogin(state)
 
 
 def build_port(*, vault: Any, transport: Any) -> AgentRouterPort:

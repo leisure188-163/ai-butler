@@ -81,7 +81,7 @@ def test_schedule_entries_shape(registry):
     assert registry.schedule_entries() == [
         {
             "target": "agentrouter",
-            "times": ["09:05"],
+            "times": ["00:05", "09:05"],
             "refresh_at": "00:00",
             "budget_seconds": 120,
         },
