@@ -98,10 +98,11 @@ class LayeredVault(VaultPort):
         with closing(self._connect()) as conn, conn:
             conn.execute(
                 "INSERT INTO vault_items"
-                " (account_id, kind, backend, expires_at, created_at, revoked_at, revoked_reason)"
-                " VALUES (?, ?, ?, ?, datetime('now'), NULL, '')"
+                " (account_id, kind, backend, expires_at, created_at, rotated_at, revoked_at, revoked_reason)"
+                " VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), NULL, '')"
                 " ON CONFLICT(account_id, kind) DO UPDATE SET"
                 " backend = excluded.backend, expires_at = excluded.expires_at,"
+                " rotated_at = datetime('now'),"
                 " revoked_at = NULL, revoked_reason = ''",
                 (account_id, kind, backend_name, _iso(expires_at)),
             )
@@ -251,8 +252,9 @@ class LayeredVault(VaultPort):
                 expires_at=_parse(expires_at),
                 revoked_at=_parse_utc(revoked_at),
                 revoked_reason=revoked_reason or "",
+                stored_at=_parse_utc(rotated_at or created_at),
             )
-            for account_id, kind, _backend, expires_at, _c, _r, revoked_at, revoked_reason in rows
+            for account_id, kind, _backend, expires_at, created_at, rotated_at, revoked_at, revoked_reason in rows
         ]
 
     # --- engine 内部能力 ---

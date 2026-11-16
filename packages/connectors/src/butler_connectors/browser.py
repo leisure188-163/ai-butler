@@ -90,7 +90,10 @@ def capture_cookies(
             else f"{app.display}（{item.profile_dir}）"
         )
         account = ctx.register.execute(app.manifest.id, display, account_key=item.account_key)
-        _store_credentials(ctx, account.id, {"browser_cookie": item.envelope}, kinds, auth.kind)
+        _store_credentials(
+            ctx, account.id, {"browser_cookie": item.envelope}, kinds, auth.kind,
+            main_cookie_names=tuple(auth.cookies),
+        )
         accounts.append(account.id)
     return DockOutcome(target=app.manifest.id, accounts=accounts)
 
@@ -177,6 +180,19 @@ def _profile_slug(name: str) -> str:
     return slug or "profile"
 
 
+def _is_profile_db(db: Path) -> bool:
+    """只认 Chrome 用户 profile（Default / Profile N）的 cookie 库。
+
+    组件目录（ActorSafetyLists 等）和 System Profile 里的同名 Cookies 文件
+    不是用户会话库，必须排除，否则会拿错库并报“no such table: cookies”。
+    """
+    profile = db.parent.parent if db.parent.name == "Network" else db.parent
+    name = profile.name
+    return name == "Default" or (
+        name.startswith("Profile ") and name[len("Profile "):].isdigit()
+    )
+
+
 def _cookie_dbs(candidates: list[str]) -> list[Path]:
     """候选展开为 cookie 库文件：含通配（任意段，如 Chrome 的 profile 段）=
     glob 展开取文件，路径排序稳定。"""
@@ -191,7 +207,7 @@ def _cookie_dbs(candidates: list[str]) -> list[Path]:
             files = sorted(Path(p) for p in _glob.glob(str(base)) if Path(p).is_file())
         else:
             files = [base] if base.is_file() else []
-        out.extend(files)
+        out.extend(p for p in files if _is_profile_db(p))
     return out
 
 

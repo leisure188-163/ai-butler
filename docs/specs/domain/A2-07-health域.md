@@ -47,8 +47,10 @@ HealthGrade：账户健康分级（正常 / 注意 / 异常，承袭 health.py �
   （`action_id=relogin`）；连续 ≥3 次 NO_AUTH → `risk`。
 - **失效自动撤销本地副本（ADR-016）**：有 NO_AUTH 连败（含由此判出的
   `invalid/risk`）或凭据 `expired` 时调用 `vault.revoke`（旧值归档、主引用删除、
-  行标记 revoked）；`risk` 若来自其它信号不触发。已撤销副本只作证据，不再参与
-  有效期分级；撤销失败不掩盖健康结论。只清 butler 库，不调用远程 signout、
+  行标记 revoked）；`risk` 若来自其它信号不触发。**连败只算最近一次停靠/轮换
+  （`stored_at`）之后的失败——重新导入的新凭据不被旧凭据时代的失败连坐**。
+  已撤销副本只作证据，不再参与有效期分级；全部副本已撤销 = `invalid`，不能报
+  healthy。撤销失败不掩盖健康结论。只清 butler 库，不调用远程 signout、
   不触碰客户端会话。
 - **评估时机**：`POST /runs`、`claim-all`、调度触发落地后立即评估一次
   （失败隔离，不回滚已落账 Run）；手动体检走 `health.check`。

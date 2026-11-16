@@ -20,10 +20,41 @@ from cryptography.hazmat.primitives.padding import PKCS7
 
 from butler_core.accounts.ports import AccountRepository
 from butler_core.accounts.usecases.register_account import RegisterAccount
+from butler_connectors.dockio import _expires_for
 from butler_connectors import unlock
-from butler_connectors.browser import _capture_kind, _webkit_to_iso, capture_cookies
+from butler_connectors.browser import _capture_kind, _cookie_dbs, _webkit_to_iso, capture_cookies
 from butler_connectors.manifest import CaptureSpec
 from butler_connectors.registry import DockContext, load_registry
+
+
+def test_browser_cookie_expiry_uses_required_names_only():
+    """信封里的短命辅助 cookie 不参与有效期，避免把有效会话误判 expired。"""
+    envelope = json.dumps(
+        {
+            "cookies": [
+                {"name": "__cf_bm", "expires_at": "2026-01-01T00:00:00+00:00"},
+                {"name": COOKIES[0], "expires_at": "2026-12-01T00:00:00+00:00"},
+                {"name": COOKIES[1], "expires_at": "2026-11-20T00:00:00+00:00"},
+            ]
+        }
+    )
+    expires = _expires_for("browser_cookie", envelope, cookie_names=COOKIES)
+    assert expires == datetime(2026, 11, 20, tzinfo=UTC)
+
+
+def test_cookie_dbs_ignores_component_directories(tmp_path):
+    """Chrome 组件目录里的同名 Cookies 文件不是 profile 库，不能参与捕获。"""
+    component = tmp_path / "Chrome" / "ActorSafetyLists" / "Cookies"
+    component.parent.mkdir(parents=True)
+    component.write_bytes(b"not-a-cookie-db")
+    system_profile = tmp_path / "Chrome" / "System Profile" / "Cookies"
+    system_profile.parent.mkdir(parents=True)
+    system_profile.write_bytes(b"not-a-cookie-db")
+    profile_db = tmp_path / "Chrome" / "Default" / "Cookies"
+    profile_db.parent.mkdir(parents=True)
+    profile_db.write_bytes(b"cookie-db")
+    dbs = _cookie_dbs([str(tmp_path / "Chrome/*/Cookies")])
+    assert dbs == [profile_db]
 
 
 def first_envelope(captured) -> str:

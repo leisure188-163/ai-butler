@@ -122,17 +122,28 @@ class AssessAccountHealth:
 
     def execute(self, account_id: str) -> AccountHealth:
         now = self.clock()
+        creds = [hp for hp in self.vault.health() if hp.account_id == account_id]
+        # 最近一次重新停靠/轮换之后，旧凭据时代的 NO_AUTH 不再算新凭据的连败
+        latest_stored = max(
+            (
+                hp.stored_at
+                for hp in creds
+                if hp.revoked_at is None and hp.stored_at is not None
+            ),
+            default=None,
+        )
         streak = 0
         for run in self.ledger.list_for_account(account_id, limit=self.risk_streak):
             if run.result is None or run.result.status is not Status.NO_AUTH:
+                break
+            at = run.finished_at or run.started_at
+            if latest_stored is not None and at is not None and at < latest_stored:
                 break
             streak += 1
 
         ev: list[str] = []
         cred = HealthLevel.HEALTHY
-        for hp in self.vault.health():
-            if hp.account_id != account_id:
-                continue
+        for hp in creds:
             if hp.revoked_at is not None:
                 ev.append(f"凭据 {hp.kind} 本地副本已撤销")
                 continue  # 已撤销副本不再参与有效期分级（ADR-016）
@@ -149,6 +160,9 @@ class AssessAccountHealth:
             ev.append(f"连续 {streak} 次鉴权失败（NO_AUTH）")
         elif cred is HealthLevel.EXPIRED:
             level = HealthLevel.EXPIRED
+        elif creds and not any(hp.revoked_at is None for hp in creds):
+            level = HealthLevel.INVALID  # 副本全撤销 = 当前无机可用，不能报 healthy
+            ev.append("本地凭据副本已全部撤销，等待重新停靠")
         elif streak >= 1:
             level = HealthLevel.INVALID
         elif cred is HealthLevel.EXPIRING:

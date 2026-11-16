@@ -236,6 +236,18 @@ def test_scan_event_carries_kind_and_expiry():
 # --- AssessAccountHealth ---
 
 
+def _run_at(account: str, status: Status, seq: int, at: datetime) -> "Run":
+    run = Run(
+        id=f"run{seq}",
+        action=Action(kind=ActionKind.HEALTH_CHECK, target="trae_cn"),
+        account_id=account,
+        idempotency_key="",
+        started_at=at,
+    )
+    run.finish(RunResult(status=status), at=at)
+    return run
+
+
 def _assess(creds, runs, states):
     sink = CollectSink()
     uc = AssessAccountHealth(
@@ -246,6 +258,40 @@ def _assess(creds, runs, states):
         clock=_clock_at(_T0),
     )
     return uc, sink
+
+
+def test_failures_before_restore_do_not_count_against_new_credential():
+    """重新停靠后，旧凭据时代的 NO_AUTH 不再拖累新凭据。"""
+    hp = CredentialHealth.build(
+        account_id="a", kind="cookie", expires_at=_T0 + timedelta(days=30),
+        stored_at=_T0 + timedelta(hours=1), clock=_clock_at(_T0),
+    )
+    runs = [
+        _run_at("a", Status.NO_AUTH, 4, _T0 - timedelta(hours=2)),
+        _run_at("a", Status.NO_AUTH, 3, _T0 - timedelta(hours=1)),
+        _run_at("a", Status.NO_AUTH, 2, _T0),
+    ]
+    states = MemStates()
+    uc, _ = _assess([hp], runs, states)
+    health = uc.execute("a")
+    assert health.level is HealthLevel.HEALTHY  # 旧连败属于旧凭据时代
+    assert uc.vault.revoked == []  # 新副本不能被旧账撤销
+
+
+def test_failure_after_restore_counts_and_revokes():
+    hp = CredentialHealth.build(
+        account_id="a", kind="cookie", expires_at=_T0 + timedelta(days=30),
+        stored_at=_T0 + timedelta(hours=1), clock=_clock_at(_T0),
+    )
+    runs = [
+        _run_at("a", Status.NO_AUTH, 2, _T0 + timedelta(hours=2)),
+        _run_at("a", Status.NO_AUTH, 1, _T0),
+    ]
+    states = MemStates()
+    uc, _ = _assess([hp], runs, states)
+    health = uc.execute("a")
+    assert health.level is HealthLevel.INVALID  # 新副本确实又失败了一次
+    assert uc.vault.revoked[0][0] == "a"
 
 
 def test_healthy_when_no_evidence():
@@ -324,6 +370,19 @@ def test_revoked_credential_is_evidence_not_expiry():
     health = uc.execute("a")
     assert health.level is HealthLevel.INVALID  # 连败 1 次；revoked 不再贡献 expired
     assert any("本地副本已撤销" in e for e in health.evidence)
+
+
+def test_all_revoked_credentials_are_invalid_not_healthy():
+    """副本全撤销 = 当前无机可用，不能因为没有连败就报 healthy。"""
+    hp = CredentialHealth.build(
+        account_id="a", kind="cookie", expires_at=_T0 + timedelta(days=30),
+        revoked_at=_T0, revoked_reason="登录态失效", clock=_clock_at(_T0),
+    )
+    states = MemStates()
+    uc, _ = _assess([hp], [], states)
+    health = uc.execute("a")
+    assert health.level is HealthLevel.INVALID
+    assert any("全部撤销" in e for e in health.evidence)
 
 
 def test_revoke_success_is_reported_in_evidence():

@@ -203,6 +203,7 @@ class CredentialHealth:
     level: HealthLevel = HealthLevel.HEALTHY
     revoked_at: datetime | None = None
     revoked_reason: str = ""
+    stored_at: datetime | None = None  # 最近一次停靠/轮换写入时间（旧连败不计新凭据）
 
     @classmethod
     def build(
@@ -215,6 +216,7 @@ class CredentialHealth:
         warn_window_days: int = EXPIRING_WINDOW_DAYS,
         revoked_at: datetime | None = None,
         revoked_reason: str = "",
+        stored_at: datetime | None = None,
     ) -> "CredentialHealth":
         """分级谓词在 shared 内核单源重算——适配器只交数据。"""
 
@@ -225,6 +227,7 @@ class CredentialHealth:
             level=credential_level(expires_at, clock(), warn_window_days=warn_window_days),
             revoked_at=revoked_at,
             revoked_reason=revoked_reason,
+            stored_at=stored_at,
         )
 
 

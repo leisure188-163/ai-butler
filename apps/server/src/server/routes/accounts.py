@@ -78,8 +78,8 @@ def list_accounts(request: Request) -> list[AccountOut]:
     out: list[AccountOut] = []
     for account_id in sorted(known):
         account = known[account_id]
+        health = kit.assess_account_health.execute(account_id)  # 先评估/撤销，再投影
         creds = [hp for hp in kit.vault.health() if hp.account_id == account_id]
-        health = kit.assess_account_health.execute(account_id)
         out.append(
             AccountOut(
                 account_id=account_id,

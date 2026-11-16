@@ -43,7 +43,10 @@ def scan_storage(
         return DockOutcome(target=app.manifest.id, issues=[facts["_issue"]])
 
     account = ctx.register.execute(app.manifest.id, app.display)
-    _store_credentials(ctx, account.id, facts, kinds, auth.kind)
+    _store_credentials(
+        ctx, account.id, facts, kinds, auth.kind,
+        main_cookie_names=tuple(auth.cookies),
+    )
     return DockOutcome(target=app.manifest.id, accounts=[account.id])
 
 
@@ -468,6 +471,8 @@ def _store_credentials(
     facts: dict[str, str],
     kinds: tuple[str, ...],
     main_kind: str,
+    *,
+    main_cookie_names: tuple[str, ...] = (),
 ) -> None:
     """凭据入库：只入 manifest 申报的 kinds（最小授权），先校验后入库。"""
     scanned = {k for k in facts if not k.startswith("_")}
@@ -479,13 +484,18 @@ def _store_credentials(
         )
     for kind in kinds:
         value = facts[kind]
-        expires = _expires_for(kind, value) if kind == main_kind else None
+        expires = (
+            _expires_for(kind, value, cookie_names=main_cookie_names)
+            if kind == main_kind
+            else None
+        )
         ctx.vault.store(account_id, kind, Secret(value), expires_at=expires)
 
 
-def _expires_for(kind: str, value: str):
+def _expires_for(kind: str, value: str, *, cookie_names: tuple[str, ...] = ()):
     """主凭据有效期：ss_aes = JWT exp；dpapi_gcm_v10 = 会话 expiresAt（ISO）；
-    browser_cookie = 名单内各 cookie 最早者（A2-03 §1）。"""
+    browser_cookie = **必需名单内**各 cookie 最早者（A2-03 §1）——信封里的
+    其它短命 cookie（__cf_bm 等）不参与，避免把仍有会话的账号误判 expired。"""
     import json
     from datetime import UTC, datetime
 
@@ -510,10 +520,17 @@ def _expires_for(kind: str, value: str):
             return None
         if kind == "browser_cookie":
             envelope = json.loads(value)
+            items = [
+                item for item in envelope.get("cookies", [])
+                if isinstance(item, dict)
+            ]
+            if cookie_names:
+                names = set(cookie_names)
+                items = [item for item in items if item.get("name") in names]
             dates = [
                 datetime.fromisoformat(item["expires_at"])
-                for item in envelope.get("cookies", [])
-                if isinstance(item, dict) and item.get("expires_at")
+                for item in items
+                if item.get("expires_at")
             ]
             return min(dates) if dates else None
     except (ValueError, RuntimeError):
