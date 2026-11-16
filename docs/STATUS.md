@@ -335,10 +335,11 @@ qoder 域已定路径待网络观察；doubao CDP 驱动可行但发消息属写
 
 ## 环境备忘
 
-- 远端 origin = `git@gitee_hiclaw520_126:hiclaw_520/ai-butler.git`（main；
-  2026-11-14 远端已由 `ai-kabao` 更名 `ai-butler`，本地 remote 同步完成）。
+- 远端 origin = `git@id_gitee_hiclaw520:hiclaw_520/ai-butler.git`（main；
+  2026-11-14 远端已由 `ai-kabao` 更名 `ai-butler`；2026-11-16 Windows 机
+  remote URL 修正并 ls-remote 验证可达）。
   推送口径（2026-11-12 起 SSH 别名直推）：远端 URL 必须用 `~/.ssh/config`
-  别名 `gitee_hiclaw520_126`（hiclaw_520 账号专用钥匙）——裸 `git@gitee.com:`
+  别名 `id_gitee_hiclaw520`（hiclaw_520 账号专用钥匙）——裸 `git@gitee.com:`
   走默认钥匙（xiaoyaojiugui 账号）对 hiclaw_520 仓库报 Access denied；
   HTTPS + `credential.helper=manager` 在非交互 shell 弹窗被取消必挂，均弃用
 - **uv.lock 口径**：macOS 开发机全局 uv 配置走阿里云镜像，`uv sync` 会把锁源
