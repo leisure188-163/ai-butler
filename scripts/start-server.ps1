@@ -6,4 +6,13 @@
 $env:BUTLER_DB = Join-Path $PSScriptRoot "..\data\database\butler.db"
 $env:DOUBAO_IDENTITY_PATH = Join-Path $PSScriptRoot "..\data\doubao_identity.json"
 Set-Location (Join-Path $PSScriptRoot "..")
-& "C:\Users\A29159\.local\bin\uv.exe" run python -m uvicorn server.main:app --host 127.0.0.1 --port 8000
+# uv 解析（2026-11-16 去机器特定硬编码）：BUTLER_UV 覆盖 → 本机
+# ~/.local/bin（本机 PATH 首位 hermes uv 损坏，见 docs/STATUS.md 环境备忘）
+# → 兜底 PATH 里的 uv
+$uv = $env:BUTLER_UV
+if (-not $uv) {
+    $localUv = Join-Path $env:USERPROFILE ".local\bin\uv.exe"
+    if (Test-Path -LiteralPath $localUv) { $uv = $localUv }
+}
+if (-not $uv) { $uv = "uv" }
+& $uv run python -m uvicorn server.main:app --host 127.0.0.1 --port 8000

@@ -13,11 +13,16 @@
   （后台节拍刷新 + TTL 闸），数据根 gateway-routes.json 为启动兜底（无 server
   环境 = 纯文件模式照常工作）；transport 工厂可注入：测试用 MockTransport
   验证主控可达/不可达两态
+- 数据根纪律（2026-11-16）：网关必须与主控共用同一 ``BUTLER_DB``（路由账户
+  名册 / 计量库 / 凭据池都在库里）；未设时启动告警并回落默认数据根——
+  ``scripts\\start-gateway.ps1`` 已固化与主控同款覆盖
 """
 
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -31,6 +36,8 @@ from butler_gateway.forwarder import Forwarder
 from butler_gateway.limiter import AccountLimiter
 from butler_gateway.routes_source import RoutesSource
 from butler_gateway.upstream import registered_providers
+
+logger = logging.getLogger(__name__)
 
 _VERSION = "0.3.0"
 
@@ -56,6 +63,20 @@ def _build_kit() -> object:
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     key_path = config.key_file()
+    # 数据根一致性（2026-11-16）：网关与主控不同库 = 账户查不到 / 计量写进
+    # 对方看不到的库（split-brain）。显式 BUTLER_DB 时静默对齐；未设时大声
+    # 提示——默认根在本机还是虚拟化层吃 sqlite 伴生文件的目录
+    db_override = os.environ.get("BUTLER_DB")
+    if db_override:
+        logger.info("网关数据根跟随 BUTLER_DB = %s（与主控同库）", db_override)
+    else:
+        logger.warning(
+            "BUTLER_DB 未设置：网关 key/路由/计量库将落默认数据根 %s。"
+            "若主控经 scripts/start-server.ps1 固化了项目内数据根，两进程会"
+            "各用各库（账户/计量互相不可见）——请改用 scripts/start-gateway.ps1"
+            " 或导出与主控一致的 BUTLER_DB",
+            key_path.parent,
+        )
     app.state.gateway_key = auth.load_or_create(key_path)
     app.state.key_file = key_path
     app.state.started_monotonic = time.monotonic()

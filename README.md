@@ -50,6 +50,11 @@ pnpm dev:web                                # Web
 cd apps/desktop && npm i && WEB_URL=http://localhost:5173 npm start   # Electron 壳
 ```
 
+> Windows 本机若遇 sqlite `disk I/O error`（home 目录伴生文件被文件虚拟化层
+> 拦截的机器）：请改用 `scripts\start-server.ps1` / `scripts\start-gateway.ps1`
+> 启动——两脚本固化同一 `BUTLER_DB`（项目内 `data\database\`，网关与主控必须
+> 同库），见 `docs/conventions/00-项目配置.md` `{data-root}`。
+
 架构自检（八项门禁，必须全绿）：
 
 ```bash
