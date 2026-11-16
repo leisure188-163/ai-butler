@@ -1,0 +1,104 @@
+"""网页界面会话读取（通用底座）：从本机 Chromium 调试页读站点自己的登录态。
+
+本模块只做两件事：
+- 找到一个已登录的目标页面（按域名匹配，不新开标签、不改页面）；
+- 读取页面前端自己维护的 ``localStorage.user`` 快照（id/checked_in 等非密字段）。
+
+它不认识任何站点，也不读取 access token / cookie 值；站点语义（登录即签到、
+按钮签到等）由各连接器 adapter 解释。这样网页连接器不必依赖 Chrome cookie
+解密（mac v20 应用绑定加密不可解，A2-03 §7），也能复用本机已登录页面。
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from butler_connectors.cdp import CdpChannel, CdpConnection, CdpError, http_json, ws_connect
+
+
+@dataclass(frozen=True)
+class WebPageState:
+    """页面可见的非密状态：站点用户 id/用户名 + 站点自定义签到标记。"""
+
+    user_id: int
+    username: str
+    checked_in: bool
+    last_login_time: int
+    quota: int
+    url: str
+
+
+class WebPageUnavailable(CdpError):
+    """目标页面不存在或调试端口不可达（不可归因为登录态失效）。"""
+
+
+def _find_target(port: int, domain: str, *, channel: CdpChannel | None = None) -> dict | None:
+    """按域名找页面；不新开标签（未打开 = 用户没在用这个网页，如实上报）。"""
+    ch = channel or CdpChannel(port, http_get=http_json, ws_factory=ws_connect)
+    for target in ch.targets():
+        if target.get("type") not in ("page", "webview"):
+            continue
+        if domain in (target.get("url") or "") and target.get("webSocketDebuggerUrl"):
+            return target
+    return None
+
+
+def read_user_state(conn: CdpConnection, channel: CdpChannel) -> WebPageState | None:
+    """读页面前端 user 快照；未登录（无 id）返回 None，不把空对象当登录。"""
+    expression = """(() => {
+      try {
+        const raw = localStorage.getItem('user');
+        if (!raw) return null;
+        const u = JSON.parse(raw);
+        if (!u || !u.id) return null;
+        return {
+          user_id: Number(u.id),
+          username: String(u.username || ''),
+          checked_in: Boolean(u.checked_in),
+          last_login_time: Number(u.last_login_time || 0),
+          quota: Number(u.quota || 0)
+        };
+      } catch (e) { return null; }
+    })()"""
+    value = channel.evaluate(conn, expression)
+    if not isinstance(value, dict) or not value.get("user_id"):
+        return None
+    return WebPageState(
+        user_id=int(value["user_id"]),
+        username=str(value.get("username") or ""),
+        checked_in=bool(value.get("checked_in")),
+        last_login_time=int(value.get("last_login_time") or 0),
+        quota=int(value.get("quota") or 0),
+        url="",
+    )
+
+
+def read_page(port: int, domain: str) -> WebPageState:
+    """读当前登录态；页面不存在 → WebPageUnavailable（不新开标签）。"""
+    target = _find_target(port, domain)
+    if target is None:
+        raise WebPageUnavailable(f"浏览器未打开 {domain} 页面（请先打开并登录该站点）")
+    channel = CdpChannel(port, http_get=http_json, ws_factory=ws_connect)
+    with channel.attach(target) as conn:
+        state = read_user_state(conn, channel)
+        if state is None:
+            raise WebPageUnavailable(f"{domain} 页面未登录（localStorage.user 无有效用户）")
+        return WebPageState(
+            user_id=state.user_id,
+            username=state.username,
+            checked_in=state.checked_in,
+            last_login_time=state.last_login_time,
+            quota=state.quota,
+            url=str(target.get("url") or ""),
+        )
+
+
+def state_digest(state: WebPageState | None, *, display: str) -> str:
+    """证据摘要：只写非密字段，便于待办定位；不写 token/cookie。"""
+    if state is None:
+        return f"{display} 页面未登录"
+    return (
+        f"{display} 用户 {state.username or state.user_id}，"
+        f"checked_in={str(state.checked_in).lower()}，"
+        f"last_login_time={state.last_login_time}"
+    )

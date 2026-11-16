@@ -16,6 +16,7 @@ def registry():
 
 def test_trae_loaded_with_shape(registry):
     assert registry.ids() == [
+        "agentrouter",  # 网页登录即签到（adapter：浏览器页面状态读取）
         "chatgpt_web",  # R3 网页会话通道（A2-03）：仅 session.import + health.check
         "claude_web",
         "doubao_cn",
@@ -33,6 +34,9 @@ def test_trae_loaded_with_shape(registry):
     assert workbuddy.display == "WorkBuddy CN"
     assert workbuddy.manifest.capabilities[ActionKind.PROVISION_RUN.value].kind == "adapter"
     assert workbuddy.manifest.credential is None  # 现用现取零 vault：不申报 kind
+    router = registry.get("agentrouter")
+    assert router.manifest.capabilities[ActionKind.PROVISION_RUN.value].kind == "adapter"
+    assert router.manifest.credential.kinds == ["browser_session"]
     web = registry.get("chatgpt_web")  # A2-03：网页连接器无 provision.run，无调度
     assert "provision.run" not in web.manifest.capabilities
     assert web.manifest.credential.kinds == ["browser_cookie"]
@@ -75,6 +79,12 @@ def test_dialect_registered_adr002(registry):
 
 def test_schedule_entries_shape(registry):
     assert registry.schedule_entries() == [
+        {
+            "target": "agentrouter",
+            "times": ["09:05"],
+            "refresh_at": "00:00",
+            "budget_seconds": 120,
+        },
         {
             "target": "doubao_cn",
             "times": ["09:15", "13:15", "19:15", "23:15"],

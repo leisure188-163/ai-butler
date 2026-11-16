@@ -1,0 +1,20 @@
+# AgentRouter（New API 系站点）：登录即签到（2026-11-16 真机取证）
+# 网页登录态经本机 Chromium 调试端口读取，不走 Chrome cookie 解密（v20 不可解）。
+id: agentrouter
+display: AgentRouter
+capabilities:
+  provision.run:                # 每日签到（站点语义=登录触发，checked_in 为权威）
+    kind: adapter
+    entry: adapter.butler
+    budget_seconds: 120
+  session.import:               # 从已登录的浏览器页面登记账户（不新开标签）
+    kind: adapter
+    entry: adapter.butler
+    budget_seconds: 60
+credential:
+  kinds: [browser_session]      # 非密定位凭据：domain/port/user_id
+  unlock: local-browser
+schedule:
+  provision.run:
+    times: ["09:05"]
+    refresh_at: "00:00"
