@@ -5,6 +5,10 @@ dist/
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
+data/database/
+data/doubao_identity.json
+.trae/
 .env
 .DS_Store
 .superpowers/
