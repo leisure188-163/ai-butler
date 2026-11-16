@@ -79,7 +79,7 @@ def default_db_path() -> Path:
         root = Path(xdg) / "butler"
     root.mkdir(parents=True, exist_ok=True)
     target = root / DEFAULT_DB
-    migrate_legacy_db(target, root, Path.cwd(), log=lambda msg: logger.info("%s", msg))
+    migrate_legacy_db(target, root, log=lambda msg: logger.info("%s", msg))
     return target
 
 

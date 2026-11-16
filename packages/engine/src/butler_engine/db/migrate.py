@@ -21,27 +21,31 @@ LEGACY_DB_SOURCES = ("kabao", "ai-marina")
 LEGACY_VAULT_PREFIX = "marina.vault"
 
 
-def legacy_db_candidates(root: Path, cwd: Path) -> list[Path]:
-    """旧库源优先级（A1-03 §7）：品牌目录 kabao → CWD kabao →
-    上一代 ai-marina → CWD marina。目录/文件名都是历史字面量，仅此处出现。"""
+def legacy_db_candidates(root: Path) -> list[Path]:
+    """旧库源优先级（A1-03 §7）：品牌目录 kabao → 上一代 ai-marina。
 
+    **2026-11-16 收窄：CWD 源移除**——本函数在每次 engine 构造时都会跑
+    （`default_db_path()`），扫 CWD 并把同名文件**搬走**是隐式破坏性操作：
+    在任何碰巧有 kabao.db / marina.db 的目录里起进程（含网关读 key 路径的
+    间接触发），文件都会被无声挪走，且与「禁止 CWD 相对默认」的既有裁决相悖。
+    存量机器的迁移早已完成；确有 CWD 旧库要迁的，显式移入品牌目录后再跑。
+    目录/文件名都是历史字面量，仅此处出现。
+    """
     parent = root.parent
     return [
         parent / "kabao" / "kabao.db",
-        cwd / "kabao.db",
         parent / "ai-marina" / "marina.db",
-        cwd / "marina.db",
     ]
 
 
 def migrate_legacy_db(
-    target: Path, root: Path, cwd: Path, *, log: Logger | None = None
+    target: Path, root: Path, *, log: Logger | None = None
 ) -> Path | None:
     """把优先级最高的旧库搬成 butler.db（含 -wal/-shm）；返回源，未迁移返回 None。"""
 
     if target.exists():
         return None  # 幂等：已迁移或用户已有新库
-    for legacy in legacy_db_candidates(root, cwd):
+    for legacy in legacy_db_candidates(root):
         if not legacy.exists():
             continue
         for suffix in ("", "-wal", "-shm"):

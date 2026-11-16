@@ -9,12 +9,26 @@ from butler_engine.db.migrate import (
 
 def test_legacy_db_source_priority(tmp_path):
     root = tmp_path / "data" / "butler"
+    sources = legacy_db_candidates(root)
+    assert sources == [
+        tmp_path / "data" / "kabao" / "kabao.db",
+        tmp_path / "data" / "ai-marina" / "marina.db",
+    ]
+
+
+def test_cwd_legacy_db_not_migrated(tmp_path):
+    """CWD 源已移除（2026-11-16）：起进程目录里的同名旧库不再被隐式搬走。"""
+    root = tmp_path / "data" / "butler"
+    root.mkdir(parents=True)
     cwd = tmp_path / "repo"
-    sources = legacy_db_candidates(root, cwd)
-    assert sources[0] == tmp_path / "data" / "kabao" / "kabao.db"
-    assert sources[1] == cwd / "kabao.db"
-    assert sources[2] == tmp_path / "data" / "ai-marina" / "marina.db"
-    assert sources[3] == cwd / "marina.db"
+    cwd.mkdir()
+    legacy = cwd / "kabao.db"
+    legacy.write_bytes(b"stray")
+    target = root / "butler.db"
+
+    assert migrate_legacy_db(target, root) is None
+    assert legacy.read_bytes() == b"stray"  # 原地不动，不搬不删
+    assert not target.exists()
 
 
 def test_first_migration_moves_kabao_db_and_writes_log(tmp_path):
@@ -27,7 +41,7 @@ def test_first_migration_moves_kabao_db_and_writes_log(tmp_path):
     logs: list[str] = []
     target = root / "butler.db"
 
-    migrated = migrate_legacy_db(target, root, tmp_path, log=logs.append)
+    migrated = migrate_legacy_db(target, root, log=logs.append)
 
     assert migrated == old / "kabao.db"
     assert target.read_bytes() == b"old"
@@ -45,7 +59,7 @@ def test_idempotent_skip_and_brand_priority(tmp_path):
     old.mkdir()
     (old / "kabao.db").write_bytes(b"old")
 
-    assert migrate_legacy_db(target, root, tmp_path) is None
+    assert migrate_legacy_db(target, root) is None
     assert target.read_bytes() == b"current"
     assert (old / "kabao.db").read_bytes() == b"old"
 
@@ -59,7 +73,7 @@ def test_kabao_source_wins_over_marina(tmp_path):
     (tmp_path / "data" / "ai-marina" / "marina.db").write_bytes(b"marina")
     target = root / "butler.db"
 
-    migrate_legacy_db(target, root, tmp_path)
+    migrate_legacy_db(target, root)
 
     assert target.read_bytes() == b"kabao"
 

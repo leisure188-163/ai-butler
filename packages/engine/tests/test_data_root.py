@@ -1,7 +1,8 @@
 """数据根（A4-01 §5 数据布局）：绝不落 CWD + 旧身份数据自动迁移（A1-03 §7）。
 
-迁移源优先级：① 旧品牌目录 ai-marina/marina.db（R1 更名前数据根）；
-② M0 遗留 CWD marina.db。旧文件保留不删、迁移幂等。
+迁移源优先级（2026-11-16 收窄：CWD 源移除——每次构造 engine 都扫 CWD 并把
+同名文件搬走属隐式破坏性操作）：旧品牌目录 ai-marina/marina.db（R1 更名前
+数据根）。旧文件保留不删、迁移幂等；CWD 遗留文件一律原地不动。
 """
 
 import sys
@@ -29,7 +30,8 @@ def test_migrates_legacy_brand_dir_db(monkeypatch, tmp_path):
     assert old_brand.is_dir()  # 旧目录保留不删（天然备份）
 
 
-def test_migrates_legacy_cwd_db_into_data_root(monkeypatch, tmp_path):
+def test_cwd_legacy_db_left_alone(monkeypatch, tmp_path):
+    """CWD 源已移除（2026-11-16）：落在 CWD 的旧库原地不动，不搬不删。"""
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     cwd = tmp_path / "repo"
@@ -40,8 +42,8 @@ def test_migrates_legacy_cwd_db_into_data_root(monkeypatch, tmp_path):
     got = default_db_path()
 
     assert got == tmp_path / "data" / "butler" / "butler.db"
-    assert got.read_bytes() == b"legacy"  # 旧库已搬入数据根
-    assert not (cwd / "marina.db").exists()
+    assert not got.exists()  # 无源可迁 → 不搬，库文件留待首次使用时创建
+    assert (cwd / "marina.db").read_bytes() == b"legacy"  # 原地不动
 
 
 def test_brand_dir_wins_over_cwd_legacy(monkeypatch, tmp_path):
