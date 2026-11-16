@@ -5,6 +5,29 @@
 
 ## 一句话现状
 
+**第二批复审修复（2026-11-16）：P1-P4 全修 + 低危四项**。①**网关数据根
+split-brain（P1 高）**：`start-server.ps1` 只固化 server 的 `BUTLER_DB`，网关
+key/routes/engine 三落点全回落 `%APPDATA%\butler`（正是本机虚拟化层吃 journal
+的目录；实测三级 BUTLER_DB 均空、该目录已存在）→ 新 `scripts\start-gateway.ps1`
+固化同款 BUTLER_DB + `app.py` 启动一致性告警（未设大声提示 split-brain）+
+start-server 的 uv 机器特定硬编码改 `BUTLER_UV`→`~/.local/bin`→PATH 解析链；
+②**journal 口径收单源（P2）**：六适配器五处 OFF、第六处（accounts）抄漏
+（探针实证 D 盘数据根 DELETE 模式可写非活雷，APPDATA 根才炸）→ 新
+`db/conn.py` 连接单源，六处 `_connect` 全部改用，"崩溃可能损坏库本体"修正
+口径入注释；③**网关热路径异步化（P3）**：forwarder 的 accounts.get /
+pool.acquire / pool.invalidate / meter.record 原全为同步磁盘 I/O 跑在事件
+循环上（双进程写同库忙等最坏 5s×候选数卡死全部并发请求）→ 全部
+`asyncio.to_thread` 包裹，真上游适配器落地前还清；④**CWD 隐式搬移废除
+（P4）**：migrate 候选源砍 CWD 两条（每次构造 engine 都扫 CWD `shutil.move`
+搬走同名文件 = 隐式破坏性操作），只留品牌目录两条，测试改钉"CWD 同名文件
+不迁移"（净增 2 用例）。低危同批：ledger 幂等判定 SQL 硬编码
+CLAIMED/ALREADY → core `ResultKind.is_pass` 谓词（语义单源）、proxy 请求体
+20 MiB 上限（413）、vault rotate 中断窗口 docstring 注记、verify 两处
+`uv run` 加 `--frozen`（本机旧 uv 重写 uv.lock 两次实证，门禁后不再须手工
+还原）。文档收编：A1-03 §7/环境变量表/数据库文件口径、00-项目配置、
+guides/01、README。全量 661 passed + 2 skipped，结构门禁 PASS（uv.lock
+零污染）、vue-tsc 0 错误。
+
 **浏览器边界收口（2026-11-16，[ADR-014](adr/ADR-014-本地服务浏览器边界与Origin拦截.md)）**：
 主控 server 原 `CORSMiddleware(allow_origins=["*"])` + 无鉴权 = **任意网页可驱动本机
 签到与网关路由改写**（CORS 只挡读不挡写；localhost 又不受混合内容策略保护，HTTPS
