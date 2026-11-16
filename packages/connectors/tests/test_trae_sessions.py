@@ -44,7 +44,7 @@ def test_工作区与全局按前缀绑定_全局上下文如实unbound(tmp_path
     bound = [s for s in sightings if s.device_ref]
     unbound = [s for s in sightings if s.device_ref is None]
     # 工作区 hash1 → 135…；hash2 → 236…；globalStorage → 135…：共 3 条绑定观测
-    assert {(s.location.split("/")[-1], s.device_ref) for s in bound} == {
+    assert {(Path(s.location).name, s.device_ref) for s in bound} == {
         ("hash1", "1352866089939851"),
         ("hash2", "2363270254575433"),
         ("state.vscdb", "1352866089939851"),

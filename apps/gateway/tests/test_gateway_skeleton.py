@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import sys
 from pathlib import Path
 
 import httpx
@@ -17,6 +18,9 @@ from fastapi.testclient import TestClient
 
 from butler_gateway import auth, config
 
+# NTFS 不承载 POSIX 权限位（st_mode 恒为 0o666 系），0o600 断言仅在 POSIX 有意义
+_POSIX_PERMS = sys.platform != "win32"
+
 
 # ── 鉴权 key 管理（裁决 4）──
 
@@ -24,7 +28,8 @@ def test_key_generate_then_reload_idempotent(tmp_path: Path) -> None:
     key_file = tmp_path / "gateway-auth-key"
     first = auth.load_or_create(key_file)
     assert first and len(first) >= 40  # token_urlsafe(32) ≈ 43 字符
-    assert stat.S_IMODE(key_file.stat().st_mode) == 0o600
+    if _POSIX_PERMS:
+        assert stat.S_IMODE(key_file.stat().st_mode) == 0o600
     assert auth.load_or_create(key_file) == first  # 重启不换 key（客户端零改动）
 
 
@@ -40,7 +45,8 @@ def test_key_perms_widened_get_fixed(tmp_path: Path) -> None:
     key_file.write_text("abc\n", encoding="utf-8")
     os.chmod(key_file, 0o644)
     assert auth.load_or_create(key_file) == "abc"
-    assert stat.S_IMODE(key_file.stat().st_mode) == 0o600  # 危险状态不留存
+    if _POSIX_PERMS:
+        assert stat.S_IMODE(key_file.stat().st_mode) == 0o600  # 危险状态不留存
 
 
 def test_check_bearer_cases() -> None:
