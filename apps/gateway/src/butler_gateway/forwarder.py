@@ -11,10 +11,15 @@
   Meter 失败返回 False 不打断转发（R4-G4 RecordUsageSample 台账语义）；
   候选账户不存在 / 适配器未注册 / 缺凭据 = 如实记 skipped 后转下一候选
 - 意外异常（凭据池 vault 级等）原样上抛（红线 5），协议面决定 5xx 语义
+- 阻塞调用一律 asyncio.to_thread（2026-11-16）：账户读 / 凭据池（credman
+  ctypes、vault 写）/ Meter 落账（SQLite，双进程写同库时忙等最坏 5s）都是
+  同步磁盘 I/O——本进程定位「常驻 + 高并发」（A1-02），同步 I/O 停在事件
+  循环上会卡死全部并发请求，真上游适配器落地前必须先还清这笔债
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -130,7 +135,8 @@ class Forwarder:
         self, account_id: str, *, model: str, payload: dict, usage_parser: UsageParser
     ) -> AttemptRecord:
         started = time.perf_counter()
-        account = self.accounts.get(account_id)
+        # 阻塞调用一律 to_thread（模块 docstring 末条）：不让同步 I/O 停在事件循环
+        account = await asyncio.to_thread(self.accounts.get, account_id)
         if account is None:
             return self._skipped(account_id, "skipped:account_missing", started)
         adapter = upstream_for(account.provider)
@@ -142,7 +148,9 @@ class Forwarder:
                 detail="推理通道取证未回收，该 provider 未开工（plans/02 §3）",
             )
         try:
-            credential = self.pool.acquire(account_id, adapter.credential_kind)
+            credential = await asyncio.to_thread(
+                self.pool.acquire, account_id, adapter.credential_kind
+            )
         except CredentialMissing as exc:
             return self._skipped(account_id, "skipped:credential_missing", started, detail=str(exc))
         # 凭据池其他异常（vault 级）原样上抛——红线 5，协议面决定 5xx 语义
@@ -153,17 +161,20 @@ class Forwarder:
                     account_id, credential, UpstreamCall(payload=payload, model=model)
                 )
             except UpstreamFailure as exc:
-                return self._failure(account_id, model, exc, started, usage_parser)
+                return await self._failure(account_id, model, exc, started, usage_parser)
             # 适配器意外异常不吞：limiter 槽由上下文释放，异常冒泡（红线 5）
 
             tokens_in, tokens_out = usage_parser(reply.body)
-            self._meter(account_id, model, tokens_in, tokens_out, started)
+            await self._meter(account_id, model, tokens_in, tokens_out, started)
             if reply.status < 400:
                 return self._record(
                     account_id, "ok", reply.status, tokens_in, tokens_out, started, body=reply.body
                 )
             if reply.status in (401, 403):
-                self.pool.invalidate(account_id, adapter.credential_kind)  # 凭据被拒即失效
+                # 凭据被拒即失效（vault 写 + 审计，同样不让它停在事件循环上）
+                await asyncio.to_thread(
+                    self.pool.invalidate, account_id, adapter.credential_kind
+                )
                 return self._record(
                     account_id,
                     "error:cred_rejected",
@@ -183,11 +194,13 @@ class Forwarder:
 
     # ── 台账行构造 ──
 
-    def _meter(
+    async def _meter(
         self, account_id: str, model: str, tokens_in: int, tokens_out: int, started: float
     ) -> None:
-        # Meter 失败返回 False 不打断转发（台账语义，R4-G4）；record 内部审计留痕
-        self.meter.record(
+        # Meter 失败返回 False 不打断转发（台账语义，R4-G4）；record 内部审计留痕。
+        # SQLite 写是同步 I/O → to_thread（模块 docstring 末条）
+        await asyncio.to_thread(
+            self.meter.record,
             account_id=account_id,
             model=model,
             tokens_in=tokens_in,
@@ -231,7 +244,7 @@ class Forwarder:
             body=body,
         )
 
-    def _failure(
+    async def _failure(
         self,
         account_id: str,
         model: str,
@@ -241,7 +254,7 @@ class Forwarder:
     ) -> AttemptRecord:
         # 失败尝试也入账（请求级计数：缺失 0/0 如实，裁决 7）
         tokens_in, tokens_out = usage_parser({})
-        self._meter(account_id, model, tokens_in, tokens_out, started)
+        await self._meter(account_id, model, tokens_in, tokens_out, started)
         return AttemptRecord(
             account_id=account_id,
             outcome=f"error:{exc.outcome}",
