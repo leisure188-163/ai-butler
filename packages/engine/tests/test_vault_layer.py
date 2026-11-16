@@ -118,6 +118,7 @@ def test_revoke_archives_marks_and_blocks_load(tmp_path):
 
     items = {hp.kind: hp for hp in vault.health()}
     assert items["token"].revoked_at is not None
+    assert items["token"].revoked_at.tzinfo is not None  # 前端按本地时区正确显示
     assert items["token"].revoked_reason == "登录态失效"
     kinds = [row["action"] for row in json.loads(audit.export_json()) if row["actor"] == "vault"]
     assert "vault.revoke" in kinds

@@ -134,8 +134,7 @@ class AssessAccountHealth:
             if hp.account_id != account_id:
                 continue
             if hp.revoked_at is not None:
-                when = f"（{hp.revoked_at:%Y-%m-%d %H:%M} 撤销）"
-                ev.append(f"凭据 {hp.kind} 本地副本已撤销{when}")
+                ev.append(f"凭据 {hp.kind} 本地副本已撤销")
                 continue  # 已撤销副本不再参与有效期分级（ADR-016）
             lvl = credential_level(
                 hp.expires_at, now, warn_window_days=EXPIRING_WINDOW_DAYS

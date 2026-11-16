@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import closing
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from butler_core.accounts.ports import VaultPort
@@ -203,6 +203,7 @@ class LayeredVault(VaultPort):
         """
         rows = self._items(account_id)
         revoked = 0
+        now_iso = datetime.now(timezone.utc).isoformat()
         for kind, backend_name, revoked_at in rows:
             if revoked_at is not None:
                 continue
@@ -226,9 +227,9 @@ class LayeredVault(VaultPort):
                     (account_id, kind, archived_ref),
                 )
                 conn.execute(
-                    "UPDATE vault_items SET revoked_at = datetime('now'), revoked_reason = ?"
+                    "UPDATE vault_items SET revoked_at = ?, revoked_reason = ?"
                     " WHERE account_id = ? AND kind = ?",
-                    (reason, account_id, kind),
+                    (now_iso, reason, account_id, kind),
                 )
             revoked += 1
         if revoked:
@@ -248,7 +249,7 @@ class LayeredVault(VaultPort):
                 account_id=account_id,
                 kind=kind,
                 expires_at=_parse(expires_at),
-                revoked_at=_parse(revoked_at),
+                revoked_at=_parse_utc(revoked_at),
                 revoked_reason=revoked_reason or "",
             )
             for account_id, kind, _backend, expires_at, _c, _r, revoked_at, revoked_reason in rows
@@ -319,3 +320,11 @@ def _iso(dt: datetime | None) -> str | None:
 
 def _parse(text: str | None) -> datetime | None:
     return None if text in (None, "") else datetime.fromisoformat(text)
+
+
+def _parse_utc(text: str | None) -> datetime | None:
+    """撤销时间统一带时区：老行（SQLite datetime('now')）无时区按 UTC 补齐。"""
+    parsed = _parse(text)
+    if parsed is not None and parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
