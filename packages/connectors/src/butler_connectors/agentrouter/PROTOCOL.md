@@ -38,8 +38,13 @@ https://ps.air-outer.com/oauth/github?code=<one-time-code>&iss=https%3A%2F%2Fgit
 
 - `session.import`：经本机 Chromium 调试端口 9222，找 `ps.air-outer.com` 页面，
   读 `localStorage.user`；有 `id` 才登记账户，否则如实报「未登录」。
-- `provision.run`：`checked_in=true` → `ALREADY`；false → `PENDING` + `relogin`
-  修复提示（必须退出后重新登录，不能代点）。
+- `provision.run`：`checked_in=true` → `ALREADY`；false → 自动执行
+  「用户菜单退出 → 登录页点 GitHub → 等待 `agentrouter.org/oauth/github` 回调 →
+  仅把 host 换成 `ps.air-outer.com` → 等 `/console`」→ `CLAIMED`（登录即签到）。
+  控件用 CDP 受信任鼠标事件点击并先 `Page.bringToFront`（后台 webview 会被浏览器
+  节流，表现为登录页 Runtime 超时）；回调等待上限 75s。找不到控件、GitHub 未返回回调、
+  回调后未进控制台，转 `NO_AUTH` + `relogin` 提示，不假装成功。
+- `dry_run=true` 且未签到 → `SKIPPED`，不触发退出/登录。
 - 凭据 kind `browser_session` 只存 `domain/port/user_id` 非密定位信息，不存 token/cookie。
 
 ## 5. 已知边界

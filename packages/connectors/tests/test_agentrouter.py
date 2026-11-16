@@ -50,19 +50,56 @@ def test_checked_in_is_already(port, monkeypatch):
     assert "checked_in=true" in result.evidence[0].summary
 
 
-def test_not_checked_in_is_pending_with_relogin(port, monkeypatch):
+def test_not_checked_in_triggers_auto_relogin(port, monkeypatch):
     monkeypatch.setattr(adapter, "_state", lambda: _state(checked_in=False))
+    monkeypatch.setattr(adapter, "_relogin", lambda: _state(checked_in=True))
+    result = port.run(_request())
+    assert result.status is Status.CLAIMED
+    assert result.repair_hint is None
+    assert "自动退出并重新登录" in result.evidence[0].summary
+
+
+def test_auto_relogin_failure_is_no_auth_with_relogin(port, monkeypatch):
+    monkeypatch.setattr(adapter, "_state", lambda: _state(checked_in=False))
+
+    def _fail():
+        raise adapter.ReloginError("GitHub 未返回 OAuth 回调")
+
+    monkeypatch.setattr(adapter, "_relogin", _fail)
+    result = port.run(_request())
+    assert result.status is Status.NO_AUTH
+    assert result.repair_hint is not None
+    assert result.repair_hint.action_id == "relogin"
+    assert "自动重登未完成" in result.evidence[0].summary
+
+
+def test_auto_relogin_still_not_checked_in_is_pending(port, monkeypatch):
+    monkeypatch.setattr(adapter, "_state", lambda: _state(checked_in=False))
+    monkeypatch.setattr(adapter, "_relogin", lambda: _state(checked_in=False))
     result = port.run(_request())
     assert result.status is Status.PENDING
     assert result.repair_hint is not None
     assert result.repair_hint.action_id == "relogin"
-    assert "重新登录" in result.repair_hint.reason
 
 
 def test_not_checked_in_dry_run_is_skipped(port, monkeypatch):
     monkeypatch.setattr(adapter, "_state", lambda: _state(checked_in=False))
+    monkeypatch.setattr(adapter, "_relogin", lambda: pytest.fail("dry_run 不应触发重登"))
     result = port.run(_request(dry_run=True))
     assert result.status is Status.SKIPPED
+
+
+def test_rewrite_host_keeps_oauth_query():
+    from butler_connectors.web_ui import rewrite_host
+
+    url = (
+        "https://agentrouter.org/oauth/github?code=once&iss=https%3A%2F%2Fgithub.com"
+        "&state=abc"
+    )
+    assert rewrite_host(url, "ps.air-outer.com") == (
+        "https://ps.air-outer.com/oauth/github?code=once&iss=https%3A%2F%2Fgithub.com"
+        "&state=abc"
+    )
 
 
 def test_unavailable_page_is_no_auth_with_relogin(port, monkeypatch):

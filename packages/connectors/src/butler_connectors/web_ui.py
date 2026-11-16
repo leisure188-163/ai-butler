@@ -1,8 +1,9 @@
 """网页界面会话读取（通用底座）：从本机 Chromium 调试页读站点自己的登录态。
 
-本模块只做两件事：
+本模块做三件事：
 - 找到一个已登录的目标页面（按域名匹配，不新开标签、不改页面）；
-- 读取页面前端自己维护的 ``localStorage.user`` 快照（id/checked_in 等非密字段）。
+- 读取页面前端自己维护的 ``localStorage.user`` 快照（id/checked_in 等非密字段）；
+- 提供受信任点击/等待页面原语，供各站点 adapter 编排自己的登录按钮。
 
 它不认识任何站点，也不读取 access token / cookie 值；站点语义（登录即签到、
 按钮签到等）由各连接器 adapter 解释。这样网页连接器不必依赖 Chrome cookie
@@ -11,7 +12,10 @@
 
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass
+from urllib.parse import urlsplit, urlunsplit
 
 from butler_connectors.cdp import CdpChannel, CdpConnection, CdpError, http_json, ws_connect
 
@@ -71,6 +75,91 @@ def read_user_state(conn: CdpConnection, channel: CdpChannel) -> WebPageState | 
         quota=int(value.get("quota") or 0),
         url="",
     )
+
+
+def find_page(port: int, domain: str, *, channel: CdpChannel | None = None) -> dict | None:
+    """按域名找当前页面；供调用方在 attach 前拿到 target。"""
+    return _find_target(port, domain, channel=channel)
+
+
+def wait_for_page(
+    port: int,
+    domain: str,
+    *,
+    path_prefix: str = "",
+    timeout: float = 10.0,
+    channel: CdpChannel | None = None,
+) -> dict | None:
+    """轮询等待目标页面出现；返回 target，超时返回 None（调用方如实报错）。"""
+    ch = channel or CdpChannel(port, http_get=http_json, ws_factory=ws_connect)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for target in ch.targets():
+            url = target.get("url") or ""
+            if target.get("type") not in ("page", "webview"):
+                continue
+            if domain not in url or not target.get("webSocketDebuggerUrl"):
+                continue
+            if path_prefix and not urlsplit(url).path.startswith(path_prefix):
+                continue
+            return target
+        ch.sleep(0.5)
+    return None
+
+
+def rewrite_host(url: str, host: str) -> str:
+    """只替换 URL 的 host，保留 scheme/path/query/fragment（OAuth 回调前缀规则）。"""
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme or "https", host, parts.path, parts.query, parts.fragment))
+
+
+def click_selector(channel: CdpChannel, conn: CdpConnection, selector: str) -> bool:
+    """按 CSS 选择器取第一个可见控件，用 CDP 受信任鼠标事件点击（React 不认合成事件）。"""
+    payload = json.dumps({"selector": selector}, ensure_ascii=False)
+    expression = f"""(() => {{
+      const cfg = {payload};
+      const el = document.querySelector(cfg.selector);
+      if (!el) return null;
+      el.scrollIntoView({{block: 'center', inline: 'center'}});
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return null;
+      return {{x: r.left + r.width / 2, y: r.top + r.height / 2}};
+    }})()"""
+    rect = channel.evaluate(conn, expression)
+    if not isinstance(rect, dict):
+        return False
+    channel.click(conn, int(rect["x"]), int(rect["y"]))
+    return True
+
+
+def click_text(
+    channel: CdpChannel,
+    conn: CdpConnection,
+    text: str,
+    *,
+    selector: str = "button,[role='menuitem'],a",
+    exact: bool = False,
+) -> bool:
+    """按可见文本点击控件；用于站点菜单/登录按钮，找不到返回 False。"""
+    payload = json.dumps({"selector": selector, "text": text, "exact": exact}, ensure_ascii=False)
+    expression = f"""(() => {{
+      const cfg = {payload};
+      const nodes = [...document.querySelectorAll(cfg.selector)];
+      const el = nodes.find(e => {{
+        const value = (e.innerText || e.textContent || '').trim().replace(/\\s+/g, ' ');
+        return cfg.exact ? value === cfg.text : value.includes(cfg.text);
+      }});
+      if (!el) return null;
+      el.scrollIntoView({{block: 'center', inline: 'center'}});
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return null;
+      return {{x: r.left + r.width / 2, y: r.top + r.height / 2}};
+    }})()"""
+    rect = channel.evaluate(conn, expression)
+    if not isinstance(rect, dict):
+        return False
+    channel.click(conn, int(rect["x"]), int(rect["y"]))
+    return True
 
 
 def read_page(port: int, domain: str) -> WebPageState:
