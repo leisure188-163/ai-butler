@@ -257,7 +257,10 @@ def check_sdk_freshness(root: Path) -> list[str]:
         return []  # 缺产物由结构完整性检查负责
     import hashlib
     import subprocess
-    probe = ("uv run python -c "
+    # --frozen（2026-11-16）：老版本 uv run 会按自身版本重写 uv.lock
+    # （revision 5→3 + 镜像源回填），每跑一次门禁就污染工作树；--frozen =
+    # 只按锁装环境，不动锁文件
+    probe = ("uv run --frozen python -c "
              '"import json; from server.main import app; '
              'print(json.dumps(app.openapi()))"')
     r = subprocess.run(probe, shell=True, cwd=root,
@@ -293,7 +296,8 @@ def check_tests(root: Path) -> list[str]:
         # 本仓定制（2026-11-11）：跑根 pyproject testpaths 全量（core/engine/
         # connectors/server）——skill 上游口径只跑 core，M1 装配后 server 路由
         # 的回归（如 timedelta 漏 import）不在其中会漏检
-        r = run(["uv", "run", "pytest", "-q"], cwd=root, timeout=600)
+        # --frozen：同上，防老版本 uv 重写 uv.lock（2026-11-16）
+        r = run(["uv", "run", "--frozen", "pytest", "-q"], cwd=root, timeout=600)
     except FileNotFoundError:
         return ["uv 不可用（未安装或不在 PATH）: 无法运行核心测试，请安装 uv 或去掉 --test"]
     # stdout/stderr 理论上 capture_output 必非 None，但实测瞬态环境（shell profile
