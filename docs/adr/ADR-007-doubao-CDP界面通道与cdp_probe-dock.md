@@ -48,6 +48,20 @@ detail 只读 code=0。
    （`checked_in_today` / `task_status`），不信签到接口自己的返回。
 5. **自动拉起**（用户裁决）：dock 承担"把客户端带进签到模式"——杀无端口实例
    前置条件 = 用户显式触发 dock；调度触发的 run() 绝不杀进程（只 PENDING）。
+6. **复查退避 + 页内 fetch 路径定档**（2026-11-16 修订，真机取证 PROTOCOL §1.2）：
+   ①点击后复查改为**退避 3 次**（3s/5s/8s）再判 FAILED——当日真机实证点击
+   生效但 `checked_in_today` 翻转有延迟，单次即查误判 FAILED；②页面 fetch
+   拦截器**自动签名**实证（裸 fetch 被 `byted_acrawler` 拦截补 `msToken`/
+   `a_bogus`）——决策 3 预留的「页面内 evaluate fetch」升级路径可行性坐实，
+   签到写接口形状待下一未签班次取证，取证齐再裁是否替代受信任点击；
+   **裸 HTTP 写禁令不变**（写操作仍在界面通道内）。
+7. **切号不自动化，身份守卫纳管双账户**（2026-11-16，真机取证 PROTOCOL §9）：
+   客户端菜单无一键切换列表，「添加账号」直通登录页（手机号/扫码需人工参与）
+   ——全自动切号不可行且不猜（用户确认非飞书账号）。裁决：**只监控不切号**——
+   identity.py 只读身份判定（`sec_user_id` + chip 昵称），run/dock/usage 三处
+   守卫，目标账户非活跃即 PENDING 提示人工切号，**绝不签错账户**；第二账户由
+   dock 如实登记（account_key = sec_uid 派生）。双会话并存下 main 命中任一
+   chat target 即放行（cookie 会话实证口径），B 在 main 在场时保守 PENDING。
 
 ## 排除项
 

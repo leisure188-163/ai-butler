@@ -20,7 +20,18 @@ from butler_core.shared.ids import new_id
 from butler_core.usage.domain import QuotaLedgerEntry
 
 from butler_connectors.cdp import CdpChannel, CdpError, pick_activity_target
-from butler_connectors.doubao_cn.adapter import _ACTIVITY_URL, _BASE, _COMMON_QUERY, _UA_TEMPLATE
+from butler_connectors.doubao_cn.adapter import (
+    _ACTIVITY_URL,
+    _BASE,
+    _COMMON_QUERY,
+    _UA_TEMPLATE,
+    CONN_ID as _TARGET,
+)
+from butler_connectors.doubao_cn.identity import (
+    load_main_baseline,
+    read_all_identities,
+    resolve_account_key,
+)
 from butler_connectors.doubao_cn.localenv import real_env, version_code
 from butler_connectors.transport import HttpRequest, Transport, TransportError, httpx_transport
 
@@ -62,6 +73,22 @@ class DoubaoUsagePort:
         vcode = version_code(version) if version else None
         if not vcode:
             raise ValueError("读不到豆包客户端版本——无法派生 version_code（PROTOCOL §1：写死版本正是故障本身）")
+        # 多账户身份守卫：流水接口按会话返回当前活跃账户的数据——目标非活跃时
+        # 采了必错挂（A2-02 §6 红线），如实返回空 ledger（不做未激活账户的采集）。
+        # 双会话并存口径同 adapter：main 基线命中任一 chat target 即 main 活跃。
+        try:
+            identities = read_all_identities(self.channel)
+        except Exception:
+            identities = []
+        baseline = load_main_baseline()
+        main_active = baseline is not None and any(
+            i.sec_uid == baseline.sec_uid for i in identities
+        )
+        active_key = "main" if main_active else (
+            resolve_account_key(identities[0]) if identities else None
+        )
+        if active_key is None or f"{_TARGET}:{active_key}" != req.account_id:
+            return UsageResult(snapshot=None, aggregate=None, ledger=())
         target = pick_activity_target(self.channel.targets())
         conn = (
             self.channel.attach(target)

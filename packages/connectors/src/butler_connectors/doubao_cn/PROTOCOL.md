@@ -33,6 +33,23 @@
 - detail 只读全链通：`code=0`、`checked_in_today=true`、`last_checkin_date=2026-11-11`、
   `continuous_days=5`（跨设备会话同步——mac 端已领，Windows detail 如实反映）
 
+### 1.2 页内 fetch 取证（2026-11-16，Windows / 豆包 2.36.8，CDP Network spike）
+
+- **页面 fetch 拦截器自动签名实证**：活动页上下文里裸 `fetch` 发 detail，线上
+  抓到的实际请求 query 自动追加了 `msToken` + `a_bogus`（我们没传）——页面级
+  拦截（`byted_acrawler` 全局存在）对 doubao API 请求自动签名。**ADR-007 §6
+  预留的「页面内 Runtime.evaluate 同源 fetch」升级路径可行性坐实**：签名由
+  页面 JS 自产，evaluate 的 fetch 即合法签名请求。签到写接口（landing/checkin）
+  的请求形状尚待取证（取证当日点击已生效、按钮消失，未捕获写请求）——取证后
+  可评估「evaluate fetch 签到」替代受信任点击
+- **Runtime.evaluate 必须 `awaitPromise=True`**：async 表达式不传该参数，
+  `returnByValue` 把未落定的 Promise 序列化成 `{}`（cdp.py `evaluate` 已加
+  `await_promise` 形参，默认 False 向后兼容）
+- **复查时序实证（当日 FAILED 误判根因）**：点击送达、签到接口回 code=0，
+  3s 落定后复查 `checked_in_today=false` 判 FAILED；spike 首次点击实际已签上
+  （按钮随后消失、复查 `continuous_days=10`）——**点击生效但状态翻转有延迟**。
+  处置 = 点击后复查退避 3 次（3s/5s/8s，`_RECHECK_DELAYS`）再判 FAILED
+
 ## 2. 端点族
 
 Base：`https://www.doubao.com`
@@ -57,8 +74,8 @@ Base：`https://www.doubao.com`
 |---|---|---|
 | CDP probe 不可达 | **PENDING** + 指引（停靠可自动拉起） | 客户端没带调试端口跑——**绝不退回裸请求**（旧系统 auto 终态语义） |
 | `tasks[daily_signin].daily_checkin.checked_in_today == true` | ALREADY | 权威判定；不发点击；evidence 可带连签天数 |
-| false → 界面点击 → 复查 true | CLAIMED | evidence 记点击按钮文案 + 点击前后对照 |
-| false → 界面点击 → 复查 false | FAILED | 点击未生效（旧系统同型话术：点击已送达但状态未变更——服务端/账号侧异常，可手工点一次确认） |
+| false → 界面点击 → 退避复查（3s/5s/8s）任一次 true | CLAIMED | evidence 记点击按钮文案 + 复查第 n 次（2026-11-16：状态翻转有延迟，单次即查会误判） |
+| false → 界面点击 → 退避复查 3 次全 false | FAILED | 点击未生效（旧系统同型话术：点击已送达但状态未变更——服务端/账号侧异常，可手工点一次确认） |
 | detail `710012001` | NO_AUTH | 重开客户端重新登录后重新停靠 |
 | detail `code=2` | FAILED + PROTOCOL_CHANGED 事件 | 活动换季，更新 adapter 的 campaign 常量 |
 | detail `710010702` | FAILED + 指引 | 三义码不猜：手工点一次可判别"会话降权 vs 平台故障" |
@@ -85,6 +102,30 @@ Base：`https://www.doubao.com`
 | 登录过期 710012001 | NO_AUTH + 修复提示 | ⚪ 离线覆盖（真机需真实过期会话，难构造；判定路径 test_detail_710012001_is_no_auth_with_dock_hint） |
 | 活动换季 code=2 | FAILED + PROTOCOL_CHANGED 事件 | ⚪ 离线覆盖（code=2 刻意不注册方言 → UnknownEngineCode → 用例层 FAILED + 事件，test_engine_publishes_protocol_changed_on_code_2 含引擎联动） |
 | dock 体检（客户端没带端口） | 自动拉起 → probe 就绪 | ✅ 2026-11-11：杀尽退出后 dock → 注册表定位 exe → 带端口拉起 → probe 就绪 → accounts=["doubao_cn:main"] issues=[]。**验收抓 1 真 bug 已修**：DisplayName 是中文「豆包」且 DisplayIcon 带引号指 icon.ico——改按子键名 Doubao* 匹配 + 剥引号（9191182，PROTOCOL §1 定稿） |
+| 点击后状态翻转延迟 | 退避复查命中 CLAIMED | ⚪ 离线全覆盖（test_click_recheck_retry_then_true_is_claimed / test_click_recheck_transport_error_then_true_is_claimed）；2026-11-16 真机事故根因（两次 FAILED 实为已签，复查过快）已按 §1.2 修复，待下一未签班次真机复验 |
+
+## 9. 切号协议与多账户身份（2026-11-16，Windows / 豆包 2.36.8，ADR-007 决策 7）
+
+- **切号入口取证**：左下角账户 chip（头像 img + 昵称按钮）点击 → Electron 弹层
+  菜单（CDP 可驱动，**须先 `Page.bringToFront` 聚焦窗口**，失焦点击不开），
+  菜单仅「添加账号」「退出登录」——**无一键切换列表**；「添加账号」直通独立
+  登录页 target（`doubao://doubao-login/login?device_flow=enabled`，手机号/
+  飞书/抖音/扫码四种方式，无已登录账户选择）。切号 = 完整人工登录 → 不自动化
+- **身份信号**：`localStorage.for_ban_appeal_sec_user_id`（稳定加密用户 ID，
+  account_key 派生源 = SHA256 前 8 位前缀 `u`）+ chip 按钮文本（昵称）；
+  **双 chat target 并存**（`doubao-chat/chat` 与带会话 id 后缀变体各持一账户
+  会话，CDP 顺序不稳定）——必须 `read_all_identities` 全收集再判定，单取首个
+  会漂移
+- **身份基线**：main 基线存 `~/.butler/doubao_identity.json`
+  （`DOUBAO_IDENTITY_PATH` 可覆盖）——**dock 首采**（首个可读身份），用户确认
+  归属；本项目 main = 逍遥酒鬼（2026-11-16 用户确认），B = Leisure520
+  （`doubao_cn:u66b1e22d`）
+- **守卫语义**：run/dock/usage 三处——main 基线命中任一 chat target → main
+  视为活跃（cookie 会话实证口径）；main 缺席 → 活跃 = 非 main 身份。目标
+  非活跃 → PENDING 提示人工切号（暂态语义，不算失败）；usage 非活跃 → 空
+  ledger（**绝不错挂流水**，A2-02 §6 红线）
+- **已知边界**：双会话并存下 main 会话常驻 → B 长期 PENDING（自动化退化人工）；
+  「活跃账户」的真语义（UI chip 显示 vs 会话实际生效）待下一轮真机取证定夺
 
 > oracle = 旧仓库 `auto-signin-kit doubao status/auto`（mac 上已验证可正常领取）。
 
@@ -110,7 +151,8 @@ Base：`https://www.doubao.com`
   扫找，命中后 `scrollIntoView({block:'center'})` 取中心坐标；④ **受信任点击
   三连**：mouseMoved → mousePressed(button=left, clickCount=1) → mouseReleased
   （前端若校验 isTrusted，合成事件会被忽略）；⑤ 点击后 settle ≥3s 等客户端
-  SDK 发完请求，再 detail 复查；⑥ 找按钮重试 ≤3 次（活动页可能还在加载）
+  SDK 发完请求，再 detail 复查——**复查退避 3 次（3s/5s/8s）**（2026-11-16
+  实证状态翻转有延迟，单次即查误判 FAILED）；⑥ 找按钮重试 ≤3 次（活动页可能还在加载）
 - **活动页优选**：target 匹配按域 `doubao.com` 不限 type（`doubao://` 内部页
   排除，2026-11-07 实测内部页同样含 "doubao" 字样）；多个命中时 url 含
   `campaign`/`agent-explore`/`incentive` 者优先，否则取第一个

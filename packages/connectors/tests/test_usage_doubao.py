@@ -17,6 +17,18 @@ from butler_connectors.doubao_cn.usage import DoubaoUsagePort, build_usage_port
 
 _T0 = datetime(2026, 11, 12, 8, 0, 0, tzinfo=timezone.utc)
 _DEADLINE = datetime(2026, 11, 12, 8, 1, 0, tzinfo=timezone.utc)
+MAIN_SEC_UID = "MS4wTESTMAIN000000"
+
+
+@pytest.fixture(autouse=True)
+def _main_identity_baseline(tmp_path, monkeypatch):
+    """身份守卫前提：main 基线文件预置（与 adapter 测试同口径）。"""
+    from butler_connectors.doubao_cn import identity as doubao_identity
+
+    monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(tmp_path / "doubao_identity.json"))
+    doubao_identity.save_main_baseline(
+        doubao_identity.ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname="逍遥酒鬼")
+    )
 
 
 class FakeEnv:
@@ -51,11 +63,22 @@ class FakeConn:
 
 
 class FakeChannel:
-    """probe 可达 + 一枚可附着目标 + 固定 Cookie；记录翻页请求序列。"""
+    """probe 可达 + 一枚可附着目标 + 固定 Cookie；记录翻页请求序列。
 
-    def __init__(self, transport: FakeTransport | None = None, *, fail_probe: bool = False):
+    identity：活跃账户身份（identity.py 守卫查询用）；None = 无聊天页 → 守卫空采。"""
+
+    def __init__(
+        self,
+        transport: FakeTransport | None = None,
+        *,
+        fail_probe: bool = False,
+        identity: dict | None = None,
+    ):
         self.transport = transport
         self.fail_probe = fail_probe
+        self.identity = identity if identity is not None else {
+            "sec_uid": MAIN_SEC_UID, "nickname": "逍遥酒鬼"
+        }
         self.attached: list[Any] = []
         self.opened: list[str] = []
         self.conns: list[FakeConn] = []
@@ -65,7 +88,7 @@ class FakeChannel:
             raise CdpError("调试端口不可达")
 
     def targets(self):
-        return [
+        pages = [
             {
                 "id": "page-1",
                 "type": "page",
@@ -73,6 +96,13 @@ class FakeChannel:
                 "webSocketDebuggerUrl": "ws://127.0.0.1/devtools/page/1",
             }
         ]
+        if self.identity is not None:
+            pages.insert(0, {
+                "id": "chat-1", "type": "page",
+                "url": "doubao://doubao-chat/chat",
+                "webSocketDebuggerUrl": "ws://127.0.0.1/devtools/page/chat",
+            })
+        return pages
 
     def attach(self, target):
         self.attached.append(target)
@@ -85,6 +115,11 @@ class FakeChannel:
         conn = FakeConn()
         self.conns.append(conn)
         return conn
+
+    def evaluate(self, conn, expression: str, *, wait: float = 20.0):
+        if "for_ban_appeal_sec_user_id" in expression:
+            return dict(self.identity) if self.identity else None
+        raise AssertionError("unexpected evaluate")  # usage 编排无其他求值
 
     def cookies(self, conn):
         return [
@@ -114,7 +149,7 @@ def _port(transport: FakeTransport, channel: FakeChannel) -> DoubaoUsagePort:
 
 
 def _req() -> UsageRequest:
-    return UsageRequest(target="doubao_cn", account_id="acc1", deadline=_DEADLINE)
+    return UsageRequest(target="doubao_cn", account_id="doubao_cn:main", deadline=_DEADLINE)
 
 
 def test_ledger_paginates_and_maps_records():
@@ -143,7 +178,7 @@ def test_ledger_paginates_and_maps_records():
     assert (r1.record_id, r1.amount, r1.unit, r1.kind) == ("r1", 200, "POINT", "签到")
     assert r1.occurred_at is not None and r1.occurred_at.year == 2025  # 1764000000 = 2025-11
     assert (r2.record_id, r2.amount) == ("r2", 400)
-    assert r1.account_id == "acc1" and r1.target == "doubao_cn"
+    assert r1.account_id == "doubao_cn:main" and r1.target == "doubao_cn"
 
 
 def test_connection_closed_after_collect():

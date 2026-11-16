@@ -25,6 +25,13 @@ from butler_connectors.cdp import (
     CdpError,
     pick_activity_target,
 )
+from butler_connectors.doubao_cn.identity import (
+    derive_key,
+    load_main_baseline,
+    read_all_identities,
+    resolve_account_key,
+    save_main_baseline,
+)
 from butler_connectors.doubao_cn.localenv import LocalEnv, real_env, version_code
 from butler_connectors.registry import DockContext, DockOutcome
 from butler_connectors.transport import HttpRequest, TransportError, httpx_transport
@@ -86,6 +93,9 @@ _PAGE_TEXT_JS = "document.body.innerText.slice(0, 300)"
 
 _SETTLE_SECONDS = 3.0  # 点击后等客户端 SDK 发完请求（PROTOCOL §6 ⑤）
 _FIND_RETRIES = 3  # 活动页可能还在加载（PROTOCOL §6 ⑥）
+#: 点击后复查退避序列（2026-11-16 真机取证：点击生效但状态翻转有延迟，
+#: 3s 即查会误判 FAILED——退避复查 3 次再判失败，PROTOCOL §3 FAILED 行语义）。
+_RECHECK_DELAYS = (3.0, 5.0, 8.0)
 
 
 def _daily_checkin(payload: dict) -> dict | None:
@@ -140,6 +150,35 @@ class DoubaoCdpProvisionPort(ProvisionPort):
             return _failed(
                 "读不到豆包客户端版本（DOUBAO_VERSION 可覆盖）——无法派生 version_code"
                 "（PROTOCOL §1：写死版本正是故障本身）"
+            )
+        # 多账户身份守卫（A2-02 §6 红线：绝不签错账户；切号不自动化，ADR-007 决策 7）。
+        # 双会话并存（PROTOCOL §9）：chat 页 targets 各持一账户会话——main 基线
+        # 命中任一 target 即视为 main 活跃（cookie 会话实证口径）；main 缺席时
+        # 活跃=非 main 身份，仅放行对应账户，其余保守 PENDING（不猜不盲签）。
+        try:
+            identities = read_all_identities(self.channel)
+        except Exception:  # 身份只读辅助路径：读失败降级空 → 走 PENDING（暂态语义）
+            identities = []
+        if not identities:
+            return _pending(
+                "读不到豆包活跃账户身份（主窗口/聊天页不可达）——打开客户端主窗口后重试"
+            )
+        baseline = load_main_baseline()
+        if baseline is None:
+            return _pending(
+                "豆包 main 账户身份基线未建立——确认客户端当前登录的是主用账户后，"
+                "执行一次停靠（dock/导入）建立基线"
+            )
+        main_active = any(i.sec_uid == baseline.sec_uid for i in identities)
+        active_key = "main" if main_active else resolve_account_key(identities[0])
+        if f"{CONN_ID}:{active_key}" != req.account_id:
+            others = [i.nickname or resolve_account_key(i) for i in identities
+                      if i.sec_uid != baseline.sec_uid]
+            who = "、".join(others) or identities[0].nickname or active_key
+            return _pending(
+                f"豆包客户端当前活跃账户是「{who}」（{CONN_ID}:{active_key}），"
+                f"目标 {req.account_id} 未激活——请在客户端左下角头像菜单切换账户后重试"
+                "（客户端切号需人工登录，已裁决不自动切号：ADR-007 决策 7）"
             )
         try:
             conn = self._activity_conn()
@@ -280,27 +319,39 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         except CdpError as exc:
             return _failed(f"界面点击失败: {exc}", raw_code=raw_code)
         self.sleep(_SETTLE_SECONDS)
-        try:
-            payload = self._detail(cookie_header, vcode, version, deadline)
-        except TransportError as exc:
-            return _failed(f"点击后复查 detail 失败: {exc}", raw_code=raw_code)
-        checkin = _daily_checkin(payload)
         text = str(box.get("text") or "")
-        if checkin is not None and checkin.get("checked_in_today"):
-            amount = (checkin.get("reward") or {}).get("reward_amount")
-            return RunResult(
-                Status.CLAIMED,
-                evidence=(
-                    Evidence(
-                        f"界面点击「{text}」后复查已签：+{amount} 额度"
-                        f"（连签 {checkin.get('continuous_days')} 天）",
-                        raw_code=raw_code,
+        # 复查退避重试（PROTOCOL §3）：点击送达≠状态即时翻转——任一次
+        # checked_in_today=true 即 CLAIMED，全部 false 才判 FAILED
+        last_transport_error: TransportError | None = None
+        for attempt, extra in enumerate(_RECHECK_DELAYS, start=1):
+            if attempt > 1:
+                self.sleep(extra)
+            try:
+                payload = self._detail(cookie_header, vcode, version, deadline)
+            except TransportError as exc:
+                last_transport_error = exc
+                continue
+            checkin = _daily_checkin(payload)
+            if checkin is not None and checkin.get("checked_in_today"):
+                amount = (checkin.get("reward") or {}).get("reward_amount")
+                return RunResult(
+                    Status.CLAIMED,
+                    evidence=(
+                        Evidence(
+                            f"界面点击「{text}」后复查已签：+{amount} 额度"
+                            f"（连签 {checkin.get('continuous_days')} 天，"
+                            f"复查第 {attempt} 次）",
+                            raw_code=raw_code,
+                        ),
                     ),
-                ),
+                )
+        if last_transport_error is not None:
+            return _failed(
+                f"点击后复查 detail 失败: {last_transport_error}", raw_code=raw_code
             )
         return _failed(
-            f"已在客户端界面点击「{text}」但复查仍未签——服务端/账号侧异常，"
-            "可手工点一次确认",
+            f"已在客户端界面点击「{text}」但复查 {len(_RECHECK_DELAYS)} 次仍未签"
+            "——服务端/账号侧异常，可手工点一次确认",
             raw_code=raw_code,
         )
 
@@ -374,7 +425,28 @@ class _Butler:
             if issues:
                 return DockOutcome(target=CONN_ID, issues=issues)
         account = ctx.register.execute(CONN_ID, DISPLAY)
-        return DockOutcome(target=CONN_ID, accounts=[account.id])
+        accounts = [account.id]
+        # 多账户（ADR-003 落地）：dock 首采 main 基线（首个可读身份）；其余身份
+        # 逐一登记（切号不自动化，ADR-007 决策 7——登记的是客户端会话的如实身份）
+        try:
+            identities = read_all_identities(channel)
+        except Exception:  # 身份只读辅助路径：读失败不阻断 dock 主流程（体检/登记）
+            identities = []
+        for identity in identities:
+            if not identity.sec_uid:
+                continue
+            baseline = load_main_baseline()
+            if baseline is None:
+                save_main_baseline(identity)  # 首采：首个可读身份即 main 基线
+                continue
+            if identity.sec_uid != baseline.sec_uid:
+                key = derive_key(identity.sec_uid)
+                extra = ctx.register.execute(
+                    CONN_ID, identity.nickname or DISPLAY, account_key=key
+                )
+                if extra.id not in accounts:
+                    accounts.append(extra.id)
+        return DockOutcome(target=CONN_ID, accounts=accounts)
 
 
 butler = _Butler()

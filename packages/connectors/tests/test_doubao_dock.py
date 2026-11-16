@@ -11,11 +11,18 @@ from butler_connectors.doubao_cn import adapter
 
 @dataclass
 class FakeRegister:
-    calls: list[tuple[str, str]] = field(default_factory=list)
+    calls: list[tuple] = field(default_factory=list)
 
-    def execute(self, provider: str, display_name: str, *, account_id: str | None = None):
-        self.calls.append((provider, display_name))
-        return SimpleNamespace(id=f"{provider}:main")
+    def execute(
+        self,
+        provider: str,
+        display_name: str,
+        *,
+        account_key: str = "main",
+        account_id: str | None = None,
+    ):
+        self.calls.append((provider, display_name, account_key))
+        return SimpleNamespace(id=f"{provider}:{account_key}")
 
 
 @dataclass
@@ -81,7 +88,7 @@ def test_probe_ok_registers_account_without_vault():
     assert outcome.issues == []
     assert outcome.accounts == ["doubao_cn:main"]
     assert env.spawned == [] and env.killed == []  # 可达即过，不动进程
-    assert ctx.register.calls == [("doubao_cn", "Doubao CN")]
+    assert ctx.register.calls == [("doubao_cn", "Doubao CN", "main")]
 
 
 def test_probe_fail_relaunches_and_registers():

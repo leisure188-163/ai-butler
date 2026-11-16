@@ -164,12 +164,21 @@ class CdpChannel:
         result = conn.call("Network.getCookies", {"urls": [url]})
         return list((result or {}).get("cookies") or [])
 
-    def evaluate(self, conn: CdpConnection, expression: str, *, wait: float = 20.0) -> Any:
-        result = conn.call(
-            "Runtime.evaluate",
-            {"expression": expression, "returnByValue": True},
-            wait=wait,
-        )
+    def evaluate(
+        self,
+        conn: CdpConnection,
+        expression: str,
+        *,
+        wait: float = 20.0,
+        await_promise: bool = False,
+    ) -> Any:
+        """页面 JS 求值；``await_promise=True`` 时等待 Promise 落定再取值
+        （async 表达式不传 awaitPromise 会被 returnByValue 序列化成 {}——
+        2026-11-16 doubao 取证 spike 实证）。"""
+        params: dict[str, Any] = {"expression": expression, "returnByValue": True}
+        if await_promise:
+            params["awaitPromise"] = True
+        result = conn.call("Runtime.evaluate", params, wait=wait)
         detail = (result or {}).get("exceptionDetails")
         if detail:
             raise CdpError(str(detail.get("exception", {}).get("description") or detail))

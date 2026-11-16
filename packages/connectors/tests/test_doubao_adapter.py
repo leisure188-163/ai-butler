@@ -64,6 +64,9 @@ class FakeChannel:
     opened: list[str] = field(default_factory=list)
     clicks: list[tuple[int, int]] = field(default_factory=list)
     port: int = 9222  # 与真 CdpChannel 同形（PENDING 摘要引用端口）
+    identity: dict | None = field(
+        default_factory=lambda: {"sec_uid": MAIN_SEC_UID, "nickname": "逍遥酒鬼"}
+    )  # None = 主窗口不可达（读身份 PENDING 场景）
 
     def probe(self) -> dict:
         err = self.probe_errors.pop(0) if self.probe_errors else None
@@ -72,7 +75,11 @@ class FakeChannel:
         return {"Browser": "Chrome/147.0.7727.149"}
 
     def targets(self) -> list[dict]:
-        return list(self.pages)
+        pages = list(self.pages)
+        if self.identity is not None:
+            pages.insert(0, {"type": "page", "url": "doubao://doubao-chat/chat",
+                             "webSocketDebuggerUrl": "ws://chat"})
+        return pages
 
     def attach(self, target: dict) -> FakeConn:
         return self.conn
@@ -89,6 +96,8 @@ class FakeChannel:
         ]
 
     def evaluate(self, conn, expression: str, *, wait: float = 20.0):
+        if "for_ban_appeal_sec_user_id" in expression:  # 活跃身份查询（identity.py）
+            return dict(self.identity) if self.identity else None
         if not self.eval_results:
             return None
         item = self.eval_results.pop(0)
@@ -117,6 +126,23 @@ class FakeTransport:
 
 def ok(payload: dict) -> HttpResponse:
     return HttpResponse(status_code=200, payload=payload)
+
+
+MAIN_SEC_UID = "MS4wTESTMAIN000000"  # main 基线假身份
+B_SEC_UID = "MS4wTESTBBBB000000"  # 第二账户假身份
+
+from butler_connectors.doubao_cn import identity as doubao_identity  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _main_identity_baseline(tmp_path, monkeypatch):
+    """每个测试独立身份基线文件：main 基线预置 MAIN_SEC_UID（run 匹配的前提）。"""
+    path = tmp_path / "doubao_identity.json"
+    monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(path))
+    doubao_identity.save_main_baseline(
+        doubao_identity.ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname="逍遥酒鬼")
+    )
+    yield path
 
 
 def detail_payload(checked: bool, days: int = 5, amount: int = 200) -> dict:
@@ -205,13 +231,45 @@ def test_click_then_recheck_true_is_claimed():
 
 
 def test_click_then_recheck_false_is_failed():
-    transport = FakeTransport([ok(detail_payload(False)), ok(detail_payload(False))])
+    transport = FakeTransport(
+        [ok(detail_payload(False))] + [ok(detail_payload(False))] * len(adapter._RECHECK_DELAYS)
+    )
     channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
                                     "webSocketDebuggerUrl": "ws://p"}],
                           eval_results=[{"x": 1, "y": 2, "text": "签到"}])
     result = make_port(transport, channel=channel).run(request())
     assert result.status is Status.FAILED
-    assert "仍未签" in result.evidence[0].summary  # 点击已送达但状态未变更（旧系统同语义）
+    # 点击已送达但退避复查 3 次仍未签（PROTOCOL §3 FAILED 行，2026-11-16 语义）
+    assert f"复查 {len(adapter._RECHECK_DELAYS)} 次仍未签" in result.evidence[0].summary
+    assert len(transport.requests) == 1 + len(adapter._RECHECK_DELAYS)
+
+
+def test_click_recheck_retry_then_true_is_claimed():
+    """复查退避：前两次未翻转、第三次已签 → CLAIMED（2026-11-16 真机失败根因）。"""
+    transport = FakeTransport(
+        [ok(detail_payload(False))]
+        + [ok(detail_payload(False)), ok(detail_payload(False)), ok(detail_payload(True))]
+    )
+    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                                    "webSocketDebuggerUrl": "ws://p"}],
+                          eval_results=[{"x": 1, "y": 2, "text": "立即签到"}])
+    result = make_port(transport, channel=channel).run(request())
+    assert result.status is Status.CLAIMED
+    assert "复查第 3 次" in result.evidence[0].summary
+    assert len(transport.requests) == 4
+
+
+def test_click_recheck_transport_error_then_true_is_claimed():
+    """复查中 detail 瞬时故障不误判失败——继续退避重试。"""
+    transport = FakeTransport(
+        [ok(detail_payload(False)), TransportError("timeout"), ok(detail_payload(True))]
+    )
+    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                                    "webSocketDebuggerUrl": "ws://p"}],
+                          eval_results=[{"x": 1, "y": 2, "text": "签到"}])
+    result = make_port(transport, channel=channel).run(request())
+    assert result.status is Status.CLAIMED
+    assert "复查第 2 次" in result.evidence[0].summary  # 第 1 次复查遇瞬时故障不计失败
 
 
 def test_no_button_failed_with_page_text_summary():
@@ -350,3 +408,106 @@ def test_engine_publishes_protocol_changed_on_code_2():
     )
     assert run.result.status is Status.FAILED
     assert any(e.type.value == "PROTOCOL_CHANGED" for e in sink.events)
+
+
+# --- 多账户身份守卫（ADR-003 落地 / ADR-007 决策 7：切号不自动化）---
+
+def request_b() -> ProvisionRequest:
+    """目标 = 第二账户：key 由 B 身份派生（与 derive_key 同步）。"""
+    return ProvisionRequest(
+        kind=ActionKind.PROVISION_RUN,
+        target="doubao_cn",
+        account_id=f"doubao_cn:{doubao_identity.derive_key(B_SEC_UID)}",
+        params={},
+        deadline=datetime.now(UTC) + timedelta(seconds=240),
+        dry_run=False,
+    )
+
+
+def test_identity_unreadable_is_pending():
+    """主窗口不可达 → 身份读不到就 PENDING（绝不盲签，A2-02 §6 红线）。"""
+    result = make_port(channel=FakeChannel(identity=None)).run(request())
+    assert result.status is Status.PENDING
+    assert "活跃账户身份" in result.evidence[0].summary
+
+
+def test_b_active_main_request_is_pending_with_manual_hint():
+    """B 活跃而请求 main → PENDING 提示人工切号（不误判 FAILED）。"""
+    channel = FakeChannel(identity={"sec_uid": B_SEC_UID, "nickname": "小号"})
+    result = make_port(channel=channel).run(request())
+    assert result.status is Status.PENDING
+    summary = result.evidence[0].summary
+    assert "小号" in summary and "切换账户" in summary and "doubao_cn:main" in summary
+
+
+def test_b_active_b_request_proceeds_already():
+    """B 活跃且请求 B → 匹配通过，现行编排继续（detail 已签 → ALREADY）。"""
+    channel = FakeChannel(
+        identity={"sec_uid": B_SEC_UID, "nickname": "小号"},
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+    )
+    transport = FakeTransport([ok(detail_payload(True))])
+    result = make_port(transport, channel=channel).run(request_b())
+    assert result.status is Status.ALREADY
+    assert "detail 权威判定" in result.evidence[0].summary
+
+
+def test_baseline_missing_is_pending_with_dock_hint():
+    """基线文件缺失 → PENDING 提示先 dock 首采（防把 B 误当 main）。"""
+    import os as _os
+    from butler_connectors.doubao_cn.identity import identity_path as _ip
+    _os.remove(_ip())  # fixture 预置的基线删掉，模拟首装
+    result = make_port().run(request())
+    assert result.status is Status.PENDING
+    assert "基线" in result.evidence[0].summary
+
+
+def test_dock_registers_b_account_when_active(tmp_path, monkeypatch):
+    """dock：基线已建且活跃=B → 幂等登记 B（account_key 派生）。"""
+    monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(tmp_path / "dock-id.json"))
+    doubao_identity.save_main_baseline(
+        doubao_identity.ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname="逍遥酒鬼")
+    )
+
+    @dataclass
+    class RegisterSpy:
+        calls: list = field(default_factory=list)
+
+        def execute(self, provider, display_name, *, account_key="main", account_id=None):
+            self.calls.append((provider, display_name, account_key))
+            from types import SimpleNamespace
+            return SimpleNamespace(id=f"{provider}:{account_key}")
+
+    @dataclass
+    class Ctx:
+        register: RegisterSpy
+
+    channel = FakeChannel(identity={"sec_uid": B_SEC_UID, "nickname": "小号"})
+    spy = RegisterSpy()
+    outcome = adapter.butler.dock(Ctx(register=spy), env=FakeEnv(), channel=channel)
+    assert outcome.accounts == [
+        "doubao_cn:main",
+        f"doubao_cn:{doubao_identity.derive_key(B_SEC_UID)}",
+    ]
+    assert spy.calls[1] == ("doubao_cn", "小号", doubao_identity.derive_key(B_SEC_UID))
+
+
+def test_dock_first_visit_saves_main_baseline(tmp_path, monkeypatch, request_ctx=None):
+    """dock 首采：无基线时把当前活跃身份存为 main 基线。"""
+    monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(tmp_path / "first.json"))
+
+    @dataclass
+    class RegisterOk:
+        def execute(self, provider, display_name, *, account_key="main", account_id=None):
+            from types import SimpleNamespace
+            return SimpleNamespace(id=f"{provider}:{account_key}")
+
+    @dataclass
+    class Ctx:
+        register: RegisterOk
+
+    channel = FakeChannel()  # 默认 main 身份
+    adapter.butler.dock(Ctx(register=RegisterOk()), env=FakeEnv(), channel=channel)
+    baseline = doubao_identity.load_main_baseline()
+    assert baseline is not None and baseline.sec_uid == MAIN_SEC_UID
