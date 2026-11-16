@@ -313,8 +313,8 @@ def check_tests(root: Path) -> list[str]:
     if probe.returncode != 0:
         return ["pnpm 不可用（未安装或不在 PATH）: 无法运行 web 端 vue-tsc 类型检查"]
     wt = run(
-        "pnpm --dir apps/web exec vue-tsc --noEmit",
-        shell=True, cwd=root, timeout=300,
+        "pnpm exec vue-tsc --noEmit",
+        shell=True, cwd=root / "apps/web", timeout=300,
     )
     if wt.returncode != 0:
         tails = ((wt.stdout or "") + (wt.stderr or "")).strip().splitlines()[-5:]
