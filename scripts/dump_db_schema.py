@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "db" / "schema.sql"
+OUT = ROOT / "data" / "sql" / "butler-schema.sql"
 
 # 表/索引 → 业务域分节（顺序即输出顺序；新表必须先登记这里，否则脚本报错退出）
 _SECTIONS: dict[str, str] = {
@@ -54,7 +54,8 @@ _HEADER = """\
 -- 权威单源 = 各域适配器的 DDL 常量（A4-01 §5：SQL 只存在于 butler_engine 适配器层，
 -- 表按域分置）；本文件是 scripts/dump_db_schema.py 的产物，**勿手改**。
 -- 重新生成：uv run python scripts/dump_db_schema.py
--- 运行数据不入库仓库：butler.db 落平台标准用户数据根（BUTLER_DB 可覆盖，A4-01 §5）。
+-- 运行库落项目内 data/database/butler.db（BUTLER_DB 可覆盖；2026-11-16 用户裁决
+-- 数据根迁项目内——本机文件虚拟化层锁死平台标准数据根，A4-01 §5 注记）。
 """
 
 
@@ -96,7 +97,9 @@ def _dump(tmp: Path) -> list[tuple[str, str, str]]:
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory() as td:
+    # ignore_cleanup_errors：Windows 下适配器 sqlite 连接句柄释放有时序延迟，
+    # 临时目录清理可能 WinError 32——残留目录交给系统清理，不影响产物正确性
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
         tmp = Path(td)
         _build_temp_db(tmp)
         rows = _dump(tmp)

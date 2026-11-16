@@ -21,6 +21,10 @@ database/ 放运行库 gitignore、sql/ 放 schema 导出入库版本化，项�
 home 目录全被锁 D 盘可写；历史台账已迁移；启动脚本 `scripts\start-server.ps1`
 固化 BUTLER_DB；00-项目配置 `{data-root}` 收录）
 + gateway 测试隔离修复（BUTLER_DB→tmp_path）。全量 640 passed。
+**schema 生成视图迁 `data/sql/`（2026-11-16）**：`db/` 目录（README+schema.sql）
+职能整体迁 `data/sql/`（README 纪律并入，`dump_db_schema.py` OUT 改 `data/sql/butler-schema.sql`
+并修 Windows 临时目录清理时序），A4-01 §5 数据根条款同批收编用户裁决（项目内数据根 +
+journal_mode=OFF + 原禁止条款适用前提注记），db/ 删除。
 
 **豆包签到误判根因修复 + 页内 fetch 取证（2026-11-16）**：用户反馈豆包每次
 签到弹窗且常判失败需人工补签 → CDP Network spike 取证两项定案：①当日两次
