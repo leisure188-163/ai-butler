@@ -18,6 +18,12 @@ Windows 走 `icacls /inheritance:r /grant:r <user>:F`，真机 icacls 复核继�
 只剩 `ZUOYOU\<user>:(F)`；icacls 不可用/失败 → 告警 + 返回 False，不静默假装安全、
 不阻断启动。新测试 20 项（server 15 + gateway 5），全量绿。
 
+**journal_mode=OFF 风险口径修正（2026-11-16）**：原文档写"崩溃丢最后一条写可接受"
+是低估计——SQLite 对 `journal_mode=OFF` 的官方表述是**崩溃/掉电可能损坏数据库文件
+本身**（回滚日志不存在，页写一半无法回滚），幂等重试只能兜住"重复执行"，兜不住库
+损坏。引擎行为**不变**（本机文件虚拟化层仍拦伴生文件，回 WAL 不可行），只把口径
+改成如实登记 + **挂账定期备份**（见剩余挂账）。
+
 **豆包双账户纳管落地（2026-11-16）**：多账户底座本已就绪（调度 per-account
 checkin.py L62 / 用量 bridge 遍历 / A2-04 account_key），缺口只在豆包切号。
 CDP 真机取证（PROTOCOL §9）：客户端菜单无一键切换列表、「添加账号」直通登录页
@@ -27,8 +33,8 @@ CDP 真机取证（PROTOCOL §9）：客户端菜单无一键切换列表、「�
 `doubao_cn:u66b1e22d`（Leisure520）已登记，活跃 main（逍遥酒鬼）签到照常
 ALREADY ✓，B 在 main 会话在场时保守 PENDING（双会话并存语义待下轮取证）。
 **环境根治**：本机文件虚拟化层拦截一切 sqlite 伴生文件（-wal/-shm/-journal，
-四次 disk I/O error 实证）→ engine 五处 `journal_mode=OFF`（无伴生文件，崩溃
-丢最后一条写可接受）+ `BUTLER_DB` 补实现（docstring 承诺未实现的老账）+
+四次 disk I/O error 实证）→ engine 五处 `journal_mode=OFF`（无伴生文件；代价口径
+见上一条，**崩溃可能损坏库本体**，备份待落地）+ `BUTLER_DB` 补实现（docstring 承诺未实现的老账）+
 **数据根迁至项目内 `data\database\butler.db`**（用户裁决：项目根下建 `data\`，
 database/ 放运行库 gitignore、sql/ 放 schema 导出入库版本化，项目数据闭环；
 home 目录全被锁 D 盘可写；历史台账已迁移；启动脚本 `scripts\start-server.ps1`
@@ -277,6 +283,11 @@ web vue-tsc 绿。**验收：全量测试 505 passed + 门禁九项全绿**。
 A2-02 §9 如实登记连接器多 profile 取证结论（未取证不虚报）。
 
 ## 剩余挂账
+
+- **`journal_mode=OFF` 的定期备份未落地**（2026-11-16）：OFF 无回滚日志 → 崩溃/掉电
+  可能损坏库本体（口径已修正，不再是"丢最后一条写"）。在伴生文件被拦的环境里换不回
+  WAL，唯一兜底 = 定期 `sqlite3.Connection.backup()` 快照（建议每小时/每次写批次后
+  落 `data/database/backups/`，保留 N 代）；实现前**风险敞口在**，数据损坏不可恢复。
 
 - **旧 kit 历史数据真迁待源库**（2026-11-15）：本机旧库 `auto-signin-kit.db`
   全表 0 行（勘察结论：无数据可迁；今晨 00:37 写入仅为 UI 服务只读打开），
