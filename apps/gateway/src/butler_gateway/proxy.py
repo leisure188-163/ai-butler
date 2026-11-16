@@ -7,11 +7,14 @@
 - usage 解析按协议方言收敛在本模块（forwarder 只认 (tokens_in, tokens_out)）：
   OpenAI = usage.prompt_tokens/completion_tokens；Anthropic =
   usage.input_tokens/output_tokens；缺失/形状不对 = 0/0 如实（裁决 7，不猜）
+- 请求体上限 20 MiB（413）：本地单用户，LLM 聊天负载远小于此——防无界读
+  占内存（fastapi 不代管 body 大小，2026-11-16 补）
 - 响应 = 上游 JSON 原话透传（端零映射：不派生不改写）；错误体按各自方言
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, Request
@@ -28,6 +31,9 @@ from butler_gateway.forwarder import (
 router = APIRouter(tags=["gateway-proxy"])
 
 PROTOCOL_SURFACES: tuple[str, ...] = ("/v1/chat/completions", "/v1/messages")
+
+#: 请求体上限：json.loads(bytes) 自动判编码；先量长再解析
+_MAX_BODY_BYTES = 20 * 1024 * 1024
 
 
 def _parse_usage(body: dict, *, in_key: str, out_key: str) -> tuple[int, int]:
@@ -55,8 +61,13 @@ def _error_body(protocol: str, message: str, **extra: object) -> dict:
 
 
 async def _handle(request: Request, protocol: str) -> JSONResponse:
+    body_bytes = await request.body()
+    if len(body_bytes) > _MAX_BODY_BYTES:
+        return JSONResponse(
+            _error_body(protocol, f"请求体超过上限 {_MAX_BODY_BYTES} 字节"), status_code=413
+        )
     try:
-        payload = await request.json()
+        payload = json.loads(body_bytes)
     except Exception as exc:  # noqa: BLE001 —— 客户端请求体问题，映射 400（红线 5 允许的错误映射）
         return JSONResponse(
             _error_body(protocol, f"请求体非法 JSON：{type(exc).__name__}"), status_code=400
