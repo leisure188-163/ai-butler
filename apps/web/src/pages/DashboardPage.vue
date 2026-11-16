@@ -8,6 +8,7 @@
  * 不认识 Status / HealthLevel 字面量；空数据如实留白，不编造结论。
  */
 import { computed } from "vue";
+import QuickPanel from "../components/QuickPanel.vue";
 import TodoRail from "../components/TodoRail.vue";
 import type { AccountItem, AppItem, PageName, RadarRow, RunItem, Signal } from "../types";
 import { isToday, signalText } from "../utils";
@@ -155,13 +156,27 @@ const waterLevel = computed(() => {
 /* 低水位色随 core 谓词（quota_low），前端不自定阈值（红线 2） */
 const quotaLow = computed(() => props.radarRows.some((r) => r.quota_low.length > 0));
 
-/* ---- KPI 卡（v6）：数字是锚点——健康/动作取数为主数字，流量/日志为文本卡 ---- */
+/* ---- KPI 卡（v6）：数字是锚点——健康/动作取数为主数字，流量/日志为文本卡；
+   v7 加图标片与占比环（环只消费真实比值，无数据如实不画）---- */
 const healthyCount = computed(
   () => props.accounts.filter((a) => a.signal === "ok").length,
 );
 const unwellCount = computed(
   () => props.accounts.length - healthyCount.value,
 );
+const healthRatio = computed(() =>
+  props.accounts.length ? healthyCount.value / props.accounts.length : null,
+);
+const actionRatio = computed(() =>
+  todayActions.value.total
+    ? todayActions.value.done / todayActions.value.total
+    : null,
+);
+const RING_C = 94.2; // r=15 周长
+
+function ringDash(ratio: number): string {
+  return `${Math.max(0, Math.min(1, ratio)) * RING_C} ${RING_C}`;
+}
 const trafficMain = computed(() => {
   if (!props.radarRows.length) return "尚未采集";
   const lowest = props.radarRows.find((r) => r.quota_low.length > 0);
@@ -197,7 +212,30 @@ const trafficSub = computed(() => {
     <h2 class="section-title">速览</h2>
     <div class="kpi-grid">
       <div class="kpi" aria-label="账户健康">
-        <p class="kpi-label">账户健康</p>
+        <div class="kpi-head">
+          <span class="kpi-chip kpi-chip--ok" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13.5S2.5 10 2.5 6.2A3 3 0 0 1 8 4.4a3 3 0 0 1 5.5 1.8C13.5 10 8 13.5 8 13.5Z" /></svg>
+          </span>
+          <p class="kpi-label">账户健康</p>
+          <svg
+            v-if="healthRatio !== null"
+            class="kpi-ring"
+            viewBox="0 0 36 36"
+            width="34"
+            height="34"
+            role="img"
+            :aria-label="`健康占比 ${Math.round(healthRatio * 100)}%`"
+          >
+            <circle cx="18" cy="18" r="15" fill="none" stroke="var(--color-surface-2)" stroke-width="4" />
+            <circle
+              cx="18" cy="18" r="15" fill="none"
+              :stroke="unwellCount ? 'var(--color-attention)' : 'var(--color-ok)'"
+              stroke-width="4" stroke-linecap="round"
+              :stroke-dasharray="ringDash(healthRatio)"
+              transform="rotate(-90 18 18)"
+            />
+          </svg>
+        </div>
         <p class="kpi-value" :class="unwellCount ? 'kpi-value--attention' : 'kpi-value--ok'">
           {{ loading ? "—" : healthyCount }}<span
             v-if="!loading"
@@ -215,7 +253,29 @@ const trafficSub = computed(() => {
         </p>
       </div>
       <div class="kpi" aria-label="今日自动动作">
-        <p class="kpi-label">今日自动动作</p>
+        <div class="kpi-head">
+          <span class="kpi-chip kpi-chip--accent" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M9 2 3.5 9H7l-.8 5L12 7H8.5L9 2Z" /></svg>
+          </span>
+          <p class="kpi-label">今日自动动作</p>
+          <svg
+            v-if="actionRatio !== null"
+            class="kpi-ring"
+            viewBox="0 0 36 36"
+            width="34"
+            height="34"
+            role="img"
+            :aria-label="`完成占比 ${Math.round(actionRatio * 100)}%`"
+          >
+            <circle cx="18" cy="18" r="15" fill="none" stroke="var(--color-surface-2)" stroke-width="4" />
+            <circle
+              cx="18" cy="18" r="15" fill="none" stroke="var(--color-accent)"
+              stroke-width="4" stroke-linecap="round"
+              :stroke-dasharray="ringDash(actionRatio)"
+              transform="rotate(-90 18 18)"
+            />
+          </svg>
+        </div>
         <p class="kpi-value">{{ todayActions.total ? todayActions.done : "0" }}</p>
         <p class="kpi-sub">
           {{ todayActions.total
@@ -224,7 +284,12 @@ const trafficSub = computed(() => {
         </p>
       </div>
       <div class="kpi" aria-label="流量">
-        <p class="kpi-label">流量</p>
+        <div class="kpi-head">
+          <span class="kpi-chip kpi-chip--quiet" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 2.5s4 4.6 4 7.4a4 4 0 0 1-8 0c0-2.8 4-7.4 4-7.4Z" /></svg>
+          </span>
+          <p class="kpi-label">流量</p>
+        </div>
         <p class="kpi-value kpi-value--sm">{{ trafficMain }}</p>
         <div
           v-if="waterLevel !== null"
@@ -241,7 +306,12 @@ const trafficSub = computed(() => {
         <p class="kpi-sub">{{ trafficSub }}</p>
       </div>
       <div class="kpi" aria-label="下次班次">
-        <p class="kpi-label">下次班次</p>
+        <div class="kpi-head">
+          <span class="kpi-chip kpi-chip--notice" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></svg>
+          </span>
+          <p class="kpi-label">下次班次</p>
+        </div>
         <p class="kpi-value mono" v-if="nextShift">{{ nextShift.time }}</p>
         <p class="kpi-value kpi-value--sm" v-else>未排班</p>
         <p class="kpi-sub">
@@ -250,6 +320,23 @@ const trafficSub = computed(() => {
       </div>
     </div>
   </section>
+
+  <div class="dash-cols">
+    <section class="section dash-todo" aria-label="待办">
+      <h2 class="section-title">待办</h2>
+      <TodoRail
+        :pending="pending"
+        :accounts="accounts"
+        :today-done="todayDone"
+        :claimable="claimable"
+        @claim="emit('claim', $event)"
+        @navigate="emit('navigate', $event)"
+      />
+    </section>
+    <aside class="dash-side">
+      <QuickPanel :apps="apps" @navigate="emit('navigate', $event)" />
+    </aside>
+  </div>
 
   <section class="section" aria-label="签到日历">
     <h2 class="section-title">近 30 天签到</h2>
@@ -281,18 +368,6 @@ const trafficSub = computed(() => {
       </div>
     </div>
   </section>
-
-  <section class="section" aria-label="待办">
-    <h2 class="section-title">待办</h2>
-    <TodoRail
-      :pending="pending"
-      :accounts="accounts"
-      :today-done="todayDone"
-      :claimable="claimable"
-      @claim="emit('claim', $event)"
-      @navigate="emit('navigate', $event)"
-    />
-  </section>
 </template>
 
 <style scoped>
@@ -304,4 +379,16 @@ const trafficSub = computed(() => {
   margin-left: 2px;
 }
 .faint { color: var(--color-text-faint); }
+/* v6.3 双栏：左待办 + 右快捷/班次；≤900px 随侧栏断点转单列 */
+.dash-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-4);
+  align-items: start;
+}
+.dash-todo { margin-top: var(--space-5); }
+.dash-side { margin-top: var(--space-5); }
+@media (max-width: 900px) {
+  .dash-cols { grid-template-columns: minmax(0, 1fr); }
+}
 </style>

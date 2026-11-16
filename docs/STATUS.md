@@ -1,9 +1,26 @@
 # STATUS · 进度卡（每次会话开始先读我）
 
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
-> 最后更新：2026-11-15
+> 最后更新：2026-11-16
 
 ## 一句话现状
+
+**暖纸绿纸感 + 仪表盘 v6.3/v7 改版落地（2026-11-16）**：参考用户提供的
+清新工作台风截图实施——① tokens.css warm 块重定调「清新绿纸」（浅绿纸底
+#EAF2E6 + 白卡 + 墨绿 #1D3326 + 叶绿 #2F7D4E，阴影绿调；主题名不动）；
+② D2「无彩色装饰」放宽一档 = KPI 彩色功能图标片（色表功能分类不表状态，
+signal 染色纪律不变）+ 健康/动作 36px 占比环（只画真实比值）；
+③ 仪表盘双栏重排（左待办 TodoRail / 右新组件 QuickPanel = 快捷入口四片
+纯导航 + 班次时刻卡）+ 签到条带通栏收尾，≤900px 转单列。
+裁决收编 DESIGN-DECISIONS D2 v7 / D3 v6.3 + A3-01 §2 仪表盘段同批改写。
+vue-tsc/build 绿；浏览器走查三项 PASS（暖纸绿纸感生效、新布局齐全、
+切回纸墨无错乱 console 零 error）。**Windows 机环境坑沉淀**：PATH 首位
+hermes uv 损坏须用 `~/.local/bin` uv；uv trampoline 缺陷 → `uv run pytest`/
+`uvicorn` 一律走 `python -m`；pnpm 装依赖须 `--config.node-linker=hoisted`
+（默认 junction 会被文件虚拟化层指到沙箱缓存成死链，@butler/sdk 死链已用
+真实目录拷贝修复）；server 后台直启会撞 SQLite「unable to open database
+file」，前台起超时转后台即可。门禁 pytest 632 passed 全绿（含上午三处
+Windows 断言修复 cdef375）。
 
 **qoder 领取链复现升级（2026-11-15）**：用户重登（auth.v1.dat 20:57 重写）
 → 重扫入库 → 解锁链全绿（dt- token + refreshToken）→ 直连仍

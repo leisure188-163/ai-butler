@@ -77,6 +77,30 @@
   align-items: center;
   gap: var(--space-2);
 }
+/* ---- KPI 图标片（v7 · 彩色功能锚点）：色 = 功能分类（非 signal 染色，
+   signal 语义仍只认五词上数字/徽）；浅底彩片 + 同族描边图标 ---- */
+.kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.kpi-chip {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.kpi-chip svg { width: 16px; height: 16px; }
+.kpi-chip--ok { background: var(--color-ok-weak); color: var(--color-ok-ink); }
+.kpi-chip--accent { background: var(--color-accent-weak); color: var(--color-accent); }
+.kpi-chip--quiet { background: var(--color-quiet-weak); color: var(--color-quiet-ink); }
+.kpi-chip--notice { background: var(--color-notice-weak); color: var(--color-notice-ink); }
+.kpi-ring { flex: none; }
+
 .kpi-value {
   margin: 0;
   font-size: var(--text-3xl);
