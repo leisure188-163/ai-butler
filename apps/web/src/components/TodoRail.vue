@@ -88,8 +88,8 @@ const nothingTodo = computed(() => !props.pending.length && !expiring.value.leng
             </details>
             <div v-if="repairingId === item.id" class="repair-panel">
               <p class="repair-steps">
-                1. 打开 {{ item.target }} 客户端并完成登录<br />
-                2. 回到这里点「我已登录，立即重试」
+                1. 在 {{ item.target }} 客户端退出登录，再重新登录<br />
+                2. 回到这里点「我已登录，立即重试」——会先重新读取本机凭据
               </p>
               <div class="repair-actions">
                 <button class="btn btn--primary" @click="confirmRepair(item)">

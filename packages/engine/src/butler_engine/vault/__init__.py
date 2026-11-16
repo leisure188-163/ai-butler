@@ -4,6 +4,7 @@ from butler_engine.vault.backends import MemoryVaultBackend, SecretBackend
 from butler_engine.vault.errors import (
     VaultAccessError,
     VaultCredentialMissing,
+    VaultCredentialRevoked,
     VaultError,
     VaultLayerUnavailable,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "SecretBackend",
     "VaultAccessError",
     "VaultCredentialMissing",
+    "VaultCredentialRevoked",
     "VaultError",
     "VaultLayerUnavailable",
 ]

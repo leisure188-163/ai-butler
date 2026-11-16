@@ -43,10 +43,17 @@ HealthGrade：账户健康分级（正常 / 注意 / 异常，承袭 health.py �
   `expired / invalid / risk=push`；级别**变化**才发 `ACCOUNT_HEALTH_CHANGED`
   （同一级别不重复弹窗）。
 - **登录态失效语义**：连接器申报的 401/403 → `NO_AUTH`；有 NO_AUTH 证据但
-  未连续 3 次 → `invalid`，`repair_hint` 指向「在客户端重新登录后重试」
+  未连续 3 次 → `invalid`，`repair_hint` 指向「在客户端退出并重新登录后重试」
   （`action_id=relogin`）；连续 ≥3 次 NO_AUTH → `risk`。
+- **失效自动撤销本地副本（ADR-016）**：有 NO_AUTH 连败（含由此判出的
+  `invalid/risk`）或凭据 `expired` 时调用 `vault.revoke`（旧值归档、主引用删除、
+  行标记 revoked）；`risk` 若来自其它信号不触发。已撤销副本只作证据，不再参与
+  有效期分级；撤销失败不掩盖健康结论。只清 butler 库，不调用远程 signout、
+  不触碰客户端会话。
 - **评估时机**：`POST /runs`、`claim-all`、调度触发落地后立即评估一次
   （失败隔离，不回滚已落账 Run）；手动体检走 `health.check`。
+- **修复重试**：`relogin` 必须先重新停靠（dock）读取客户端新凭据，再发起
+  `POST /runs(account_id)`；导入未发现该账户时如实提示，不空跑重试。
 
 ## 6. 禁止
 

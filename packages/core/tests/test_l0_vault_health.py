@@ -96,8 +96,10 @@ def test_health_level_signal_buckets():
 
 
 class FakeVault(VaultPort):
-    def __init__(self, creds: list[CredentialHealth]):
+    def __init__(self, creds: list[CredentialHealth], *, revoke_result: int = 0):
         self._creds = creds
+        self.revoke_result = revoke_result
+        self.revoked: list[tuple[str, str]] = []
 
     def store(self, a, k, s, *, expires_at=None, backend=None):
         raise NotImplementedError
@@ -107,6 +109,10 @@ class FakeVault(VaultPort):
 
     def rotate(self, a, k, s, *, expires_at=None):
         raise NotImplementedError
+
+    def revoke(self, account_id, *, reason):
+        self.revoked.append((account_id, reason))
+        return self.revoke_result
 
     def health(self):
         return self._creds
@@ -202,6 +208,18 @@ def test_scan_publishes_expiring_and_expired_once():
     assert scan2.execute() == []
 
 
+def test_scan_skips_revoked_credentials():
+    hp = CredentialHealth.build(
+        account_id="a", kind="cookie", expires_at=_T0 - timedelta(days=1),
+        revoked_at=_T0, revoked_reason="登录态失效", clock=_clock_at(_T0),
+    )
+    sink, states = CollectSink(), MemStates()
+    ScanCredentialExpiry(
+        vault=FakeVault([hp]), sink=sink, states=states, clock=_clock_at(_T0)
+    ).execute()
+    assert sink.events == []  # 已撤销副本不再报到/到期事件（ADR-016）
+
+
 def test_scan_event_carries_kind_and_expiry():
     hp = CredentialHealth(account_id="a", kind="cookie", expires_at=_T0 - timedelta(days=5))
     sink, states = CollectSink(), MemStates()
@@ -248,6 +266,7 @@ def test_single_no_auth_is_invalid_with_hint():
     assert health.level is HealthLevel.INVALID
     assert health.repair_hint == "打开登录页"
     assert sink.events[0].severity is Severity.PUSH  # 阻塞性事实升级 push（ADR-015）
+    assert uc.vault.revoked[0][0] == "a"  # 失效即撤销本地副本（ADR-016）
 
 
 def test_three_streak_is_risk_with_push():
@@ -263,6 +282,7 @@ def test_three_streak_is_risk_with_push():
     assert health.level is HealthLevel.RISK
     assert health.repair_hint is not None
     assert sink.events[0].severity is Severity.PUSH  # 封号风险 push（A4-01 §2）
+    assert uc.vault.revoked[0][0] == "a"  # NO_AUTH 连败判出的 risk 同样撤销副本
 
 
 def test_broken_streak_resets():
@@ -285,6 +305,39 @@ def test_expired_credential_outranks_invalid():
     health = uc.execute("a")
     assert health.level is HealthLevel.EXPIRED
     assert any("cookie" in e for e in health.evidence)
+    assert uc.vault.revoked[0][0] == "a"  # 到期同样撤销本地副本
+
+
+def test_revoked_credential_is_evidence_not_expiry():
+    """ADR-016：已撤销副本只作证据，不再用它的有效期把账户判成 expired。"""
+    runs = [_run("a", Status.NO_AUTH, 1)]
+    hp = CredentialHealth.build(
+        account_id="a",
+        kind="cookie",
+        expires_at=_T0 - timedelta(days=1),
+        revoked_at=_T0,
+        revoked_reason="登录态失效",
+        clock=_clock_at(_T0),
+    )
+    states = MemStates()
+    uc, _ = _assess([hp], runs, states)
+    health = uc.execute("a")
+    assert health.level is HealthLevel.INVALID  # 连败 1 次；revoked 不再贡献 expired
+    assert any("本地副本已撤销" in e for e in health.evidence)
+
+
+def test_revoke_success_is_reported_in_evidence():
+    states, sink = MemStates(), CollectSink()
+    uc = AssessAccountHealth(
+        vault=FakeVault([], revoke_result=2),
+        ledger=FakeLedger([_run("a", Status.NO_AUTH, 1)]),
+        sink=sink,
+        states=states,
+        clock=_clock_at(_T0),
+    )
+    health = uc.execute("a")
+    assert health.level is HealthLevel.INVALID
+    assert any("已自动撤销 butler 本地凭据副本 2 项" in e for e in health.evidence)
 
 
 def test_expiring_only_is_badge_not_push():

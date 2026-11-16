@@ -191,12 +191,18 @@ def vault_ref(account_id: str, kind: str) -> str:
 
 @dataclass(frozen=True)
 class CredentialHealth:
-    """vault.health() 出品：喂给健康域与"待处理"列表（A4-01 §1）。"""
+    """vault.health() 出品：喂给健康域与"待处理"列表（A4-01 §1）。
+
+    revoked_at 非空 = 本地副本已撤销（凭据不可用、等待重新停靠）；
+    客户端自己的登录态不受影响（ADR-016）。
+    """
 
     account_id: str
     kind: str
     expires_at: datetime | None = None
     level: HealthLevel = HealthLevel.HEALTHY
+    revoked_at: datetime | None = None
+    revoked_reason: str = ""
 
     @classmethod
     def build(
@@ -207,6 +213,8 @@ class CredentialHealth:
         expires_at: datetime | None,
         clock: Callable[[], datetime] = now_utc,
         warn_window_days: int = EXPIRING_WINDOW_DAYS,
+        revoked_at: datetime | None = None,
+        revoked_reason: str = "",
     ) -> "CredentialHealth":
         """分级谓词在 shared 内核单源重算——适配器只交数据。"""
 
@@ -215,6 +223,8 @@ class CredentialHealth:
             kind=kind,
             expires_at=expires_at,
             level=credential_level(expires_at, clock(), warn_window_days=warn_window_days),
+            revoked_at=revoked_at,
+            revoked_reason=revoked_reason,
         )
 
 

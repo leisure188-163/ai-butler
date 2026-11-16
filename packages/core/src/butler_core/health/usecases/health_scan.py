@@ -14,6 +14,7 @@ from typing import Callable
 from butler_core.accounts.ports import VaultPort
 from butler_core.execution.ports import RunLedger
 from butler_core.health.ports import HealthStateStore
+from butler_core.shared.errors import DomainError
 from butler_core.shared.events import EventSink
 from butler_core.shared.events import Event, EventType, Severity
 from butler_core.health.domain import (
@@ -66,6 +67,8 @@ class ScanCredentialExpiry:
         now = self.clock()
         published: list[Event] = []
         for hp in self.vault.health():
+            if hp.revoked_at is not None:
+                continue  # 已撤销副本不再报到/到期事件（ADR-016）
             level = credential_level(
                 hp.expires_at, now, warn_window_days=self.warn_window_days
             )
@@ -106,6 +109,8 @@ class AssessAccountHealth:
     - 已知级别的变更才发 ACCOUNT_HEALTH_CHANGED（severity 按 _ACCOUNT_SEVERITY）；
       首评即 healthy 不发（无事发生），首评即异常发（新事实要进"待处理"）
     - recovery 到 healthy 发 SILENT 事件（保持 UI 同步，但零打扰）
+    - 有 NO_AUTH 连败或凭据 expired → 自动撤销本地凭据副本（ADR-016）；
+      只清 butler 库，不触碰客户端会话
     """
 
     vault: VaultPort
@@ -128,6 +133,10 @@ class AssessAccountHealth:
         for hp in self.vault.health():
             if hp.account_id != account_id:
                 continue
+            if hp.revoked_at is not None:
+                when = f"（{hp.revoked_at:%Y-%m-%d %H:%M} 撤销）"
+                ev.append(f"凭据 {hp.kind} 本地副本已撤销{when}")
+                continue  # 已撤销副本不再参与有效期分级（ADR-016）
             lvl = credential_level(
                 hp.expires_at, now, warn_window_days=EXPIRING_WINDOW_DAYS
             )
@@ -166,6 +175,25 @@ class AssessAccountHealth:
                     payload={"level": level.value},
                 )
             )
+
+        # 失效即撤销本地副本（ADR-016）：只清 butler 存的凭据，不碰客户端会话；
+        # 幂等，重复评估不会重复撤销。触发条件 = 有 NO_AUTH 连败（含由此判出的
+        # invalid/risk）或凭据已过期；risk 若来自其它信号则不自动撤销。
+        # 撤销失败不掩盖健康结论，只加证据。
+        if streak >= 1 or cred is HealthLevel.EXPIRED:
+            try:
+                revoked = self.vault.revoke(
+                    account_id,
+                    reason=f"健康级别 {level.value}：自动撤销 butler 本地凭据副本",
+                )
+            except DomainError as exc:
+                ev.append(f"自动撤销本地凭据副本失败：{exc}")
+            else:
+                if revoked:
+                    ev.append(
+                        f"已自动撤销 butler 本地凭据副本 {revoked} 项——"
+                        "客户端登录态不受影响，重新登录后停靠即可恢复"
+                    )
         return AccountHealth.build(
             account_id=account_id, level=level, evidence=tuple(ev), checked_at=now
         )

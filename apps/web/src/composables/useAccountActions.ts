@@ -93,12 +93,23 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
-  /* 修复重试（ADR-015）：用户已在客户端重新登录后，按 account_id 立即再领一次。
-   * 登录动作不自动化；这里只发起重试并如实转述结果。 */
+  /* 修复重试（ADR-015/016）：失效时 butler 已撤销本地副本，用户重新登录后
+   * 必须先重新停靠读取客户端新凭据，再发起重试；否则会撞上已撤销的空引用。 */
   async function repairAccount(target: string, accountId: string) {
     busyTarget.value = accountId;
     actionMsg.value = null;
     try {
+      const imported = await api.importApp(target);
+      if (!(imported.accounts ?? []).includes(accountId)) {
+        actionMsg.value = {
+          text:
+            `重新导入未发现 ${accountId}` +
+            (imported.issues?.length ? ` —— ${imported.issues.join("；")}` : "") +
+            "。请先在客户端完成登录，再点重试。",
+          tone: "warn",
+        };
+        return;
+      }
       const body = await api.createRun({ target, account_id: accountId });
       const ok = body.status === "CLAIMED" || body.status === "ALREADY";
       actionMsg.value = {

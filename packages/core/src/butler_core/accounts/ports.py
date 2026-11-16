@@ -15,6 +15,10 @@ class CredentialMissing(DomainError):
     """vault.load 缺凭据 kind 的端口语义错误。"""
 
 
+class CredentialRevoked(CredentialMissing):
+    """凭据已被主动撤销（本地副本清空，等待重新停靠）——仍是"缺凭据"语义。"""
+
+
 class AccountRepository(ABC):
     """账户名册端口：集合语义（按 provider 列多账号）。"""
 
@@ -56,6 +60,14 @@ class VaultPort(ABC):
         *,
         expires_at: datetime | None = None,
     ) -> None: ...
+
+    @abstractmethod
+    def revoke(self, account_id: str, *, reason: str) -> int:
+        """撤销该账户全部本地凭据副本：归档旧值、删主引用、标记 revoked。
+
+        只动 butler 自己的库，不触碰客户端会话；返回本次新撤销的条目数
+        （已撤销条目幂等跳过）。重新 store 同 (account_id, kind) 会清掉标记。
+        """
 
     @abstractmethod
     def health(self) -> list[CredentialHealth]: ...

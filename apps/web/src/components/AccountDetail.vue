@@ -56,6 +56,7 @@ const hasHealth = computed(() => props.app?.capabilities.includes("health.check"
         <span v-if="cred.expires_at" class="row-sub num cred-exp">
           {{ fmtTime(cred.expires_at) }} 到期
         </span>
+        <span v-if="cred.revoked" class="row-sub">本地副本已撤销，等待重新停靠</span>
         <span class="tag" :class="`tag--${cred.signal}`">{{ signalText(cred.signal) }}</span>
       </li>
     </ul>

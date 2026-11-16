@@ -1,7 +1,7 @@
 """凭据保险库错误（engine 侧）：语义基类在 core——端口语义归 core（A2-02 §5），
 适配器类型继承之，连接器层可以统一捕获（如声明式引擎把缺凭据折算成 NO_AUTH）。"""
 
-from butler_core.accounts.ports import CredentialMissing
+from butler_core.accounts.ports import CredentialMissing, CredentialRevoked
 from butler_core.shared.errors import DomainError
 
 
@@ -11,6 +11,10 @@ class VaultError(DomainError):
 
 class VaultCredentialMissing(VaultError, CredentialMissing):
     """load 申报的 kind 没有入库记录——绝不静默返回空列表。"""
+
+
+class VaultCredentialRevoked(VaultError, CredentialRevoked):
+    """load 申报的 kind 已被主动撤销——本地副本已清，等待重新停靠。"""
 
 
 class VaultAccessError(VaultError):

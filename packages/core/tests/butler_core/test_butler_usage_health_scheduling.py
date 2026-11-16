@@ -109,6 +109,8 @@ class _Cred:
         self.account_id = account_id
         self.kind = kind
         self.expires_at = expires_at
+        self.revoked_at = None
+        self.revoked_reason = ""
 
 
 def test_expiry_scan_emits_badge_and_dedups():

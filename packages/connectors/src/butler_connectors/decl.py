@@ -451,7 +451,10 @@ class DeclarativeProvisionPort(ProvisionPort):
                     ),
                 ),
                 repair_hint=RepairHint(
-                    reason="登录态已失效——在客户端重新登录后，回到待办点「重新登录」重试",
+                    reason=(
+                        "登录态已失效——请在客户端退出并重新登录后，回到待办点"
+                        "「重新登录」重试（butler 会先自动撤销本地副本并重新读取本机凭据）"
+                    ),
                     action_id="relogin",
                 ),
             )

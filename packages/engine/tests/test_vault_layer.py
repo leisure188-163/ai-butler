@@ -19,6 +19,7 @@ from butler_engine.vault.backends import MemoryVaultBackend
 from butler_engine.vault.credman_windows import WindowsCredmanBackend
 from butler_engine.vault.errors import (
     VaultCredentialMissing,
+    VaultCredentialRevoked,
     VaultLayerUnavailable,
 )
 from butler_engine.vault.keychain_macos import KeychainBackend
@@ -92,6 +93,38 @@ def test_health_reports_expiry_levels(tmp_path):
     assert items[0].kind == "token"
     assert items[0].level is HealthLevel.EXPIRED  # 有效期已过
     assert items[0].expires_at == _T0
+    assert items[0].revoked_at is None
+
+
+def test_revoke_archives_marks_and_blocks_load(tmp_path):
+    """ADR-016：撤销 = 旧值进历史 + 主引用删除 + 行标记 revoked；可重新 store 恢复。"""
+    vault, audit = _vault(tmp_path)
+    vault.store("acc1", "token", Secret("old-token"))
+    vault.store("acc1", "machine_id", Secret("machine-1"))
+
+    assert vault.revoke("acc1", reason="登录态失效") == 2
+    assert vault.revoke("acc1", reason="重复撤销") == 0  # 幂等
+
+    with pytest.raises(VaultCredentialRevoked):
+        vault.load("acc1", ["token"])
+    with pytest.raises(VaultCredentialRevoked):
+        vault.load("acc1", ["machine_id"])
+
+    history = vault.history("acc1", "token")
+    assert len(history) == 1
+    old_ref = history[0][0]
+    assert old_ref.startswith(vault_ref("acc1", "token") + "#")
+    assert vault._backend("memory").get(old_ref) == "old-token"  # 证据仍在
+
+    items = {hp.kind: hp for hp in vault.health()}
+    assert items["token"].revoked_at is not None
+    assert items["token"].revoked_reason == "登录态失效"
+    kinds = [row["action"] for row in json.loads(audit.export_json()) if row["actor"] == "vault"]
+    assert "vault.revoke" in kinds
+
+    vault.store("acc1", "token", Secret("new-token"))  # 重新停靠 = 清撤销标记
+    assert vault.load("acc1", ["token"])[0].expose() == "new-token"
+    assert {hp.kind: hp for hp in vault.health()}["token"].revoked_at is None
 
 
 def test_health_empty_expiry_is_healthy(tmp_path):

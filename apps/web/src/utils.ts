@@ -28,6 +28,7 @@ export function faceOf(id: string): number {
 
 export function earliestExpiry(account: AccountItem): string | null {
   const xs = account.credentials
+    .filter((c) => !c.revoked)
     .map((c) => c.expires_at)
     .filter((x): x is string => Boolean(x))
     .sort();

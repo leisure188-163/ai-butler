@@ -23,6 +23,7 @@ from butler_engine.db.conn import connect
 from butler_engine.vault.backends import SecretBackend
 from butler_engine.vault.errors import (
     VaultCredentialMissing,
+    VaultCredentialRevoked,
     VaultError,
     VaultLayerUnavailable,
 )
@@ -35,6 +36,8 @@ CREATE TABLE IF NOT EXISTS vault_items (
     expires_at TEXT,
     created_at TEXT NOT NULL,
     rotated_at TEXT,
+    revoked_at TEXT,
+    revoked_reason TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (account_id, kind)
 );
 CREATE TABLE IF NOT EXISTS vault_history (
@@ -46,7 +49,10 @@ CREATE TABLE IF NOT EXISTS vault_history (
 );
 """
 
-_COLUMNS = "account_id, kind, backend, expires_at, created_at, rotated_at"
+_COLUMNS = (
+    "account_id, kind, backend, expires_at, created_at, rotated_at,"
+    " revoked_at, revoked_reason"
+)
 
 
 class LayeredVault(VaultPort):
@@ -72,6 +78,7 @@ class LayeredVault(VaultPort):
         self._audit = audit
         with closing(self._connect()) as conn, conn:
             conn.executescript(_SCHEMA)
+            _ensure_columns(conn)
 
     # --- VaultPort ---
 
@@ -90,10 +97,12 @@ class LayeredVault(VaultPort):
         self._backend(backend_name).put(ref, secret.expose())
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT INTO vault_items (account_id, kind, backend, expires_at, created_at)"
-                " VALUES (?, ?, ?, ?, datetime('now'))"
+                "INSERT INTO vault_items"
+                " (account_id, kind, backend, expires_at, created_at, revoked_at, revoked_reason)"
+                " VALUES (?, ?, ?, ?, datetime('now'), NULL, '')"
                 " ON CONFLICT(account_id, kind) DO UPDATE SET"
-                " backend = excluded.backend, expires_at = excluded.expires_at",
+                " backend = excluded.backend, expires_at = excluded.expires_at,"
+                " revoked_at = NULL, revoked_reason = ''",
                 (account_id, kind, backend_name, _iso(expires_at)),
             )
         self._audit.record(
@@ -117,7 +126,16 @@ class LayeredVault(VaultPort):
                     account_id=account_id, credential_ref=ref,
                 )
                 continue
-            backend, _expires = row
+            backend, _expires, revoked_at = row
+            if revoked_at is not None:
+                self._audit.record(
+                    actor="vault", action="vault.load", outcome=f"denied:revoked:{kind}",
+                    account_id=account_id, credential_ref=ref,
+                )
+                raise VaultCredentialRevoked(
+                    f"账号 {account_id} 的 kind={kind} 凭据已被撤销——"
+                    "本地副本已清空，等待重新停靠（客户端会话不受影响）"
+                )
             secrets.append(Secret(self._backend(backend).get(ref)))
             self._audit.record(
                 actor="vault", action="vault.load", outcome="ok",
@@ -149,7 +167,7 @@ class LayeredVault(VaultPort):
             raise VaultCredentialMissing(
                 f"账号 {account_id} 无 kind={kind} 凭据，rotate 拒绝（应先 store）"
             )
-        backend_name, _ = row
+        backend_name, _, _ = row
         backend = self._backend(backend_name)
 
         with closing(self._connect()) as conn, conn:
@@ -177,6 +195,49 @@ class LayeredVault(VaultPort):
             account_id=account_id, credential_ref=ref,
         )
 
+    def revoke(self, account_id: str, *, reason: str) -> int:
+        """撤销该账户全部本地副本：旧值进 #seq 历史、删主引用、行标记 revoked。
+
+        幂等：已撤销的行直接跳过。后端主引用已缺失也继续标记（证据不因
+        二次清理失败而丢）；只有归档写入失败才整体抛出，不假称撤销成功。
+        """
+        rows = self._items(account_id)
+        revoked = 0
+        for kind, backend_name, revoked_at in rows:
+            if revoked_at is not None:
+                continue
+            ref = vault_ref(account_id, kind)
+            backend = self._backend(backend_name)
+            with closing(self._connect()) as conn, conn:
+                seq = conn.execute(
+                    "SELECT COALESCE(MAX(seq), 0) + 1 FROM vault_history"
+                ).fetchone()[0]
+                archived_ref = f"{ref}#{seq}"
+            try:
+                backend.put(archived_ref, backend.get(ref))  # 先归档，失败即停
+                backend.delete(ref)
+            except VaultCredentialMissing:
+                # 主引用已不在：仍标记撤销（幂等清理，不掩盖已撤销事实）
+                pass
+            with closing(self._connect()) as conn, conn:
+                conn.execute(
+                    "INSERT INTO vault_history (account_id, kind, archived_ref, rotated_at)"
+                    " VALUES (?, ?, ?, datetime('now'))",
+                    (account_id, kind, archived_ref),
+                )
+                conn.execute(
+                    "UPDATE vault_items SET revoked_at = datetime('now'), revoked_reason = ?"
+                    " WHERE account_id = ? AND kind = ?",
+                    (reason, account_id, kind),
+                )
+            revoked += 1
+        if revoked:
+            self._audit.record(
+                actor="vault", action="vault.revoke", outcome=f"ok:revoked={revoked}",
+                account_id=account_id, credential_ref=f"{account_id}:*",
+            )
+        return revoked
+
     def health(self) -> list[CredentialHealth]:
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
@@ -184,9 +245,13 @@ class LayeredVault(VaultPort):
             ).fetchall()
         return [
             CredentialHealth.build(
-                account_id=account_id, kind=kind, expires_at=_parse(expires_at)
+                account_id=account_id,
+                kind=kind,
+                expires_at=_parse(expires_at),
+                revoked_at=_parse(revoked_at),
+                revoked_reason=revoked_reason or "",
             )
-            for account_id, kind, _backend, expires_at, _c, _r in rows
+            for account_id, kind, _backend, expires_at, _c, _r, revoked_at, revoked_reason in rows
         ]
 
     # --- engine 内部能力 ---
@@ -211,19 +276,41 @@ class LayeredVault(VaultPort):
                 f"存储层 {name!r} 不在本装配中（可用：{sorted(self._backends)}）"
             ) from e
 
-    def _row(self, account_id: str, kind: str) -> tuple[str, datetime | None] | None:
+    def _row(self, account_id: str, kind: str) -> tuple[str, datetime | None, str | None] | None:
         with closing(self._connect()) as conn, conn:
             row = conn.execute(
-                "SELECT backend, expires_at FROM vault_items WHERE account_id = ? AND kind = ?",
+                "SELECT backend, expires_at, revoked_at FROM vault_items"
+                " WHERE account_id = ? AND kind = ?",
                 (account_id, kind),
             ).fetchone()
         if row is None:
             return None
-        backend, expires_at = row
-        return backend, _parse(expires_at)
+        backend, expires_at, revoked_at = row
+        return backend, _parse(expires_at), revoked_at
+
+    def _items(self, account_id: str) -> list[tuple[str, str, str | None]]:
+        """账户下全部条目：(kind, backend, revoked_at)，新→旧按 kind 稳定排序。"""
+        with closing(self._connect()) as conn, conn:
+            rows = conn.execute(
+                "SELECT kind, backend, revoked_at FROM vault_items"
+                " WHERE account_id = ? ORDER BY kind",
+                (account_id,),
+            ).fetchall()
+        return [(kind, backend, revoked_at) for kind, backend, revoked_at in rows]
 
     def _connect(self) -> sqlite3.Connection:
         return connect(self._db_path)
+
+
+def _ensure_columns(conn: sqlite3.Connection) -> None:
+    """老库自迁移：vault_items 缺撤销列则补（纯增量，默认未撤销）。"""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(vault_items)")}
+    if "revoked_at" not in cols:
+        conn.execute("ALTER TABLE vault_items ADD COLUMN revoked_at TEXT")
+    if "revoked_reason" not in cols:
+        conn.execute(
+            "ALTER TABLE vault_items ADD COLUMN revoked_reason TEXT NOT NULL DEFAULT ''"
+        )
 
 
 def _iso(dt: datetime | None) -> str | None:

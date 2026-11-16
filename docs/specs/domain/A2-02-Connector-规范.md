@@ -87,6 +87,9 @@ schema 外字段直接报错（`extra=forbid`，继承旧仓库"显式报错不�
   不申报；连接器申报后才启用该判定，禁止引擎对任意 401/403 自行猜测。
 - 运行时命中申报码 → `NO_AUTH` + 证据「鉴权被拒（HTTP xxx）——登录态已失效」+
   `RepairHint(action_id="relogin")`；未申报的 4xx/5xx 仍 `FAILED`。
+- 健康判定 `invalid/expired` 后，butler 自动撤销自己的本地副本（ADR-016）；
+  `load` 命中撤销 → `CredentialRevoked`，连接器仍按 `NO_AUTH` 处理，
+  不感知"撤销/缺失"差异。
 - 新接入应用必须在 PROTOCOL.md §2「认证与凭据」写明失效码，再回填本字段。
 
 ## 5. 沙箱边界（L7 市场的前置条件，M1 起就执行）

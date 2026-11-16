@@ -336,6 +336,12 @@ export interface components {
             signal: string;
             /** Expires At */
             expires_at: string | null;
+            /** Revoked */
+            revoked: boolean;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Revoked Reason */
+            revoked_reason: string;
         };
         /** EvidenceOut */
         EvidenceOut: {

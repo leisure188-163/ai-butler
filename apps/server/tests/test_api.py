@@ -85,11 +85,24 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
                 "repair_hint": None,
                 "credentials": [
                     {"account_id": "acc1", "kind": "cookie", "level": "healthy",
-                     "signal": "ok", "expires_at": None}
+                     "signal": "ok", "expires_at": None, "revoked": False,
+                     "revoked_at": None, "revoked_reason": ""}
                 ],
                 "sessions": [],  # R5-S1：名册投影带会话清单（vault-only 账号如实空）
             }
         ]
+
+
+def test_accounts_reports_revoked_credentials(tmp_path):
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        kit.vault.store("acc1", "cookie", Secret("x"))
+        assert kit.vault.revoke("acc1", reason="测试撤销") == 1
+        rows = client.get("/api/v1/accounts").json()
+        cred = rows[0]["credentials"][0]
+        assert cred["revoked"] is True
+        assert cred["revoked_at"] is not None
+        assert cred["revoked_reason"] == "测试撤销"
 
 
 def test_runs_and_pending_use_core_status_literals(tmp_path):

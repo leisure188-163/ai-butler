@@ -26,6 +26,9 @@ class CredentialOut(BaseModel):
     level: str  # HealthLevel.value（core 出产字面量）
     signal: str  # HealthLevel.signal（core 出产视觉分类，端零映射）
     expires_at: datetime | None
+    revoked: bool  # 本地副本已撤销（ADR-016）；客户端会话不受影响
+    revoked_at: datetime | None
+    revoked_reason: str
 
 
 class SessionOut(BaseModel):
@@ -56,6 +59,9 @@ def _credential_out(hp: CredentialHealth) -> CredentialOut:
         level=hp.level.value,
         signal=hp.level.signal,
         expires_at=hp.expires_at,
+        revoked=hp.revoked_at is not None,
+        revoked_at=hp.revoked_at,
+        revoked_reason=hp.revoked_reason,
     )
 
 
