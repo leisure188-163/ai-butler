@@ -64,6 +64,9 @@ def default_db_path() -> Path:
     旧库源优先级与迁移实现集中在 `butler_engine/db/migrate.py`（A1-05 §4）：
     kabao 目录/CWD → ai-marina 目录/CWD；幂等、目录保留、写日志。
     """
+    override = os.environ.get("BUTLER_DB")
+    if override:  # 显式指定时不做任何迁移（测试/便携模式，docstring 承诺口径）
+        return Path(override)
     if sys.platform == "darwin":
         root = Path.home() / "Library" / "Application Support" / "butler"
     elif sys.platform.startswith("win"):

@@ -89,6 +89,9 @@ def _make_client(
         "BUTLER_GATEWAY_ROUTES_FILE", str(tmp_path / "gateway-routes.json")
     )
     monkeypatch.setenv("BUTLER_SERVER_URL", "http://control.test")
+    # 测试隔离（2026-11-16 落地）：app lifespan 会 build_engine(default_db_path())——
+    # 不隔离则读写真实数据根，真库被占/被锁时引发 disk I/O error（四次事故）
+    monkeypatch.setenv("BUTLER_DB", str(tmp_path / "butler.db"))
     import butler_gateway.app as gw_app
 
     monkeypatch.setattr(
