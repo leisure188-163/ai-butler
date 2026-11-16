@@ -5,6 +5,19 @@
 
 ## 一句话现状
 
+**浏览器边界收口（2026-11-16，[ADR-014](adr/ADR-014-本地服务浏览器边界与Origin拦截.md)）**：
+主控 server 原 `CORSMiddleware(allow_origins=["*"])` + 无鉴权 = **任意网页可驱动本机
+签到与网关路由改写**（CORS 只挡读不挡写；localhost 又不受混合内容策略保护，HTTPS
+页面可直接打 127.0.0.1）。两道闸落地：①CORS 收显式白名单（Vite 5173 两形态 +
+`BUTLER_ALLOWED_ORIGINS` 追加）；②新 `server/security.py` `OriginGuard`（纯 ASGI、
+最外层）——带未授权 Origin 一律 403 且不进路由（读/写/预检同拦），**同源放行限定回环**
+（Host 与 Origin 同为攻击者域名 = DNS rebinding，挡掉），无 Origin 的 curl/CLI/MCP/
+桌面壳直连不受影响。**网关 key 权限口径修正**：NTFS 无 POSIX 权限位，实测
+`os.chmod(0o600)` 后 mode 仍 `0o666`（同机其他账户可读）→ `harden_permissions()`
+Windows 走 `icacls /inheritance:r /grant:r <user>:F`，真机 icacls 复核继承已撤、
+只剩 `ZUOYOU\<user>:(F)`；icacls 不可用/失败 → 告警 + 返回 False，不静默假装安全、
+不阻断启动。新测试 20 项（server 15 + gateway 5），全量绿。
+
 **豆包双账户纳管落地（2026-11-16）**：多账户底座本已就绪（调度 per-account
 checkin.py L62 / 用量 bridge 遍历 / A2-04 account_key），缺口只在豆包切号。
 CDP 真机取证（PROTOCOL §9）：客户端菜单无一键切换列表、「添加账号」直通登录页

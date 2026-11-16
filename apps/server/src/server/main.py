@@ -5,6 +5,8 @@
 - DB 路径经 BUTLER_DB 环境变量覆盖；默认 = 平台数据根 butler.db（A4-01 §5）
 - 连接器装配（ADR-005）：注册表装载 → 端口挂载 → 导入调度 + 用量采集 + 到期扫描；
   BUTLER_SCHEDULE=0 显式关闭全部调度（测试/排障口）
+- 浏览器边界（ADR-014）：CORS 收白名单 + OriginGuard 硬拦截——不带 Origin 的
+  本地工具（curl/CLI/MCP/桌面壳）照旧直连，跨站页面一律 403
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from server.routes.api import router as api_router
+from server.security import OriginGuard, allowed_origins
 
 
 def _assemble_connectors(kit) -> None:
@@ -75,9 +78,16 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="butler", version="0.1.0", lifespan=_lifespan)
+    # 浏览器边界（ADR-014）：CORS 只挡"读"，跨站"写"必须由 OriginGuard 在服务端拦。
+    # add_middleware 为后加者在外层 → OriginGuard 最后加 = 最外层，未授权 Origin
+    # 连预检都拿不到 CORS 放行。
     app.add_middleware(
-        CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+        CORSMiddleware,
+        allow_origins=list(allowed_origins()),
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
+    app.add_middleware(OriginGuard)
     app.include_router(api_router, prefix="/api/v1")
 
     @app.get("/health")
