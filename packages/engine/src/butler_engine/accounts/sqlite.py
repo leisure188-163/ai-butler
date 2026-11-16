@@ -16,6 +16,8 @@ from pathlib import Path
 from butler_core.accounts.ports import AccountRepository
 from butler_core.accounts.domain import Account, Session, SessionKind, SessionLevel
 
+from butler_engine.db.conn import connect
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
     id            TEXT PRIMARY KEY,
@@ -45,9 +47,7 @@ class SqliteAccountRepository(AccountRepository):
             _ensure_columns(conn)
 
     def _connect(self):
-        import sqlite3
-
-        return sqlite3.connect(self._db)
+        return connect(self._db)
 
     def save(self, account: Account) -> None:
         with self._connect() as conn, conn:

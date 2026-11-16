@@ -19,6 +19,7 @@ from butler_core.accounts.ports import VaultPort
 from butler_core.accounts.domain import CredentialHealth, Secret, vault_ref
 
 from butler_engine.audit.sqlite import SqliteAuditLog
+from butler_engine.db.conn import connect
 from butler_engine.vault.backends import SecretBackend
 from butler_engine.vault.errors import (
     VaultCredentialMissing,
@@ -136,7 +137,12 @@ class LayeredVault(VaultPort):
         *,
         expires_at: datetime | None = None,
     ) -> None:
-        """换新 + 旧值进历史：旧值移到 #seq 引用（可审计可找回），新值写主引用。"""
+        """换新 + 旧值进历史：旧值移到 #seq 引用（可审计可找回），新值写主引用。
+
+        中断窗口如实登记（2026-11-16）：归档成功后、新值写入前进程中断 →
+        主引用悬空，load 将显式报缺（不静默兜底）；旧值仍在 #seq 归档可手工
+        找回。单机单用户 rotate 罕见（换 key），接受此窗口，不做跨后端事务。
+        """
         ref = vault_ref(account_id, kind)
         row = self._row(account_id, kind)
         if row is None:
@@ -217,12 +223,7 @@ class LayeredVault(VaultPort):
         return backend, _parse(expires_at)
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._db_path)
-        # OFF 而非 WAL/DELETE：本机文件虚拟化层拦截一切新建 -wal/-shm/-journal 伴生文件
-        # （2026-11-16 实证 probe.db-journal 创建即被回收），无伴生文件才能写库；
-        # 代价 = 崩溃时最后一条写丢失（单机台账可接受，动作幂等重试兜底）
-        conn.execute("PRAGMA journal_mode=OFF")
-        return conn
+        return connect(self._db_path)
 
 
 def _iso(dt: datetime | None) -> str | None:

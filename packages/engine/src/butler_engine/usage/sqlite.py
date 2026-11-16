@@ -25,6 +25,8 @@ from butler_core.usage.domain import (
     UsageSnapshot,
 )
 
+from butler_engine.db.conn import connect
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS usage_snapshots (
     id TEXT PRIMARY KEY,
@@ -216,12 +218,7 @@ class SqliteUsageStore(UsageStore):
     # --- 内部 ---
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._db_path)
-        # OFF 而非 WAL/DELETE：本机文件虚拟化层拦截一切新建 -wal/-shm/-journal 伴生文件
-        # （2026-11-16 实证 probe.db-journal 创建即被回收），无伴生文件才能写库；
-        # 代价 = 崩溃时最后一条写丢失（单机台账可接受，动作幂等重试兜底）
-        conn.execute("PRAGMA journal_mode=OFF")
-        return conn
+        return connect(self._db_path)
 
 
 # --- JSON 往返（形状归一是存储职责，语义仍在 core 实体）---

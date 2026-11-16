@@ -1,8 +1,9 @@
 """SQLite Run 台账（A4-01 §5：runs 表；Repository 接口隔离，SQL 不出本模块）。
 
-- SQLite(WAL) 单库；每操作一连接（线程安全，M0 量级足够；性能要求出现时再池化）
-- 幂等查询语义：同键存在已成功（CLAIMED/ALREADY）的 Run → 返回它
-  （重复触发不重复领取）；否则返回最新一条（失败可重试）
+- SQLite 单库（连接口径单源 butler_engine.db.conn）；每操作一连接
+  （线程安全，M0 量级足够；性能要求出现时再池化）
+- 幂等查询语义：同键存在已成功（core ResultKind.is_pass 谓词判定）的 Run
+  → 返回它（重复触发不重复领取）；否则返回最新一条（失败可重试）
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from butler_core.execution.ports import RunLedger
 from butler_core.execution.domain import Action, ActionKind
 from butler_core.shared.results import Status
 from butler_core.execution.domain import Evidence, RepairHint, Run, RunResult
+
+from butler_engine.db.conn import connect
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -79,19 +82,18 @@ class SqliteRunLedger(RunLedger):
         if not key:
             return None  # 空键 = 只读动作，无幂等语义
         with closing(self._connect()) as conn, conn:
-            # 先找已成功的最新一条（命中即回放，重复触发不重复领取）
-            row = conn.execute(
+            rows = conn.execute(
                 f"SELECT {_COLUMNS} FROM runs WHERE idempotency_key = ? "
-                "AND status IN ('CLAIMED', 'ALREADY') ORDER BY started_at DESC LIMIT 1",
+                "ORDER BY started_at DESC, id DESC",
                 (key,),
-            ).fetchone()
-            if row is None:
-                row = conn.execute(
-                    f"SELECT {_COLUMNS} FROM runs WHERE idempotency_key = ? "
-                    "ORDER BY started_at DESC LIMIT 1",
-                    (key,),
-                ).fetchone()
-        return _load_run(row) if row is not None else None
+            ).fetchall()
+        # 「哪些算成功」只认 core 谓词（ResultKind.is_pass 单源）——SQL 不再
+        # 硬编码 CLAIMED/ALREADY 字面量：语义判断回 core，本层只管存取（红线 2 同源）
+        for row in rows:
+            run = _load_run(row)
+            if run.result is not None and run.result.kind.is_pass:
+                return run  # 已成功的最新一条：命中即回放，重复触发不重复领取
+        return _load_run(rows[0]) if rows else None
 
     def list_for_account(self, account_id: str, *, limit: int) -> list[Run]:
         """该账号最近 Run（新→旧）：健康中心判 NO_AUTH 连败（A4-01 §2）。"""
@@ -119,12 +121,7 @@ class SqliteRunLedger(RunLedger):
     # --- 内部 ---
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._db_path)
-        # OFF 而非 WAL/DELETE：本机文件虚拟化层拦截一切新建 -wal/-shm/-journal 伴生文件
-        # （2026-11-16 实证 probe.db-journal 创建即被回收），无伴生文件才能写库；
-        # 代价 = 崩溃时最后一条写丢失（单机台账可接受，动作幂等重试兜底）
-        conn.execute("PRAGMA journal_mode=OFF")
-        return conn
+        return connect(self._db_path)
 
 
 def _dump_result(result: RunResult) -> dict[str, Any]:
