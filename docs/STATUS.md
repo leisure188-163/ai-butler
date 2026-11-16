@@ -5,6 +5,36 @@
 
 ## 一句话现状
 
+**豆包双账户纳管落地（2026-11-16）**：多账户底座本已就绪（调度 per-account
+checkin.py L62 / 用量 bridge 遍历 / A2-04 account_key），缺口只在豆包切号。
+CDP 真机取证（PROTOCOL §9）：客户端菜单无一键切换列表、「添加账号」直通登录页
+（手机号/扫码需人工参与）→ **切号不自动化**（ADR-007 决策 7），按用户裁决降级
+「只监控不切号」：身份判定（identity.py：`sec_user_id` localStorage + chip 昵称）
+→ run/dock/usage 三处身份守卫——**绝不签错账户**；第二账户
+`doubao_cn:u66b1e22d`（Leisure520）已登记，活跃 main（逍遥酒鬼）签到照常
+ALREADY ✓，B 在 main 会话在场时保守 PENDING（双会话并存语义待下轮取证）。
+**环境根治**：本机文件虚拟化层拦截一切 sqlite 伴生文件（-wal/-shm/-journal，
+四次 disk I/O error 实证）→ engine 五处 `journal_mode=OFF`（无伴生文件，崩溃
+丢最后一条写可接受）+ `BUTLER_DB` 补实现（docstring 承诺未实现的老账）+
+**数据根迁至项目内 `data\database\butler.db`**（用户裁决：项目根下建 `data\`，
+database/ 放运行库 gitignore、sql/ 放 schema 导出入库版本化，项目数据闭环；
+home 目录全被锁 D 盘可写；历史台账已迁移；启动脚本 `scripts\start-server.ps1`
+固化 BUTLER_DB；00-项目配置 `{data-root}` 收录）
++ gateway 测试隔离修复（BUTLER_DB→tmp_path）。全量 640 passed。
+
+**豆包签到误判根因修复 + 页内 fetch 取证（2026-11-16）**：用户反馈豆包每次
+签到弹窗且常判失败需人工补签 → CDP Network spike 取证两项定案：①当日两次
+FAILED 实为**点击已生效、状态翻转有延迟**（复查 3s 即查过快；spike 首次点击
+实际签上，`continuous_days=10`）→ 点击后复查改**退避 3 次**（3s/5s/8s，
+`_RECHECK_DELAYS`）再判 FAILED，`cdp.py evaluate` 补 `awaitPromise` 形参；
+②页面 fetch 拦截器**自动签名**实证（`byted_acrawler` 自动补 msToken/a_bogus）
+→ ADR-007 预留「页面内 evaluate fetch」升级路径可行性坐实，写接口形状待
+下一未签班次取证（裸 HTTP 写禁令不变）。收编 PROTOCOL §1.2/§3/§5/§6⑤ +
+ADR-007 决策 6 + **A2-02 §6 新增「写动作判定红线」三条**（用户裁决：送达+成功
+信封≠业务成功 / 复查必退避 / 判失败必留证，全连接器永久继承），豆包分册 3 新测试。**弹窗问题定位**：活动页 tab 已有复用
+（attach existing），弹窗仅发生于 tab 不在/客户端未运行（dock 重启）——
+fetch 化可进一步后台化，待写接口取证后一并裁。
+
 **暖纸绿纸感 + 仪表盘 v6.3/v7 改版落地（2026-11-16）**：参考用户提供的
 清新工作台风截图实施——① tokens.css warm 块重定调「清新绿纸」（浅绿纸底
 #EAF2E6 + 白卡 + 墨绿 #1D3326 + 叶绿 #2F7D4E，阴影绿调；主题名不动）；
