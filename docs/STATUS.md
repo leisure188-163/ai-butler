@@ -73,8 +73,10 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 `butler_engine/platforms/sqlite.py`；表 `acc_platform` → `plat_platform`
 （RENAME 幂等自迁移），分域 schema 产物新增 `platforms.sql`；域图五域 →
 六域（A1-05/A1-02/A2-01/AGENTS/README 同步），A2-04 §2.2 平台册节回收进
-新分册 A2-09。端侧 `/platforms` 契约与路由零改动。测试 **715 passed +
-10 skipped**。
+新分册 A2-09。端侧 `/platforms` 契约与路由零改动。显示名称列命名收编（ADR-023）：
+plat_platform `display_name` → `platform_name`（自迁移），A2-04 残留
+`display_name` 更正为 `account_name`；分域 schema 产物 `platforms.sql`
+同步重生成。测试 **715 passed + 10 skipped**。
 
 **表名域前缀统一 + 平台落册（2026-11-17，ADR-021）**：全库 11 张表改
 「域缩写前缀 + 单数实体」——acc_account / acc_platform / exe_run /

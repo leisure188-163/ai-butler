@@ -46,7 +46,7 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 | `account_id` | TEXT NOT NULL UNIQUE | 规范 id `{platform}:{account_code}`（原表主键，降级为业务键；编址不变） |
 | `platform_code` | TEXT NOT NULL | 连接器/平台 id（provider→app→platform→platform_code，ADR-018/019/020） |
 | `account_code` | TEXT NOT NULL DEFAULT 'main' | 平台内账号序（原 account_key，ADR-020）；`UNIQUE(platform_code, account_code)` 数据库级兜底不变量 |
-| `display_name` | TEXT NOT NULL | 应用名（账号册出产） |
+| `account_name` | TEXT NOT NULL | 账户名（ADR-020 列名 code 化；ADR-023 显示列按业务命名） |
 | `base_url` | TEXT | 账户级 API 基址（Qoder CN/Global 双 host 事实落库；空 = 用连接器缺省） |
 | `device_ref` | TEXT | 供应商侧账户标识绑定；unbound 如实 NULL（§4.1） |
 | `sessions` | TEXT JSON DEFAULT '[]' | 会话清单（随聚合整体替换，§4.1） |

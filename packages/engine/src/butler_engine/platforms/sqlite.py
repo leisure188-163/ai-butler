@@ -21,7 +21,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS plat_platform (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     platform_code    TEXT NOT NULL UNIQUE,
-    display_name     TEXT NOT NULL,
+    platform_name     TEXT NOT NULL,
     capabilities     TEXT NOT NULL DEFAULT '[]',
     credential_kinds TEXT NOT NULL DEFAULT '[]',
     schedule_times   TEXT NOT NULL DEFAULT '[]',
@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_plat_platform_active ON plat_platform (is_active)
 """
 
 _COLS = (
-    "platform_code, display_name, capabilities, credential_kinds, schedule_times, "
+    "platform_code, platform_name, capabilities, credential_kinds, schedule_times, "
     "is_active, deprecated_at, created_at, updated_at"
 )
 
@@ -64,6 +64,14 @@ class SqlitePlatformRepository(PlatformRepository):
             ).fetchone():
                 conn.execute("ALTER TABLE acc_platform RENAME TO plat_platform")
             conn.execute("DROP INDEX IF EXISTS idx_acc_platform_active")
+            # 列名收编（ADR-023 命名裁决）：display_name → platform_name（幂等）
+            plat_cols = {
+                r[1] for r in conn.execute("PRAGMA table_info(plat_platform)").fetchall()
+            }
+            if "platform_name" not in plat_cols and "display_name" in plat_cols:
+                conn.execute(
+                    "ALTER TABLE plat_platform RENAME COLUMN display_name TO platform_name"
+                )
             conn.executescript(_SCHEMA)
 
     def _connect(self):
@@ -77,12 +85,12 @@ class SqlitePlatformRepository(PlatformRepository):
             conn.execute(
                 f"INSERT INTO plat_platform ({_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (platform_code) DO UPDATE SET "
-                "display_name=excluded.display_name, capabilities=excluded.capabilities, "
+                "platform_name=excluded.platform_name, capabilities=excluded.capabilities, "
                 "credential_kinds=excluded.credential_kinds, schedule_times=excluded.schedule_times, "
                 "updated_at=excluded.updated_at",
                 (
                     entry.platform_code,
-                    entry.display_name,
+                    entry.platform_name,
                     _dump(entry.capabilities),
                     _dump(entry.credential_kinds),
                     _dump(entry.schedule_times),
@@ -133,7 +141,7 @@ def _load(row) -> PlatformEntry | None:
         return None
     return PlatformEntry(
         platform_code=row[0],
-        display_name=row[1],
+        platform_name=row[1],
         capabilities=_load_values(row[2]),
         credential_kinds=_load_values(row[3]),
         schedule_times=_load_values(row[4]),

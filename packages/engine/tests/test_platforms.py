@@ -16,7 +16,7 @@ from datetime import datetime, UTC
 def _entry(code: str, name: str, created_at: datetime) -> PlatformEntry:
     return PlatformEntry(
         platform_code=code,
-        display_name=name,
+        platform_name=name,
         created_at=created_at,
         capabilities=("provision.run",),
         credential_kinds=("cookie",),
@@ -31,7 +31,7 @@ def test_upsert_get_roundtrip(tmp_path) -> None:
     loaded = repo.get("doubao_cn")
     assert loaded is not None
     assert loaded.platform_code == "doubao_cn"
-    assert loaded.display_name == "豆包"
+    assert loaded.platform_name == "豆包"
     assert loaded.capabilities == ("provision.run",)
     assert loaded.credential_kinds == ("cookie",)
     assert loaded.schedule_times == ("00:05",)
@@ -43,7 +43,7 @@ def test_upsert_重复_事实更新_幂等(tmp_path) -> None:
     created = datetime(2026, 11, 17, tzinfo=UTC)
     repo.upsert(_entry("doubao_cn", "豆包", created))
     repo.upsert(_entry("doubao_cn", "豆包（更名）", created))
-    assert repo.list_all()[0].display_name == "豆包（更名）"
+    assert repo.list_all()[0].platform_name == "豆包（更名）"
     assert len(repo.list_all()) == 1  # UPSERT 不漂移代理键
 
 

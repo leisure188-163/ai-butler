@@ -7,7 +7,7 @@
 CREATE TABLE plat_platform (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     platform_code    TEXT NOT NULL UNIQUE,
-    display_name     TEXT NOT NULL,
+    platform_name     TEXT NOT NULL,
     capabilities     TEXT NOT NULL DEFAULT '[]',
     credential_kinds TEXT NOT NULL DEFAULT '[]',
     schedule_times   TEXT NOT NULL DEFAULT '[]',

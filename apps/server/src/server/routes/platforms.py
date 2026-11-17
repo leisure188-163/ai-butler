@@ -66,7 +66,7 @@ def list_platforms(request: Request) -> list[PlatformOut]:
         out.append(
             PlatformOut(
                 id=platform.platform_code,
-                display=platform.display_name,
+                display=platform.platform_name,
                 capabilities=sorted(platform.capabilities),
                 credential_kinds=list(platform.credential_kinds),
                 schedule_times=list(platform.schedule_times),

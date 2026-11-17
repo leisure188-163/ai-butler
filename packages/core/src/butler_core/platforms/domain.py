@@ -26,7 +26,7 @@ class PlatformEntry:
     开关（停用平台不再出现在名册与一键导入）。"""
 
     platform_code: str
-    display_name: str
+    platform_name: str
     created_at: datetime
     capabilities: tuple[str, ...] = ()  # ActionKind.value 列表（core 词表）
     credential_kinds: tuple[str, ...] = ()
@@ -37,5 +37,5 @@ class PlatformEntry:
     def __post_init__(self) -> None:
         if not self.platform_code.strip():
             raise PlatformInvalid("PlatformEntry 需要非空 platform_code")
-        if not self.display_name.strip():
-            raise PlatformInvalid("PlatformEntry 需要非空 display_name")
+        if not self.platform_name.strip():
+            raise PlatformInvalid("PlatformEntry 需要非空 platform_name")

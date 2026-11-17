@@ -29,7 +29,7 @@
 |---|---|---|
 | `id` | INTEGER PK AUTOINCREMENT | 全库统一代理键 |
 | `platform_code` | TEXT NOT NULL UNIQUE | 平台 id（连接器 manifest.id） |
-| `display_name` | TEXT NOT NULL | 平台名 |
+| `platform_name` | TEXT NOT NULL | 平台名（命名裁决 ADR-023：显示名列按业务命名，禁 display_name 通用名） |
 | `capabilities` | TEXT JSON | ActionKind.value 列表（core 词表） |
 | `credential_kinds` | TEXT JSON | 凭据 kinds 声明 |
 | `schedule_times` | TEXT JSON | HH:MM 触发时间并集 |

@@ -70,7 +70,7 @@ def _assemble_connectors(kit) -> None:
         facts.append(
             PlatformEntry(
                 platform_code=m.id,
-                display_name=m.display,
+                platform_name=m.display,
                 created_at=now_utc(),
                 capabilities=tuple(sorted(m.capabilities)),
                 credential_kinds=tuple(m.credential.kinds) if m.credential else (),

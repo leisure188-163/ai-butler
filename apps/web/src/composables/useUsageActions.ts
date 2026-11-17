@@ -1,7 +1,7 @@
 /**
  * 流量域动作（conventions/4 §2.4，业务子域分包 2026-11-14）：
  * 立即采集 + 结果如实分列转述（采集汇总逻辑上收壳）。
- * collecting/usageMsg 归本域；radarRows 经参数注入（display_name 回退用）。
+ * collecting/usageMsg 归本域；radarRows 经参数注入（radar 名称回退用）。
  */
 import { ref, type Ref } from "vue";
 import * as api from "../api";
