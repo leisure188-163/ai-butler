@@ -1,13 +1,12 @@
-"""豆包活跃账户身份（多账户 ADR-003 落地，2026-11-16 切号取证降级方案）。
-
-取证结论（PROTOCOL §9）：豆包客户端无一键切换列表，「添加账号」直通登录页
-（手机号/扫码需人工参与）——切号不自动化（ADR-007 决策 7）。本模块只做
-**只读身份判定**：每次编排前核实客户端当前活跃账户，与目标 account_id 匹配
-才动手，绝不签错账户（A2-02 §6 写动作判定红线）。
+"""豆包活跃账户身份与登记簿（多账户 ADR-003 落地；ADR-007 决策 8）。
 
 身份信号（真机取证，Windows / 豆包 2.36.8）：
 - ``localStorage.for_ban_appeal_sec_user_id``：稳定加密用户 ID（account_key 派生源）
-- 左下角账户 chip 按钮文本：账户昵称（display 用）
+- 左下角账户 chip 按钮文本：账户昵称（display / 切号列表行匹配用）
+
+本模块职责：**只读身份判定**（每次编排前核实客户端活跃账户，与目标
+account_id 匹配才动手，绝不签错账户——A2-02 §6 红线）+ **身份登记簿**
+（main 基线 + others，switch.py 会话级自动切号的定位依据，ADR-007 决策 8）。
 """
 
 from __future__ import annotations
@@ -114,6 +113,89 @@ def save_main_baseline(identity: ActiveIdentity) -> None:
     path.write_text(
         json.dumps(
             {"main_sec_uid": identity.sec_uid, "main_nickname": identity.nickname},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+@dataclass(frozen=True)
+class OtherIdentity:
+    """非 main 已登记身份（登记簿条目，自动切号的定位依据）。"""
+
+    sec_uid: str
+    nickname: str
+    account_key: str
+
+
+@dataclass(frozen=True)
+class IdentityRegistry:
+    """身份登记簿：main 基线 + 其他已登记账户（dock 采集，自动切号用）。"""
+
+    main: ActiveIdentity | None
+    others: tuple[OtherIdentity, ...]
+
+
+def load_identity_registry() -> IdentityRegistry:
+    """读登记簿；旧形状文件（只有 main 基线）兼容——others 为空元组。"""
+    path = identity_path()
+    data: dict = {}
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            data = loaded
+    except (OSError, ValueError):
+        pass  # 文件缺失/坏档 → 走基线兜底（load_main_baseline 同语义）
+    main_sec = str(data.get("main_sec_uid") or "")
+    if main_sec:
+        main = ActiveIdentity(sec_uid=main_sec, nickname=str(data.get("main_nickname") or ""))
+    else:
+        main = load_main_baseline()
+    others: list[OtherIdentity] = []
+    for item in data.get("others") or []:
+        if not isinstance(item, dict):
+            continue
+        sec = str(item.get("sec_uid") or "")
+        if not sec:
+            continue
+        others.append(
+            OtherIdentity(
+                sec_uid=sec,
+                nickname=str(item.get("nickname") or ""),
+                account_key=str(item.get("account_key") or derive_key(sec)),
+            )
+        )
+    return IdentityRegistry(main=main, others=tuple(others))
+
+
+def save_identity_registry(identities: list[ActiveIdentity]) -> None:
+    """dock 采集后写登记簿：main = 既有基线或首个身份，其余入 others。
+
+    读不到身份（空表）不覆盖旧簿——保留既有登记，避免采集故障抹掉定位依据。
+    写失败显式抛（与 save_main_baseline 同纪律）。
+    """
+    if not identities:
+        return
+    baseline = load_main_baseline()
+    main = baseline if baseline is not None else identities[0]
+    others = [
+        {
+            "sec_uid": i.sec_uid,
+            "nickname": i.nickname,
+            "account_key": derive_key(i.sec_uid),
+        }
+        for i in identities
+        if i.sec_uid and i.sec_uid != main.sec_uid
+    ]
+    path = identity_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "main_sec_uid": main.sec_uid,
+                "main_nickname": main.nickname,
+                "others": others,
+            },
             ensure_ascii=False,
         ),
         encoding="utf-8",

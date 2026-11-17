@@ -21,6 +21,11 @@ from butler_connectors.transport import HttpResponse, TransportError
 @dataclass
 class FakeConn:
     closed: bool = False
+    calls: list = field(default_factory=list)
+
+    def call(self, method, params=None, *, wait=8.0):
+        self.calls.append(method)
+        return {}
 
     def close(self) -> None:
         self.closed = True
@@ -431,13 +436,17 @@ def test_identity_unreadable_is_pending():
     assert "活跃账户身份" in result.evidence[0].summary
 
 
-def test_b_active_main_request_is_pending_with_manual_hint():
-    """B 活跃而请求 main → PENDING 提示人工切号（不误判 FAILED）。"""
+def test_b_active_main_request_auto_switch_fails_offline_is_pending():
+    """B 活跃而请求 main → 自动切号尝试（决策 8）；离线假件下 chip 定位失败
+    → PENDING 且修复提示语境正确（身份语境，非端口语境——bug ② 回归）。"""
     channel = FakeChannel(identity={"sec_uid": B_SEC_UID, "nickname": "小号"})
     result = make_port(channel=channel).run(request())
     assert result.status is Status.PENDING
     summary = result.evidence[0].summary
-    assert "小号" in summary and "切换账户" in summary and "doubao_cn:main" in summary
+    assert "小号" in summary and "自动切号" in summary and "doubao_cn:main" in summary
+    assert result.repair_hint is not None and result.repair_hint.action_id == "dock"
+    assert "人工切换" in result.repair_hint.reason  # 语境 = 身份不符，不是端口
+    assert "调试端口" not in result.repair_hint.reason
 
 
 def test_b_active_b_request_proceeds_already():

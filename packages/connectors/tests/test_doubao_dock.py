@@ -136,7 +136,8 @@ def test_relaunch_timeout_is_explicit_issue():
     outcome = adapter.butler.dock(FakeCtx(), env=env, channel=channel)
     assert outcome.accounts == []
     assert outcome.issues and "超时" in outcome.issues[0]
-    assert len(env.slept) == 10  # ~15s 轮询后放弃（显式，不无限等）
+    assert len(env.slept) == 11  # 1 杀净落定(6s, bug ①修复) + 10 轮询(~15s) 后放弃（显式，不无限等）
+    assert env.slept[0] == adapter._KILL_SETTLE_SECONDS  # 先 settle 再拉起，防单实例锁竞态
 
 
 def test_dock_is_idempotent_on_registry_side():

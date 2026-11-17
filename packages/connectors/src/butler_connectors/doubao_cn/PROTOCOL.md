@@ -104,28 +104,37 @@ Base：`https://www.doubao.com`
 | dock 体检（客户端没带端口） | 自动拉起 → probe 就绪 | ✅ 2026-11-11：杀尽退出后 dock → 注册表定位 exe → 带端口拉起 → probe 就绪 → accounts=["doubao_cn:main"] issues=[]。**验收抓 1 真 bug 已修**：DisplayName 是中文「豆包」且 DisplayIcon 带引号指 icon.ico——改按子键名 Doubao* 匹配 + 剥引号（9191182，PROTOCOL §1 定稿） |
 | 点击后状态翻转延迟 | 退避复查命中 CLAIMED | ⚪ 离线全覆盖（test_click_recheck_retry_then_true_is_claimed / test_click_recheck_transport_error_then_true_is_claimed）；2026-11-16 真机事故根因（两次 FAILED 实为已签，复查过快）已按 §1.2 修复，待下一未签班次真机复验 |
 
-## 9. 切号协议与多账户身份（2026-11-16，Windows / 豆包 2.36.8，ADR-007 决策 7）
+## 9. 切号协议与多账户身份（2026-11-16 初版 → 2026-11-17 修订，ADR-007 决策 7→8）
 
-- **切号入口取证**：左下角账户 chip（头像 img + 昵称按钮）点击 → Electron 弹层
-  菜单（CDP 可驱动，**须先 `Page.bringToFront` 聚焦窗口**，失焦点击不开），
-  菜单仅「添加账号」「退出登录」——**无一键切换列表**；「添加账号」直通独立
-  登录页 target（`doubao://doubao-login/login?device_flow=enabled`，手机号/
-  飞书/抖音/扫码四种方式，无已登录账户选择）。切号 = 完整人工登录 → 不自动化
-- **身份信号**：`localStorage.for_ban_appeal_sec_user_id`（稳定加密用户 ID，
-  account_key 派生源 = SHA256 前 8 位前缀 `u`）+ chip 按钮文本（昵称）；
-  **双 chat target 并存**（`doubao-chat/chat` 与带会话 id 后缀变体各持一账户
-  会话，CDP 顺序不稳定）——必须 `read_all_identities` 全收集再判定，单取首个
-  会漂移
-- **身份基线**：main 基线存 `~/.butler/doubao_identity.json`
-  （`DOUBAO_IDENTITY_PATH` 可覆盖）——**dock 首采**（首个可读身份），用户确认
-  归属；本项目 main = 逍遥酒鬼（2026-11-16 用户确认），B = Leisure520
+- **切号入口取证（2026-11-17 修订）**：双账户注册后，左下角账户 chip（头像
+  img + 昵称按钮）点击 → Radix popper 弹层含**切换列表**（当前账户 + 其他
+  已注册账户各行，行文本**精确等于**昵称，真机坐标 chip y≈836、行 y≈666/704）
+  ——11-16「无一键切换列表」只在单账户时期成立，决策 7 前提已变化。弹层须先
+  `Page.bringToFront` 聚焦窗口（失焦点击不开，11-16 实证）；「添加账号」仍
+  直通独立登录页 target（`doubao://doubao-login/login?device_flow=enabled`，
+  手机号/飞书/抖音/扫码四种方式），「退出登录」绝不触碰
+- **单会话存活语义（2026-11-17 用户确认）**：切换后旧 chat target 消亡、新
+  target 承载新会话——切号点击后旧连接即失效，翻转验证必须重枚举 targets
+  重读身份；11-16 观测的「双 chat target 并存」属过渡态，非常驻
+- **自动切号编排（switch.py，ADR-007 决策 8）**：resolve_target_identity
+  （登记簿定位 sec_uid+昵称）→ switch_session（chip → 精确匹配昵称行 →
+  受信任点击三连 → 20s 轮询身份翻转，超时显式 SwitchError）→ adapter 复核
+  活跃身份与目标一致 → **旧活动页关净**（cdp.py 新原语 `Target.closeTarget`，
+  target 已不在 = 关净达成同语义不报错）→ `_activity_conn` 开新页（Cookie
+  现取 = 新会话）→ 正常编排。切号留痕进台账 evidence 首位
+- **身份登记簿**：dock 采集后持久化 `~/.butler/doubao_identity.json`
+  （`DOUBAO_IDENTITY_PATH` 可覆盖）：`main_sec_uid`/`main_nickname` +
+  `others[{sec_uid, nickname, account_key}]`——非 main 账户的切号定位依据
+  （account_key = SHA256 前 8 位前缀 `u`，单向不可逆）；采集为空不覆盖旧簿。
+  本项目 main = 逍遥酒鬼（2026-11-16 用户确认），B = Leisure520
   （`doubao_cn:u66b1e22d`）
-- **守卫语义**：run/dock/usage 三处——main 基线命中任一 chat target → main
-  视为活跃（cookie 会话实证口径）；main 缺席 → 活跃 = 非 main 身份。目标
-  非活跃 → PENDING 提示人工切号（暂态语义，不算失败）；usage 非活跃 → 空
-  ledger（**绝不错挂流水**，A2-02 §6 红线）
-- **已知边界**：双会话并存下 main 会话常驻 → B 长期 PENDING（自动化退化人工）；
-  「活跃账户」的真语义（UI chip 显示 vs 会话实际生效）待下一轮真机取证定夺
+- **守卫语义（2026-11-17 修订）**：run 目标非活跃 → 自动切号 → 复核 → 通过
+  才编排；切号失败/复核不符/旧活动页关不动 → PENDING（修复提示分语境：
+  身份不符 ≠ 端口不可达），**绝不盲签**（A2-02 §6 红线）。main 基线命中任一
+  chat target 即视为活跃（cookie 会话实证口径，不变）。dock/usage 维持
+  只监控不切号
+- **硬边界（不自动化，ADR-007 决策 8）**：登录态过期重登（扫码/手机号）与
+  「添加账号」——人工参与；ADR-015 失效可见可修 + 停止自动重试语义不变
 
 > oracle = 旧仓库 `auto-signin-kit doubao status/auto`（mac 上已验证可正常领取）。
 

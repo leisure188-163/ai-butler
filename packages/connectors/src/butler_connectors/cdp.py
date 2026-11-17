@@ -160,6 +160,22 @@ class CdpChannel:
                 return self.attach(target)
         raise CdpError(f"活动页打开超时（{wait}s）：{url}")
 
+    def close_target(self, target_id: str) -> None:
+        """浏览器级关闭 target（Target.closeTarget）。用途：账户切换后旧活动页
+        可能残留旧账户 Cookie——重开前先关净（附着旧页 = 签错账户风险）。
+        target 已不存在（竞态消亡）= 关净语义已达成，不报错（与 localenv
+        taskkill exit=128 宽容同事实同语义）；其余链路故障如实上抛。"""
+        version = self.probe()
+        browser_url = version.get("webSocketDebuggerUrl")
+        if not browser_url:
+            raise CdpError("/json/version 缺 webSocketDebuggerUrl")
+        with self._ws_factory(browser_url, 10.0) as browser:
+            try:
+                browser.call("Target.closeTarget", {"targetId": target_id})
+            except CdpError as exc:
+                if "No target with" not in str(exc):
+                    raise
+
     def cookies(self, conn: CdpConnection, url: str = "https://www.doubao.com") -> list[dict]:
         result = conn.call("Network.getCookies", {"urls": [url]})
         return list((result or {}).get("cookies") or [])

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import replace
 from datetime import datetime
 
 from butler_core.execution.ports import Capabilities, ProvisionPort, ProvisionRequest
@@ -30,9 +31,14 @@ from butler_connectors.doubao_cn.identity import (
     load_main_baseline,
     read_all_identities,
     resolve_account_key,
-    save_main_baseline,
+    save_identity_registry,
 )
 from butler_connectors.doubao_cn.localenv import LocalEnv, real_env, version_code
+from butler_connectors.doubao_cn.switch import (
+    SwitchError,
+    resolve_target_identity,
+    switch_session,
+)
 from butler_connectors.registry import DockContext, DockOutcome
 from butler_connectors.transport import HttpRequest, TransportError, httpx_transport
 
@@ -96,6 +102,9 @@ _FIND_RETRIES = 3  # 活动页可能还在加载（PROTOCOL §6 ⑥）
 #: 点击后复查退避序列（2026-11-16 真机取证：点击生效但状态翻转有延迟，
 #: 3s 即查会误判 FAILED——退避复查 3 次再判失败，PROTOCOL §3 FAILED 行语义）。
 _RECHECK_DELAYS = (3.0, 5.0, 8.0)
+#: 杀净与拉起之间的落定间隔（2026-11-17 真机：旧实例未完全退出时立即拉起
+#: 撞单实例锁，新实例静默消失——settle 后再拉起 + 轮询绑定一次成功）。
+_KILL_SETTLE_SECONDS = 6.0
 
 
 def _daily_checkin(payload: dict) -> dict | None:
@@ -110,11 +119,18 @@ def _failed(summary: str, *, raw_code: str | None = None) -> RunResult:
     return RunResult(Status.FAILED, evidence=(Evidence(summary, raw_code=raw_code),))
 
 
-def _pending(summary: str) -> RunResult:
+def _pending(
+    summary: str,
+    *,
+    hint: str = "豆包客户端未带调试端口运行（暂态，不算失败）",
+    action: str = "dock",
+) -> RunResult:
+    """PENDING 显式分语境（2026-11-17 bug 修复）：端口不可达与身份不符是两种
+    修复动作，提示语必须跟着语境走，不许复用端口语境误导用户。"""
     return RunResult(
         Status.PENDING,
         evidence=(Evidence(summary),),
-        repair_hint=RepairHint("豆包客户端未带调试端口运行（暂态，不算失败）", "dock"),
+        repair_hint=RepairHint(hint, action),
     )
 
 
@@ -126,12 +142,15 @@ class DoubaoCdpProvisionPort(ProvisionPort):
     """
 
     def __init__(
-        self, *, transport, env: LocalEnv, channel: CdpChannel, sleep=time.sleep
+        self, *, transport, env: LocalEnv, channel: CdpChannel, sleep=time.sleep,
+        monotonic=time.monotonic,
     ) -> None:
         self.transport = transport
         self.env = env
         self.channel = channel
         self.sleep = sleep
+        self.monotonic = monotonic  # 切号翻转轮询的时钟（可注入，离线测试不真等）
+        self._switch_note: str | None = None
 
     def capabilities(self) -> Capabilities:
         return Capabilities(dry_run=True, idempotency_window="daily")
@@ -151,10 +170,10 @@ class DoubaoCdpProvisionPort(ProvisionPort):
                 "读不到豆包客户端版本（DOUBAO_VERSION 可覆盖）——无法派生 version_code"
                 "（PROTOCOL §1：写死版本正是故障本身）"
             )
-        # 多账户身份守卫（A2-02 §6 红线：绝不签错账户；切号不自动化，ADR-007 决策 7）。
-        # 双会话并存（PROTOCOL §9）：chat 页 targets 各持一账户会话——main 基线
-        # 命中任一 target 即视为 main 活跃（cookie 会话实证口径）；main 缺席时
-        # 活跃=非 main 身份，仅放行对应账户，其余保守 PENDING（不猜不盲签）。
+        # 多账户身份守卫（A2-02 §6 红线：绝不签错账户）。目标未活跃 → 会话级
+        # 自动切号（ADR-007 决策 8，2026-11-17 用户裁决修订决策 7：切换列表
+        # 真机取证存在 + 单会话存活语义，PROTOCOL §9）；切号失败/复核不符仍
+        # 保守 PENDING，绝不盲签。
         try:
             identities = read_all_identities(self.channel)
         except Exception:  # 身份只读辅助路径：读失败降级空 → 走 PENDING（暂态语义）
@@ -169,26 +188,94 @@ class DoubaoCdpProvisionPort(ProvisionPort):
                 "豆包 main 账户身份基线未建立——确认客户端当前登录的是主用账户后，"
                 "执行一次停靠（dock/导入）建立基线"
             )
-        main_active = any(i.sec_uid == baseline.sec_uid for i in identities)
-        active_key = "main" if main_active else resolve_account_key(identities[0])
-        if f"{CONN_ID}:{active_key}" != req.account_id:
-            others = [i.nickname or resolve_account_key(i) for i in identities
-                      if i.sec_uid != baseline.sec_uid]
-            who = "、".join(others) or identities[0].nickname or active_key
-            return _pending(
-                f"豆包客户端当前活跃账户是「{who}」（{CONN_ID}:{active_key}），"
-                f"目标 {req.account_id} 未激活——请在客户端左下角头像菜单切换账户后重试"
-                "（客户端切号需人工登录，已裁决不自动切号：ADR-007 决策 7）"
-            )
+        self._switch_note = None
+        pending = self._ensure_target_active(req, baseline, identities)
+        if pending is not None:
+            return pending
         try:
             conn = self._activity_conn()
         except CdpError as exc:
             return _failed(f"活动页不可用（{exc}）——建页失败属协议事故，绝不静默")
         try:
-            # 编排全程在连接存活期内（finally 才关）：点击与复查都在 close 之前
-            return self._orchestrate(conn, req, version=version, vcode=vcode)
+            result = self._orchestrate(conn, req, version=version, vcode=vcode)
         finally:
             conn.close()
+        if self._switch_note:
+            # 切号留痕进台账 evidence（审计可见：这次签到经历了会话切换）
+            result = replace(
+                result, evidence=(Evidence(self._switch_note),) + tuple(result.evidence)
+            )
+        return result
+
+    # --- 多账户守卫与会话级切号（ADR-007 决策 8）---
+
+    def _ensure_target_active(
+        self, req: ProvisionRequest, baseline, identities: list
+    ) -> RunResult | None:
+        """活跃账户 ≠ 目标 → 自动切号并复核；成功 None，失败返回语境正确的 PENDING。"""
+        main_active = any(i.sec_uid == baseline.sec_uid for i in identities)
+        active_key = "main" if main_active else resolve_account_key(identities[0])
+        if f"{CONN_ID}:{active_key}" == req.account_id:
+            return None
+        others = [i.nickname or resolve_account_key(i) for i in identities
+                  if i.sec_uid != baseline.sec_uid]
+        who = "、".join(others) or identities[0].nickname or active_key
+        fail = self._auto_switch(req.account_id.removeprefix(f"{CONN_ID}:"))
+        if fail is not None:
+            return _pending(
+                f"豆包客户端当前活跃账户是「{who}」，目标 {req.account_id} 未激活；{fail}",
+                hint="自动切号未成功——可在客户端左下角头像菜单人工切换后重试"
+                     "（暂态，不算失败；登录/添加账号仍需人工）",
+            )
+        # 单会话存活语义：旧活动页可能残留旧账户 Cookie——关净后由
+        # _activity_conn 开新页（新页 Cookie 现取 = 新会话），杜绝签错账户。
+        stale = self._close_stale_activity_pages()
+        if stale is not None:
+            return _pending(stale)
+        flipped = read_all_identities(self.channel)
+        main_now = any(i.sec_uid == baseline.sec_uid for i in flipped)
+        active_now = (
+            "main" if main_now else (resolve_account_key(flipped[0]) if flipped else "")
+        )
+        if f"{CONN_ID}:{active_now}" != req.account_id:
+            return _pending(
+                f"自动切号后身份复核不符（活跃={active_now or '未知'}，"
+                f"目标 {req.account_id}）——绝不盲签（A2-02 §6 红线）",
+                hint="切换复核失败——人工在客户端头像菜单确认当前账户后重试",
+            )
+        return None
+
+    def _auto_switch(self, want_key: str) -> str | None:
+        """会话级自动切号。None = 成功；str = 失败原因（PENDING 语境原文）。"""
+        target = resolve_target_identity(want_key)
+        if target is None or not target.sec_uid:
+            return (
+                f"目标 {CONN_ID}:{want_key} 不在已登记身份中——自动切号无定位依据；"
+                "先人工切到该账户执行一次停靠（dock）登记，之后即可自动切换"
+            )
+        try:
+            switched = switch_session(
+                self.channel, target, sleep=self.sleep, monotonic=self.monotonic
+            )
+        except (SwitchError, CdpError) as exc:
+            return f"自动切号到「{target.nickname or want_key}」失败: {exc}"
+        self._switch_note = f"自动切号到「{switched.nickname or want_key}」（会话级切换）"
+        return None
+
+    def _close_stale_activity_pages(self) -> str | None:
+        """切号后关净旧活动页（残留旧账户会话）。None = 干净；str = 显式暂缓。"""
+        for _ in range(10):  # 有界：每成功一次少一个 target，正常 1-2 个
+            target = pick_activity_target(self.channel.targets())
+            if target is None:
+                return None
+            try:
+                self.channel.close_target(str(target.get("id") or ""))
+            except CdpError as exc:
+                return (
+                    f"切号后旧活动页无法关闭（{exc}）——可能残留旧账户会话，"
+                    "为不签错账户暂缓签到；重启客户端（dock）后重试"
+                )
+        return "切号后旧活动页关闭循环超界——客户端 target 状态异常，暂缓签到"
 
     # --- 编排步骤 ---
 
@@ -377,6 +464,9 @@ def _ensure_running(env: LocalEnv, channel: CdpChannel) -> list[str]:
         ]
     for pid in env.process_pids():
         env.kill_pid(pid)  # probe 已失败 = 端口没开，现存实例都是无端口实例
+    # 杀净落定再拉起（2026-11-17 真机实证修复：杀完立即拉起撞单实例锁竞态，
+    # 分离接力脚本「杀 → settle 6s → 拉起」5s 内 9222 绑定一次成功）
+    env.sleep(_KILL_SETTLE_SECONDS)
     env.spawn_detached(exe)
     for _ in range(10):  # ~15s 轮询就绪
         env.sleep(1.5)
@@ -398,6 +488,7 @@ class _Butler:
         transport=None,
         env: LocalEnv | None = None,
         channel: CdpChannel | None = None,
+        monotonic=None,
     ) -> DoubaoCdpProvisionPort:
         # vault 参数保留（registry 契约签名）；零凭据设计不使用（ADR-007 决策 2）
         env = env if env is not None else real_env()
@@ -406,6 +497,7 @@ class _Butler:
             env=env,
             channel=channel if channel is not None else CdpChannel(env.resolve_port()),
             sleep=env.sleep,  # 重试/落定间隔走环境束：测试假束离线、真机 time.sleep
+            monotonic=monotonic if monotonic is not None else time.monotonic,
         )
 
     def dock(
@@ -426,19 +518,20 @@ class _Butler:
                 return DockOutcome(target=CONN_ID, issues=issues)
         account = ctx.register.execute(CONN_ID, DISPLAY)
         accounts = [account.id]
-        # 多账户（ADR-003 落地）：dock 首采 main 基线（首个可读身份）；其余身份
-        # 逐一登记（切号不自动化，ADR-007 决策 7——登记的是客户端会话的如实身份）
+        # 多账户（ADR-003 落地）：dock 采集全部会话身份 → 写登记簿（main + others，
+        # 自动切号的定位依据，ADR-007 决策 8）→ 其余身份逐一登记
         try:
             identities = read_all_identities(channel)
         except Exception:  # 身份只读辅助路径：读失败不阻断 dock 主流程（体检/登记）
             identities = []
+        if identities:
+            save_identity_registry(identities)
         for identity in identities:
             if not identity.sec_uid:
                 continue
             baseline = load_main_baseline()
             if baseline is None:
-                save_main_baseline(identity)  # 首采：首个可读身份即 main 基线
-                continue
+                continue  # 登记簿已把首个可读身份立为 main 基线（首采语义不变）
             if identity.sec_uid != baseline.sec_uid:
                 key = derive_key(identity.sec_uid)
                 extra = ctx.register.execute(
