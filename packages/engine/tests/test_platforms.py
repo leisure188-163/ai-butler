@@ -124,9 +124,33 @@ def test_老库补列后物理列序按DDL重建(tmp_path) -> None:
     ]
     assert cols == [
         "id", "platform_code", "platform_name", "platform_kind", "client_version",
-        "capabilities", "credential_kinds", "schedule_times", "is_active",
-        "deprecated_at", "created_at", "updated_at",
+        "capabilities", "credential_kinds", "schedule_times", "schedule_override",
+        "is_active", "deprecated_at", "created_at", "updated_at",
     ]
     loaded = repo.get("doubao_cn")  # 行数据零丢失（含原 client_version）
     assert loaded is not None and loaded.client_version == "2.36.8"
     assert loaded.platform_kind == ""
+
+
+def test_schedule_override_写入_恢复与不冲掉(tmp_path) -> None:
+    """调度覆盖（2026-11-18）：写覆盖→读回；同步事实不覆盖用户覆盖；None 恢复默认。"""
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    created = datetime(2026, 11, 17, tzinfo=UTC)
+    repo.upsert(_entry("doubao_cn", "豆包", created))
+    assert repo.get("doubao_cn").schedule_override is None  # 默认跟随 manifest
+
+    updated = repo.set_schedule_override("doubao_cn", ("21:15", "09:15"))
+    assert updated is not None
+    assert updated.schedule_override == ("21:15", "09:15")
+    assert updated.schedule_times == ("00:05",)  # manifest 缺省不被改写（可恢复）
+
+    # 下一轮 manifest 同步（不带 override）不得冲掉用户覆盖
+    repo.upsert(_entry("doubao_cn", "豆包", created))
+    assert repo.get("doubao_cn").schedule_override == ("21:15", "09:15")
+
+    # 恢复默认 = None
+    reset = repo.set_schedule_override("doubao_cn", None)
+    assert reset is not None and reset.schedule_override is None
+
+    # 平台不存在 = None（调用方显式 404）
+    assert repo.set_schedule_override("nope", ("09:15",)) is None

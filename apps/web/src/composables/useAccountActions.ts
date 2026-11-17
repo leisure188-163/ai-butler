@@ -1,6 +1,6 @@
 /**
  * 账户域动作（conventions/4 §2.4，业务子域分包 2026-11-14）：
- * 导入（本机接入扫描）/ 领取（手动）/ 体检（R3 网页通道）/ 一键批量 / 勾选批量。
+ * 接入（本机接入扫描）/ 领取（手动）/ 体检（R3 网页通道）/ 一键批量 / 勾选批量。
  *
  * 纪律：busyTarget/actionMsg 归本域（collectUsage 用 collecting，无跨域共享）；
  * 文案转述逐字保留（矩阵改版定稿文案）；CLAIMED/ALREADY 判定为既有先例，原样保留；
@@ -14,7 +14,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
   const busyTarget = ref<string | null>(null);
   const actionMsg = ref<{ text: string; tone: "ok" | "warn" } | null>(null);
 
-  /* 平台动作：导入（本机接入扫描）/ 领取（手动领取）。结果如实展示，不造结论。 */
+  /* 平台动作：接入（本机接入扫描）/ 领取（手动领取）。结果如实展示，不造结论。 */
   async function importPlatform(target: string) {
     busyTarget.value = target;
     actionMsg.value = null;
@@ -24,15 +24,15 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
       const imported = body.accounts ?? [];
       actionMsg.value = {
         text: imported.length
-          ? `已导入：${imported.join("、")}` + (issues.length ? ` · ${issues.join("；")}` : "")
+          ? `已接入：${imported.join("、")}` + (issues.length ? ` · ${issues.join("；")}` : "")
           : issues.length
             ? issues.join("；")
-            : "没有发现可导入的平台。",
+            : "没有发现可接入的平台。",
         tone: imported.length ? "ok" : "warn",
       };
     } catch (e) {
       if (e instanceof api.ApiError) {
-        actionMsg.value = { text: e.detail ?? `导入失败（HTTP ${e.status}）`, tone: "warn" };
+        actionMsg.value = { text: e.detail ?? `接入失败（HTTP ${e.status}）`, tone: "warn" };
       } else {
         throw e; /* 网络异常原样传播（现状行为） */
       }
@@ -131,7 +131,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
-  /* 一键批量（R2 补）：导入全部未接入 / 领取全部已接入——筛选语义在 server，端只发起与转述 */
+  /* 一键批量（R2 补）：接入全部未接入 / 领取全部已接入——筛选语义在 server，端只发起与转述 */
   async function importAllPlatforms() {
     busyTarget.value = "batch";
     actionMsg.value = { text: "正在扫描本机客户端…", tone: "ok" };
@@ -144,17 +144,17 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
         .map((r) => r.target);
       const text =
         [
-          imported.length ? `已导入：${imported.join("、")}` : "",
+          imported.length ? `已接入：${imported.join("、")}` : "",
           empty.length ? `未发现登录态：${empty.join("、")}` : "",
           ...issues,
         ]
           .filter(Boolean)
-          .join(" · ") || "没有待导入的平台。";
+          .join(" · ") || "没有待接入的平台。";
       actionMsg.value = { text, tone: issues.length ? "warn" : "ok" };
     } catch (e) {
       if (e instanceof api.ApiError) {
         actionMsg.value = {
-          text: e.detail ?? `一键导入失败（HTTP ${e.status}）`,
+          text: e.detail ?? `接入失败（HTTP ${e.status}）`,
           tone: "warn",
         };
       } else {
@@ -166,36 +166,26 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
-  /* 同步全部（2026-11-17）：已导入平台也要重扫，捕获客户端当前登录态，
-   * 新账户按稳定 key 追加；单家失败只入 issues，不阻断其余平台。 */
-  async function syncAllApps(targets: string[]) {
-    if (!targets.length) return;
-    busyTarget.value = "batch";
-    actionMsg.value = { text: "正在同步本机账户…", tone: "ok" };
-    const imported: string[] = [];
-    const issues: string[] = [];
+  /* 改调度执行时间（2026-11-18）：写覆盖 + 调度热替换；失败按 ApiError 转提示 */
+  async function saveSchedule(target: string, times: string[] | null) {
+    busyTarget.value = target;
     try {
-      for (const target of targets) {
-        try {
-          const body = await api.importPlatform(target);
-          imported.push(...(body.accounts ?? []));
-          issues.push(...(body.issues ?? []).map((issue) => `${target}：${issue}`));
-        } catch (e) {
-          if (e instanceof api.ApiError) {
-            issues.push(`${target}：${e.detail ?? `HTTP ${e.status}`}`);
-          } else {
-            throw e;
-          }
-        }
-      }
+      const updated = await api.updateSchedule(target, times);
       actionMsg.value = {
-        text: imported.length
-          ? `已同步：${imported.join("、")}` + (issues.length ? ` · ${issues.join("；")}` : "")
-          : issues.length
-            ? issues.join("；")
-            : "当前没有可同步的账户。",
-        tone: issues.length ? "warn" : "ok",
+        text: times && times.length
+          ? `已更新调度：${updated.schedule_times.join("、")}（即刻生效）`
+          : `已清空调度：该平台不再定时领取（保留手动领取）`,
+        tone: "ok",
       };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = {
+          text: e.detail ?? `改调度失败（HTTP ${e.status}）`,
+          tone: "warn",
+        };
+      } else {
+        throw e;
+      }
     } finally {
       busyTarget.value = null;
       await refresh();
@@ -297,7 +287,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     busyTarget,
     actionMsg,
     importPlatform,
-    syncAllApps,
+    saveSchedule,
     claimApp,
     healthApp,
     repairAccount,

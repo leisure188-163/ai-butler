@@ -13,6 +13,7 @@ CREATE TABLE plat_platform (
     capabilities     TEXT NOT NULL DEFAULT '[]',
     credential_kinds TEXT NOT NULL DEFAULT '[]',
     schedule_times   TEXT NOT NULL DEFAULT '[]',
+    schedule_override TEXT NOT NULL DEFAULT '',
     is_active        INTEGER NOT NULL DEFAULT 1,
     deprecated_at    TEXT,
     created_at       TEXT NOT NULL,

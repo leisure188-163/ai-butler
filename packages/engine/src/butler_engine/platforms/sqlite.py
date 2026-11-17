@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS plat_platform (
     capabilities     TEXT NOT NULL DEFAULT '[]',
     credential_kinds TEXT NOT NULL DEFAULT '[]',
     schedule_times   TEXT NOT NULL DEFAULT '[]',
+    schedule_override TEXT NOT NULL DEFAULT '',
     is_active        INTEGER NOT NULL DEFAULT 1,
     deprecated_at    TEXT,
     created_at       TEXT NOT NULL,
@@ -43,13 +44,15 @@ _SCHEMA = _TABLE_DDL + _INDEX_DDL
 #: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
 _DDL_COLS = (
     "platform_code", "platform_name", "platform_kind", "client_version",
-    "capabilities", "credential_kinds", "schedule_times", "is_active",
-    "deprecated_at", "created_at", "updated_at",
+    "capabilities", "credential_kinds", "schedule_times", "schedule_override",
+    "is_active", "deprecated_at", "created_at", "updated_at",
 )
 _COLS = ", ".join(_DDL_COLS)
 
 #: 重建时缺失列的落值（显式未知，不猜）
-_ADDED_DEFAULTS = {"platform_kind": "''", "client_version": "''"}
+_ADDED_DEFAULTS = {
+    "platform_kind": "''", "client_version": "''", "schedule_override": "''",
+}
 
 
 def _dump(values: tuple[str, ...]) -> str:
@@ -65,6 +68,13 @@ def _load_values(raw: str) -> tuple[str, ...]:
         return tuple(json.loads(raw or "[]"))
     except ValueError:
         return ()  # 坏行如实空，不炸名册（红线 5：不静默造数据）
+
+
+def _load_override(raw: str | None) -> tuple[str, ...] | None:
+    """'' = 跟随 manifest（None）；JSON 数组 = 用户覆盖（含空数组=不排班）。"""
+    if not raw:
+        return None
+    return _load_values(raw)
 
 
 class SqlitePlatformRepository(PlatformRepository):
@@ -105,7 +115,7 @@ class SqlitePlatformRepository(PlatformRepository):
         with self._connect() as conn, conn:
             conn.execute(
                 f"INSERT INTO plat_platform ({_COLS}) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (platform_code) DO UPDATE SET "
                 "platform_name=excluded.platform_name, platform_kind=excluded.platform_kind, "
                 "client_version=excluded.client_version, "
@@ -120,6 +130,7 @@ class SqlitePlatformRepository(PlatformRepository):
                     _dump(entry.capabilities),
                     _dump(entry.credential_kinds),
                     _dump(entry.schedule_times),
+                    _dump(entry.schedule_override) if entry.schedule_override is not None else "",
                     1 if entry.is_active else 0,
                     entry.deprecated_at.isoformat() if entry.deprecated_at else None,
                     created,
@@ -145,6 +156,27 @@ class SqlitePlatformRepository(PlatformRepository):
                     (now, now, code),
                 )
         return stale
+
+    def set_schedule_override(
+        self, platform_code: str, times: tuple[str, ...] | None
+    ) -> PlatformEntry | None:
+        """写调度覆盖（None = 恢复跟随 manifest）。平台不存在 → None（调用方显式 404）。"""
+        from butler_core.shared.time import now_utc
+
+        stored = _dump(times) if times is not None else ""
+        with self._connect() as conn, conn:
+            cur = conn.execute(
+                "UPDATE plat_platform SET schedule_override = ?, updated_at = ? "
+                "WHERE platform_code = ?",
+                (stored, now_utc().isoformat(), platform_code),
+            )
+            if cur.rowcount == 0:
+                return None
+            row = conn.execute(
+                f"SELECT {_COLS} FROM plat_platform WHERE platform_code = ?",
+                (platform_code,),
+            ).fetchone()
+        return _load(row)
 
     def get(self, platform_code: str) -> PlatformEntry | None:
         with self._connect() as conn:
@@ -173,9 +205,10 @@ def _load(row) -> PlatformEntry | None:
         capabilities=_load_values(row[4]),
         credential_kinds=_load_values(row[5]),
         schedule_times=_load_values(row[6]),
-        is_active=bool(row[7]),
-        deprecated_at=datetime.fromisoformat(row[8]) if row[8] else None,
-        created_at=datetime.fromisoformat(row[9]),
+        schedule_override=_load_override(row[7]),
+        is_active=bool(row[8]),
+        deprecated_at=datetime.fromisoformat(row[9]) if row[9] else None,
+        created_at=datetime.fromisoformat(row[10]),
     )
 
 

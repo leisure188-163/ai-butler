@@ -71,6 +71,19 @@ export function importAllPlatforms(): Promise<ImportResult[]> {
   return request<ImportResult[]>(`${apiBase}/platforms/import-all`, post());
 }
 
+/** 改调度执行时间（2026-11-18）：times=null 恢复平台默认；[] = 该平台不排班。
+ * 写后 server 立即热替换调度，返回生效值；非 2xx 原样抛 ApiError（红线 5）。 */
+export function updateSchedule(
+  target: string,
+  times: string[] | null,
+): Promise<PlatformItem> {
+  return request<PlatformItem>(`${apiBase}/platforms/${target}/schedule`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ times }),
+  });
+}
+
 /* ---- 运行域 ---- */
 
 export function getRuns(): Promise<RunItem[]> {

@@ -17,9 +17,16 @@ class PlatformOut(BaseModel):
     client_version: str  # 本机客户端版本（"" = 探不到/不适用）
     capabilities: list[str]  # ActionKind.value 列表（core 词表）
     credential_kinds: list[str]
-    schedule_times: list[str]  # HH:MM 触发时间
+    schedule_times: list[str]  # HH:MM 生效时间（用户覆盖优先，见下）
+    schedule_overridden: bool  # True = 用户改过（可"恢复默认"）
     account_id: str | None  # 首账号规范 id（兼容裸平台 id 调用），未导入 = None
     account_ids: list[str]  # 该平台下全部账户（ADR-003 多账号）
+
+
+class ScheduleIn(BaseModel):
+    """调度执行时间写入（2026-11-18）：null = 恢复跟随 manifest；[] = 该平台不排班。"""
+
+    times: list[str] | None = None
 
 
 class ImportOut(BaseModel):
@@ -73,12 +80,88 @@ def list_platforms(request: Request) -> list[PlatformOut]:
                 client_version=platform.client_version,
                 capabilities=sorted(platform.capabilities),
                 credential_kinds=list(platform.credential_kinds),
-                schedule_times=list(platform.schedule_times),
+                schedule_times=list(
+                    platform.schedule_override
+                    if platform.schedule_override is not None
+                    else platform.schedule_times
+                ),
+                schedule_overridden=platform.schedule_override is not None,
                 account_id=ids[0] if ids else None,
                 account_ids=ids,
             )
         )
     return out
+
+
+def compose_schedule_entries(registry, kit) -> list:
+    """调度条目合成（DB 真相源）：用户覆盖优先于 manifest 缺省；空时间=不排班。
+
+    启动与"改调度后热更新"共用本函数，保证两条路径语义一致。
+    """
+    from datetime import timedelta
+
+    from butler_engine.bridge import ScheduleEntry
+
+    overrides = {p.platform_code: p for p in kit.platforms.list_all()}
+    out = []
+    for raw in registry.schedule_entries():
+        target = raw["target"]
+        row = overrides.get(target)
+        times = list(raw["times"])
+        if row is not None and row.schedule_override is not None:
+            times = list(row.schedule_override)
+        if not times:
+            continue  # 用户显式不排班
+        out.append(
+            ScheduleEntry(
+                target=target,
+                times=tuple(times),
+                refresh_at=raw["refresh_at"],
+                budget=timedelta(seconds=raw["budget_seconds"]),
+            )
+        )
+    return out
+
+
+@router.put("/platforms/{platform_code}/schedule", response_model=PlatformOut)
+def set_platform_schedule(platform_code: str, body: ScheduleIn, request: Request):
+    """改调度执行时间（平台管理页）：落 DB 覆盖 + 调度器热替换，即刻生效。
+
+    校验：HH:MM（core PlatformEntry 同源规则）、去重升序；平台不存在 = 404。
+    """
+    import re
+
+    from fastapi import HTTPException
+
+    kit = request.app.state.kit
+    registry = request.app.state.registry
+    times = body.times
+    if times is not None:
+        times = sorted(set(t.strip() for t in times if t.strip()))
+        bad = [t for t in times if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", t)]
+        if bad:
+            raise HTTPException(status_code=400, detail=f"时间格式须为 HH:MM：{bad}")
+    updated = kit.platforms.set_schedule_override(platform_code, tuple(times) if times is not None else None)
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
+    kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
+    docked = [a.id for a in kit.accounts.list_all() if a.platform_code == platform_code]
+    return PlatformOut(
+        id=updated.platform_code,
+        display=updated.platform_name,
+        kind=updated.platform_kind,
+        client_version=updated.client_version,
+        capabilities=sorted(updated.capabilities),
+        credential_kinds=list(updated.credential_kinds),
+        schedule_times=list(
+            updated.schedule_override
+            if updated.schedule_override is not None
+            else updated.schedule_times
+        ),
+        schedule_overridden=updated.schedule_override is not None,
+        account_id=docked[0] if docked else None,
+        account_ids=sorted(docked),
+    )
 
 
 @router.post("/platforms/{target}/import", response_model=ImportOut)

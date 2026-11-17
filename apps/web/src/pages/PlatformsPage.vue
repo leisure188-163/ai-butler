@@ -21,9 +21,43 @@ const props = defineProps<{
 const emit = defineEmits<{
   import: [target: string];
   importAll: [];
-  syncAll: [targets: string[]];
+  saveSchedule: [target: string, times: string[] | null];
   jump: [page: PageName];
 }>();
+
+/* ---- 调度执行时间编辑（2026-11-18）：详情行内联编辑，保存即刻热替换 ---- */
+const editingScheduleId = ref<string | null>(null);
+const editTimes = ref<string[]>([]);
+
+function beginEditSchedule(platform: PlatformItem): void {
+  editingScheduleId.value = platform.id;
+  editTimes.value = [...platform.schedule_times];
+}
+
+function cancelEditSchedule(): void {
+  editingScheduleId.value = null;
+  editTimes.value = [];
+}
+
+function addSlot(): void {
+  if (editTimes.value.length >= 8) return; // manifest 上限 4，给一倍余量
+  editTimes.value.push("09:15");
+}
+
+function removeSlot(index: number): void {
+  editTimes.value.splice(index, 1);
+}
+
+function saveSchedule(platform: PlatformItem): void {
+  const times = [...new Set(editTimes.value.filter(Boolean))].sort();
+  emit("saveSchedule", platform.id, times);
+  cancelEditSchedule();
+}
+
+function resetSchedule(platform: PlatformItem): void {
+  emit("saveSchedule", platform.id, null);
+  cancelEditSchedule();
+}
 
 const emptyPlatforms = computed(() => props.platforms.filter((a) => !a.account_id));
 const importableCount = computed(() => emptyPlatforms.value.length);
@@ -100,15 +134,10 @@ function toggleDetail(id: string) {
       </div>
       <div class="head-actions">
         <button
-          class="btn btn--ghost"
-          :disabled="busyTarget !== null || !platforms.length"
-          @click="emit('syncAll', platforms.map((platform) => platform.id))"
-        >同步全部</button>
-        <button
           class="btn btn--primary"
           :disabled="busyTarget !== null || !importableCount"
           @click="emit('importAll')"
-        >一键导入{{ importableCount ? `（${importableCount}）` : "" }}</button>
+        >接入全部{{ importableCount ? `（${importableCount}）` : "" }}</button>
       </div>
     </div>
   </header>
@@ -157,7 +186,7 @@ function toggleDetail(id: string) {
               <td class="num">{{ platform.schedule_times.length ? platform.schedule_times.join("、") : "—" }}</td>
               <td class="num">
                 <span v-if="accountCount(platform)">{{ accountCount(platform) }}</span>
-                <span v-else class="unimported">未导入</span>
+                <span v-else class="unimported">未接入</span>
               </td>
               <td>
                 <span
@@ -175,13 +204,13 @@ function toggleDetail(id: string) {
                     class="btn btn--ghost"
                     :disabled="busyTarget !== null"
                     @click="emit('import', platform.id)"
-                  >导入</button>
+                  >接入</button>
                   <button
                     v-else
                     class="btn btn--ghost"
                     :disabled="busyTarget !== null"
                     @click="emit('import', platform.id)"
-                  >同步</button>
+                  >刷新</button>
                   <button v-if="platform.account_id" class="btn btn--ghost" @click="emit('jump', '账户管理')">去账户</button>
                   <button class="btn btn--ghost" @click="toggleDetail(platform.id)">
                     {{ expandedId === platform.id ? "收起" : "详情" }}
@@ -201,8 +230,29 @@ function toggleDetail(id: string) {
                   <li class="row">
                     <span class="row-main">
                       <p class="row-title">调度执行时间</p>
-                      <p class="row-sub">{{ platform.schedule_times.join("、") || "—" }}</p>
+                      <template v-if="editingScheduleId === platform.id">
+                        <div class="sched-edit">
+                          <span v-for="(_, i) in editTimes" :key="i" class="sched-item">
+                            <input v-model="editTimes[i]" class="input sched-input mono" type="time" :disabled="busyTarget !== null" />
+                            <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="removeSlot(i)">删除</button>
+                          </span>
+                          <button class="btn btn--ghost" :disabled="busyTarget !== null || editTimes.length >= 8" @click="addSlot">+ 添加时间</button>
+                        </div>
+                        <p class="row-sub faint">
+                          {{ platform.schedule_overridden ? "当前为自定义时间" : "当前为平台默认时间" }}；清空并保存 = 该平台不再定时领取
+                        </p>
+                      </template>
+                      <p v-else class="row-sub">
+                        {{ platform.schedule_times.join("、") || "未排班" }}
+                        <span v-if="platform.schedule_overridden" class="tag tag--quiet sched-tag">自定义</span>
+                      </p>
                     </span>
+                    <span v-if="editingScheduleId === platform.id" class="row-actions">
+                      <button class="btn btn--primary" :disabled="busyTarget !== null" @click="saveSchedule(platform)">保存</button>
+                      <button v-if="platform.schedule_overridden" class="btn btn--ghost" :disabled="busyTarget !== null" @click="resetSchedule(platform)">恢复默认</button>
+                      <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="cancelEditSchedule">取消</button>
+                    </span>
+                    <button v-else class="btn btn--ghost" :disabled="busyTarget !== null" @click="beginEditSchedule(platform)">修改</button>
                   </li>
                   <li class="row">
                     <span class="row-main">
@@ -211,7 +261,6 @@ function toggleDetail(id: string) {
                         {{ accountsOf(platform).map((a) => a.account_id).join("、") || "—" }}
                       </p>
                     </span>
-                    <button class="btn btn--ghost" @click="emit('jump', '账户管理')">去账户</button>
                   </li>
                 </ul>
               </td>
@@ -230,7 +279,7 @@ function toggleDetail(id: string) {
     </nav>
 
     <!-- 未接入平台的虚位邀请行（从账户页迁入，ADR-010 §3） -->
-    <ul v-if="emptyPlatforms.length" class="slots" aria-label="可导入平台">
+    <ul v-if="emptyPlatforms.length" class="slots" aria-label="可接入平台">
       <li v-for="platform in emptyPlatforms" :key="platform.id">
         <button class="slot-row" :disabled="busyTarget !== null" @click="emit('import', platform.id)">
           <span class="slot-plus" aria-hidden="true">＋</span>
@@ -240,7 +289,7 @@ function toggleDetail(id: string) {
     </ul>
 
     <p v-if="!platforms.length" class="quietline">
-      还没有平台——一键导入把本机客户端接进来。
+      还没有平台——「接入全部」把本机客户端接进来。
     </p>
   </section>
 </template>
@@ -261,6 +310,18 @@ function toggleDetail(id: string) {
 }
 .platform-wrap { overflow-x: auto; }
 .platform-wrap .matrix { min-width: 1020px; }
+
+/* 调度执行时间内联编辑（2026-11-18） */
+.sched-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.sched-item { display: inline-flex; align-items: center; gap: var(--space-1); }
+.sched-input { width: 7.5rem; }
+.sched-tag { margin-left: var(--space-1); }
 .code-cell code { font-size: var(--text-xs); color: var(--color-text-muted); }
 .pager {
   display: flex;

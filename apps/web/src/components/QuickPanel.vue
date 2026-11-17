@@ -13,7 +13,7 @@ const props = defineProps<{ platforms: PlatformItem[] }>();
 const emit = defineEmits<{ navigate: [page: PageName] }>();
 
 const tiles: { page: PageName; title: string; sub: string; icon: string }[] = [
-  { page: "平台管理", title: "导入平台", sub: "把本机客户端接进来", icon: "plus" },
+  { page: "平台管理", title: "接入平台", sub: "把本机客户端接进来", icon: "plus" },
   { page: "账户管理", title: "去领取", sub: "手动领取今日班次", icon: "check" },
   { page: "用量管理", title: "去采集", sub: "拉取余额与额度快照", icon: "drop" },
   { page: "运行日志", title: "看日志", sub: "每次动作都有台账", icon: "list" },

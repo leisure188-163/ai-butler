@@ -47,7 +47,7 @@ const headline = computed(() => {
   if (props.pending.length > 0)
     return { strong: `${props.pending.length} 项待处理`, tail: "处理完即可清静" };
   if (props.accounts.length === 0)
-    return { strong: "还没有接入任何平台", tail: "到「平台管理」页一键导入，把本机客户端接进来" };
+    return { strong: "还没有接入任何平台", tail: "到「平台管理」页接入全部，把本机客户端接进来" };
   const unwell = props.accounts.filter((a) => a.signal !== "ok").length;
   if (unwell > 0)
     return {

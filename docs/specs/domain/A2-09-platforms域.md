@@ -34,7 +34,8 @@
 | `client_version` | TEXT NOT NULL DEFAULT '' | 本机客户端版本（同步时经 provision 端口只读探测；'' = 探不到/网页平台=未知，2026-11-18 裁决；列序在 capabilities 之前） |
 | `capabilities` | TEXT JSON | ActionKind.value 列表（core 词表） |
 | `credential_kinds` | TEXT JSON | 凭据 kinds 声明 |
-| `schedule_times` | TEXT JSON | HH:MM 触发时间并集 |
+| `schedule_times` | TEXT JSON | HH:MM 触发时间并集（manifest 缺省事实，只读；不被用户编辑覆盖） |
+| `schedule_override` | TEXT | 用户覆盖的调度执行时间：`''`=跟随 manifest，JSON 数组=覆盖（`[]`=不排班）；manifest 同步只更新事实列、**不覆盖本列** |
 | `is_active` | INTEGER DEFAULT 1 | 用户开关（非数据库关键字，ADR-019） |
 | `deprecated_at` | TEXT | manifest 缺失即落（不删行） |
 | `created_at` / `updated_at` | TEXT NOT NULL | 统一审计列 |
@@ -63,3 +64,15 @@ DDL 权威单源 = `butler_engine/platforms/sqlite.py` `_SCHEMA`，生成视图
 - ❌ 其它域 import 本域（只持 platform_code 字符串；域间互不依，A1-05 §2）
 - ❌ 连接器装载/端口逻辑写进本域（那是 connectors 包 + 组合根的事）
 - ❌ manifest 缺失就删行（deprecated 生命周期，审计可溯）
+
+## 调度执行时间可编辑（2026-11-18 裁决）
+
+- **写入口**：`PUT /platforms/{platform_code}/schedule`，body `{"times": ["09:15", ...]}`；
+  `times=null` = 恢复跟随 manifest；`[]` = 该平台不排班（手动领取仍可用）。
+- **校验**：HH:MM（与 `PlatformEntry.schedule_override` 同一正则）、去重升序；平台不存在 = 404。
+- **生效**：server 落 DB 覆盖后重建调度条目（`compose_schedule_entries`：用户覆盖优先于 manifest 缺省）
+  并 `kit.update_checkin_schedule(...)` 热替换（只换 entries、清触发去重集，job 不重启）→ **即刻生效**，
+  无需重启主控。
+- **启动路径同源**：组合根启动时同样走 `compose_schedule_entries`，与运行时改调度语义一致。
+- **前端**：平台管理页「调度执行时间」详情行内「修改」→ 时间列表编辑（增删 HH:MM）→ 保存 / 恢复默认；
+  被覆盖的行在展示上带「自定义」标记。

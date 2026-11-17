@@ -232,6 +232,19 @@ class EngineKit:
         if run_now:
             schedule.tick()  # 启动补触发（与到期扫描 start 补扫同语义）
 
+    def update_checkin_schedule(self, entries: list[ScheduleEntry]) -> None:
+        """热替换调度时间表（平台管理页改调度后即刻生效，2026-11-18）。
+
+        只换 entries 并清触发去重集（新时间从下一 tick 起算），job 不重启；
+        首启路径仍走 start_checkin_schedule（幂等）。
+        """
+        if self.checkin_schedule is None:
+            self.attach_schedule(entries)
+            return
+        self.checkin_schedule.entries = tuple(entries)
+        self.checkin_schedule._fired.clear()
+        self.checkin_schedule._skipped.clear()
+
     # --- 停止路径 ---
 
     def _selector(self):

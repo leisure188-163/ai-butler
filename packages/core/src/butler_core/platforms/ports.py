@@ -20,6 +20,12 @@ class PlatformRepository(ABC):
         """把不在 platform_codes 里的平台落 deprecated_at（幂等）；返回本次新标记的 code。"""
 
     @abstractmethod
+    def set_schedule_override(
+        self, platform_code: str, times: tuple[str, ...] | None
+    ) -> PlatformEntry | None:
+        """写调度覆盖（None = 恢复跟随 manifest）；返回更新后的行（平台不存在 = None）。"""
+
+    @abstractmethod
     def get(self, platform_code: str) -> PlatformEntry | None: ...
 
     @abstractmethod

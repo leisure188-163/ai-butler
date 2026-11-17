@@ -33,7 +33,7 @@ credential:
   unlock: local-client            # 解锁方式: local-client | vault | manual
 schedule:                         # 调度声明（cron 缺省值，用户可在 UI 改）
   provision.run: ["09:05", "13:05", "19:05", "23:05"]
-retired: false                    # 可选：退役连接器不进入应用名册/一键导入（代码保留）
+retired: false                    # 可选：退役连接器不进入平台名册/一键接入（代码保留）
 ```
 
 规则：

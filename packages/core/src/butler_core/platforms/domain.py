@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -20,6 +21,9 @@ class PlatformInvalid(DomainError):
 #: 平台类型词表（2026-11-18 裁决）：web=网页版 / client=本机客户端。
 #: "" 仅老库历史行/未申报兼容，新申报必须显式二选一（manifest 侧必填）。
 PLATFORM_KINDS = ("web", "client")
+
+#: 调度时间格式（分钟粒度）
+_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 @dataclass(frozen=True)
@@ -37,7 +41,10 @@ class PlatformEntry:
     client_version: str = ""  # 本机客户端版本（同步时探测；"" = 探不到=未知，不猜）
     capabilities: tuple[str, ...] = ()  # ActionKind.value 列表（core 词表）
     credential_kinds: tuple[str, ...] = ()
-    schedule_times: tuple[str, ...] = ()  # HH:MM 触发时间并集
+    schedule_times: tuple[str, ...] = ()  # HH:MM 触发时间并集（manifest 缺省）
+    #: 用户覆盖的调度执行时间（None = 跟随 manifest；空元组 = 该平台不排班，
+    #: 2026-11-18 裁决：调度时间可由平台管理页直接编辑）
+    schedule_override: tuple[str, ...] | None = None
     is_active: bool = True
     deprecated_at: datetime | None = None
 
@@ -46,6 +53,12 @@ class PlatformEntry:
             raise PlatformInvalid("PlatformEntry 需要非空 platform_code")
         if not self.platform_name.strip():
             raise PlatformInvalid("PlatformEntry 需要非空 platform_name")
+        if self.schedule_override is not None:
+            for slot in self.schedule_override:
+                if not _HHMM.match(slot):
+                    raise PlatformInvalid(
+                        f"PlatformEntry schedule_override 里 {slot!r} 不是 HH:MM"
+                    )
         if self.platform_kind and self.platform_kind not in PLATFORM_KINDS:
             raise PlatformInvalid(
                 f"PlatformEntry platform_kind={self.platform_kind!r} 不在词表 {PLATFORM_KINDS}"

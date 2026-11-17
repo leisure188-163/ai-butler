@@ -67,6 +67,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platforms/{platform_code}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Platform Schedule
+         * @description 改调度执行时间（平台管理页）：落 DB 覆盖 + 调度器热替换，即刻生效。
+         *
+         *     校验：HH:MM（core PlatformEntry 同源规则）、去重升序；平台不存在 = 404。
+         */
+        put: operations["set_platform_schedule_api_v1_platforms__platform_code__schedule_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platforms/{target}/import": {
         parameters: {
             query?: never;
@@ -436,6 +458,8 @@ export interface components {
             credential_kinds: string[];
             /** Schedule Times */
             schedule_times: string[];
+            /** Schedule Overridden */
+            schedule_overridden: boolean;
             /** Account Id */
             account_id: string | null;
             /** Account Ids */
@@ -541,6 +565,14 @@ export interface components {
             repair_reason: string | null;
             /** Repair Action Id */
             repair_action_id: string | null;
+        };
+        /**
+         * ScheduleIn
+         * @description 调度执行时间写入（2026-11-18）：null = 恢复跟随 manifest；[] = 该平台不排班。
+         */
+        ScheduleIn: {
+            /** Times */
+            times?: string[] | null;
         };
         /**
          * SessionOut
@@ -659,6 +691,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlatformOut"][];
+                };
+            };
+        };
+    };
+    set_platform_schedule_api_v1_platforms__platform_code__schedule_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -27,7 +27,6 @@ def _assemble_connectors(kit) -> None:
     from datetime import timedelta
 
     from butler_connectors.registry import load_registry
-    from butler_engine.bridge import ScheduleEntry
 
     registry = load_registry()
     provisions = registry.provision_ports(vault=kit.vault, transport=None)
@@ -45,15 +44,6 @@ def _assemble_connectors(kit) -> None:
         source = registry.session_source(conn_id)
         if source is not None:
             kit.register_session_source(source)
-    entries = [
-        ScheduleEntry(
-            target=entry["target"],
-            times=tuple(entry["times"]),
-            refresh_at=entry["refresh_at"],
-            budget=timedelta(seconds=entry["budget_seconds"]),
-        )
-        for entry in registry.schedule_entries()
-    ]
     app.state.registry = registry  # 端读 manifest/导入分发用（server 自持装配面）
     # 平台册同步（ADR-021/022）：manifest 事实落 plat_platform，DB 为真相源；
     # 退役连接器不进 facts（自动落 deprecated 不删行，审计可溯），名册改读 DB。
@@ -92,6 +82,10 @@ def _assemble_connectors(kit) -> None:
             )
         )
     kit.sync_platforms.execute(tuple(facts))
+    # 调度条目：DB 真相源合成（用户覆盖优先于 manifest 缺省，2026-11-18）
+    from server.routes.platforms import compose_schedule_entries
+
+    entries = compose_schedule_entries(registry, kit)
     if os.environ.get("BUTLER_SCHEDULE", "1") != "0" and entries:
         kit.start_checkin_schedule(entries)
     if os.environ.get("BUTLER_SCHEDULE", "1") != "0":

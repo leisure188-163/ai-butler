@@ -61,7 +61,7 @@ const {
   busyTarget,
   actionMsg,
   importPlatform,
-  syncAllApps,
+  saveSchedule,
   claimApp,
   healthApp,
   repairAccount,
@@ -134,8 +134,8 @@ onBeforeUnmount(() => {
         :loading="loading"
         :load-error="loadError"
         @import="importPlatform"
-        @sync-all="syncAllApps"
         @import-all="importAllPlatforms"
+        @save-schedule="saveSchedule"
         @jump="navigate"
       />
       <AccountsPage
