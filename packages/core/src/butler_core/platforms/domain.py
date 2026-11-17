@@ -17,6 +17,11 @@ class PlatformInvalid(DomainError):
     """平台事实形状非法——显式拒绝（红线 5）。"""
 
 
+#: 平台类型词表（2026-11-18 裁决）：web=网页版 / client=本机客户端。
+#: "" 仅老库历史行/未申报兼容，新申报必须显式二选一（manifest 侧必填）。
+PLATFORM_KINDS = ("web", "client")
+
+
 @dataclass(frozen=True)
 class PlatformEntry:
     """平台册行（A2-09，ADR-021）：连接器平台事实的落库投影。
@@ -28,6 +33,7 @@ class PlatformEntry:
     platform_code: str
     platform_name: str
     created_at: datetime
+    platform_kind: str = ""  # web=网页版 / client=本机客户端（PLATFORM_KINDS；"" = 历史行未申报）
     client_version: str = ""  # 本机客户端版本（同步时探测；"" = 探不到=未知，不猜）
     capabilities: tuple[str, ...] = ()  # ActionKind.value 列表（core 词表）
     credential_kinds: tuple[str, ...] = ()
@@ -40,3 +46,7 @@ class PlatformEntry:
             raise PlatformInvalid("PlatformEntry 需要非空 platform_code")
         if not self.platform_name.strip():
             raise PlatformInvalid("PlatformEntry 需要非空 platform_name")
+        if self.platform_kind and self.platform_kind not in PLATFORM_KINDS:
+            raise PlatformInvalid(
+                f"PlatformEntry platform_kind={self.platform_kind!r} 不在词表 {PLATFORM_KINDS}"
+            )

@@ -67,6 +67,14 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**平台类型 + 列序校正（2026-11-18）**：plat_platform 增 platform_kind
+（web=网页版 / client=本机客户端，manifest 必填，core PLATFORM_KINDS 校验），
+列序 platform_name → platform_kind → client_version → capabilities。
+同时修掉"client_version 物理列序落到末尾"：SQLite ADD COLUMN 只能追加，老库
+补列后按 DDL 权威序重建表整表拷回（幂等零丢失，_reorder_columns）；
+06-SQL规范新增列序纪律节。端侧 PlatformOut 增 kind/client_version，平台页
+展示类型徽与版本。真机：agentrouter=web、其余=client、doubao_cn v2.36.8。
+
 **前端应用→平台同步（2026-11-18）**：导航/PageName 早前已改「平台」，但页面
 标题、表头、空态、QuickPanel/Dashboard/Traffic/Log 文案、组件与页面文件名
 （AppsPage→PlatformsPage、AppBadge→PlatformBadge）、api 函数

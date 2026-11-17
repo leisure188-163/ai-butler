@@ -70,3 +70,17 @@ level: must
 - [ ] 跑过 `uv run python scripts/dump_db_schema.py`，`data/sql/*.sql` 已同步
 - [ ] 新表/索引已在 `dump_db_schema.py` `_SECTIONS` 登记域归属
 - [ ] 对应域分册（A2-04..A2-09）表格已更新（红线 8：文档同提交收编）
+
+## 列序纪律（2026-11-18 裁决）
+
+- **DDL 权威列序**：适配器 `_TABLE_DDL` 里声明的列顺序即唯一权威序（`id` 首位，
+  业务列按语义成组：code → name → kind → version → JSON 能力列 → 开关 → 审计三件）。
+- **老库补列只能追加**：SQLite 的 `ALTER TABLE ADD COLUMN` 无法指定位置，物理列序
+  必然落到末尾。因此**任何 ADD COLUMN 之后必须做列序校正**：比对
+  `PRAGMA table_info` 与 DDL 权威序，不一致则重建表（建新表 → `INSERT ... SELECT`
+  整表拷回 → DROP 旧表 → 重建索引），**幂等、零丢失、id 不漂移**。
+  参考实现：`butler_engine/platforms/sqlite.py::_reorder_columns`。
+- **迁移顺序**：表名/列名 RENAME → 补缺列（落显式未知默认）→ 列序校正 →
+  `executescript(DDL)` 兜底建表/索引。全新空库（`plat_cols` 为空）跳过补列与校正。
+- **测试必须覆盖**"老库补列后列序与 DDL 一致 + 行数据零丢失"（见
+  `packages/engine/tests/test_platforms.py::test_老库补列后物理列序按DDL重建`）。

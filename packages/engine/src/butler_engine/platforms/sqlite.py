@@ -17,11 +17,12 @@ from butler_core.platforms.domain import PlatformEntry
 
 from butler_engine.db.conn import connect
 
-_SCHEMA = """
+_TABLE_DDL = """
 CREATE TABLE IF NOT EXISTS plat_platform (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     platform_code    TEXT NOT NULL UNIQUE,
     platform_name    TEXT NOT NULL,
+    platform_kind    TEXT NOT NULL DEFAULT '',
     client_version   TEXT NOT NULL DEFAULT '',
     capabilities     TEXT NOT NULL DEFAULT '[]',
     credential_kinds TEXT NOT NULL DEFAULT '[]',
@@ -31,13 +32,24 @@ CREATE TABLE IF NOT EXISTS plat_platform (
     created_at       TEXT NOT NULL,
     updated_at       TEXT NOT NULL
 );
+"""
+
+_INDEX_DDL = """
 CREATE INDEX IF NOT EXISTS idx_plat_platform_active ON plat_platform (is_active);
 """
 
-_COLS = (
-    "platform_code, platform_name, client_version, capabilities, credential_kinds, "
-    "schedule_times, is_active, deprecated_at, created_at, updated_at"
+_SCHEMA = _TABLE_DDL + _INDEX_DDL
+
+#: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
+_DDL_COLS = (
+    "platform_code", "platform_name", "platform_kind", "client_version",
+    "capabilities", "credential_kinds", "schedule_times", "is_active",
+    "deprecated_at", "created_at", "updated_at",
 )
+_COLS = ", ".join(_DDL_COLS)
+
+#: 重建时缺失列的落值（显式未知，不猜）
+_ADDED_DEFAULTS = {"platform_kind": "''", "client_version": "''"}
 
 
 def _dump(values: tuple[str, ...]) -> str:
@@ -73,11 +85,14 @@ class SqlitePlatformRepository(PlatformRepository):
                 conn.execute(
                     "ALTER TABLE plat_platform RENAME COLUMN display_name TO platform_name"
                 )
-            if plat_cols and "client_version" not in plat_cols:
-                # 客户端版本列（2026-11-18 裁决）：老库补列，存量行落 ''（未知）
-                conn.execute(
-                    "ALTER TABLE plat_platform ADD COLUMN client_version TEXT NOT NULL DEFAULT ''"
-                )
+            if plat_cols:
+                for name, default in _ADDED_DEFAULTS.items():
+                    if name not in plat_cols:
+                        # 新增列（2026-11-18 裁决）：老库补列，存量行落显式未知
+                        conn.execute(
+                            f"ALTER TABLE plat_platform ADD COLUMN {name} TEXT NOT NULL DEFAULT {default}"
+                        )
+                _reorder_columns(conn)
             conn.executescript(_SCHEMA)
 
     def _connect(self):
@@ -90,15 +105,17 @@ class SqlitePlatformRepository(PlatformRepository):
         with self._connect() as conn, conn:
             conn.execute(
                 f"INSERT INTO plat_platform ({_COLS}) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (platform_code) DO UPDATE SET "
-                "platform_name=excluded.platform_name, client_version=excluded.client_version, "
+                "platform_name=excluded.platform_name, platform_kind=excluded.platform_kind, "
+                "client_version=excluded.client_version, "
                 "capabilities=excluded.capabilities, "
                 "credential_kinds=excluded.credential_kinds, schedule_times=excluded.schedule_times, "
                 "updated_at=excluded.updated_at",
                 (
                     entry.platform_code,
                     entry.platform_name,
+                    entry.platform_kind.strip(),
                     entry.client_version.strip(),
                     _dump(entry.capabilities),
                     _dump(entry.credential_kinds),
@@ -151,11 +168,34 @@ def _load(row) -> PlatformEntry | None:
     return PlatformEntry(
         platform_code=row[0],
         platform_name=row[1],
-        client_version=row[2] or "",
-        capabilities=_load_values(row[3]),
-        credential_kinds=_load_values(row[4]),
-        schedule_times=_load_values(row[5]),
-        is_active=bool(row[6]),
-        deprecated_at=datetime.fromisoformat(row[7]) if row[7] else None,
-        created_at=datetime.fromisoformat(row[8]),
+        platform_kind=row[2] or "",
+        client_version=row[3] or "",
+        capabilities=_load_values(row[4]),
+        credential_kinds=_load_values(row[5]),
+        schedule_times=_load_values(row[6]),
+        is_active=bool(row[7]),
+        deprecated_at=datetime.fromisoformat(row[8]) if row[8] else None,
+        created_at=datetime.fromisoformat(row[9]),
     )
+
+
+def _reorder_columns(conn) -> None:
+    """物理列序校正（幂等·零丢失）：SQLite 的 ADD COLUMN 只能追加到末尾，
+    老库补列后列序与 DDL 权威序不符——按 _DDL_COLS 重建表并整表拷回。
+
+    id 保持首位（代理键不漂移）；缺失列按 _ADDED_DEFAULTS 落显式未知。
+    """
+    actual = [r[1] for r in conn.execute("PRAGMA table_info(plat_platform)").fetchall()]
+    if actual == ["id", *_DDL_COLS]:
+        return
+    conn.execute("DROP INDEX IF EXISTS idx_plat_platform_active")
+    conn.execute("ALTER TABLE plat_platform RENAME TO plat_platform__reorder")
+    conn.executescript(_TABLE_DDL)
+    select = ", ".join(
+        col if col in actual else _ADDED_DEFAULTS.get(col, "NULL") for col in _DDL_COLS
+    )
+    conn.execute(
+        f"INSERT INTO plat_platform (id, {_COLS}) "
+        f"SELECT id, {select} FROM plat_platform__reorder"
+    )
+    conn.execute("DROP TABLE plat_platform__reorder")

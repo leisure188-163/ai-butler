@@ -426,6 +426,10 @@ export interface components {
             id: string;
             /** Display */
             display: string;
+            /** Kind */
+            kind: string;
+            /** Client Version */
+            client_version: string;
             /** Capabilities */
             capabilities: string[];
             /** Credential Kinds */

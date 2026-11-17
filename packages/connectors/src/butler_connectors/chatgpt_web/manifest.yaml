@@ -1,5 +1,6 @@
 id: chatgpt_web
 display: ChatGPT
+kind: web
 capabilities:
   session.import:
     kind: declarative

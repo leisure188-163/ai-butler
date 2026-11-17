@@ -2,6 +2,7 @@
 # Protocol conclusions in same-directory PROTOCOL.md; behavior comparison oracle = old repo workbuddy domain (A0-01 §2.2).
 id: workbuddy_cn
 display: WorkBuddy CN
+kind: client
 capabilities:
   provision.run:
     kind: adapter

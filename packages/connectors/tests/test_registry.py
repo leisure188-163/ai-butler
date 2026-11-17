@@ -52,6 +52,7 @@ def test_capability_ids_constrained_to_actionkind():
 _BAD_MANIFEST = {
     "id": "x",
     "display": "X",
+    "kind": "client",
     "capabilities": {},
     "credential": {"kinds": ["ss_aes"], "unlock": "local-client"},
 }
@@ -143,6 +144,7 @@ def test_adapter_build_port_receives_transport(monkeypatch):
         {
             "id": "stub_boot",
             "display": "Stub",
+            "kind": "client",
             "capabilities": {
                 "provision.run": {"kind": "adapter", "entry": "adapter.butler"}
             },
@@ -199,6 +201,7 @@ def test_usage_collect_declarative_rejected():
         {
             "id": "stub_boot",
             "display": "Stub",
+            "kind": "client",
             "capabilities": {
                 "usage.collect": {"kind": "declarative", "entry": "x.yaml"}
             },
@@ -264,6 +267,7 @@ def _fake_package(tmp_path, entry: str = "adapter.butler"):
     (root / "manifest.yaml").write_text(
         "id: stub_boot\n"
         "display: Stub\n"
+        "kind: client\n"
         "capabilities:\n"
         "  provision.run:\n"
         f"    kind: adapter\n    entry: {entry}\n",

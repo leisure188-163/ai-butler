@@ -13,6 +13,8 @@ class PlatformOut(BaseModel):
 
     id: str
     display: str
+    kind: str  # 平台类型：web=网页版 / client=本机客户端（"" = 未申报）
+    client_version: str  # 本机客户端版本（"" = 探不到/不适用）
     capabilities: list[str]  # ActionKind.value 列表（core 词表）
     credential_kinds: list[str]
     schedule_times: list[str]  # HH:MM 触发时间
@@ -67,6 +69,8 @@ def list_platforms(request: Request) -> list[PlatformOut]:
             PlatformOut(
                 id=platform.platform_code,
                 display=platform.platform_name,
+                kind=platform.platform_kind,
+                client_version=platform.client_version,
                 capabilities=sorted(platform.capabilities),
                 credential_kinds=list(platform.credential_kinds),
                 schedule_times=list(platform.schedule_times),

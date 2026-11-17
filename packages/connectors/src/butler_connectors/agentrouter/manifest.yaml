@@ -2,6 +2,7 @@
 # 网页登录态经本机 Chromium 调试端口读取，不走 Chrome cookie 解密（v20 不可解）。
 id: agentrouter
 display: AgentRouter
+kind: web
 capabilities:
   provision.run:                # 每日签到（站点语义=登录触发，checked_in 为权威）
     kind: adapter

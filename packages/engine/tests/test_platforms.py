@@ -13,11 +13,12 @@ from butler_engine.platforms.sqlite import SqlitePlatformRepository
 from datetime import datetime, UTC
 
 
-def _entry(code: str, name: str, created_at: datetime) -> PlatformEntry:
+def _entry(code: str, name: str, created_at: datetime, kind: str = "client") -> PlatformEntry:
     return PlatformEntry(
         platform_code=code,
         platform_name=name,
         created_at=created_at,
+        platform_kind=kind,
         capabilities=("provision.run",),
         credential_kinds=("cookie",),
         schedule_times=("00:05",),
@@ -32,6 +33,8 @@ def test_upsert_get_roundtrip(tmp_path) -> None:
     assert loaded is not None
     assert loaded.platform_code == "doubao_cn"
     assert loaded.platform_name == "豆包"
+    assert loaded.platform_kind == "client"
+    assert loaded.client_version == ""
     assert loaded.capabilities == ("provision.run",)
     assert loaded.credential_kinds == ("cookie",)
     assert loaded.schedule_times == ("00:05",)
@@ -72,3 +75,58 @@ def test_空code_显式拒绝(tmp_path) -> None:
     repo = SqlitePlatformRepository(tmp_path / "butler.db")
     with pytest.raises(PlatformInvalid):
         _entry("", "空 code", datetime(2026, 11, 17, tzinfo=UTC))
+
+
+def test_平台类型_web与client_roundtrip(tmp_path) -> None:
+    """platform_kind 词表落库往返；未知值显式拒绝（core 校验）。"""
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    created = datetime(2026, 11, 18, tzinfo=UTC)
+    repo.upsert(_entry("agentrouter", "AgentRouter", created, kind="web"))
+    repo.upsert(_entry("doubao_cn", "豆包", created, kind="client"))
+    kinds = {p.platform_code: p.platform_kind for p in repo.list_all()}
+    assert kinds == {"agentrouter": "web", "doubao_cn": "client"}
+
+
+def test_老库补列后物理列序按DDL重建(tmp_path) -> None:
+    """SQLite ADD COLUMN 只能追加：老库补列后须重建校正物理列序（零丢失）。"""
+    import sqlite3
+
+    db = tmp_path / "butler.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE plat_platform (
+            id TEXT PRIMARY KEY,
+            platform_code TEXT NOT NULL UNIQUE,
+            platform_name TEXT NOT NULL,
+            capabilities TEXT NOT NULL DEFAULT '[]',
+            credential_kinds TEXT NOT NULL DEFAULT '[]',
+            schedule_times TEXT NOT NULL DEFAULT '[]',
+            is_active INTEGER NOT NULL DEFAULT 1,
+            deprecated_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            client_version TEXT NOT NULL DEFAULT ''
+        );
+        """
+    )
+    conn.execute(
+        "INSERT INTO plat_platform (id, platform_code, platform_name, created_at, updated_at, client_version) "
+        "VALUES ('1', 'doubao_cn', '豆包', '2026-11-18T00:00:00+00:00', '2026-11-18T00:00:00+00:00', '2.36.8')"
+    )
+    conn.commit()
+    conn.close()
+
+    repo = SqlitePlatformRepository(db)  # 触发补列 + 列序重建
+    cols = [
+        r[1]
+        for r in sqlite3.connect(db).execute("PRAGMA table_info(plat_platform)").fetchall()
+    ]
+    assert cols == [
+        "id", "platform_code", "platform_name", "platform_kind", "client_version",
+        "capabilities", "credential_kinds", "schedule_times", "is_active",
+        "deprecated_at", "created_at", "updated_at",
+    ]
+    loaded = repo.get("doubao_cn")  # 行数据零丢失（含原 client_version）
+    assert loaded is not None and loaded.client_version == "2.36.8"
+    assert loaded.platform_kind == ""

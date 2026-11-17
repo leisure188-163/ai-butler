@@ -2,6 +2,7 @@
 # 协议结论见同目录 PROTOCOL.md；行为对照 oracle = 旧仓库 doubao 域（A0-01 §2.2）。
 id: doubao_cn
 display: Doubao CN
+kind: client
 capabilities:
   provision.run:
     kind: adapter

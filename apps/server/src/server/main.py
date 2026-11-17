@@ -84,6 +84,7 @@ def _assemble_connectors(kit) -> None:
                 platform_code=m.id,
                 platform_name=m.display,
                 created_at=now_utc(),
+                platform_kind=m.kind,
                 capabilities=tuple(sorted(m.capabilities)),
                 credential_kinds=tuple(m.credential.kinds) if m.credential else (),
                 schedule_times=tuple(sched.times) if sched else (),

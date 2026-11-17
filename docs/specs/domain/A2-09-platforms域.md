@@ -30,6 +30,7 @@
 | `id` | INTEGER PK AUTOINCREMENT | 全库统一代理键 |
 | `platform_code` | TEXT NOT NULL UNIQUE | 平台 id（连接器 manifest.id） |
 | `platform_name` | TEXT NOT NULL | 平台名（命名裁决 ADR-023：显示名列按业务命名，禁 display_name 通用名） |
+| `platform_kind` | TEXT NOT NULL DEFAULT '' | 平台类型词表（core `PLATFORM_KINDS`）：`web`=网页版 / `client`=本机客户端；manifest 侧必填，'' 仅历史行兼容（2026-11-18 裁决；列序在 client_version 之前） |
 | `client_version` | TEXT NOT NULL DEFAULT '' | 本机客户端版本（同步时经 provision 端口只读探测；'' = 探不到/网页平台=未知，2026-11-18 裁决；列序在 capabilities 之前） |
 | `capabilities` | TEXT JSON | ActionKind.value 列表（core 词表） |
 | `credential_kinds` | TEXT JSON | 凭据 kinds 声明 |

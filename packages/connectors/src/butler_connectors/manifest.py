@@ -225,6 +225,7 @@ class ConnectorManifest(_Strict):
 
     id: str
     display: str
+    kind: Literal["web", "client"]  # 平台类型（2026-11-18 裁决）：web=网页版 / client=本机客户端
     capabilities: dict[str, CapabilitySpec]
     credential: CredentialSpec | None = None
     schedule: dict[str, ScheduleSpec] = Field(default_factory=dict)

@@ -4,6 +4,7 @@
 # 行为对照 oracle = 旧仓库 qoder 域（A0-01 §2.2）
 id: qoder_cn
 display: Qoder
+kind: client
 capabilities:
   provision.run:                # 每日补给（活动积分逐项领取）
     kind: declarative

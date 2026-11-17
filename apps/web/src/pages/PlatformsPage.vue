@@ -35,6 +35,13 @@ function capabilityText(kind: string): string {
   return kind;
 }
 
+/** 平台类型直译（词表 = core PLATFORM_KINDS；空=未申报） */
+function kindText(kind: string): string {
+  if (kind === "web") return "网页版";
+  if (kind === "client") return "客户端";
+  return "—";
+}
+
 function accountCount(platform: PlatformItem): number {
   if (platform.account_ids?.length) return platform.account_ids.length;
   return platform.account_id ? 1 : 0;
@@ -108,6 +115,8 @@ function toggleDetail(id: string) {
             <tr :class="{ 'is-selected': expandedId === platform.id }" @click="toggleDetail(platform.id)">
               <td>
                 <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
+                <span class="kind-tag tag tag--quiet">{{ kindText(platform.kind) }}</span>
+                <span v-if="platform.client_version" class="faint version-text">v{{ platform.client_version }}</span>
               </td>
               <td>
                 <span v-for="cap in platform.capabilities" :key="cap" class="tag tag--quiet cap-tag">
@@ -199,6 +208,8 @@ function toggleDetail(id: string) {
 </template>
 
 <style scoped>
+.kind-tag { margin-left: var(--space-2); }
+.version-text { margin-left: var(--space-1); font-size: var(--text-xs); }
 .head { padding-top: var(--space-2); }
 .head-row {
   display: flex;
