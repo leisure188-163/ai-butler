@@ -119,9 +119,19 @@ function goPage(next: number) {
 }
 
 const expandedId = ref<string | null>(null);
+/** 详情内折叠小节（一次只开一节；默认全收起，点标题展开） */
+const section = ref<"caps" | "sched" | "accts" | null>(null);
+/** 未接入平台清单默认收起（页脚平铺太长） */
+const slotsOpen = ref(false);
+
+function toggleSection(name: "caps" | "sched" | "accts"): void {
+  section.value = section.value === name ? null : name;
+}
 
 function toggleDetail(id: string) {
   expandedId.value = expandedId.value === id ? null : id;
+  section.value = null; // 换行/收起时复位折叠小节，避免串行
+  cancelEditSchedule();
 }
 </script>
 
@@ -162,12 +172,12 @@ function toggleDetail(id: string) {
             <th>调度执行时间</th>
             <th>账户数</th>
             <th>状态汇总</th>
-            <th>动作</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <template v-for="platform in pagedPlatforms" :key="platform.id">
-            <tr :class="{ 'is-selected': expandedId === platform.id }" @click="toggleDetail(platform.id)">
+            <tr :class="{ 'is-selected': expandedId === platform.id }">
               <td class="code-cell"><code class="mono">{{ platform.id }}</code></td>
               <td>
                 <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
@@ -220,49 +230,64 @@ function toggleDetail(id: string) {
             </tr>
             <tr v-if="expandedId === platform.id" class="detail-row">
               <td colspan="9" @click.stop>
-                <ul class="rows">
-                  <li class="row">
-                    <span class="row-main">
-                      <p class="row-title">能力清单</p>
-                      <p class="row-sub mono">{{ platform.capabilities.join(" · ") || "—" }}</p>
+                <div class="detail-fold">
+                  <button
+                    class="fold-head"
+                    :aria-expanded="section === 'caps'"
+                    @click="toggleSection('caps')"
+                  >
+                    <span class="fold-caret">{{ section === 'caps' ? '▾' : '▸' }}</span>
+                    能力清单
+                    <span class="fold-hint">{{ platform.capabilities.length }} 项</span>
+                  </button>
+                  <p v-if="section === 'caps'" class="fold-body mono">{{ platform.capabilities.join(" · ") || "—" }}</p>
+
+                  <button
+                    class="fold-head"
+                    :aria-expanded="section === 'sched'"
+                    @click="toggleSection('sched')"
+                  >
+                    <span class="fold-caret">{{ section === 'sched' ? '▾' : '▸' }}</span>
+                    调度执行时间
+                    <span class="fold-hint">
+                      {{ platform.schedule_times.join("、") || "未排班" }}{{ platform.schedule_overridden ? "（自定义）" : "" }}
                     </span>
-                  </li>
-                  <li class="row">
-                    <span class="row-main">
-                      <p class="row-title">调度执行时间</p>
-                      <template v-if="editingScheduleId === platform.id">
-                        <div class="sched-edit">
-                          <span v-for="(_, i) in editTimes" :key="i" class="sched-item">
-                            <input v-model="editTimes[i]" class="input sched-input mono" type="time" :disabled="busyTarget !== null" />
-                            <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="removeSlot(i)">删除</button>
-                          </span>
-                          <button class="btn btn--ghost" :disabled="busyTarget !== null || editTimes.length >= 8" @click="addSlot">+ 添加时间</button>
-                        </div>
-                        <p class="row-sub faint">
-                          {{ platform.schedule_overridden ? "当前为自定义时间" : "当前为平台默认时间" }}；清空并保存 = 该平台不再定时领取
-                        </p>
-                      </template>
-                      <p v-else class="row-sub">
-                        {{ platform.schedule_times.join("、") || "未排班" }}
-                        <span v-if="platform.schedule_overridden" class="tag tag--quiet sched-tag">自定义</span>
+                  </button>
+                  <div v-if="section === 'sched'" class="fold-body">
+                    <template v-if="editingScheduleId === platform.id">
+                      <div class="sched-edit">
+                        <span v-for="(_, i) in editTimes" :key="i" class="sched-item">
+                          <input v-model="editTimes[i]" class="input sched-input mono" type="time" :disabled="busyTarget !== null" />
+                          <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="removeSlot(i)">删除</button>
+                        </span>
+                        <button class="btn btn--ghost" :disabled="busyTarget !== null || editTimes.length >= 8" @click="addSlot">+ 添加时间</button>
+                      </div>
+                      <p class="fold-note">
+                        {{ platform.schedule_overridden ? "当前为自定义时间" : "当前为平台默认时间" }}；清空并保存 = 该平台不再定时领取
                       </p>
+                      <span class="row-actions">
+                        <button class="btn btn--primary" :disabled="busyTarget !== null" @click="saveSchedule(platform)">保存</button>
+                        <button v-if="platform.schedule_overridden" class="btn btn--ghost" :disabled="busyTarget !== null" @click="resetSchedule(platform)">恢复默认</button>
+                        <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="cancelEditSchedule">取消</button>
+                      </span>
+                    </template>
+                    <span v-else class="row-actions">
+                      <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="beginEditSchedule(platform)">修改时间</button>
                     </span>
-                    <span v-if="editingScheduleId === platform.id" class="row-actions">
-                      <button class="btn btn--primary" :disabled="busyTarget !== null" @click="saveSchedule(platform)">保存</button>
-                      <button v-if="platform.schedule_overridden" class="btn btn--ghost" :disabled="busyTarget !== null" @click="resetSchedule(platform)">恢复默认</button>
-                      <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="cancelEditSchedule">取消</button>
-                    </span>
-                    <button v-else class="btn btn--ghost" :disabled="busyTarget !== null" @click="beginEditSchedule(platform)">修改</button>
-                  </li>
-                  <li class="row">
-                    <span class="row-main">
-                      <p class="row-title">该平台账户（{{ accountCount(platform) }}）</p>
-                      <p class="row-sub mono">
-                        {{ accountsOf(platform).map((a) => a.account_id).join("、") || "—" }}
-                      </p>
-                    </span>
-                  </li>
-                </ul>
+                  </div>
+
+                  <button
+                    class="fold-head"
+                    :aria-expanded="section === 'accts'"
+                    @click="toggleSection('accts')"
+                  >
+                    <span class="fold-caret">{{ section === 'accts' ? '▾' : '▸' }}</span>
+                    账户（{{ accountCount(platform) }}）
+                  </button>
+                  <div v-if="section === 'accts'" class="fold-body">
+                    <p class="fold-body mono">{{ accountsOf(platform).map((a) => a.account_id).join("、") || "—" }}</p>
+                  </div>
+                </div>
               </td>
             </tr>
           </template>
@@ -278,15 +303,22 @@ function toggleDetail(id: string) {
       <button class="btn btn--ghost" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
     </nav>
 
-    <!-- 未接入平台的虚位邀请行（从账户页迁入，ADR-010 §3） -->
-    <ul v-if="emptyPlatforms.length" class="slots" aria-label="可接入平台">
-      <li v-for="platform in emptyPlatforms" :key="platform.id">
-        <button class="slot-row" :disabled="busyTarget !== null" @click="emit('import', platform.id)">
-          <span class="slot-plus" aria-hidden="true">＋</span>
-          导入 {{ platform.display }}
-        </button>
-      </li>
-    </ul>
+    <!-- 未接入平台（折叠收起：默认只显示一行标题，点开才平铺） -->
+    <div v-if="emptyPlatforms.length" class="slots-fold">
+      <button class="fold-head fold-head--page" :aria-expanded="slotsOpen" @click="slotsOpen = !slotsOpen">
+        <span class="fold-caret">{{ slotsOpen ? "▾" : "▸" }}</span>
+        尚未接入的平台（{{ emptyPlatforms.length }}）
+        <span class="fold-hint">{{ slotsOpen ? "收起" : "展开可逐家接入" }}</span>
+      </button>
+      <ul v-if="slotsOpen" class="slots" aria-label="可接入平台">
+        <li v-for="platform in emptyPlatforms" :key="platform.id">
+          <button class="slot-row" :disabled="busyTarget !== null" @click="emit('import', platform.id)">
+            <span class="slot-plus" aria-hidden="true">＋</span>
+            接入 {{ platform.display }}
+          </button>
+        </li>
+      </ul>
+    </div>
 
     <p v-if="!platforms.length" class="quietline">
       还没有平台——「接入全部」把本机客户端接进来。
@@ -310,6 +342,31 @@ function toggleDetail(id: string) {
 }
 .platform-wrap { overflow-x: auto; }
 .platform-wrap .matrix { min-width: 1020px; }
+
+/* 详情折叠小节 + 页面级折叠（2026-11-18） */
+.detail-fold { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) 0; }
+.fold-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.fold-head:hover { color: var(--color-accent); }
+.fold-caret { width: 1em; color: var(--color-text-muted); }
+.fold-hint { margin-left: auto; color: var(--color-text-muted); font-size: var(--text-xs); }
+.fold-body { padding: var(--space-2) 0 var(--space-3); }
+.fold-note { color: var(--color-text-muted); font-size: var(--text-xs); }
+.fold-value { font-family: var(--font-mono); font-size: var(--text-sm); }
+.slots-fold { margin-top: var(--space-4); }
+.fold-head--page { border-top: 1px solid var(--color-border); }
 
 /* 调度执行时间内联编辑（2026-11-18） */
 .sched-edit {
