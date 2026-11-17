@@ -6,9 +6,9 @@
 
 from __future__ import annotations
 
-from butler_core.accounts.domain import PlatformEntry
-from butler_core.accounts.usecases.sync_platforms import SyncPlatforms
-from butler_engine.accounts.platform_sqlite import SqlitePlatformRepository
+from butler_core.platforms.domain import PlatformEntry
+from butler_core.platforms.usecases.sync_platforms import SyncPlatforms
+from butler_engine.platforms.sqlite import SqlitePlatformRepository
 
 from datetime import datetime, UTC
 
@@ -67,8 +67,8 @@ def test_sync_缺失平台落deprecated_幂等不删行(tmp_path) -> None:
 def test_空code_显式拒绝(tmp_path) -> None:
     import pytest
 
-    from butler_core.accounts.domain import AccountInvalid
+    from butler_core.platforms.domain import PlatformInvalid
 
     repo = SqlitePlatformRepository(tmp_path / "butler.db")
-    with pytest.raises(AccountInvalid):
+    with pytest.raises(PlatformInvalid):
         _entry("", "空 code", datetime(2026, 11, 17, tzinfo=UTC))

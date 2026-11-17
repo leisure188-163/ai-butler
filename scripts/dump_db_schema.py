@@ -23,12 +23,13 @@ OUT_DIR = ROOT / "data" / "sql"
 
 # 库对象 → 业务域 key（新表/索引必须先登记所属域，否则脚本报错退出）
 _SECTIONS: dict[str, str] = {
-    # 账户域（accounts/sqlite.py + accounts/platform_sqlite.py；ADR-021 域前缀表名）
+    # 账户域（accounts/sqlite.py；ADR-021 域前缀表名）
     "acc_account": "accounts",
-    "acc_platform": "accounts",
     "uq_acc_account_platform_code_key": "accounts",
     "idx_acc_account_platform_code": "accounts",
-    "idx_acc_platform_active": "accounts",
+    # 平台域（platforms/sqlite.py；ADR-022 第六业务域）
+    "plat_platform": "platforms",
+    "idx_plat_platform_active": "platforms",
     # 执行域（ledger/sqlite.py）
     "exe_run": "execution",
     "idx_exe_run_idempotency": "execution",
@@ -52,7 +53,8 @@ _SECTIONS: dict[str, str] = {
 
 # 域 key →（生成文件名，域标签）；登记顺序即各文件内输出顺序
 _DOMAIN_FILES: dict[str, tuple[str, str]] = {
-    "accounts": ("accounts.sql", "账户域 · accounts/sqlite.py + accounts/platform_sqlite.py"),
+    "accounts": ("accounts.sql", "账户域 · accounts/sqlite.py"),
+    "platforms": ("platforms.sql", "平台域 · platforms/sqlite.py"),
     "execution": ("execution.sql", "执行域 · ledger/sqlite.py"),
     "usage": ("usage.sql", "用量域 · usage/sqlite.py"),
     "health": ("health.sql", "健康域 · health/state.py"),
@@ -73,7 +75,7 @@ _FILE_HEADER = """\
 def _build_temp_db(tmp: Path) -> None:
     """用与运行时相同的适配器把全部表建齐（避开 keychain：vault 只挂 memory 层）。"""
     from butler_engine.accounts.sqlite import SqliteAccountRepository
-    from butler_engine.accounts.platform_sqlite import SqlitePlatformRepository
+    from butler_engine.platforms.sqlite import SqlitePlatformRepository
     from butler_engine.audit.sqlite import SqliteAuditLog
     from butler_engine.health.state import SqliteHealthStateStore
     from butler_engine.ledger.sqlite import SqliteRunLedger

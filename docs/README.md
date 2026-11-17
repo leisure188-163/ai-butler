@@ -20,7 +20,7 @@
 | `DESIGN-DECISIONS.md` | 审美决策记录（verify 门禁必产物） | 产品名 / 主题 / IA / 可访问性 / 桌面端 |
 | `conventions/` | 强制开发规范（编号命名） | 00 项目配置（唯一变量入口）/ 01 开发红线 / 02 命名与文案 / 03 代码文件组织 / 04 提交信息 / 05 规范模板 / 规范索引 |
 | `specs/architecture/` | 架构与产品规格 | A1-01 产品定位 / A1-02 一核多端 / A1-03 命名与语言 / A1-04 网页会话通道 / A1-05 按业务域重写总设计 |
-| `specs/domain/` | 领域设计 | A2-01 领域总纲 / A2-02 Connector 规范 / A2-03 网页捕获通道 / A2-04..A2-08 五业务域（accounts/execution/usage/health/scheduling） |
+| `specs/domain/` | 领域设计 | A2-01 领域总纲 / A2-02 Connector 规范 / A2-03 网页捕获通道 / A2-04..A2-09 六业务域（accounts/platforms/execution/usage/health/scheduling） |
 | `specs/cross-cutting/` | 横切设计 | A4-01 L0 底座设计 |
 | `specs/application/` | 应用/前端设计 | A3-01 信息架构与核心页面 |
 | `specs/legacy/` | 旧系统知识资产 | A0-01 旧系统知识资产（auto-signin-kit，非移植） |

@@ -1,4 +1,4 @@
-"""平台册同步用例（ADR-021）：manifest 事实 upsert + 缺失平台落 deprecated。
+"""平台域同步用例（A2-09，ADR-021/022）：manifest 事实 upsert + 缺失平台落 deprecated。
 
 干净路径：facts 全量 upsert（UPSERT 保代理键不漂移）→ deprecate_missing 把
 manifest 里消失的平台标记 deprecated_at（不删行，审计可溯）。
@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from butler_core.accounts.domain import PlatformEntry
-from butler_core.accounts.ports import PlatformRepository
+from butler_core.platforms.domain import PlatformEntry
+from butler_core.platforms.ports import PlatformRepository
 
 
 @dataclass

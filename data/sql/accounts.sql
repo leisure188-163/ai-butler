@@ -1,4 +1,4 @@
--- butler.db · 账户域 · accounts/sqlite.py + accounts/platform_sqlite.py（生成视图 · 2 张表 / 3 个索引）
+-- butler.db · 账户域 · accounts/sqlite.py（生成视图 · 1 张表 / 2 个索引）
 --
 -- 权威单源 = 域适配器 DDL 常量（A4-01 §5：SQL 只存在于 butler_engine 适配器层，
 -- 表按域分置）；本文件由 scripts/dump_db_schema.py 生成，**勿手改**。
@@ -22,16 +22,3 @@ CREATE TABLE acc_account (
 CREATE UNIQUE INDEX uq_acc_account_platform_code_key
     ON acc_account (platform_code, account_code);
 CREATE INDEX idx_acc_account_platform_code ON acc_account (platform_code);
-CREATE TABLE acc_platform (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    platform_code    TEXT NOT NULL UNIQUE,
-    display_name     TEXT NOT NULL,
-    capabilities     TEXT NOT NULL DEFAULT '[]',
-    credential_kinds TEXT NOT NULL DEFAULT '[]',
-    schedule_times   TEXT NOT NULL DEFAULT '[]',
-    is_active        INTEGER NOT NULL DEFAULT 1,
-    deprecated_at    TEXT,
-    created_at       TEXT NOT NULL,
-    updated_at       TEXT NOT NULL
-);
-CREATE INDEX idx_acc_platform_active ON acc_platform (is_active);

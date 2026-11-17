@@ -5,8 +5,8 @@
 
 **Butler（AI 智能助手管家）**：本地优先的智能助手管家——统一管理各家 AI 助手的
 账户、凭据、权益、用量，并做调度与迁移。架构 = 一核多端 + **按业务域分包**：
-`packages/core`（butler_core）唯一业务规则出处，内部按五个业务域 + shared 内核分包
-（域图见 A1-05），apps/* 全是薄壳，OpenAPI 契约生成 TS SDK。
+`packages/core`（butler_core）唯一业务规则出处，内部按六个业务域 + shared 内核分包
+（域图见 A1-05；platforms 域 = ADR-022），apps/* 全是薄壳，OpenAPI 契约生成 TS SDK。
 
 写代码或改文档前：
 
@@ -17,8 +17,8 @@
 3. **动任何代码前**：读 `docs/specs/architecture/A1-05-按业务域重写总设计.md`
    （域图/包结构/多账号/阶段计划）+ `docs/specs/architecture/A1-02-一核多端落地.md`
 4. **写 core / 接入新应用**：读 `docs/specs/domain/A2-01-领域模型与动作模型.md`（总纲）
-   + 要写的那个域的分册 `docs/specs/domain/A2-04..A2-08`（accounts/execution/usage/
-   health/scheduling）+ `docs/specs/domain/A2-02-Connector-规范.md`
+   + 要写的那个域的分册 `docs/specs/domain/A2-04..A2-09`（accounts/platforms/execution/
+   usage/health/scheduling）+ `docs/specs/domain/A2-02-Connector-规范.md`
 5. **碰凭据/事件/审计**：读 `docs/specs/cross-cutting/A4-01-L0-底座设计.md`
 6. **改 UI**：读 `docs/specs/application/A3-01-信息架构与核心页面.md` + `docs/DESIGN-DECISIONS.md`
 7. **想参考旧项目 auto-signin-kit**：先读 `docs/specs/legacy/A0-01-旧系统知识资产.md`（**必读**）

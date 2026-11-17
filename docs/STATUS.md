@@ -67,6 +67,15 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**platforms 独立第六业务域（2026-11-17，ADR-022，修正 ADR-021 托管方案）**：
+平台被账户/调度/执行多域引用，独立成域——core 新增 `butler_core/platforms/`
+三件套（PlatformEntry / PlatformRepository / SyncPlatforms），engine 新增
+`butler_engine/platforms/sqlite.py`；表 `acc_platform` → `plat_platform`
+（RENAME 幂等自迁移），分域 schema 产物新增 `platforms.sql`；域图五域 →
+六域（A1-05/A1-02/A2-01/AGENTS/README 同步），A2-04 §2.2 平台册节回收进
+新分册 A2-09。端侧 `/platforms` 契约与路由零改动。测试 **715 passed +
+10 skipped**。
+
 **表名域前缀统一 + 平台落册（2026-11-17，ADR-021）**：全库 11 张表改
 「域缩写前缀 + 单数实体」——acc_account / acc_platform / exe_run /
 usage_snapshot / usage_aggregate / usage_quota_ledger / usage_sample /

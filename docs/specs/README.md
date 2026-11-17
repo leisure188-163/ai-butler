@@ -8,7 +8,7 @@
 1. **架构（architecture/）**：A1-01 产品定位 → A1-02 一核多端 → A1-03 命名与语言
    → A1-04 网页会话通道 → A1-05 按业务域重写总设计（总纲，最后读）
 2. **领域（domain/）**：A2-01 领域总纲 → A2-02 Connector 规范 → A2-03 网页捕获通道
-   → A2-04..A2-08 五业务域（accounts / execution / usage / health / scheduling）
+   → A2-04..A2-09 六业务域（accounts / platforms / execution / usage / health / scheduling）
 3. **横切（cross-cutting/）**：A4-01 L0 底座设计
 4. **应用（application/）**：A3-01 信息架构与核心页面
 5. **旧系统（legacy/）**：A0-01 仅参照，非移植
