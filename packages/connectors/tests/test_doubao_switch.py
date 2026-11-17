@@ -1,7 +1,8 @@
 """doubao_cn 会话级自动切号离线测试（ADR-007 决策 8，2026-11-17 用户裁决）。
 
-覆盖：switch 编排逐场景（chip/列表项/翻转超时）+ adapter 守卫接线 + 旧活动页
-关净 + dock 拉起 settle（bug ①回归）+ 修复提示语境（bug ②回归）+ 身份登记簿。
+覆盖：switch 编排逐场景（chip/键盘焦点导航/翻转超时）+ adapter 守卫接线 +
+旧活动页关净 + dock 拉起 settle（bug ①回归）+ 修复提示语境（bug ②回归）+
+身份登记簿。激活路径 = 键盘导航（指针点击对 Radix menuitem 不生效，真机实证）。
 """
 
 from __future__ import annotations
@@ -28,7 +29,24 @@ MAIN_NICK = "逍遥酒鬼"
 B_NICK = "Leisure520"
 
 CHIP = {"x": 125, "y": 836}  # 2026-11-17 真机取证坐标
-ROW_MAIN = {"x": 131, "y": 704}  # 切换列表里 main 账户行
+_BLANK = {"x": 500, "y": 400}  # 收尾空白点击（收起弹层）
+
+#: 菜单项真实项序（2026-11-17 真机取证：设置..订阅..账户两行..添加账号..退出）
+_MENU_ITEMS = (
+    "设置", "外观设置", "检查更新", "帮助与更多", "免费用豆包工作",
+    "豆包订阅升级", B_NICK, MAIN_NICK, "添加账号", "退出登录",
+)
+
+
+def focus_path(target_nick: str) -> list[dict]:
+    """键盘导航的逐步焦点状态脚本：菜单容器起点 → 逐项 → 目标。"""
+    states = [{"inMenu": True, "active": "container"}]
+    for item in _MENU_ITEMS:
+        if item == target_nick:
+            break
+        states.append({"inMenu": True, "active": item})
+    states.append({"inMenu": True, "active": target_nick})
+    return states
 
 
 # --- 假件（A2-02 §8：离线假束；时钟可注入，翻转轮询不真等）---
@@ -62,16 +80,17 @@ class FakeConn:
 
 @dataclass
 class FakeChannel:
-    """cdp.CdpChannel 同形状假通道；第 N 次点击后身份翻转（单会话存活语义）。"""
+    """cdp.CdpChannel 同形状假通道；Enter 激活后身份翻转（单会话存活语义）。"""
 
     identity: dict | None = field(
         default_factory=lambda: {"sec_uid": B_SEC_UID, "nickname": B_NICK}
     )
-    flip_after_click: dict | None = None
-    flip_at_click: int = 2  # chip(1) → 切换行(2) → 翻转
+    flip_after_enter: dict | None = None  # Enter 按下后身份翻转到此
     pages: list = field(default_factory=list)
+    focus_states: list = field(default_factory=list)  # 键盘导航逐步焦点状态
     eval_results: list = field(default_factory=list)
     clicks: list = field(default_factory=list)
+    keys: list = field(default_factory=list)
     closed_targets: list = field(default_factory=list)
     opened: list = field(default_factory=list)
     conn: FakeConn = field(default_factory=FakeConn)
@@ -105,9 +124,16 @@ class FakeChannel:
 
     def evaluate(self, conn, expression: str, *, wait: float = 20.0):
         if "for_ban_appeal_sec_user_id" in expression:  # 身份查询（identity.py）
-            if self.flip_after_click is not None and len(self.clicks) >= self.flip_at_click:
-                return dict(self.flip_after_click)
+            if self.flip_after_enter is not None and "Enter" in self.keys:
+                return dict(self.flip_after_enter)
             return dict(self.identity) if self.identity else None
+        if "activeElement" in expression:  # 菜单焦点状态（键盘导航每步读取）
+            if not self.focus_states:
+                return None
+            item = self.focus_states.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
         if not self.eval_results:
             return None
         item = self.eval_results.pop(0)
@@ -117,6 +143,9 @@ class FakeChannel:
 
     def click(self, conn, x: int, y: int) -> None:
         self.clicks.append((x, y))
+
+    def key(self, conn, code: str) -> None:
+        self.keys.append(code)
 
     def close_target(self, target_id: str) -> None:
         self.closed_targets.append(target_id)
@@ -253,10 +282,11 @@ def request_b() -> ProvisionRequest:
 # --- switch 编排逐场景（switch_session 直测）---
 
 
-def test_switch_happy_path_clicks_chip_then_row_and_verifies_flip():
+def test_switch_happy_path_arrows_to_row_enters_and_verifies_flip():
     channel = FakeChannel(
-        flip_after_click={"sec_uid": MAIN_SEC_UID, "nickname": MAIN_NICK},
-        eval_results=[CHIP, ROW_MAIN],
+        flip_after_enter={"sec_uid": MAIN_SEC_UID, "nickname": MAIN_NICK},
+        focus_states=focus_path(MAIN_NICK),
+        eval_results=[CHIP],
     )
     clock = FakeClock()
     got = switch_session(
@@ -264,7 +294,9 @@ def test_switch_happy_path_clicks_chip_then_row_and_verifies_flip():
         sleep=clock.sleep, monotonic=clock.monotonic,
     )
     assert got.sec_uid == MAIN_SEC_UID
-    assert channel.clicks == [(CHIP["x"], CHIP["y"]), (ROW_MAIN["x"], ROW_MAIN["y"])]
+    assert channel.keys[-1] == "Enter"  # 目标项聚焦后 Enter 激活
+    assert channel.keys.count("ArrowDown") == 8  # 容器起点 → 8 项前序 → 目标
+    assert channel.clicks == [(CHIP["x"], CHIP["y"])]  # 只点 chip 开弹层
     assert "Page.bringToFront" in channel.conn.calls  # 失焦点击不开（11-16 实证）
     assert channel.conn.closed  # 单会话存活：旧连接用毕即关，不复用
 
@@ -278,16 +310,20 @@ def test_switch_chip_missing_raises_switch_error():
         )
 
 
-def test_switch_row_missing_dismisses_menu_then_raises():
-    """两次尝试都找不到目标行 → 先点空白收起弹层（3 次点击），再显式抛。"""
-    channel = FakeChannel(eval_results=[CHIP, None, CHIP, None, {"x": 500, "y": 400}])
+def test_switch_focus_never_reaches_target_dismisses_then_raises():
+    """两次尝试焦点都到不了目标 → 逐次收起弹层（chip×2 + 空白×2），再显式抛。"""
+    channel = FakeChannel(
+        eval_results=[CHIP, _BLANK, CHIP, _BLANK],  # chip → 遍历 → 收尾 → 重开再收
+        focus_states=[{"inMenu": True, "active": "其他项"}] * 28,
+    )
     clock = FakeClock()
-    with pytest.raises(SwitchError, match="切换列表中无"):
+    with pytest.raises(SwitchError, match="无法聚焦"):
         switch_session(
             channel, ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname=MAIN_NICK),
             sleep=clock.sleep, monotonic=clock.monotonic,
         )
-    assert len(channel.clicks) == 3  # chip×2 + 收尾空白点击
+    assert len(channel.clicks) == 4  # chip×2 + 收尾空白×2（每次尝试后各收一次）
+    assert channel.keys.count("Enter") == 0  # 焦点不在目标上绝不按 Enter
 
 
 def test_switch_no_chat_target_raises():
@@ -309,26 +345,30 @@ def test_switch_target_without_nickname_raises():
 
 
 def test_switch_flip_timeout_raises_with_fake_clock():
-    """身份永不翻转 → deadline 到期显式抛（时钟可注入，不真等 20s）。"""
-    channel = FakeChannel(flip_after_click=None, eval_results=[CHIP, ROW_MAIN])
+    """身份永不翻转 → deadline 到期显式抛（时钟可注入，不真等 45s）。"""
+    channel = FakeChannel(
+        focus_states=focus_path(MAIN_NICK),  # flip_after_enter=None
+        eval_results=[CHIP],
+    )
     clock = FakeClock()
     with pytest.raises(SwitchError, match="未翻转"):
         switch_session(
             channel, ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname=MAIN_NICK),
             sleep=clock.sleep, monotonic=clock.monotonic,
         )
-    assert clock.now >= 20.0  # 虚拟时钟走满 deadline 才判超时
+    assert clock.now >= 45.0  # 虚拟时钟走满 deadline 才判超时（翻转含会话重载）
 
 
 # --- adapter 守卫接线（决策 8）---
 
 
 def test_b_active_main_request_auto_switches_and_claims():
-    """B 活跃请求 main：切号成功 → 旧活动页关净 → 新开活动页 → detail 已签
+    """B 活跃请求 main：键盘切号成功 → 旧活动页关净 → 新开活动页 → detail 已签
     → ALREADY；切号留痕进 evidence 首位（台账可审计）。"""
     channel = FakeChannel(
-        flip_after_click={"sec_uid": MAIN_SEC_UID, "nickname": MAIN_NICK},
-        eval_results=[CHIP, ROW_MAIN],
+        flip_after_enter={"sec_uid": MAIN_SEC_UID, "nickname": MAIN_NICK},
+        focus_states=focus_path(MAIN_NICK),
+        eval_results=[CHIP],
         pages=[{  # 旧活动页：切号后残留旧账户会话（B 的）——必须关净
             "type": "page",
             "url": "https://www.doubao.com/pc/agent-explore",
@@ -343,7 +383,7 @@ def test_b_active_main_request_auto_switches_and_claims():
     assert "自动切号到「逍遥酒鬼」" in result.evidence[0].summary
     assert channel.closed_targets == ["stale-act"]  # 旧页关净（防签错账户）
     assert channel.opened == [adapter._ACTIVITY_URL]  # 新页 = 新会话 Cookie
-    assert channel.clicks == [(CHIP["x"], CHIP["y"]), (ROW_MAIN["x"], ROW_MAIN["y"])]
+    assert channel.keys[-1] == "Enter"
     assert len(transport.requests) == 1  # detail 已签：只查一次，无点击复查
 
 
@@ -357,9 +397,9 @@ def test_main_active_b_request_auto_switches_to_registered_b():
     )
     channel = FakeChannel(
         identity={"sec_uid": MAIN_SEC_UID, "nickname": MAIN_NICK},
-        flip_after_click={"sec_uid": B_SEC_UID, "nickname": B_NICK},
-        eval_results=[CHIP, {"x": 131, "y": 666},  # chip + B 行（真机 y=666）
-                      {"x": 10, "y": 20, "text": "立即签到"}],  # 切完后的签到按钮
+        flip_after_enter={"sec_uid": B_SEC_UID, "nickname": B_NICK},
+        focus_states=focus_path(B_NICK),
+        eval_results=[CHIP, {"x": 10, "y": 20, "text": "立即签到"}],  # 切完后的签到按钮
     )
     transport = FakeTransport([ok(detail_payload(False)), ok(detail_payload(True))])
     result = make_port(transport, channel=channel).run(request_b())
@@ -378,12 +418,12 @@ def test_auto_switch_failure_is_pending_with_identity_hint():
 
 
 def test_auto_switch_flip_timeout_is_pending():
-    """点击了切换行但身份不翻转 → PENDING（不盲签，A2-02 §6 红线）。
+    """激活了切换项但身份不翻转 → PENDING（不盲签，A2-02 §6 红线）。
 
     env.sleep 与 monotonic 必须同一时钟源（否则 deadline 永不生效死循环）——
     这正是本测试用 clock 驱动 FakeEnv 的原因。
     """
-    channel = FakeChannel(eval_results=[CHIP, ROW_MAIN])  # flip_after_click=None
+    channel = FakeChannel(focus_states=focus_path(MAIN_NICK))  # flip_after_enter=None
     env = FakeEnv(clock=FakeClock())
     transport = FakeTransport([])
     result = make_port(
@@ -404,8 +444,9 @@ def test_switch_target_unregistered_is_pending():
 def test_stale_activity_page_unclosable_is_pending():
     """旧活动页关不动 → 显式暂缓签到（绝不附着旧 Cookie 页开签）。"""
     channel = FakeChannel(
-        flip_after_click={"sec_uid": MAIN_SEC_UID, "nickname": MAIN_NICK},
-        eval_results=[CHIP, ROW_MAIN],
+        flip_after_enter={"sec_uid": MAIN_SEC_UID, "nickname": MAIN_NICK},
+        focus_states=focus_path(MAIN_NICK),
+        eval_results=[CHIP],
         pages=[{"type": "page", "url": "https://www.doubao.com/x",
                 "webSocketDebuggerUrl": "ws://stale", "id": "stuck"}],
     )

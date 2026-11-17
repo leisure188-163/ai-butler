@@ -113,15 +113,24 @@ Base：`https://www.doubao.com`
   `Page.bringToFront` 聚焦窗口（失焦点击不开，11-16 实证）；「添加账号」仍
   直通独立登录页 target（`doubao://doubao-login/login?device_flow=enabled`，
   手机号/飞书/抖音/扫码四种方式），「退出登录」绝不触碰
+- **激活路径 = 键盘导航（2026-11-17 真机四路径实证）**：Radix menuitem 对
+  **完整信任指针三连不响应**——点在 item 精确中心（hit-test 命中链正常、
+  pointer-events 全通）仍不触发 select，JS PointerEvent 序列同样无效；
+  **ArrowDown 焦点移动 + Enter 激活可靠**（Input.dispatchKeyEvent 信任按键，
+  焦点从菜单容器起逐项移动，菜单打开即 `document.activeElement` 落在弹层内）
+  ——故 switch.py 只用键盘路径：**每步核对 activeElement 文本精确等于昵称才
+  按 Enter**，「添加账号」/「退出登录」零误触（比坐标点击更安全的激活方式）
 - **单会话存活语义（2026-11-17 用户确认）**：切换后旧 chat target 消亡、新
-  target 承载新会话——切号点击后旧连接即失效，翻转验证必须重枚举 targets
+  target 承载新会话——激活切换项后旧连接即失效，翻转验证必须重枚举 targets
   重读身份；11-16 观测的「双 chat target 并存」属过渡态，非常驻
 - **自动切号编排（switch.py，ADR-007 决策 8）**：resolve_target_identity
-  （登记簿定位 sec_uid+昵称）→ switch_session（chip → 精确匹配昵称行 →
-  受信任点击三连 → 20s 轮询身份翻转，超时显式 SwitchError）→ adapter 复核
-  活跃身份与目标一致 → **旧活动页关净**（cdp.py 新原语 `Target.closeTarget`，
-  target 已不在 = 关净达成同语义不报错）→ `_activity_conn` 开新页（Cookie
-  现取 = 新会话）→ 正常编排。切号留痕进台账 evidence 首位
+  （登记簿定位 sec_uid+昵称）→ switch_session（chip 点击开弹层 → ArrowDown
+  逐项 + 焦点文本精确校验 → Enter 激活 → 45s 轮询身份翻转，超时显式
+  SwitchError；两次尝试间点空白收起弹层）→ adapter 复核活跃身份与目标一致 →
+  **旧活动页关净**（cdp.py 新原语 `Target.closeTarget`，target 已不在 = 关净
+  达成同语义不报错）→ `_activity_conn` 开新页（Cookie 现取 = 新会话）→ 正常
+  编排。cdp.py 另补 `key()` 原语（Input.dispatchKeyEvent down+up）。切号留痕
+  进台账 evidence 首位
 - **身份登记簿**：dock 采集后持久化 `~/.butler/doubao_identity.json`
   （`DOUBAO_IDENTITY_PATH` 可覆盖）：`main_sec_uid`/`main_nickname` +
   `others[{sec_uid, nickname, account_key}]`——非 main 账户的切号定位依据

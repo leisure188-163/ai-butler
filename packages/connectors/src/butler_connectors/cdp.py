@@ -23,6 +23,9 @@ Sleep = Callable[[float], None]
 
 _ACTIVITY_PREFERS = ("campaign", "agent-explore", "incentive")
 
+#: key() 支持的按键 → Windows virtual key code（Input.dispatchKeyEvent 必填）
+_KEY_VIRTUAL_CODES = {"ArrowDown": 40, "ArrowUp": 38, "ArrowRight": 39, "Enter": 13, "Escape": 27}
+
 
 class CdpError(RuntimeError):
     """CDP 链路故障：端口不可达 / WS 握手失败 / 方法报错 / 响应超时。"""
@@ -212,4 +215,22 @@ class CdpChannel:
         conn.call(
             "Input.dispatchMouseEvent",
             {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1, "buttons": 0},
+        )
+
+    def key(self, conn: CdpConnection, code: str) -> None:
+        """受信任按键 down+up（Input.dispatchKeyEvent）。
+
+        Radix menuitem 对完整信任指针三连不响应（2026-11-17 真机实证：点在
+        [role=menuitem] 精确中心仍不触发 select）——键盘导航 + Enter 是弹层
+        菜单项的可靠激活路径（PROTOCOL §9）。
+        """
+        vk = _KEY_VIRTUAL_CODES[code]
+        conn.call(
+            "Input.dispatchKeyEvent",
+            {"type": "rawKeyDown", "windowsVirtualKeyCode": vk, "code": code, "key": code},
+        )
+        self.sleep(0.05)
+        conn.call(
+            "Input.dispatchKeyEvent",
+            {"type": "keyUp", "windowsVirtualKeyCode": vk, "code": code, "key": code},
         )

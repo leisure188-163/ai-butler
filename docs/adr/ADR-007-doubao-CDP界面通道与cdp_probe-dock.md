@@ -66,9 +66,12 @@ detail 只读 code=0。
 8. **会话级自动切号放行，登录仍人工**（2026-11-17 用户裁决，真机取证 PROTOCOL §9
    修订）：双账户注册后头像菜单**存在切换列表**——决策 7 的「无一键切换列表」
    取证只在单账户时期成立，前提已变化；切换 = 单会话存活（用户确认：切号后旧
-   target 消亡）。落地 switch.py：`Page.bringToFront` 聚焦 → 点头像 chip →
-   **精确匹配昵称行**（同 §6 按钮纪律，杜绝误点「添加账号」/「退出登录」）→
-   受信任点击 → 轮询身份翻转（20s 显式超时）→ adapter 复核活跃身份 →
+   target 消亡）。落地 switch.py：`Page.bringToFront` 聚焦 → 点头像 chip 开
+   弹层 → **键盘导航激活**（ArrowDown 逐项 + `activeElement` 文本精确校验 +
+   Enter；指针点击对 Radix menuitem 不生效——完整信任三连点在 item 精确中心
+   仍不触发 select，2026-11-17 真机四路径实证，焦点文本校验使「添加账号」/
+   「退出登录」零误触）→ 轮询身份翻转（45s 显式超时，翻转含会话重载）→
+   adapter 复核活跃身份 →
    **旧活动页关净**（Target.closeTarget；残留旧账户 Cookie 的活动页附着即
    签错账户）→ 正常编排。切号失败/复核不符/旧页关不动 → PENDING 绝不盲签；
    切号留痕进台账 evidence。身份登记簿（main 基线 + others）持久化作切号
