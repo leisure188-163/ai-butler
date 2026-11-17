@@ -67,6 +67,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platforms/{platform_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Platform
+         * @description 编辑平台（显示名 / 启用状态 / 调度时间）：落 DB + 调度热替换，即刻生效。
+         *
+         *     能力、凭据类型、客户端版本、平台编码来自连接器 manifest 探测，不可在本端点编辑。
+         */
+        patch: operations["patch_platform_api_v1_platforms__platform_code__patch"];
+        trace?: never;
+    };
     "/api/v1/platforms/{platform_code}/schedule": {
         parameters: {
             query?: never;
@@ -460,10 +482,26 @@ export interface components {
             schedule_times: string[];
             /** Schedule Overridden */
             schedule_overridden: boolean;
+            /** Active */
+            active: boolean;
             /** Account Id */
             account_id: string | null;
             /** Account Ids */
             account_ids: string[];
+        };
+        /**
+         * PlatformPatchIn
+         * @description 平台信息编辑（2026-11-18）：只开放三项——显示名、启用状态、调度执行时间。
+         *
+         *     `model_fields_set` 区分"没传"与"传了 null"：times=null 恢复默认，times=[] 不排班。
+         */
+        PlatformPatchIn: {
+            /** Platform Name */
+            platform_name?: string | null;
+            /** Active */
+            active?: boolean | null;
+            /** Times */
+            times?: string[] | null;
         };
         /**
          * RadarAccountOut
@@ -691,6 +729,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlatformOut"][];
+                };
+            };
+        };
+    };
+    patch_platform_api_v1_platforms__platform_code__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlatformPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

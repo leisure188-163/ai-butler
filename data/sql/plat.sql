@@ -8,6 +8,7 @@ CREATE TABLE plat_platform (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     platform_code    TEXT NOT NULL UNIQUE,
     platform_name    TEXT NOT NULL,
+    name_override    TEXT NOT NULL DEFAULT '',
     platform_kind    TEXT NOT NULL DEFAULT '',
     client_version   TEXT NOT NULL DEFAULT '',
     capabilities     TEXT NOT NULL DEFAULT '[]',

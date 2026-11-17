@@ -19,6 +19,7 @@ class PlatformOut(BaseModel):
     credential_kinds: list[str]
     schedule_times: list[str]  # HH:MM 生效时间（用户覆盖优先，见下）
     schedule_overridden: bool  # True = 用户改过（可"恢复默认"）
+    active: bool  # 平台启用状态（false = 停用：不排班，仍可手动操作）
     account_id: str | None  # 首账号规范 id（兼容裸平台 id 调用），未导入 = None
     account_ids: list[str]  # 该平台下全部账户（ADR-003 多账号）
 
@@ -69,13 +70,13 @@ def list_platforms(request: Request) -> list[PlatformOut]:
         docked.setdefault(account.platform_code, []).append(account.id)
     out: list[PlatformOut] = []
     for platform in kit.platforms.list_all():
-        if platform.deprecated_at is not None or not platform.is_active:
-            continue
+        if platform.deprecated_at is not None:
+            continue  # 退役平台不出现；停用（is_active=false）要显示，否则用户无法再启用
         ids = sorted(docked.get(platform.platform_code, []))
         out.append(
             PlatformOut(
                 id=platform.platform_code,
-                display=platform.platform_name,
+                display=platform.name_override or platform.platform_name,
                 kind=platform.platform_kind,
                 client_version=platform.client_version,
                 capabilities=sorted(platform.capabilities),
@@ -86,6 +87,7 @@ def list_platforms(request: Request) -> list[PlatformOut]:
                     else platform.schedule_times
                 ),
                 schedule_overridden=platform.schedule_override is not None,
+                active=platform.is_active,
                 account_id=ids[0] if ids else None,
                 account_ids=ids,
             )
@@ -107,6 +109,8 @@ def compose_schedule_entries(registry, kit) -> list:
     for raw in registry.schedule_entries():
         target = raw["target"]
         row = overrides.get(target)
+        if row is not None and not row.is_active:
+            continue  # 平台已停用：不排班（手动领取仍可）
         times = list(raw["times"])
         if row is not None and row.schedule_override is not None:
             times = list(row.schedule_override)
@@ -123,24 +127,97 @@ def compose_schedule_entries(registry, kit) -> list:
     return out
 
 
+class PlatformPatchIn(BaseModel):
+    """平台信息编辑（2026-11-18）：只开放三项——显示名、启用状态、调度执行时间。
+
+    `model_fields_set` 区分"没传"与"传了 null"：times=null 恢复默认，times=[] 不排班。
+    """
+
+    platform_name: str | None = None  # 显示名（空串 = 恢复 manifest 名）
+    active: bool | None = None  # 启用状态
+    times: list[str] | None = None  # 调度执行时间
+
+
+_HHMM_RE = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+def _normalize_times(times: list[str]) -> list[str]:
+    """去空白、去重、升序；非法格式显式 400（不自作丢弃）。"""
+    from fastapi import HTTPException
+
+    import re
+
+    cleaned = sorted({t.strip() for t in times if t.strip()})
+    bad = [t for t in cleaned if not re.match(_HHMM_RE, t)]
+    if bad:
+        raise HTTPException(status_code=400, detail=f"时间格式须为 HH:MM：{bad}")
+    return cleaned
+
+
+@router.patch("/platforms/{platform_code}", response_model=PlatformOut)
+def patch_platform(platform_code: str, body: PlatformPatchIn, request: Request):
+    """编辑平台（显示名 / 启用状态 / 调度时间）：落 DB + 调度热替换，即刻生效。
+
+    能力、凭据类型、客户端版本、平台编码来自连接器 manifest 探测，不可在本端点编辑。
+    """
+    from fastapi import HTTPException
+
+    kit = request.app.state.kit
+    registry = request.app.state.registry
+    fields = body.model_fields_set
+    name_override: str | None = None
+    active: bool | None = None
+    if "platform_name" in fields and body.platform_name is not None:
+        name_override = body.platform_name.strip()
+        if len(name_override) > 40:
+            raise HTTPException(status_code=400, detail="平台名称过长（≤40）")
+    if "active" in fields:
+        active = body.active
+    updated = kit.platforms.update_profile(
+        platform_code, name_override=name_override, is_active=active
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
+    if "times" in fields:
+        times = _normalize_times(body.times) if body.times is not None else None
+        updated = kit.platforms.set_schedule_override(
+            platform_code, tuple(times) if times is not None else None
+        )
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
+    kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
+    docked = sorted(a.id for a in kit.accounts.list_all() if a.platform_code == platform_code)
+    effective = (
+        updated.schedule_override
+        if updated.schedule_override is not None
+        else updated.schedule_times
+    )
+    return PlatformOut(
+        id=updated.platform_code,
+        display=updated.name_override or updated.platform_name,
+        kind=updated.platform_kind,
+        client_version=updated.client_version,
+        capabilities=sorted(updated.capabilities),
+        credential_kinds=list(updated.credential_kinds),
+        schedule_times=list(effective),
+        schedule_overridden=updated.schedule_override is not None,
+        active=updated.is_active,
+        account_id=docked[0] if docked else None,
+        account_ids=docked,
+    )
+
+
 @router.put("/platforms/{platform_code}/schedule", response_model=PlatformOut)
 def set_platform_schedule(platform_code: str, body: ScheduleIn, request: Request):
     """改调度执行时间（平台管理页）：落 DB 覆盖 + 调度器热替换，即刻生效。
 
     校验：HH:MM（core PlatformEntry 同源规则）、去重升序；平台不存在 = 404。
     """
-    import re
-
     from fastapi import HTTPException
 
     kit = request.app.state.kit
     registry = request.app.state.registry
-    times = body.times
-    if times is not None:
-        times = sorted(set(t.strip() for t in times if t.strip()))
-        bad = [t for t in times if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", t)]
-        if bad:
-            raise HTTPException(status_code=400, detail=f"时间格式须为 HH:MM：{bad}")
+    times = _normalize_times(body.times) if body.times is not None else None
     updated = kit.platforms.set_schedule_override(platform_code, tuple(times) if times is not None else None)
     if updated is None:
         raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
@@ -148,7 +225,7 @@ def set_platform_schedule(platform_code: str, body: ScheduleIn, request: Request
     docked = [a.id for a in kit.accounts.list_all() if a.platform_code == platform_code]
     return PlatformOut(
         id=updated.platform_code,
-        display=updated.platform_name,
+        display=updated.name_override or updated.platform_name,
         kind=updated.platform_kind,
         client_version=updated.client_version,
         capabilities=sorted(updated.capabilities),
@@ -159,6 +236,7 @@ def set_platform_schedule(platform_code: str, body: ScheduleIn, request: Request
             else updated.schedule_times
         ),
         schedule_overridden=updated.schedule_override is not None,
+        active=updated.is_active,
         account_id=docked[0] if docked else None,
         account_ids=sorted(docked),
     )

@@ -123,7 +123,7 @@ def test_老库补列后物理列序按DDL重建(tmp_path) -> None:
         for r in sqlite3.connect(db).execute("PRAGMA table_info(plat_platform)").fetchall()
     ]
     assert cols == [
-        "id", "platform_code", "platform_name", "platform_kind", "client_version",
+        "id", "platform_code", "platform_name", "name_override", "platform_kind", "client_version",
         "capabilities", "credential_kinds", "schedule_times", "schedule_override",
         "is_active", "deprecated_at", "created_at", "updated_at",
     ]

@@ -20,6 +20,19 @@ class PlatformRepository(ABC):
         """把不在 platform_codes 里的平台落 deprecated_at（幂等）；返回本次新标记的 code。"""
 
     @abstractmethod
+    def update_profile(
+        self,
+        platform_code: str,
+        *,
+        name_override: str | None = None,
+        is_active: bool | None = None,
+    ) -> PlatformEntry | None:
+        """改可编辑项（None = 不动）：显示名覆盖（"" 恢复 manifest 名）与启停。
+
+        manifest 同步不覆盖这两项（用户改过的不被冲掉）；平台不存在返回 None。
+        """
+
+    @abstractmethod
     def set_schedule_override(
         self, platform_code: str, times: tuple[str, ...] | None
     ) -> PlatformEntry | None:

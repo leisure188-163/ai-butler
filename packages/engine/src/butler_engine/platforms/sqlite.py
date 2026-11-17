@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS plat_platform (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     platform_code    TEXT NOT NULL UNIQUE,
     platform_name    TEXT NOT NULL,
+    name_override    TEXT NOT NULL DEFAULT '',
     platform_kind    TEXT NOT NULL DEFAULT '',
     client_version   TEXT NOT NULL DEFAULT '',
     capabilities     TEXT NOT NULL DEFAULT '[]',
@@ -43,7 +44,7 @@ _SCHEMA = _TABLE_DDL + _INDEX_DDL
 
 #: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
 _DDL_COLS = (
-    "platform_code", "platform_name", "platform_kind", "client_version",
+    "platform_code", "platform_name", "name_override", "platform_kind", "client_version",
     "capabilities", "credential_kinds", "schedule_times", "schedule_override",
     "is_active", "deprecated_at", "created_at", "updated_at",
 )
@@ -52,6 +53,7 @@ _COLS = ", ".join(_DDL_COLS)
 #: 重建时缺失列的落值（显式未知，不猜）
 _ADDED_DEFAULTS = {
     "platform_kind": "''", "client_version": "''", "schedule_override": "''",
+    "name_override": "''",
 }
 
 
@@ -115,7 +117,7 @@ class SqlitePlatformRepository(PlatformRepository):
         with self._connect() as conn, conn:
             conn.execute(
                 f"INSERT INTO plat_platform ({_COLS}) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (platform_code) DO UPDATE SET "
                 "platform_name=excluded.platform_name, platform_kind=excluded.platform_kind, "
                 "client_version=excluded.client_version, "
@@ -125,6 +127,7 @@ class SqlitePlatformRepository(PlatformRepository):
                 (
                     entry.platform_code,
                     entry.platform_name,
+                    entry.name_override,
                     entry.platform_kind.strip(),
                     entry.client_version.strip(),
                     _dump(entry.capabilities),
@@ -156,6 +159,40 @@ class SqlitePlatformRepository(PlatformRepository):
                     (now, now, code),
                 )
         return stale
+
+    def update_profile(
+        self,
+        platform_code: str,
+        *,
+        name_override: str | None = None,
+        is_active: bool | None = None,
+    ) -> PlatformEntry | None:
+        """改显示名覆盖 / 启停（None = 不动；"" = 恢复 manifest 名）。平台不存在 → None。"""
+        from butler_core.shared.time import now_utc
+
+        sets: list[str] = []
+        args: list[object] = []
+        if name_override is not None:
+            sets.append("name_override = ?")
+            args.append(name_override)
+        if is_active is not None:
+            sets.append("is_active = ?")
+            args.append(1 if is_active else 0)
+        if not sets:
+            return self.get(platform_code)
+        sets.append("updated_at = ?")
+        args.extend([now_utc().isoformat(), platform_code])
+        with self._connect() as conn, conn:
+            cur = conn.execute(
+                f"UPDATE plat_platform SET {', '.join(sets)} WHERE platform_code = ?", args
+            )
+            if cur.rowcount == 0:
+                return None
+            row = conn.execute(
+                f"SELECT {_COLS} FROM plat_platform WHERE platform_code = ?",
+                (platform_code,),
+            ).fetchone()
+        return _load(row)
 
     def set_schedule_override(
         self, platform_code: str, times: tuple[str, ...] | None
@@ -200,15 +237,16 @@ def _load(row) -> PlatformEntry | None:
     return PlatformEntry(
         platform_code=row[0],
         platform_name=row[1],
-        platform_kind=row[2] or "",
-        client_version=row[3] or "",
-        capabilities=_load_values(row[4]),
-        credential_kinds=_load_values(row[5]),
-        schedule_times=_load_values(row[6]),
-        schedule_override=_load_override(row[7]),
-        is_active=bool(row[8]),
-        deprecated_at=datetime.fromisoformat(row[9]) if row[9] else None,
-        created_at=datetime.fromisoformat(row[10]),
+        name_override=row[2] or "",
+        platform_kind=row[3] or "",
+        client_version=row[4] or "",
+        capabilities=_load_values(row[5]),
+        credential_kinds=_load_values(row[6]),
+        schedule_times=_load_values(row[7]),
+        schedule_override=_load_override(row[8]),
+        is_active=bool(row[9]),
+        deprecated_at=datetime.fromisoformat(row[10]) if row[10] else None,
+        created_at=datetime.fromisoformat(row[11]),
     )
 
 

@@ -166,15 +166,25 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
-  /* 改调度执行时间（2026-11-18）：写覆盖 + 调度热替换；失败按 ApiError 转提示 */
-  async function saveSchedule(target: string, times: string[] | null) {
+  /* 编辑平台（2026-11-18）：显示名 / 启停 / 调度三合一；失败按 ApiError 转提示 */
+  async function savePlatform(
+    target: string,
+    patch: { platform_name?: string | null; active?: boolean; times?: string[] | null },
+  ) {
     busyTarget.value = target;
     try {
-      const updated = await api.updateSchedule(target, times);
+      const updated = await api.patchPlatform(target, patch);
+      const bits: string[] = [];
+      if (patch.platform_name !== undefined) bits.push(`名称「${updated.display}」`);
+      if (patch.active !== undefined) bits.push(patch.active ? "已启用" : "已停用（不再定时领取）");
+      if (patch.times !== undefined)
+        bits.push(
+          updated.schedule_times.length
+            ? `调度 ${updated.schedule_times.join("、")}`
+            : "调度已清空（不排班）",
+        );
       actionMsg.value = {
-        text: times && times.length
-          ? `已更新调度：${updated.schedule_times.join("、")}（即刻生效）`
-          : `已清空调度：该平台不再定时领取（保留手动领取）`,
+        text: bits.length ? `已保存：${bits.join(" · ")}（即刻生效）` : "没有改动",
         tone: "ok",
       };
     } catch (e) {
@@ -287,7 +297,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     busyTarget,
     actionMsg,
     importPlatform,
-    saveSchedule,
+    savePlatform,
     claimApp,
     healthApp,
     repairAccount,

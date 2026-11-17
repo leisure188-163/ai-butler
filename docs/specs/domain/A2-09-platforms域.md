@@ -76,3 +76,15 @@ DDL 权威单源 = `butler_engine/platforms/sqlite.py` `_SCHEMA`，生成视图
 - **启动路径同源**：组合根启动时同样走 `compose_schedule_entries`，与运行时改调度语义一致。
 - **前端**：平台管理页「调度执行时间」详情行内「修改」→ 时间列表编辑（增删 HH:MM）→ 保存 / 恢复默认；
   被覆盖的行在展示上带「自定义」标记。
+
+## 平台信息编辑（2026-11-18 裁决）
+
+- **写入口**：`PATCH /platforms/{platform_code}`，body 只含要改的键：
+  `platform_name`（显示名，空串 = 恢复 manifest 名，≤40 字）、`active`（启用状态）、
+  `times`（调度执行时间，`null` = 恢复默认、`[]` = 不排班）。用 `model_fields_set` 区分
+  "没传"与"传了 null"，未传的键一律不动。
+- **不可编辑**：`platform_code`、`platform_kind`、`client_version`、`capabilities`、
+  `credential_kinds` —— 都来自连接器 manifest 声明或本机探测，改了会和协议脱节。
+- **生效**：写 DB 后重建调度条目并热替换 → 即刻生效；停用平台在 `compose_schedule_entries` 里被跳过。
+- **GET 语义修正**：`/platforms` 只过滤 `deprecated_at`（退役），不再过滤 `is_active`；
+  `PlatformOut` 新增 `active` 字段，`display` 取 `name_override or platform_name`。

@@ -21,21 +21,29 @@ const props = defineProps<{
 const emit = defineEmits<{
   import: [target: string];
   importAll: [];
-  saveSchedule: [target: string, times: string[] | null];
+  savePlatform: [
+    target: string,
+    patch: { platform_name?: string | null; active?: boolean; times?: string[] | null },
+  ];
   jump: [page: PageName];
 }>();
 
-/* ---- 调度执行时间编辑（2026-11-18）：详情行内联编辑，保存即刻热替换 ---- */
-const editingScheduleId = ref<string | null>(null);
+/* ---- 平台信息编辑（2026-11-18）：显示名 / 启用状态 / 调度执行时间三合一 ---- */
+const editingId = ref<string | null>(null);
+const editName = ref("");
+const editActive = ref(true);
 const editTimes = ref<string[]>([]);
 
-function beginEditSchedule(platform: PlatformItem): void {
-  editingScheduleId.value = platform.id;
+function beginEdit(platform: PlatformItem): void {
+  editingId.value = platform.id;
+  editName.value = platform.display;
+  editActive.value = platform.active;
   editTimes.value = [...platform.schedule_times];
 }
 
-function cancelEditSchedule(): void {
-  editingScheduleId.value = null;
+function cancelEdit(): void {
+  editingId.value = null;
+  editName.value = "";
   editTimes.value = [];
 }
 
@@ -48,16 +56,32 @@ function removeSlot(index: number): void {
   editTimes.value.splice(index, 1);
 }
 
-function saveSchedule(platform: PlatformItem): void {
+function saveProfile(platform: PlatformItem): void {
+  const patch: {
+    platform_name?: string | null;
+    active?: boolean;
+    times?: string[] | null;
+  } = {};
+  const name = editName.value.trim();
+  if (name && name !== platform.display) patch.platform_name = name;
+  if (editActive.value !== platform.active) patch.active = editActive.value;
   const times = [...new Set(editTimes.value.filter(Boolean))].sort();
-  emit("saveSchedule", platform.id, times);
-  cancelEditSchedule();
+  if (JSON.stringify(times) !== JSON.stringify(platform.schedule_times)) patch.times = times;
+  if (Object.keys(patch).length) emit("savePlatform", platform.id, patch);
+  cancelEdit();
 }
 
-function resetSchedule(platform: PlatformItem): void {
-  emit("saveSchedule", platform.id, null);
-  cancelEditSchedule();
+/** 名称恢复 manifest 名（空串语义） */
+function resetName(platform: PlatformItem): void {
+  emit("savePlatform", platform.id, { platform_name: "" });
+  cancelEdit();
 }
+
+/** 启停一键切换（列表操作列） */
+function toggleActive(platform: PlatformItem): void {
+  emit("savePlatform", platform.id, { active: !platform.active });
+}
+
 
 const emptyPlatforms = computed(() => props.platforms.filter((a) => !a.account_id));
 const importableCount = computed(() => emptyPlatforms.value.length);
@@ -120,18 +144,18 @@ function goPage(next: number) {
 
 const expandedId = ref<string | null>(null);
 /** 详情内折叠小节（一次只开一节；默认全收起，点标题展开） */
-const section = ref<"caps" | "sched" | "accts" | null>(null);
+const section = ref<"caps" | "profile" | "accts" | null>(null);
 /** 未接入平台清单默认收起（页脚平铺太长） */
 const slotsOpen = ref(false);
 
-function toggleSection(name: "caps" | "sched" | "accts"): void {
+function toggleSection(name: "caps" | "profile" | "accts"): void {
   section.value = section.value === name ? null : name;
 }
 
 function toggleDetail(id: string) {
   expandedId.value = expandedId.value === id ? null : id;
   section.value = null; // 换行/收起时复位折叠小节，避免串行
-  cancelEditSchedule();
+  cancelEdit();
 }
 </script>
 
@@ -168,10 +192,11 @@ function toggleDetail(id: string) {
             <th>平台名称</th>
             <th>平台类型</th>
             <th>版本号</th>
+            <th>平台状态</th>
             <th>能力</th>
             <th>调度执行时间</th>
             <th>账户数</th>
-            <th>状态汇总</th>
+            <th>账户状态</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -187,6 +212,11 @@ function toggleDetail(id: string) {
                 <span v-else class="faint">—</span>
               </td>
               <td class="num">{{ platform.client_version ? `v${platform.client_version}` : "—" }}</td>
+              <td>
+                <span class="tag" :class="platform.active ? 'tag--ok' : 'tag--quiet'">
+                  {{ platform.active ? "启用" : "已停用" }}
+                </span>
+              </td>
               <td>
                 <span v-for="cap in platform.capabilities" :key="cap" class="tag tag--quiet cap-tag">
                   {{ capabilityText(cap) }}
@@ -222,6 +252,11 @@ function toggleDetail(id: string) {
                     @click="emit('import', platform.id)"
                   >刷新</button>
                   <button v-if="platform.account_id" class="btn btn--ghost" @click="emit('jump', '账户管理')">去账户</button>
+                  <button
+                    class="btn btn--ghost"
+                    :disabled="busyTarget !== null"
+                    @click="toggleActive(platform)"
+                  >{{ platform.active ? "停用" : "启用" }}</button>
                   <button class="btn btn--ghost" @click="toggleDetail(platform.id)">
                     {{ expandedId === platform.id ? "收起" : "详情" }}
                   </button>
@@ -229,7 +264,7 @@ function toggleDetail(id: string) {
               </td>
             </tr>
             <tr v-if="expandedId === platform.id" class="detail-row">
-              <td colspan="9" @click.stop>
+              <td colspan="10" @click.stop>
                 <div class="detail-fold">
                   <button
                     class="fold-head"
@@ -244,36 +279,62 @@ function toggleDetail(id: string) {
 
                   <button
                     class="fold-head"
-                    :aria-expanded="section === 'sched'"
-                    @click="toggleSection('sched')"
+                    :aria-expanded="section === 'profile'"
+                    @click="toggleSection('profile')"
                   >
-                    <span class="fold-caret">{{ section === 'sched' ? '▾' : '▸' }}</span>
-                    调度执行时间
+                    <span class="fold-caret">{{ section === 'profile' ? '▾' : '▸' }}</span>
+                    平台信息
                     <span class="fold-hint">
-                      {{ platform.schedule_times.join("、") || "未排班" }}{{ platform.schedule_overridden ? "（自定义）" : "" }}
+                      {{ platform.active ? "启用" : "已停用" }} · {{ platform.schedule_times.join("、") || "未排班" }}
                     </span>
                   </button>
-                  <div v-if="section === 'sched'" class="fold-body">
-                    <template v-if="editingScheduleId === platform.id">
-                      <div class="sched-edit">
-                        <span v-for="(_, i) in editTimes" :key="i" class="sched-item">
-                          <input v-model="editTimes[i]" class="input sched-input mono" type="time" :disabled="busyTarget !== null" />
-                          <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="removeSlot(i)">删除</button>
-                        </span>
-                        <button class="btn btn--ghost" :disabled="busyTarget !== null || editTimes.length >= 8" @click="addSlot">+ 添加时间</button>
+                  <div v-if="section === 'profile'" class="fold-body">
+                    <template v-if="editingId === platform.id">
+                      <label class="edit-row">
+                        <span class="edit-label">平台名称</span>
+                        <input v-model="editName" class="input edit-name" maxlength="40" :disabled="busyTarget !== null" />
+                        <button
+                          v-if="platform.display !== platform.id"
+                          class="btn btn--ghost"
+                          :disabled="busyTarget !== null"
+                          @click="resetName(platform)"
+                        >恢复默认名</button>
+                      </label>
+                      <label class="edit-row">
+                        <span class="edit-label">启用</span>
+                        <input v-model="editActive" type="checkbox" :disabled="busyTarget !== null" />
+                        <span class="fold-note">停用后不再定时领取，手动领取仍可</span>
+                      </label>
+                      <div class="edit-row">
+                        <span class="edit-label">调度执行时间</span>
+                        <div class="sched-edit">
+                          <span v-for="(_, i) in editTimes" :key="i" class="sched-item">
+                            <input v-model="editTimes[i]" class="input sched-input mono" type="time" :disabled="busyTarget !== null" />
+                            <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="removeSlot(i)">删除</button>
+                          </span>
+                          <button class="btn btn--ghost" :disabled="busyTarget !== null || editTimes.length >= 8" @click="addSlot">+ 添加时间</button>
+                        </div>
                       </div>
                       <p class="fold-note">
-                        {{ platform.schedule_overridden ? "当前为自定义时间" : "当前为平台默认时间" }}；清空并保存 = 该平台不再定时领取
+                        清空时间并保存 = 该平台不再定时领取；{{ platform.schedule_overridden ? "当前调度为自定义" : "当前调度为平台默认" }}
                       </p>
                       <span class="row-actions">
-                        <button class="btn btn--primary" :disabled="busyTarget !== null" @click="saveSchedule(platform)">保存</button>
-                        <button v-if="platform.schedule_overridden" class="btn btn--ghost" :disabled="busyTarget !== null" @click="resetSchedule(platform)">恢复默认</button>
-                        <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="cancelEditSchedule">取消</button>
+                        <button class="btn btn--primary" :disabled="busyTarget !== null" @click="saveProfile(platform)">保存</button>
+                        <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="cancelEdit">取消</button>
                       </span>
                     </template>
-                    <span v-else class="row-actions">
-                      <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="beginEditSchedule(platform)">修改时间</button>
-                    </span>
+                    <template v-else>
+                      <p class="fold-line"><span class="edit-label">显示名</span>{{ platform.display }}</p>
+                      <p class="fold-line"><span class="edit-label">平台状态</span>{{ platform.active ? "启用" : "已停用" }}</p>
+                      <p class="fold-line">
+                        <span class="edit-label">调度执行时间</span>{{ platform.schedule_times.join("、") || "未排班" }}
+                        <span v-if="platform.schedule_overridden" class="tag tag--quiet sched-tag">自定义</span>
+                      </p>
+                      <p class="fold-note">平台编码、类型、版本、能力、凭据类型来自连接器探测，不可编辑。</p>
+                      <span class="row-actions">
+                        <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="beginEdit(platform)">修改</button>
+                      </span>
+                    </template>
                   </div>
 
                   <button
@@ -341,7 +402,7 @@ function toggleDetail(id: string) {
   flex-wrap: wrap;
 }
 .platform-wrap { overflow-x: auto; }
-.platform-wrap .matrix { min-width: 1020px; }
+.platform-wrap .matrix { min-width: 1120px; }
 
 /* 详情折叠小节 + 页面级折叠（2026-11-18） */
 .detail-fold { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) 0; }
@@ -379,6 +440,22 @@ function toggleDetail(id: string) {
 .sched-item { display: inline-flex; align-items: center; gap: var(--space-1); }
 .sched-input { width: 7.5rem; }
 .sched-tag { margin-left: var(--space-1); }
+
+/* 平台信息编辑行（2026-11-18） */
+.edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+.edit-label {
+  min-width: 7rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+.edit-name { width: 14rem; }
+.fold-line { padding: var(--space-1) 0; font-size: var(--text-sm); }
 .code-cell code { font-size: var(--text-xs); color: var(--color-text-muted); }
 .pager {
   display: flex;
