@@ -132,7 +132,7 @@ const nothingTodo = computed(() => !props.pending.length && !expiring.value.leng
             </p>
           </div>
           <span class="tag tag--notice">{{ signalText(cred.signal) }}</span>
-          <button class="btn btn--ghost" @click="emit('navigate', '账户')">去账户</button>
+          <button class="btn btn--ghost" @click="emit('navigate', '账户管理')">去账户</button>
         </li>
       </ul>
       <p v-else class="quietline">暂无临期凭据。</p>

@@ -13,7 +13,13 @@ type Contract = components["schemas"];
 
 export type Signal = "ok" | "notice" | "attention" | "danger" | "quiet";
 
-export type PageName = "仪表盘" | "平台" | "账户" | "流量" | "日志" | "设置";
+export type PageName =
+  | "仪表盘"
+  | "平台管理"
+  | "账户管理"
+  | "用量管理"
+  | "运行日志"
+  | "系统设置";
 
 /** signal 窄化包装：除 signal 外的形状全部继承契约 */
 type WithSignal<T> = Omit<T, "signal"> & { signal: Signal };

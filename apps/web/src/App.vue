@@ -98,12 +98,12 @@ watch(() => [settings.value.autoRefresh, settings.value.intervalSec], schedulePo
 onMounted(() => {
   loadAll();
   schedulePoll();
-  if (active.value === "设置") loadRoutes();
+  if (active.value === "系统设置") loadRoutes();
 });
 
 /* 进设置页时装载路由表（设置页局部数据不进轮询，R4-G6） */
 watch(active, (page) => {
-  if (page === "设置") loadRoutes();
+  if (page === "系统设置") loadRoutes();
 });
 
 onBeforeUnmount(() => {
@@ -126,7 +126,7 @@ onBeforeUnmount(() => {
       <p v-if="loadError" class="errorline" role="alert">{{ loadError }}</p>
 
       <PlatformsPage
-        v-if="active === '平台'"
+        v-if="active === '平台管理'"
         :platforms="platforms"
         :accounts="accounts"
         :busy-target="busyTarget"
@@ -139,7 +139,7 @@ onBeforeUnmount(() => {
         @jump="navigate"
       />
       <AccountsPage
-        v-else-if="active === '账户'"
+        v-else-if="active === '账户管理'"
         :accounts="accounts"
         :platforms="platforms"
         :radar="radarRows"
@@ -155,7 +155,7 @@ onBeforeUnmount(() => {
         @scan-sessions="scanSessions"
       />
       <TrafficPage
-        v-else-if="active === '流量'"
+        v-else-if="active === '用量管理'"
         :rows="radarRows"
         :loading="loading"
         :collecting="collecting"
@@ -164,9 +164,9 @@ onBeforeUnmount(() => {
         @refresh="loadAll"
         @collect="collectUsage"
       />
-      <LogPage v-else-if="active === '日志'" :runs="runs" />
+      <LogPage v-else-if="active === '运行日志'" :runs="runs" />
       <SettingsPage
-        v-else-if="active === '设置'"
+        v-else-if="active === '系统设置'"
         :settings="settings"
         :server-info="serverInfo"
         :gateway-routes="gatewayRoutes"

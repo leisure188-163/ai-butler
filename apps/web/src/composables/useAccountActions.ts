@@ -216,7 +216,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
         );
       const text = rows.length
         ? `共发起 ${rows.length} 个账户，完成 ${done} 个` + (rest.length ? ` · ${rest.join(" · ")}` : "")
-        : "还没有已导入的平台——先到「平台」页导入。";
+        : "还没有已导入的平台——先到「平台管理」页导入。";
       actionMsg.value = { text, tone: rest.length ? "warn" : "ok" };
     } catch (e) {
       if (e instanceof api.ApiError) {

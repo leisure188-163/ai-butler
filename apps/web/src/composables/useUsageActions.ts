@@ -44,7 +44,7 @@ export function useUsageActions({
   }
 
   function summarizeCollect(outcomes: CollectOutcome[]): string {
-    if (!outcomes.length) return "没有可采集的账户——先到「平台」页导入。";
+    if (!outcomes.length) return "没有可采集的账户——先到「平台管理」页导入。";
     return outcomes
       .map((o) => {
         const name =

@@ -47,7 +47,7 @@ const headline = computed(() => {
   if (props.pending.length > 0)
     return { strong: `${props.pending.length} 项待处理`, tail: "处理完即可清静" };
   if (props.accounts.length === 0)
-    return { strong: "还没有接入任何平台", tail: "到「平台」页一键导入，把本机客户端接进来" };
+    return { strong: "还没有接入任何平台", tail: "到「平台管理」页一键导入，把本机客户端接进来" };
   const unwell = props.accounts.filter((a) => a.signal !== "ok").length;
   if (unwell > 0)
     return {
@@ -188,7 +188,7 @@ const trafficMain = computed(() => {
   return lowest ? `最低额度 ${lowest.account_id}` : "额度未见预警";
 });
 const trafficSub = computed(() => {
-  if (!props.radarRows.length) return "到「流量」页发起采集";
+  if (!props.radarRows.length) return "到「用量管理」页发起采集";
   const collected = props.loadedAt
     || props.radarRows
       .map((r) => r.collected_at ?? "")
@@ -288,7 +288,7 @@ const trafficSub = computed(() => {
             : "今日还没有动作" }}
         </p>
       </div>
-      <div class="kpi" aria-label="流量">
+      <div class="kpi" aria-label="用量">
         <div class="kpi-head">
           <span class="kpi-chip kpi-chip--quiet" aria-hidden="true">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 2.5s4 4.6 4 7.4a4 4 0 0 1-8 0c0-2.8 4-7.4 4-7.4Z" /></svg>
@@ -320,7 +320,7 @@ const trafficSub = computed(() => {
         <p class="kpi-value mono" v-if="nextShift">{{ nextShift.time }}</p>
         <p class="kpi-value kpi-value--sm" v-else>未排班</p>
         <p class="kpi-sub">
-          {{ nextShift ? nextShift.sub : "到「平台」页为平台排班" }}
+          {{ nextShift ? nextShift.sub : "到「平台管理」页为平台排班" }}
         </p>
       </div>
     </div>

@@ -37,7 +37,7 @@ const claimableCount = computed(
   <header class="head">
     <div class="head-row">
       <div>
-        <h1 class="page-title">账户</h1>
+        <h1 class="page-title">账户管理</h1>
         <p class="page-sub">全部平台 × 账户一屏管理。</p>
       </div>
       <button

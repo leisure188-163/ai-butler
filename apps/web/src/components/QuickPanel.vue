@@ -13,10 +13,10 @@ const props = defineProps<{ platforms: PlatformItem[] }>();
 const emit = defineEmits<{ navigate: [page: PageName] }>();
 
 const tiles: { page: PageName; title: string; sub: string; icon: string }[] = [
-  { page: "平台", title: "导入平台", sub: "把本机客户端接进来", icon: "plus" },
-  { page: "账户", title: "去领取", sub: "手动领取今日班次", icon: "check" },
-  { page: "流量", title: "去采集", sub: "拉取余额与额度快照", icon: "drop" },
-  { page: "日志", title: "看日志", sub: "每次动作都有台账", icon: "list" },
+  { page: "平台管理", title: "导入平台", sub: "把本机客户端接进来", icon: "plus" },
+  { page: "账户管理", title: "去领取", sub: "手动领取今日班次", icon: "check" },
+  { page: "用量管理", title: "去采集", sub: "拉取余额与额度快照", icon: "drop" },
+  { page: "运行日志", title: "看日志", sub: "每次动作都有台账", icon: "list" },
 ];
 
 const shiftTimes = computed(() =>
@@ -65,7 +65,7 @@ function toMinutes(t: string): number {
     <h2 class="section-title">班次时刻</h2>
     <div class="sheet shift-sheet">
       <p v-if="!shiftTimes.length" class="shift-empty">
-        还没有平台排班——到「平台」页为平台排班
+        还没有平台排班——到「平台管理」页为平台排班
       </p>
       <template v-else>
         <p

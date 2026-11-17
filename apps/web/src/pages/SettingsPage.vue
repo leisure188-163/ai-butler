@@ -88,7 +88,7 @@ function saveRoutes() {
 
 <template>
   <header class="head">
-    <h1 class="page-title">设置</h1>
+    <h1 class="page-title">系统设置</h1>
     <p class="page-sub">改动即时生效，保存在本机浏览器。</p>
   </header>
 

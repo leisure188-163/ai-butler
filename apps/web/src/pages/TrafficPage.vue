@@ -58,7 +58,7 @@ function aggText(s: { [key: string]: unknown }): string {
   <header class="head">
     <div class="head-row">
       <div>
-        <h1 class="page-title">流量</h1>
+        <h1 class="page-title">用量管理</h1>
         <p class="page-sub">各家账户余额、额度流水与耗尽预测。</p>
       </div>
       <div class="head-actions">
@@ -172,7 +172,7 @@ function aggText(s: { [key: string]: unknown }): string {
     </article>
   </div>
   <p v-else-if="!loading" class="quietline">
-    还没有可观测的账户——先到「平台」页导入。
+    还没有可观测的账户——先到「平台管理」页导入。
   </p>
 </template>
 

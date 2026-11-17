@@ -8,21 +8,21 @@ import type { PageName } from "../types";
 
 const hashByPage: Record<PageName, string> = {
   仪表盘: "dashboard",
-  平台: "platforms",
-  账户: "accounts",
-  流量: "traffic",
-  日志: "logs",
-  设置: "settings",
+  平台管理: "platforms",
+  账户管理: "accounts",
+  用量管理: "traffic",
+  运行日志: "logs",
+  系统设置: "settings",
 };
 /* 旧直链兼容：四页时代规范链与新六页同在本表，命中即静默重写 */
 const legacyHashByPage: Record<string, PageName> = {
   home: "仪表盘",
   alerts: "仪表盘",
-  wallet: "账户",
-  card: "账户",
-  radar: "流量",
-  usage: "流量",
-  log: "日志",
+  wallet: "账户管理",
+  card: "账户管理",
+  radar: "用量管理",
+  usage: "用量管理",
+  log: "运行日志",
 };
 const pageByHash = {
   ...Object.fromEntries(Object.entries(hashByPage).map(([page, hash]) => [hash, page])),

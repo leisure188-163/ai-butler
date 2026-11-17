@@ -7,7 +7,7 @@ defineProps<{ runs: RunItem[] }>();
 
 <template>
   <header class="head">
-    <h1 class="page-title">日志</h1>
+    <h1 class="page-title">运行日志</h1>
     <p class="page-sub">操作台账——每次动作都留痕。</p>
   </header>
 

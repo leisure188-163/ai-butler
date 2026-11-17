@@ -298,7 +298,7 @@ function lastRunAtOf(accountId: string): string | null {
       </table>
     </div>
     <p v-else-if="accounts.length" class="quietline">当前筛选没有匹配的账户——换个条件试试。</p>
-    <p v-else class="quietline">还没有账户——到「平台」页导入平台。</p>
+    <p v-else class="quietline">还没有账户——到「平台管理」页导入平台。</p>
   </section>
 </template>
 

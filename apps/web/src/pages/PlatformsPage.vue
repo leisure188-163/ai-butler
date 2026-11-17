@@ -95,7 +95,7 @@ function toggleDetail(id: string) {
   <header class="head">
     <div class="head-row">
       <div>
-        <h1 class="page-title">平台</h1>
+        <h1 class="page-title">平台管理</h1>
         <p class="page-sub">本机接入的各家 AI 助手与其能力、调度执行时间。</p>
       </div>
       <div class="head-actions">
@@ -177,7 +177,7 @@ function toggleDetail(id: string) {
                     :disabled="busyTarget !== null"
                     @click="emit('import', platform.id)"
                   >同步</button>
-                  <button v-if="platform.account_id" class="btn btn--ghost" @click="emit('jump', '账户')">去账户</button>
+                  <button v-if="platform.account_id" class="btn btn--ghost" @click="emit('jump', '账户管理')">去账户</button>
                   <button class="btn btn--ghost" @click="toggleDetail(platform.id)">
                     {{ expandedId === platform.id ? "收起" : "详情" }}
                   </button>
@@ -206,7 +206,7 @@ function toggleDetail(id: string) {
                         {{ accountsOf(platform).map((a) => a.account_id).join("、") || "—" }}
                       </p>
                     </span>
-                    <button class="btn btn--ghost" @click="emit('jump', '账户')">去账户</button>
+                    <button class="btn btn--ghost" @click="emit('jump', '账户管理')">去账户</button>
                   </li>
                 </ul>
               </td>
