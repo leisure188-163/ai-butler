@@ -32,30 +32,33 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 3. `(app, account_key)` 缺省落位规则：存量单账号数据迁移时
    account_key = "main"，零信息丢失（迁移测试钉死，A1-05 §5 P4）
 
-### 2.1 accounts 表 v2（2026-11-17，ADR-018）
+### 2.1 accounts 表 v3（2026-11-17，ADR-018/ADR-019）
 
 统一审计字段 `id / created_at / updated_at` 所有表必备（本表先行立范式，
-其余域分批跟进）；DDL 权威单源 = `butler_engine/accounts/sqlite.py` `_SCHEMA`，
-生成视图 `data/sql/accounts.sql`（勿手改）。
+其余域分批跟进）；每表代理键 `id INTEGER PRIMARY KEY AUTOINCREMENT`（DDL
+约定见 A4-01 §5）。DDL 权威单源 = `butler_engine/accounts/sqlite.py`
+`_SCHEMA`，生成视图 `data/sql/accounts.sql`（勿手改）。
 
 | 列 | 类型 | 语义 |
 |---|---|---|
-| `id` | TEXT PK | 规范 id `{app}:{account_key}`（编址不变） |
-| `app` | TEXT NOT NULL | 连接器/应用 id（原 provider，改名） |
-| `account_key` | TEXT NOT NULL DEFAULT 'main' | 应用内账号序；`UNIQUE(app, account_key)` 数据库级兜底不变量 |
+| `id` | INTEGER PK AUTOINCREMENT | 全库统一代理键（ADR-019） |
+| `account_id` | TEXT NOT NULL UNIQUE | 规范 id `{platform}:{account_key}`（原表主键，降级为业务键；编址不变） |
+| `platform` | TEXT NOT NULL | 连接器/平台 id（provider→app→platform，ADR-018/019） |
+| `account_key` | TEXT NOT NULL DEFAULT 'main' | 平台内账号序；`UNIQUE(platform, account_key)` 数据库级兜底不变量 |
 | `display_name` | TEXT NOT NULL | 应用名（账号册出产） |
 | `base_url` | TEXT | 账户级 API 基址（Qoder CN/Global 双 host 事实落库；空 = 用连接器缺省） |
 | `device_ref` | TEXT | 供应商侧账户标识绑定；unbound 如实 NULL（§4.1） |
 | `sessions` | TEXT JSON DEFAULT '[]' | 会话清单（随聚合整体替换，§4.1） |
 | `entitlement_json` | TEXT | Entitlement 聚合落库（balance/streak/last_claim_window） |
-| `enabled` | INTEGER DEFAULT 1 | 用户管理开关；调度 tick 跳过停用账户（停用是运营动作，≠健康熔断） |
+| `is_active` | INTEGER DEFAULT 1 | 用户管理开关（不用 enabled——数据库关键字风险，ADR-019）；调度 tick 跳过停用账户（停用是运营动作，≠健康熔断） |
 | `created_at` | TEXT NOT NULL | 创建时间 |
 | `updated_at` | TEXT NOT NULL | 统一审计列；save 时写当前时刻，老库回填 created_at |
 | `deleted_at` | TEXT | 软删除标记（不变量 3 落库） |
 
-索引：`uq_accounts_app_key (app, account_key)` 唯一 + `idx_accounts_app (app)`。
-老库自迁移幂等：`provider` 列 RENAME → `app`、缺列 ALTER 纯增量、
-account_key 按 id 反推回填、updated_at 回填 created_at、旧 `idx_accounts_provider` DROP。
+索引：`uq_accounts_platform_key (platform, account_key)` 唯一 + `idx_accounts_platform (platform)`。
+save = `INSERT … ON CONFLICT (account_id) DO UPDATE`（UPSERT 保代理键不漂移）。
+老库自迁移幂等：v1/v2 形状（TEXT 主键 + provider/app 列）走重建式迁移（Python 回填
+account_key/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形状缺列 ALTER 纯增量。
 
 ## 3. 端口（accounts/ports.py）
 
@@ -67,7 +70,7 @@ account_key 按 id 反推回填、updated_at 回填 created_at、旧 `idx_accoun
   R5-S1 增 `scan_sessions(app)`——只读枚举 `SessionSighting`
   (location, kind, level, device_ref=供应商侧账户标识)，绑定不可得如实 None
 - `AccountRepoPort`：账户集合的持久化（Repository 接口隔离，A1-02 §6）；
-  `list_by_app(app)` 列多账号
+  `list_by_platform(app)` 列多账号
 
 ## 4. 用例
 
@@ -94,7 +97,7 @@ account_key 按 id 反推回填、updated_at 回填 created_at、旧 `idx_accoun
 
 ## 6. 禁止
 
-- ❌ 账户状态/健康分级逻辑写进本域（那是 health 域的）；`enabled` 是用户管理
+- ❌ 账户状态/健康分级逻辑写进本域（那是 health 域的）；`is_active` 是用户管理
   开关（运营动作事实），不是健康评级
 - ❌ UI 导航出现 app id（实现细节下沉）
 - ❌ 凭据形状/解密逻辑散出 vault 端口

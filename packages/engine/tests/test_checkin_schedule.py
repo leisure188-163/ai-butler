@@ -30,8 +30,8 @@ class MemAccounts(AccountRepository):
     def get(self, account_id):
         return self.rows.get(account_id)
 
-    def list_by_app(self, app: str) -> list[Account]:
-        return [a for a in self.rows.values() if a.app == app]
+    def list_by_platform(self, platform: str) -> list[Account]:
+        return [a for a in self.rows.values() if a.platform == platform]
 
     def list_all(self) -> list[Account]:
         return list(self.rows.values())
@@ -58,11 +58,11 @@ class RecordingUseCase:
         )
 
 
-def account(app: str = "trae_cn", name: str = "main") -> Account:
+def account(platform: str = "trae_cn", name: str = "main") -> Account:
     return Account(
-        id=f"{app}:{name}",
-        app=app,
-        display_name=f"{app} {name}",
+        id=f"{platform}:{name}",
+        platform=platform,
+        display_name=f"{platform} {name}",
         created_at=datetime.now(UTC),
     )
 
@@ -202,7 +202,7 @@ def test_fires_per_account_and_no_roster_no_fire():
 
 
 def test_other_app_not_affected():
-    """其他 app 的账号不受本条目影响（target 路由纪律）。"""
+    """其他 platform 的账号不受本条目影响（target 路由纪律）。"""
     usecase = RecordingUseCase()
     repo = MemAccounts(account("qoder", "main"), account("trae_cn", "main"))
     sch = schedule(

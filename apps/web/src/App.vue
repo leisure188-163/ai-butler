@@ -44,7 +44,7 @@ const {
 
 const {
   accounts,
-  apps,
+  platforms,
   runs,
   pending,
   radarRows,
@@ -72,11 +72,11 @@ const {
 } = account;
 const { collecting, usageMsg, collectUsage } = usage;
 
-/* 待办栏可领取 target 集合（纯派生：申报了 provision.run 且已导入的应用） */
+/* 待办栏可领取 target 集合（纯派生：申报了 provision.run 且已导入的平台） */
 const claimable = computed(
   () =>
     new Set(
-      apps.value
+      platforms.value
         .filter((a) => a.account_id && a.capabilities.includes("provision.run"))
         .map((a) => a.id),
     ),
@@ -126,8 +126,8 @@ onBeforeUnmount(() => {
       <p v-if="loadError" class="errorline" role="alert">{{ loadError }}</p>
 
       <AppsPage
-        v-if="active === '应用'"
-        :apps="apps"
+        v-if="active === '平台'"
+        :platforms="platforms"
         :accounts="accounts"
         :busy-target="busyTarget"
         :msg="actionMsg"
@@ -141,7 +141,7 @@ onBeforeUnmount(() => {
       <AccountsPage
         v-else-if="active === '账户'"
         :accounts="accounts"
-        :apps="apps"
+        :platforms="platforms"
         :radar="radarRows"
         :runs="runs"
         :busy-target="busyTarget"
@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
       <DashboardPage
         v-else
         :accounts="accounts"
-        :apps="apps"
+        :platforms="platforms"
         :runs="runs"
         :pending="pending"
         :radar-rows="radarRows"

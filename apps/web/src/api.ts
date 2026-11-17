@@ -10,7 +10,7 @@
  */
 import type {
   AccountItem,
-  AppItem,
+  PlatformItem,
   CollectOutcome,
   GatewayRouteRule,
   GatewayRoutes,
@@ -55,20 +55,20 @@ export function getAccounts(): Promise<AccountItem[]> {
   return request<AccountItem[]>(`${apiBase}/accounts`);
 }
 
-/* ---- 应用域 ---- */
+/* ---- 平台域 ---- */
 
-export function getApps(): Promise<AppItem[]> {
-  return request<AppItem[]>(`${apiBase}/apps`);
+export function getApps(): Promise<PlatformItem[]> {
+  return request<PlatformItem[]>(`${apiBase}/platforms`);
 }
 
 export function importApp(
   target: string,
 ): Promise<{ accounts?: string[]; issues?: string[] }> {
-  return request(`${apiBase}/apps/${target}/import`, post());
+  return request(`${apiBase}/platforms/${target}/import`, post());
 }
 
 export function importAllApps(): Promise<ImportResult[]> {
-  return request<ImportResult[]>(`${apiBase}/apps/import-all`, post());
+  return request<ImportResult[]>(`${apiBase}/platforms/import-all`, post());
 }
 
 /* ---- 运行域 ---- */

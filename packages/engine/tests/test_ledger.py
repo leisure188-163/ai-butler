@@ -14,7 +14,7 @@ def _run(run_id: str, key: str, result: RunResult | None) -> Run:
         action=Action(
             kind=ActionKind.PROVISION_RUN,
             target="trae_cn",
-            params={"channel": "app"},
+            params={"channel": "platform"},
         ),
         account_id="acc1",
         idempotency_key=key,
@@ -42,7 +42,7 @@ def test_roundtrip_with_full_result(tmp_path):
     assert loaded.id == "r1"
     assert loaded.action.kind is ActionKind.PROVISION_RUN
     assert loaded.action.target == "trae_cn"
-    assert loaded.action.params == {"channel": "app"}
+    assert loaded.action.params == {"channel": "platform"}
     assert loaded.account_id == "acc1"
     assert loaded.budget == timedelta(seconds=9)
     assert loaded.result is not None and loaded.result.status is Status.NO_AUTH

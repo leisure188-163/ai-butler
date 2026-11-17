@@ -23,14 +23,14 @@ class FakeRegister:
 
     def execute(
         self,
-        app: str,
+        platform: str,
         display_name: str,
         *,
         account_key: str = "main",
         account_id: str | None = None,
     ):
-        self.calls.append((app, display_name, account_key))
-        return SimpleNamespace(id=f"{app}:{account_key}")
+        self.calls.append((platform, display_name, account_key))
+        return SimpleNamespace(id=f"{platform}:{account_key}")
 
 
 @dataclass

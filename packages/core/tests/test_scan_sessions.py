@@ -20,10 +20,10 @@ from butler_core.accounts.usecases.scan_sessions import ScanSessions
 
 
 def _account(account_id: str) -> Account:
-    app, key = account_id.split(":", 1)
+    platform, key = account_id.split(":", 1)
     return Account(
-        id=account_identity(app, key),
-        app=app,
+        id=account_identity(platform, key),
+        platform=platform,
         display_name=account_id,
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
@@ -41,8 +41,8 @@ class FakeRepo:
     def get(self, account_id: str) -> Account | None:
         return self._by_id.get(account_id)
 
-    def list_by_app(self, app: str) -> list[Account]:
-        return [a for a in self._by_id.values() if a.app == app]
+    def list_by_platform(self, platform: str) -> list[Account]:
+        return [a for a in self._by_id.values() if a.platform == platform]
 
     def list_all(self) -> list[Account]:
         return list(self._by_id.values())
@@ -67,10 +67,10 @@ class FakeSource:
     def __init__(self, sightings: list[SessionSighting]) -> None:
         self._sightings = sightings
 
-    def scan_sessions(self, app: str) -> list[SessionSighting]:
+    def scan_sessions(self, platform: str) -> list[SessionSighting]:
         return self._sightings
 
-    def enumerate_accounts(self, app: str):
+    def enumerate_accounts(self, platform: str):
         return []
 
 

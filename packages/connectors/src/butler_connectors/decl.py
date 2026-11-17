@@ -77,7 +77,7 @@ def _matches(item: dict, filter_: dict[str, str]) -> bool:
     return all(str(item.get(key)) == value for key, value in filter_.items())
 
 
-#: 主凭据缺失 / 凭据被拒时的修复文案（按通道分流；kind 形态扩展，非 per-app）
+#: 主凭据缺失 / 凭据被拒时的修复文案（按通道分流；kind 形态扩展，非 per-platform）
 _NO_AUTH_TAIL = {
     "browser_cookie": "重新导入：浏览器登录后重扫（dock）",
 }

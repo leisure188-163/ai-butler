@@ -38,9 +38,9 @@ class ScanSessions:
     accounts: AccountRepository
     vault: VaultPort
 
-    def scan(self, app: str) -> ScanSessionsOutcome:
-        sightings = list(self.source.scan_sessions(app))
-        device_owner = self._device_owner_map(app)
+    def scan(self, platform: str) -> ScanSessionsOutcome:
+        sightings = list(self.source.scan_sessions(platform))
+        device_owner = self._device_owner_map(platform)
         added = 0
         touched: dict[str, Account] = {}
         unbound: list[SessionSighting] = []
@@ -75,10 +75,10 @@ class ScanSessions:
             unbound=tuple(unbound),
         )
 
-    def _device_owner_map(self, app: str) -> dict[str, Account]:
-        """app 账户 → device_dn 映射（一次 vault.load/账户；缺 = 如实跳过）。"""
+    def _device_owner_map(self, platform: str) -> dict[str, Account]:
+        """platform 账户 → device_dn 映射（一次 vault.load/账户；缺 = 如实跳过）。"""
         owners: dict[str, Account] = {}
-        for account in self.accounts.list_by_app(app):
+        for account in self.accounts.list_by_platform(platform):
             try:
                 secrets = self.vault.load(account.id, ["device_dn"])
             except CredentialMissing:

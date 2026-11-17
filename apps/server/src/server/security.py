@@ -93,17 +93,17 @@ class OriginGuard:
     挂载顺序 = 最外层（main.create_app 最后 add），CORS 也不会替它放行预检。
     """
 
-    def __init__(self, app) -> None:
-        self.app = app
+    def __init__(self, platform) -> None:
+        self.platform = platform
 
     async def __call__(self, scope, receive, send) -> None:
         if scope.get("type") != "http":
-            await self.app(scope, receive, send)
+            await self.platform(scope, receive, send)
             return
         headers = Headers(scope=scope)
         origin = headers.get("origin")
         if origin is None or origin_allowed(origin, headers.get("host")):
-            await self.app(scope, receive, send)
+            await self.platform(scope, receive, send)
             return
         # 不回显 Origin（不把攻击者输入写回响应体）
         response = JSONResponse(

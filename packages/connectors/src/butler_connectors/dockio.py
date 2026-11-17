@@ -18,7 +18,7 @@ from butler_connectors.dock_storage import dpapi_envelope, glob_dirs, mac_envelo
 from butler_connectors.manifest import AuthSpec, DeclarativeSpec, ManifestInvalid
 from butler_connectors.paths import expand_storage_path
 from butler_connectors.qoder_identity import qoder_display, qoder_main_identity, qoder_region
-from butler_connectors.registry import ConnectorApp, DockContext, DockOutcome
+from butler_connectors.registry import ConnectorPlatform, DockContext, DockOutcome
 
 #: 兼容旧模块内调用名（本文件只用别名，不复制实现）。
 _glob_dirs = glob_dirs
@@ -27,28 +27,28 @@ _mac_envelope = mac_envelope
 
 
 def scan_storage(
-    app: ConnectorApp, spec: DeclarativeSpec, kinds: tuple[str, ...], ctx: DockContext
+    platform: ConnectorPlatform, spec: DeclarativeSpec, kinds: tuple[str, ...], ctx: DockContext
 ) -> DockOutcome:
     """声明式连接器停靠：只支持 storage 型 auth（其余 kind = adapter 地盘）。"""
     auth = spec.auth
     candidates = ctx.storage_override if ctx.storage_override is not None else auth.storage
     if not candidates:
         return DockOutcome(
-            target=app.manifest.id,
-            issues=[f"{app.manifest.id}: 没有候选扫描路径（声明里 auth.storage 为空）"],
+            target=platform.manifest.id,
+            issues=[f"{platform.manifest.id}: 没有候选扫描路径（声明里 auth.storage 为空）"],
         )
     try:
         facts_list = _scan_kind(
             auth,
-            app.manifest.id,
+            platform.manifest.id,
             candidates,
             kinds,
-            existing_main_identity=qoder_main_identity(ctx, app.manifest.id),
+            existing_main_identity=qoder_main_identity(ctx, platform.manifest.id),
         )
     except StorageNotFound as exc:
-        return DockOutcome(target=app.manifest.id, issues=[str(exc)])
+        return DockOutcome(target=platform.manifest.id, issues=[str(exc)])
     except ManifestInvalid as exc:  # 采集器/扫描器的显式事故 → 如实出账
-        return DockOutcome(target=app.manifest.id, issues=[str(exc)])
+        return DockOutcome(target=platform.manifest.id, issues=[str(exc)])
 
     accounts: list[str] = []
     issues: list[str] = []
@@ -59,8 +59,8 @@ def scan_storage(
             issues.append(facts["_issue"])
             continue
         account = ctx.register.execute(
-            app.manifest.id,
-            facts.get("_display") or app.display,
+            platform.manifest.id,
+            facts.get("_display") or platform.display,
             account_key=facts.get("_account_key", "main"),
         )
         _store_credentials(
@@ -68,7 +68,7 @@ def scan_storage(
             main_cookie_names=tuple(auth.cookies),
         )
         accounts.append(account.id)
-    return DockOutcome(target=app.manifest.id, accounts=accounts, issues=issues)
+    return DockOutcome(target=platform.manifest.id, accounts=accounts, issues=issues)
 
 
 class StorageNotFound(Exception):
@@ -119,7 +119,7 @@ def _scan_dpapi_gcm_v10(
 
     Windows 信封自包含（dat + key_b64，unlock.session_from_dpapi_gcm_v10 解链），
     运行时解锁不再依赖本机文件布局；mac 信封只带 dat——钥匙在 Keychain
-    （"Qoder App Safe Storage"），解锁时现取（ADR-008 决策 3：现用现取，密钥不入 vault）。
+    （"Qoder Platform Safe Storage"），解锁时现取（ADR-008 决策 3：现用现取，密钥不入 vault）。
     解码一次只为验形 + 取 expiresAt/user 元数据，明文即刻丢弃，入库的是信封原文。
 
     多账户身份锚点：同一 user id 只保留首份登录态；Qoder CN 首账户沿用
@@ -144,7 +144,7 @@ def _scan_dpapi_gcm_v10(
         for data_dir in _glob_dirs(base):
             resolved = data_dir.resolve()
             if resolved in seen_dirs:
-                continue  # 候选 glob 重叠（com.qoder.app* 会覆盖同一目录）
+                continue  # 候选 glob 重叠（com.qoder.platform* 会覆盖同一目录）
             seen_dirs.add(resolved)
             dat = data_dir / "auth.v1.dat"
             if not dat.is_file():
@@ -161,7 +161,7 @@ def _scan_dpapi_gcm_v10(
             except (OSError, ValueError, RuntimeError) as exc:
                 tail = (
                     # mac 钥匙在 Keychain：登录态文件在而解锁失败 → 钥匙侧问题
-                    "mac 钥匙在 Keychain（Qoder App Safe Storage）——确认客户端"
+                    "mac 钥匙在 Keychain（Qoder Platform Safe Storage）——确认客户端"
                     "登录过一次、未拒绝 Keychain 访问后重扫"
                     if sys.platform == "darwin"
                     else "请在桌面端重新登录后重扫"
@@ -253,7 +253,7 @@ def _collect_umid_cosy(
         import sys
 
         order = (
-            "QODER_UMID_EXE 环境变量 → /Applications（或 ~/Applications）下的 Qoder.app"
+            "QODER_UMID_EXE 环境变量 → /Applications（或 ~/Applications）下的 Qoder.platform"
             if sys.platform == "darwin"
             else "QODER_UMID_EXE 环境变量 → 常见安装目录 → 卸载注册表"
         )
@@ -288,13 +288,13 @@ _COLLECTORS["umid_cosy"] = _collect_umid_cosy
 _UMID_REL_WIN = ("resources", "umid", "runtime-info.exe")
 _UMID_REL_MAC = ("Contents", "Resources", "umid", "runtime-info")
 #: mac 应用查找根（~/Applications 兜用户级安装）；2026-11-12 本机取证：
-#/Applications/Qoder.app/Contents/Resources/umid/runtime-info 存在且可运行
+#/Applications/Qoder.platform/Contents/Resources/umid/runtime-info 存在且可运行
 _MAC_APP_ROOTS = ("/Applications", "~/Applications")
-_MAC_APP_NAMES = ("Qoder.app", "Qoder CN.app")
+_MAC_APP_NAMES = ("Qoder.platform", "Qoder CN.platform")
 
 
 def _locate_umid():
-    """runtime-info 定位：环境覆盖 → 平台默认位置（win: 常见目录+卸载注册表；mac: .app 束）。"""
+    """runtime-info 定位：环境覆盖 → 平台默认位置（win: 常见目录+卸载注册表；mac: .platform 束）。"""
     import os
     import sys
 

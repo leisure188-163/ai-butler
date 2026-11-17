@@ -6,12 +6,12 @@
  */
 import { computed, ref } from "vue";
 import * as api from "../api";
-import type { AccountItem, AppItem, RadarRow, RunItem } from "../types";
+import type { AccountItem, PlatformItem, RadarRow, RunItem } from "../types";
 import { isToday } from "../utils";
 
 export function useShellData() {
   const accounts = ref<AccountItem[]>([]);
-  const apps = ref<AppItem[]>([]);
+  const platforms = ref<PlatformItem[]>([]);
   const runs = ref<RunItem[]>([]);
   const pending = ref<RunItem[]>([]);
   const loading = ref(false);
@@ -36,7 +36,7 @@ export function useShellData() {
       accounts.value = acc;
       runs.value = run;
       pending.value = pend;
-      apps.value = appList;
+      platforms.value = appList;
       radarRows.value = radar;
       loadedAt.value = new Intl.DateTimeFormat("zh-CN", {
         hour: "2-digit",
@@ -81,7 +81,7 @@ export function useShellData() {
 
   return {
     accounts,
-    apps,
+    platforms,
     runs,
     pending,
     radarRows,

@@ -164,8 +164,8 @@ class MemAccounts(AccountRepository):
     def get(self, account_id):
         return self.rows.get(account_id)
 
-    def list_by_app(self, app):
-        return [a for a in self.rows.values() if a.app == app]
+    def list_by_platform(self, platform):
+        return [a for a in self.rows.values() if a.platform == platform]
 
     def list_all(self):
         return list(self.rows.values())
@@ -178,10 +178,10 @@ def registry():
 
 def _capture_via_registry(registry, storage_glob: str, vault: MemVault):
     """按真实注册表 chatgpt_web 停靠（manifest/kinds/声明 YAML 全真，只有浏览器替身）。"""
-    app = registry.get("chatgpt_web")
+    platform = registry.get("chatgpt_web")
     return capture_cookies(
-        app,
-        app.declarative["session.import"],
+        platform,
+        platform.declarative["session.import"],
         ("browser_cookie",),
         DockContext(
             vault=vault,
@@ -236,9 +236,9 @@ def test_capture_no_cookie_db(tmp_path, mac_env, registry):
 
 def test_capture_empty_override_issues(tmp_path, mac_env, registry):
     """storage_override 显式空列表 → 无候选（声明层事故如实出账）。"""
-    app = registry.get("chatgpt_web")
+    platform = registry.get("chatgpt_web")
     outcome = capture_cookies(
-        app,
+        platform,
         capture_spec(),
         ("browser_cookie",),
         DockContext(vault=MemVault(), register=RegisterAccount(accounts=MemAccounts()), storage_override=[]),

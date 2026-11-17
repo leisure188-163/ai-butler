@@ -64,9 +64,9 @@ class CheckinSchedule:
             for slot in entry.times:
                 if not self._due(now, slot):
                     continue
-                for account in self.accounts.list_by_app(entry.target):
-                    if not account.enabled:
-                        logger.info("跳过 %s × %s：账户已停用（enabled=false）", entry.target, account.id)
+                for account in self.accounts.list_by_platform(entry.target):
+                    if not account.is_active:
+                        logger.info("跳过 %s × %s：账户已停用（is_active=false）", entry.target, account.id)
                         continue
                     if self._blocked(account.id):
                         key = (entry.target, account.id, window)

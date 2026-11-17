@@ -40,7 +40,7 @@ class NotificationChannel(ABC):
 class InAppChannel(NotificationChannel):
     """应用内：待处理列表 + 托盘角标。M0 内存收集；server API / 桌面托盘后续接。"""
 
-    name = "in-app"
+    name = "in-platform"
     min_severity = Severity.BADGE
 
     def __init__(self) -> None:

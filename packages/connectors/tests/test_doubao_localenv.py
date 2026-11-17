@@ -112,28 +112,28 @@ def test_spawn_detached_passes_debug_port(monkeypatch):
     assert "creationflags" in recorded["kwargs"]  # 脱离本进程生命周期
 
 
-# --- mac .app 束分支（2026-11-12 真机取证：CDP 全链应答 / Info.plist 2.35.8）---
+# --- mac .platform 束分支（2026-11-12 真机取证：CDP 全链应答 / Info.plist 2.35.8）---
 
 
 @pytest.fixture
 def mac_app(tmp_path, monkeypatch):
-    """假 .app 束 + darwin 平台面：Info.plist（plistlib 可读）与主程序。"""
-    app = tmp_path / "Doubao.app" / "Contents"
-    (app / "MacOS").mkdir(parents=True)
+    """假 .platform 束 + darwin 平台面：Info.plist（plistlib 可读）与主程序。"""
+    platform = tmp_path / "Doubao.platform" / "Contents"
+    (platform / "MacOS").mkdir(parents=True)
     import plistlib
 
-    with open(app / "Info.plist", "wb") as fh:
+    with open(platform / "Info.plist", "wb") as fh:
         plistlib.dump(
             {"CFBundleShortVersionString": "2.35.8", "CFBundleIdentifier": "com.doubao"},
             fh,
         )
-    exe = app / "MacOS" / "Doubao"
+    exe = platform / "MacOS" / "Doubao"
     exe.write_bytes(b"MZ")
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(localenv, "_MAC_APP_BASES", (str(tmp_path),))
     monkeypatch.delenv("DOUBAO_VERSION", raising=False)
     monkeypatch.delenv("DOUBAO_EXE", raising=False)
-    return app
+    return platform
 
 
 def test_mac_read_version_from_plist(mac_app):
@@ -194,7 +194,7 @@ def test_mac_spawn_detached_new_session(monkeypatch):
 
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(localenv.subprocess, "Popen", fake_popen)
-    localenv.real_env().spawn_detached(Path("/Applications/Doubao.app/Contents/MacOS/Doubao"))
+    localenv.real_env().spawn_detached(Path("/Applications/Doubao.platform/Contents/MacOS/Doubao"))
     assert recorded["kwargs"].get("start_new_session") is True  # 脱离父进程组
     assert "creationflags" not in recorded["kwargs"]
 
@@ -265,8 +265,8 @@ def test_registry_version_matches_subkey_with_cn_display(monkeypatch):
 @pytest.mark.skipif(sys.platform != "win32", reason="卸载注册表仅 Windows")
 def test_registry_install_root_strips_quoted_icon(monkeypatch, tmp_path):
     """真机口径：DisplayIcon 形如 "D:\\...\\icon.ico"（带引号）→ 剥引号取父目录，
-    exe 候选 = <root>/app/Doubao.exe。"""
-    app_exe = tmp_path / "Doubao" / "app" / "Doubao.exe"
+    exe 候选 = <root>/platform/Doubao.exe。"""
+    app_exe = tmp_path / "Doubao" / "platform" / "Doubao.exe"
     app_exe.parent.mkdir(parents=True)
     app_exe.write_bytes(b"MZ")
     _fake_winreg(monkeypatch, {

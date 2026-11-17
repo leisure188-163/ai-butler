@@ -1,7 +1,7 @@
 """失败转移编排（R4-G5，ADR-012 裁决 5：固定优先级 + 故障转移）。
 
 - 干净路径：循 RouteTable 候选（先 = 优先）逐账户尝试——resolve 账户 →
-  app 上游适配器 → 凭据池 acquire（全审计）→ limiter 持槽 → 上游转发；
+  platform 上游适配器 → 凭据池 acquire（全审计）→ limiter 持槽 → 上游转发；
   首个成功即回
 - 转移语义（仅账户级失败转移）：connect/timeout/5xx/429 → 转下一候选；
   401/403 = 凭据被拒 → pool.invalidate 后转下一候选；其余 4xx = 请求本身
@@ -139,13 +139,13 @@ class Forwarder:
         account = await asyncio.to_thread(self.accounts.get, account_id)
         if account is None:
             return self._skipped(account_id, "skipped:account_missing", started)
-        adapter = upstream_for(account.app)
+        adapter = upstream_for(account.platform)
         if adapter is None:
             return self._skipped(
                 account_id,
-                f"skipped:upstream_not_ready:{account.app}",
+                f"skipped:upstream_not_ready:{account.platform}",
                 started,
-                detail="推理通道取证未回收，该 app 未开工（plans/02 §3）",
+                detail="推理通道取证未回收，该 platform 未开工（plans/02 §3）",
             )
         try:
             credential = await asyncio.to_thread(

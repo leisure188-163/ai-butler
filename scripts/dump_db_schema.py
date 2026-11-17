@@ -25,9 +25,8 @@ OUT_DIR = ROOT / "data" / "sql"
 _SECTIONS: dict[str, str] = {
     # 账户域（accounts/sqlite.py）
     "accounts": "accounts",
-    "idx_accounts_provider": "accounts",
-    "idx_accounts_app": "accounts",
-    "uq_accounts_app_key": "accounts",
+    "uq_accounts_platform_key": "accounts",
+    "idx_accounts_platform": "accounts",
     # 执行域（ledger/sqlite.py）
     "runs": "execution",
     "idx_runs_idempotency": "execution",

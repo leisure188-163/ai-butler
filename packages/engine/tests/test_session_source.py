@@ -8,12 +8,12 @@ from butler_engine.bridge import build_engine
 
 
 class FakeScanner:
-    app = "trae_cn"
+    platform = "trae_cn"
 
-    def scan_sessions(self, app: str):
+    def scan_sessions(self, platform: str):
         return []
 
-    def enumerate_accounts(self, app: str):
+    def enumerate_accounts(self, platform: str):
         return []
 
 
@@ -28,7 +28,7 @@ def test_装配后可用_重复装配显式拒绝(tmp_path) -> None:
     try:
         kit.register_session_source(FakeScanner())
         assert kit.session_scan is not None
-        assert kit.session_scan.source.app == "trae_cn"
+        assert kit.session_scan.source.platform == "trae_cn"
         with pytest.raises(ValueError, match="重复装配"):
             kit.register_session_source(FakeScanner())
     finally:

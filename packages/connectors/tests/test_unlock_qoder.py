@@ -182,7 +182,7 @@ def test_keychain_failure_is_explicit(monkeypatch):
     import types
 
     def fake_run(cmd, **kwargs):
-        assert "Qoder App Safe Storage" in cmd  # 服务名来自常量（取证口径）
+        assert "Qoder Platform Safe Storage" in cmd  # 服务名来自常量（取证口径）
         return types.SimpleNamespace(returncode=44, stdout=b"", stderr=b"denied")
 
     monkeypatch.setattr(subprocess, "run", fake_run)

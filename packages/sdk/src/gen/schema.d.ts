@@ -44,7 +44,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/apps": {
+    "/api/v1/platforms": {
         parameters: {
             query?: never;
             header?: never;
@@ -52,10 +52,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Apps
+         * List Platforms
          * @description 应用名册：连接器能力矩阵（manifest 投影，端零映射）。
          */
-        get: operations["list_apps_api_v1_apps_get"];
+        get: operations["list_platforms_api_v1_platforms_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -64,7 +64,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/apps/{target}/import": {
+    "/api/v1/platforms/{target}/import": {
         parameters: {
             query?: never;
             header?: never;
@@ -74,21 +74,21 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Import App
+         * Import Platform
          * @description 导入（接入扫描）：扫本机客户端 → 注册卡位 → 凭据入库。
          *
          *     单家失败不拖累全家族：结果如实分列（accounts/issues），不静默。
          *     dock 顺带采集（R2-F）：新泊位立即产雷达第一帧；采集失败进 issues，
          *     绝不打断导入本身（CollectUsage 已把端口异常收进 outcome.error）。
          */
-        post: operations["import_app_api_v1_apps__target__import_post"];
+        post: operations["import_platform_api_v1_platforms__target__import_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/apps/import-all": {
+    "/api/v1/platforms/import-all": {
         parameters: {
             query?: never;
             header?: never;
@@ -98,12 +98,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Import All Apps
+         * Import All Platforms
          * @description 一键导入：全部未泊位连接器逐家接入（结果如实分列，单家失败已在 dock 内收进 issues）。
          *
          *     选谁不选谁是编排语义，归 server（A1-02 编排层）；端零入参。
          */
-        post: operations["import_all_apps_api_v1_apps_import_all_post"];
+        post: operations["import_all_platforms_api_v1_platforms_import_all_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -270,8 +270,8 @@ export interface components {
             account_id: string;
             /** Account Key */
             account_key: string;
-            /** App */
-            app: string;
+            /** Platform */
+            platform: string;
             /** Display Name */
             display_name: string;
             /** Level */
@@ -286,26 +286,6 @@ export interface components {
             credentials: components["schemas"]["CredentialOut"][];
             /** Sessions */
             sessions: components["schemas"]["SessionOut"][];
-        };
-        /**
-         * AppOut
-         * @description 应用名册行：连接器能力矩阵 + 调度缺省（A2-02 §2 的端侧投影）。
-         */
-        AppOut: {
-            /** Id */
-            id: string;
-            /** Display */
-            display: string;
-            /** Capabilities */
-            capabilities: string[];
-            /** Credential Kinds */
-            credential_kinds: string[];
-            /** Schedule Times */
-            schedule_times: string[];
-            /** Account Id */
-            account_id: string | null;
-            /** Account Ids */
-            account_ids: string[];
         };
         /** CollectOutcomeOut */
         CollectOutcomeOut: {
@@ -435,14 +415,34 @@ export interface components {
             status: string;
         };
         /**
+         * PlatformOut
+         * @description 应用名册行：连接器能力矩阵 + 调度缺省（A2-02 §2 的端侧投影）。
+         */
+        PlatformOut: {
+            /** Id */
+            id: string;
+            /** Display */
+            display: string;
+            /** Capabilities */
+            capabilities: string[];
+            /** Credential Kinds */
+            credential_kinds: string[];
+            /** Schedule Times */
+            schedule_times: string[];
+            /** Account Id */
+            account_id: string | null;
+            /** Account Ids */
+            account_ids: string[];
+        };
+        /**
          * RadarAccountOut
          * @description 单账号雷达行：无快照 = packages 空（尚未采集）；doubao 只有流水。
          */
         RadarAccountOut: {
             /** Account Id */
             account_id: string;
-            /** App */
-            app: string;
+            /** Platform */
+            platform: string;
             /** Display Name */
             display_name: string;
             /** Collected At */
@@ -636,7 +636,7 @@ export interface operations {
             };
         };
     };
-    list_apps_api_v1_apps_get: {
+    list_platforms_api_v1_platforms_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -651,12 +651,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AppOut"][];
+                    "application/json": components["schemas"]["PlatformOut"][];
                 };
             };
         };
     };
-    import_app_api_v1_apps__target__import_post: {
+    import_platform_api_v1_platforms__target__import_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -687,7 +687,7 @@ export interface operations {
             };
         };
     };
-    import_all_apps_api_v1_apps_import_all_post: {
+    import_all_platforms_api_v1_platforms_import_all_post: {
         parameters: {
             query?: never;
             header?: never;

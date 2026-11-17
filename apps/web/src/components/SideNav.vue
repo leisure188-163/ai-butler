@@ -14,7 +14,7 @@ const emit = defineEmits<{ navigate: [page: PageName]; refresh: [] }>();
    v6.1 侧栏视觉分组：新页（网关/迁移等）挂对应组即可，IA 不动（D3 补记） */
 const navGroups: { label: string; items: PageName[] }[] = [
   { label: "总览", items: ["仪表盘"] },
-  { label: "运营", items: ["应用", "账户", "流量", "日志"] },
+  { label: "运营", items: ["平台", "账户", "流量", "日志"] },
   { label: "系统", items: ["设置"] },
 ];
 
@@ -22,7 +22,7 @@ const navGroups: { label: string; items: PageName[] }[] = [
    功能性视觉锚点，非装饰（DESIGN-DECISIONS D2 v6） */
 const icons: Record<PageName, string> = {
   仪表盘: "M2 9.5 8 4l6 5.5V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z M8 10v5",
-  应用: "M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z",
+  平台: "M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z",
   账户: "M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2.5 14c.7-2.6 2.9-4 5.5-4s4.8 1.4 5.5 4",
   流量: "M1 10l3-5 3 6 2.5-4 2 3h3.5",
   日志: "M4 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z M6 6h4M6 9h4M6 12h3",

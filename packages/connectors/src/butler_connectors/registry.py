@@ -45,7 +45,7 @@ _DECLARATIVE_SPECS: dict[str, type] = {
 
 
 @dataclass(frozen=True)
-class ConnectorApp:
+class ConnectorPlatform:
     """一枚已装载的连接器：manifest + 包根 + 声明式规格（如有）。"""
 
     manifest: ConnectorManifest
@@ -90,17 +90,17 @@ _SESSION_SOURCE_MODULES: dict[str, str] = {
 class Registry:
     """连接器家族注册表：端（server/cli）组装层的唯一入口。"""
 
-    def __init__(self, apps: dict[str, ConnectorApp]) -> None:
-        if not apps:
+    def __init__(self, platforms: dict[str, ConnectorPlatform]) -> None:
+        if not platforms:
             raise ManifestInvalid("连接器注册表为空——包内需至少一个连接器")
-        self._apps = apps
+        self._platforms = platforms
 
     def ids(self) -> list[str]:
-        return sorted(self._apps)
+        return sorted(self._platforms)
 
-    def get(self, target: str) -> ConnectorApp:
+    def get(self, target: str) -> ConnectorPlatform:
         try:
-            return self._apps[target]
+            return self._platforms[target]
         except KeyError:
             raise KeyError(f"连接器未接入: {target!r}（可用: {self.ids()}）") from None
 
@@ -122,8 +122,8 @@ class Registry:
             )
         return factory()
 
-    def apps(self) -> list[ConnectorApp]:
-        return [self._apps[i] for i in self.ids()]
+    def platforms(self) -> list[ConnectorPlatform]:
+        return [self._platforms[i] for i in self.ids()]
 
     # --- 端口与调度（组装层消费）---
 
@@ -136,17 +136,17 @@ class Registry:
         session.import/health.check——A2-03 §4），不视为装配事故。
         """
         ports: dict[str, ProvisionPort] = {}
-        for target, app in self._apps.items():
-            cap = app.manifest.capabilities.get("provision.run")
+        for target, platform in self._platforms.items():
+            cap = platform.manifest.capabilities.get("provision.run")
             if cap is None:
                 continue
-            kinds = tuple(app.manifest.credential.kinds) if app.manifest.credential else ()
+            kinds = tuple(platform.manifest.credential.kinds) if platform.manifest.credential else ()
             if cap.kind == "declarative":
                 ports[target] = _build_decl_port(
-                    target, app, app.declarative["provision.run"], vault, transport, kinds
+                    target, platform, platform.declarative["provision.run"], vault, transport, kinds
                 )
             elif cap.kind == "adapter":
-                ports[target] = _load_entry(app, cap.entry).build_port(
+                ports[target] = _load_entry(platform, cap.entry).build_port(
                     vault=vault, transport=transport
                 )
             else:  # pragma: no cover - schema 已限定枚举
@@ -163,19 +163,19 @@ class Registry:
         from butler_connectors.transport import httpx_transport
 
         ports: dict[str, ProvisionPort] = {}
-        for target, app in self._apps.items():
-            cap = app.manifest.capabilities.get("health.check")
+        for target, platform in self._platforms.items():
+            cap = platform.manifest.capabilities.get("health.check")
             if cap is None:
                 continue
             if cap.kind != "declarative":
                 raise ManifestInvalid(
                     f"{target}: health.check 仅支持 declarative（探针形状 A2-03 §3），got {cap.kind!r}"
                 )
-            kinds = tuple(app.manifest.credential.kinds) if app.manifest.credential else ()
+            kinds = tuple(platform.manifest.credential.kinds) if platform.manifest.credential else ()
             ports[target] = DeclarativeHealthPort(
                 conn_id=target,
-                display=app.display,
-                spec=app.declarative["health.check"],
+                display=platform.display,
+                spec=platform.declarative["health.check"],
                 vault=vault,
                 transport=transport if transport is not None else httpx_transport(),
                 kinds=kinds,
@@ -191,18 +191,18 @@ class Registry:
         两者为空，通道自备环境束。
         """
         ports: dict[str, Any] = {}
-        for target, app in self._apps.items():
-            cap = app.manifest.capabilities.get("usage.collect")
+        for target, platform in self._platforms.items():
+            cap = platform.manifest.capabilities.get("usage.collect")
             if cap is None:
                 continue
             if cap.kind != "adapter":
                 raise ManifestInvalid(
                     f"{target}: usage.collect 仅支持 adapter（用量编排各家专属），got {cap.kind!r}"
                 )
-            kinds = tuple(app.manifest.credential.kinds) if app.manifest.credential else ()
-            declarative = app.declarative.get("provision.run")
+            kinds = tuple(platform.manifest.credential.kinds) if platform.manifest.credential else ()
+            declarative = platform.declarative.get("provision.run")
             auth = declarative.auth if declarative is not None else None
-            ports[target] = _load_entry(app, cap.entry)(
+            ports[target] = _load_entry(platform, cap.entry)(
                 vault=vault, transport=transport, auth=auth, kinds=kinds
             )
         return ports
@@ -210,19 +210,19 @@ class Registry:
     def schedule_entries(self) -> list[dict[str, Any]]:
         """调度条目（纯数据，engine 端组装层转 ScheduleEntry）。"""
         out: list[dict[str, Any]] = []
-        for target, app in self._apps.items():
-            schedule = app.manifest.schedule.get("provision.run")
+        for target, platform in self._platforms.items():
+            schedule = platform.manifest.schedule.get("provision.run")
             if schedule is None:
                 continue
             refresh = schedule.refresh_at
             if refresh is None:
-                refresh = app.declarative["provision.run"].window.refresh_at
+                refresh = platform.declarative["provision.run"].window.refresh_at
             out.append(
                 {
                     "target": target,
                     "times": list(schedule.times),
                     "refresh_at": refresh,
-                    "budget_seconds": app.provision_budget("provision.run"),
+                    "budget_seconds": platform.provision_budget("provision.run"),
                 }
             )
         return out
@@ -238,11 +238,11 @@ class Registry:
         targets = [target] if target else self.ids()
         outcomes: list[DockOutcome] = []
         for tid in targets:
-            app = self.get(tid)
-            cap = app.manifest.capabilities.get("provision.run")
+            platform = self.get(tid)
+            cap = platform.manifest.capabilities.get("provision.run")
             cap_id = "provision.run"
             if cap is None:
-                cap = app.manifest.capabilities.get("session.import")
+                cap = platform.manifest.capabilities.get("session.import")
                 cap_id = "session.import"
             if cap is None:
                 outcomes.append(
@@ -255,24 +255,24 @@ class Registry:
             try:
                 if cap.kind == "declarative" and cap_id == "provision.run":
                     outcome = _onboard_declarative(
-                        app,
-                        app.declarative["provision.run"],
-                        tuple(app.manifest.credential.kinds) if app.manifest.credential else (),
+                        platform,
+                        platform.declarative["provision.run"],
+                        tuple(platform.manifest.credential.kinds) if platform.manifest.credential else (),
                         ctx,
                     )
                 elif cap.kind == "declarative" and cap_id == "session.import":
                     from butler_connectors.browser import capture_cookies
 
                     outcome = capture_cookies(
-                        app,
-                        app.declarative["session.import"],
-                        tuple(app.manifest.credential.kinds) if app.manifest.credential else (),
+                        platform,
+                        platform.declarative["session.import"],
+                        tuple(platform.manifest.credential.kinds) if platform.manifest.credential else (),
                         ctx,
                     )
                 elif cap.kind == "declarative":
                     raise ManifestInvalid(f"{tid}: 声明式能力 {cap_id} 无停靠语义（A2-03 §2）")
                 else:
-                    outcome = _load_entry(app, cap.entry).dock(ctx)
+                    outcome = _load_entry(platform, cap.entry).dock(ctx)
             except Exception as exc:  # 单家失败显式出账，不拖累其余
                 outcome = DockOutcome(target=tid, issues=[f"停靠扫描异常: {exc}"])
             outcomes.append(outcome)
@@ -287,7 +287,7 @@ def load_registry() -> Registry:
 
     幂等：同映射重复注册不报错（reload 安全），映射不同 = 装配 bug 显式爆。
     """
-    apps: dict[str, ConnectorApp] = {}
+    apps: dict[str, ConnectorPlatform] = {}
     for child in sorted(package_root().iterdir()):
         manifest_path = child / MANIFEST_NAME
         if not child.is_dir() or not manifest_path.is_file():
@@ -314,7 +314,7 @@ def load_registry() -> Registry:
                 register_dialect(
                     manifest.id, {code: Status[name] for code, name in codes.items()}
                 )
-        apps[manifest.id] = ConnectorApp(
+        apps[manifest.id] = ConnectorPlatform(
             manifest=manifest, root=child, declarative=declarative
         )
     return Registry(apps)
@@ -341,9 +341,9 @@ def _load_entry_module(conn_id: str, entry: str) -> Any:
     return importlib.import_module(f"butler_connectors.{conn_id}.{module_name}")
 
 
-def _load_entry(app: ConnectorApp, entry: str) -> Any:
+def _load_entry(platform: ConnectorPlatform, entry: str) -> Any:
     """adapter 连接器的 entry 形如 ``module.attribute`` → 模块函数/对象。"""
-    module = _load_entry_module(app.manifest.id, entry)
+    module = _load_entry_module(platform.manifest.id, entry)
     return getattr(module, entry.partition(".")[2])
 
 
@@ -352,7 +352,7 @@ def _load_entry(app: ConnectorApp, entry: str) -> Any:
 
 def _build_decl_port(
     target: str,
-    app: ConnectorApp,
+    platform: ConnectorPlatform,
     spec: DeclarativeSpec,
     vault: Any,
     transport: Any,
@@ -363,7 +363,7 @@ def _build_decl_port(
 
     return DeclarativeProvisionPort(
         conn_id=target,
-        display=app.display,
+        display=platform.display,
         spec=spec,
         vault=vault,
         transport=transport if transport is not None else httpx_transport(),
@@ -372,9 +372,9 @@ def _build_decl_port(
 
 
 def _onboard_declarative(
-    app: ConnectorApp, spec: DeclarativeSpec, kinds: tuple[str, ...], ctx: DockContext
+    platform: ConnectorPlatform, spec: DeclarativeSpec, kinds: tuple[str, ...], ctx: DockContext
 ) -> DockOutcome:
     """声明式连接器的停靠：共享 dockio 扫描本机凭据存储 → 注册 → 入库。"""
     from butler_connectors.dockio import scan_storage
 
-    return scan_storage(app, spec, kinds, ctx)
+    return scan_storage(platform, spec, kinds, ctx)

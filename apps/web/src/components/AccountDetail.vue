@@ -6,7 +6,7 @@
  * provision.run = 领取；health.check = 体检（R3 网页通道）。
  */
 import { computed } from "vue";
-import type { AccountItem, AppItem } from "../types";
+import type { AccountItem, PlatformItem } from "../types";
 import { earliestExpiry, faceOf, fmtTime, signalText } from "../utils";
 import AppBadge from "./AppBadge.vue";
 
@@ -18,7 +18,7 @@ function sessionLabel(location: string): string {
 
 const props = defineProps<{
   account: AccountItem | null;
-  app: AppItem | null;
+  platform: PlatformItem | null;
   busy: boolean;
 }>();
 
@@ -29,14 +29,14 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const hasClaim = computed(() => props.app?.capabilities.includes("provision.run") ?? false);
-const hasHealth = computed(() => props.app?.capabilities.includes("health.check") ?? false);
+const hasClaim = computed(() => props.platform?.capabilities.includes("provision.run") ?? false);
+const hasHealth = computed(() => props.platform?.capabilities.includes("health.check") ?? false);
 </script>
 
 <template>
-  <div v-if="account && app" class="detail">
+  <div v-if="account && platform" class="detail">
     <div class="detail-head">
-      <AppBadge :name="app.display" :color-index="faceOf(account.account_id)" />
+      <AppBadge :name="platform.display" :color-index="faceOf(account.account_id)" />
       <span class="detail-id mono">{{ account.account_id }}</span>
       <button class="detail-close" aria-label="收起详情" @click="emit('close')">✕</button>
     </div>
@@ -82,14 +82,14 @@ const hasHealth = computed(() => props.app?.capabilities.includes("health.check"
         v-if="hasClaim"
         class="btn btn--primary"
         :disabled="busy"
-        @click="emit('claim', app.id)"
+        @click="emit('claim', platform.id)"
       >领取</button>
       <button
         v-if="hasHealth"
         class="btn"
         :class="hasClaim ? 'btn--ghost' : 'btn--primary'"
         :disabled="busy"
-        @click="emit('health', app.id)"
+        @click="emit('health', platform.id)"
       >体检</button>
       <button class="btn btn--ghost" :disabled="busy" @click="emit('scanSessions', account.account_id)">
         扫会话

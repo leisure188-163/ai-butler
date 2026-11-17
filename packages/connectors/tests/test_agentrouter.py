@@ -187,8 +187,8 @@ def test_dock_registers_and_stores_marker(monkeypatch):
     calls: list[tuple] = []
 
     class Register:
-        def execute(self, app: str, display: str, *, account_key: str):
-            calls.append(("register", app, display, account_key))
+        def execute(self, platform: str, display: str, *, account_key: str):
+            calls.append(("register", platform, display, account_key))
             return SimpleNamespace(id="agentrouter:main")
 
     class Vault:

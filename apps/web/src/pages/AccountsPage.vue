@@ -6,11 +6,11 @@
  */
 import { computed } from "vue";
 import MatrixTable from "../components/MatrixTable.vue";
-import type { AccountItem, AppItem, RadarRow, RunItem } from "../types";
+import type { AccountItem, PlatformItem, RadarRow, RunItem } from "../types";
 
 const props = defineProps<{
   accounts: AccountItem[];
-  apps: AppItem[];
+  platforms: PlatformItem[];
   radar: RadarRow[];
   runs: RunItem[];
   busyTarget: string | null;
@@ -29,7 +29,7 @@ const emit = defineEmits<{
 
 /* 一键领取计数：申报了 provision.run 且已导入的应用才计数（不虚报） */
 const claimableCount = computed(
-  () => props.apps.filter((a) => a.account_id && a.capabilities.includes("provision.run")).length,
+  () => props.platforms.filter((a) => a.account_id && a.capabilities.includes("provision.run")).length,
 );
 </script>
 
@@ -58,7 +58,7 @@ const claimableCount = computed(
   <section class="section">
     <MatrixTable
       :accounts="accounts"
-      :apps="apps"
+      :platforms="platforms"
       :radar="radar"
       :runs="runs"
       :busy-target="busyTarget"

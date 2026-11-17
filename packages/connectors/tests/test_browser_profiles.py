@@ -58,10 +58,10 @@ def test_two_slots_full_chain_via_registry(tmp_path, mac_env, registry):
     )
     accounts = MemAccounts()
     vault = MemVault()
-    app = registry.get("chatgpt_web")
+    platform = registry.get("chatgpt_web")
     outcome = capture_cookies(
-        app,
-        app.declarative["session.import"],
+        platform,
+        platform.declarative["session.import"],
         ("browser_cookie",),
         DockContext(
             vault=vault,
@@ -94,12 +94,12 @@ def test_rescan_replays_existing_slots(tmp_path, mac_env, registry):
         mac_rows(mac_env, {COOKIES[0]: (b"v-p-0", 0), COOKIES[1]: (b"v-p-1", 0)}),
     )
     accounts = MemAccounts()
-    app = registry.get("chatgpt_web")
+    platform = registry.get("chatgpt_web")
 
     def dock_once():
         return capture_cookies(
-            app,
-            app.declarative["session.import"],
+            platform,
+            platform.declarative["session.import"],
             ("browser_cookie",),
             DockContext(
                 vault=MemVault(),

@@ -23,7 +23,7 @@ from pathlib import Path
 
 from butler_connectors.manifest import AuthSpec, CaptureSpec, ManifestInvalid
 from butler_connectors.paths import expand_storage_path
-from butler_connectors.registry import ConnectorApp, DockContext, DockOutcome
+from butler_connectors.registry import ConnectorPlatform, DockContext, DockOutcome
 
 
 class StorageNotFound(Exception):
@@ -49,7 +49,7 @@ class CapturedProfile:
 
 
 def capture_cookies(
-    app: ConnectorApp,
+    platform: ConnectorPlatform,
     spec: CaptureSpec,
     kinds: tuple[str, ...],
     ctx: DockContext,
@@ -59,23 +59,23 @@ def capture_cookies(
     candidates = ctx.storage_override if ctx.storage_override is not None else auth.storage
     if not candidates:
         return DockOutcome(
-            target=app.manifest.id,
-            issues=[f"{app.manifest.id}: 没有候选 cookie 库（声明里 auth.storage 为空）"],
+            target=platform.manifest.id,
+            issues=[f"{platform.manifest.id}: 没有候选 cookie 库（声明里 auth.storage 为空）"],
         )
     try:
-        captured, capture_issues = _capture_kind(auth, app.manifest.id, candidates)
+        captured, capture_issues = _capture_kind(auth, platform.manifest.id, candidates)
     except StorageNotFound as exc:
-        return DockOutcome(target=app.manifest.id, issues=[str(exc)])
+        return DockOutcome(target=platform.manifest.id, issues=[str(exc)])
     except ManifestInvalid as exc:  # 显式事故 → 如实出账（与 dockio 同纪律）
-        return DockOutcome(target=app.manifest.id, issues=[str(exc)])
+        return DockOutcome(target=platform.manifest.id, issues=[str(exc)])
 
     if not captured:
         if capture_issues:  # 无 profile 凑齐但有过显式事故：报首个原因（库序确定），不误报未登录
-            return DockOutcome(target=app.manifest.id, issues=[capture_issues[0]])
+            return DockOutcome(target=platform.manifest.id, issues=[capture_issues[0]])
         return DockOutcome(
-            target=app.manifest.id,
+            target=platform.manifest.id,
             issues=[
-                f"{app.manifest.id}: 未登录（Chrome 无 {auth.domain} 完整会话 cookie）——"
+                f"{platform.manifest.id}: 未登录（Chrome 无 {auth.domain} 完整会话 cookie）——"
                 "浏览器登录后重扫（未登录不是错误，A1-04 §4.1）"
             ],
         )
@@ -85,17 +85,17 @@ def capture_cookies(
     accounts: list[str] = []
     for item in captured:
         display = (
-            app.display
+            platform.display
             if item.account_key == "main"
-            else f"{app.display}（{item.profile_dir}）"
+            else f"{platform.display}（{item.profile_dir}）"
         )
-        account = ctx.register.execute(app.manifest.id, display, account_key=item.account_key)
+        account = ctx.register.execute(platform.manifest.id, display, account_key=item.account_key)
         _store_credentials(
             ctx, account.id, {"browser_cookie": item.envelope}, kinds, auth.kind,
             main_cookie_names=tuple(auth.cookies),
         )
         accounts.append(account.id)
-    return DockOutcome(target=app.manifest.id, accounts=accounts)
+    return DockOutcome(target=platform.manifest.id, accounts=accounts)
 
 
 def _capture_kind(

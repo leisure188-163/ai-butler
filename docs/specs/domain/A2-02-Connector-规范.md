@@ -155,7 +155,7 @@ CI 只在 ubuntu 跑——平台特有调用（Windows DPAPI / macOS Keychain）
 ## 9. 多账号 dock/import 取证结论（ADR-003 §3，2026-11-14 重写 P5）
 
 core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_key`、
-`AppOut.account_ids`、一键领取逐账户发起）。连接器侧取证结论如实登记如下，
+`PlatformOut.account_ids`、一键领取逐账户发起）。连接器侧取证结论如实登记如下，
 **不虚报未验证能力**（红线 5）：
 
 | 连接器 | dock 现状 | 多 profile 取证 |

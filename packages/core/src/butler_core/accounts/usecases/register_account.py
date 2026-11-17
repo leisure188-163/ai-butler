@@ -1,6 +1,6 @@
 """账户域用例（A2-04 §4）：注册账户 + 多账号枚举导入。
 
-多账号（ADR-003）：(app, account_key) 是身份锚点；同身份重复停靠是幂等
+多账号（ADR-003）：(platform, account_key) 是身份锚点；同身份重复停靠是幂等
 回放（返回既有账户，不覆盖、不改号）；显式传入的 account_id 与身份编址不一致
 则拒绝（形状冲突，红线 5）。
 """
@@ -26,16 +26,16 @@ class RegisterAccount:
 
     def execute(
         self,
-        app: str,
+        platform: str,
         display_name: str,
         *,
         account_key: str = "main",
         account_id: str | None = None,
     ) -> Account:
-        computed = account_identity(app, account_key)
+        computed = account_identity(platform, account_key)
         if account_id is not None and account_id != computed:
             raise AccountAlreadyExists(
-                f"account_id {account_id!r} 与 (app, account_key) 编址 {computed!r} 冲突"
+                f"account_id {account_id!r} 与 (platform, account_key) 编址 {computed!r} 冲突"
             )
         aid = computed
         existing = self.accounts.get(aid)
@@ -43,7 +43,7 @@ class RegisterAccount:
             return existing  # 幂等回放：同一身份重复停靠，不覆盖不改号
         account = Account(
             id=aid,
-            app=app.strip(),
+            platform=platform.strip(),
             display_name=display_name,
             created_at=now_utc(),
             account_key=account_key,
@@ -55,10 +55,10 @@ class RegisterAccount:
         """枚举本机多 profile（ADR-003 §3），逐账号入库。"""
 
         if self.source is None:
-            return [self.execute(draft.app, draft.display_name, account_key=draft.account_key)]
+            return [self.execute(draft.platform, draft.display_name, account_key=draft.account_key)]
         registered: list[Account] = []
-        for key, display in self.source.enumerate_accounts(draft.app):
+        for key, display in self.source.enumerate_accounts(draft.platform):
             registered.append(
-                self.execute(draft.app, display, account_key=key)
+                self.execute(draft.platform, display, account_key=key)
             )
         return registered

@@ -22,8 +22,8 @@ class MemAccounts(AccountRepository):
     def get(self, account_id: str) -> Account | None:
         return self._rows.get(account_id)
 
-    def list_by_app(self, app: str) -> list[Account]:
-        return [a for a in self._rows.values() if a.app == app]
+    def list_by_platform(self, platform: str) -> list[Account]:
+        return [a for a in self._rows.values() if a.platform == platform]
 
     def list_all(self) -> list[Account]:
         return list(self._rows.values())
@@ -53,10 +53,10 @@ def test_register_invalid_display():
 def test_account_fields_shape():
     account = Account(
         id="trae_cn:main",
-        app="trae_cn",
+        platform="trae_cn",
         display_name="Trae CN",
         created_at=datetime(2026, 11, 11, tzinfo=UTC),
     )
-    assert account.app == "trae_cn"
+    assert account.platform == "trae_cn"
     with pytest.raises(DomainError):
-        Account(id="", app="trae_cn", display_name="x", created_at=now_utc())
+        Account(id="", platform="trae_cn", display_name="x", created_at=now_utc())

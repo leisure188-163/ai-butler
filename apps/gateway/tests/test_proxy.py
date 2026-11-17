@@ -29,7 +29,7 @@ class FakeMeter:
 
 
 class FakeUpstream:
-    app = "trae_cn"
+    platform = "trae_cn"
     credential_kind = "ss_aes"
 
     def __init__(self, reply: UpstreamReply) -> None:
@@ -43,7 +43,7 @@ class FakeAccounts:
     def __init__(self) -> None:
         self._a = Account(
             id=account_identity("trae_cn", "main"),
-            app="trae_cn",
+            platform="trae_cn",
             display_name="trae main",
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         )
@@ -96,8 +96,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient,
     import butler_gateway.app as app_module
 
     monkeypatch.setattr(app_module, "_kit_factory", lambda: FakeKit(record_usage_sample=meter))
-    app = create_app()
-    with TestClient(app) as tc:
+    platform = create_app()
+    with TestClient(platform) as tc:
         yield tc, meter
 
 

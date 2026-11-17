@@ -1,7 +1,7 @@
 """失败转移编排单元测试（R4-G5，ADR-012 裁决 5）：Fake 端口 + 真限流器，零 mock IO。
 
 覆盖：成功即回 / 5xx 转移 / 401 失效凭据后转移 / 429 转移 / 与账户无关的 4xx
-不转移原样回传 / 候选空 NoRoute / 未注册 app 如实记 skipped / 缺凭据
+不转移原样回传 / 候选空 NoRoute / 未注册 platform 如实记 skipped / 缺凭据
 skipped / 账户缺失 skipped / 全部失败汇总 / Meter 失败不打断 / 每尝试都入账。
 pytest 无 asyncio 插件：异步场景用 asyncio.run() 包同步测试（test_limiter 先例）。
 """
@@ -29,10 +29,10 @@ from butler_gateway.upstream import (
 )
 
 
-def _account(account_id: str, app: str) -> Account:
+def _account(account_id: str, platform: str) -> Account:
     return Account(
-        id=account_identity(app, account_id.split(":", 1)[1]),
-        app=app,
+        id=account_identity(platform, account_id.split(":", 1)[1]),
+        platform=platform,
         display_name=account_id,
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
@@ -85,7 +85,7 @@ class FakeMeter:
 class FakeUpstream:
     """脚本化上游：逐次调用按脚本回放（reply / failure）。"""
 
-    app = "trae_cn"
+    platform = "trae_cn"
     credential_kind = "ss_aes"
 
     def __init__(self, script: list) -> None:
@@ -212,7 +212,7 @@ def test_未注册app_如实记skipped_转下一候选() -> None:
             [
                 Account(
                     id=account_identity("qoder_cn", "main"),
-                    app="qoder_cn",
+                    platform="qoder_cn",
                     display_name="q",
                     created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
                 ),

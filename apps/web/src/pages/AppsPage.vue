@@ -6,11 +6,11 @@
  */
 import { computed, ref } from "vue";
 import AppBadge from "../components/AppBadge.vue";
-import type { AccountItem, AppItem, PageName, Signal } from "../types";
+import type { AccountItem, PlatformItem, PageName, Signal } from "../types";
 import { faceOf, signalText } from "../utils";
 
 const props = defineProps<{
-  apps: AppItem[];
+  platforms: PlatformItem[];
   accounts: AccountItem[];
   busyTarget: string | null;
   msg: { text: string; tone: "ok" | "warn" } | null;
@@ -25,7 +25,7 @@ const emit = defineEmits<{
   jump: [page: PageName];
 }>();
 
-const emptyApps = computed(() => props.apps.filter((a) => !a.account_id));
+const emptyApps = computed(() => props.platforms.filter((a) => !a.account_id));
 const importableCount = computed(() => emptyApps.value.length);
 
 function capabilityText(kind: string): string {
@@ -35,20 +35,20 @@ function capabilityText(kind: string): string {
   return kind;
 }
 
-function accountCount(app: AppItem): number {
-  if (app.account_ids?.length) return app.account_ids.length;
-  return app.account_id ? 1 : 0;
+function accountCount(platform: PlatformItem): number {
+  if (platform.account_ids?.length) return platform.account_ids.length;
+  return platform.account_id ? 1 : 0;
 }
 
-function accountsOf(app: AppItem): AccountItem[] {
-  const ids = new Set(app.account_ids ?? (app.account_id ? [app.account_id] : []));
-  return props.accounts.filter((a) => ids.has(a.account_id) || a.app === app.id);
+function accountsOf(platform: PlatformItem): AccountItem[] {
+  const ids = new Set(platform.account_ids ?? (platform.account_id ? [platform.account_id] : []));
+  return props.accounts.filter((a) => ids.has(a.account_id) || a.platform === platform.id);
 }
 
 const signals: Signal[] = ["ok", "notice", "attention", "danger", "quiet"];
 
-function statusGroups(app: AppItem) {
-  const list = accountsOf(app);
+function statusGroups(platform: PlatformItem) {
+  const list = accountsOf(platform);
   return signals
     .map((signal) => ({ signal, count: list.filter((a) => a.signal === signal).length }))
     .filter((g) => g.count > 0);
@@ -71,8 +71,8 @@ function toggleDetail(id: string) {
       <div class="head-actions">
         <button
           class="btn btn--ghost"
-          :disabled="busyTarget !== null || !apps.length"
-          @click="emit('syncAll', apps.map((app) => app.id))"
+          :disabled="busyTarget !== null || !platforms.length"
+          @click="emit('syncAll', platforms.map((platform) => platform.id))"
         >同步全部</button>
         <button
           class="btn btn--primary"
@@ -91,7 +91,7 @@ function toggleDetail(id: string) {
   >{{ msg.text }}</p>
 
   <section class="section" aria-label="应用名册">
-    <div v-if="apps.length" class="app-wrap sheet">
+    <div v-if="platforms.length" class="platform-wrap sheet">
       <table class="matrix">
         <thead>
           <tr>
@@ -104,72 +104,72 @@ function toggleDetail(id: string) {
           </tr>
         </thead>
         <tbody>
-          <template v-for="app in apps" :key="app.id">
-            <tr :class="{ 'is-selected': expandedId === app.id }" @click="toggleDetail(app.id)">
+          <template v-for="platform in platforms" :key="platform.id">
+            <tr :class="{ 'is-selected': expandedId === platform.id }" @click="toggleDetail(platform.id)">
               <td>
-                <AppBadge :name="app.display" :color-index="faceOf(app.id)" />
+                <AppBadge :name="platform.display" :color-index="faceOf(platform.id)" />
               </td>
               <td>
-                <span v-for="cap in app.capabilities" :key="cap" class="tag tag--quiet cap-tag">
+                <span v-for="cap in platform.capabilities" :key="cap" class="tag tag--quiet cap-tag">
                   {{ capabilityText(cap) }}
                 </span>
-                <span v-if="!app.capabilities.length" class="faint">—</span>
+                <span v-if="!platform.capabilities.length" class="faint">—</span>
               </td>
-              <td class="num">{{ app.schedule_times.length ? app.schedule_times.join("、") : "—" }}</td>
+              <td class="num">{{ platform.schedule_times.length ? platform.schedule_times.join("、") : "—" }}</td>
               <td class="num">
-                <span v-if="accountCount(app)">{{ accountCount(app) }}</span>
+                <span v-if="accountCount(platform)">{{ accountCount(platform) }}</span>
                 <span v-else class="unimported">未导入</span>
               </td>
               <td>
                 <span
-                  v-for="g in statusGroups(app)"
+                  v-for="g in statusGroups(platform)"
                   :key="g.signal"
                   class="tag"
                   :class="`tag--${g.signal}`"
                 >{{ signalText(g.signal) }} {{ g.count }}</span>
-                <span v-if="!statusGroups(app).length" class="faint">—</span>
+                <span v-if="!statusGroups(platform).length" class="faint">—</span>
               </td>
               <td @click.stop>
                 <span class="row-actions">
                   <button
-                    v-if="!app.account_id"
+                    v-if="!platform.account_id"
                     class="btn btn--ghost"
                     :disabled="busyTarget !== null"
-                    @click="emit('import', app.id)"
+                    @click="emit('import', platform.id)"
                   >导入</button>
                   <button
                     v-else
                     class="btn btn--ghost"
                     :disabled="busyTarget !== null"
-                    @click="emit('import', app.id)"
+                    @click="emit('import', platform.id)"
                   >同步</button>
-                  <button v-if="app.account_id" class="btn btn--ghost" @click="emit('jump', '账户')">去账户</button>
-                  <button class="btn btn--ghost" @click="toggleDetail(app.id)">
-                    {{ expandedId === app.id ? "收起" : "详情" }}
+                  <button v-if="platform.account_id" class="btn btn--ghost" @click="emit('jump', '账户')">去账户</button>
+                  <button class="btn btn--ghost" @click="toggleDetail(platform.id)">
+                    {{ expandedId === platform.id ? "收起" : "详情" }}
                   </button>
                 </span>
               </td>
             </tr>
-            <tr v-if="expandedId === app.id" class="detail-row">
+            <tr v-if="expandedId === platform.id" class="detail-row">
               <td colspan="6" @click.stop>
                 <ul class="rows">
                   <li class="row">
                     <span class="row-main">
                       <p class="row-title">能力清单</p>
-                      <p class="row-sub mono">{{ app.capabilities.join(" · ") || "—" }}</p>
+                      <p class="row-sub mono">{{ platform.capabilities.join(" · ") || "—" }}</p>
                     </span>
                   </li>
                   <li class="row">
                     <span class="row-main">
                       <p class="row-title">时间表</p>
-                      <p class="row-sub">{{ app.schedule_times.join("、") || "—" }}</p>
+                      <p class="row-sub">{{ platform.schedule_times.join("、") || "—" }}</p>
                     </span>
                   </li>
                   <li class="row">
                     <span class="row-main">
-                      <p class="row-title">该应用账户（{{ accountCount(app) }}）</p>
+                      <p class="row-title">该应用账户（{{ accountCount(platform) }}）</p>
                       <p class="row-sub mono">
-                        {{ accountsOf(app).map((a) => a.account_id).join("、") || "—" }}
+                        {{ accountsOf(platform).map((a) => a.account_id).join("、") || "—" }}
                       </p>
                     </span>
                     <button class="btn btn--ghost" @click="emit('jump', '账户')">去账户</button>
@@ -184,15 +184,15 @@ function toggleDetail(id: string) {
 
     <!-- 未接入应用的虚位邀请行（从账户页迁入，ADR-010 §3） -->
     <ul v-if="emptyApps.length" class="slots" aria-label="可导入应用">
-      <li v-for="app in emptyApps" :key="app.id">
-        <button class="slot-row" :disabled="busyTarget !== null" @click="emit('import', app.id)">
+      <li v-for="platform in emptyApps" :key="platform.id">
+        <button class="slot-row" :disabled="busyTarget !== null" @click="emit('import', platform.id)">
           <span class="slot-plus" aria-hidden="true">＋</span>
-          导入 {{ app.display }}
+          导入 {{ platform.display }}
         </button>
       </li>
     </ul>
 
-    <p v-if="!apps.length" class="quietline">
+    <p v-if="!platforms.length" class="quietline">
       还没有应用——一键导入把本机客户端接进来。
     </p>
   </section>
@@ -212,8 +212,8 @@ function toggleDetail(id: string) {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
-.app-wrap { overflow-x: auto; }
-.app-wrap .matrix { min-width: 720px; }
+.platform-wrap { overflow-x: auto; }
+.platform-wrap .matrix { min-width: 720px; }
 .cap-tag { margin-right: var(--space-1); }
 .faint { color: var(--color-text-faint); }
 .unimported {

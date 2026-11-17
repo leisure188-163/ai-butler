@@ -2,25 +2,25 @@
 /**
  * 仪表盘右栏（v6.3 布局改版）：快捷入口 + 班次时刻。
  * 快捷入口 = 纯导航（emit navigate），不做跨页动作，零新端点；
- * 班次时刻 = apps 真实 schedule_times 并集排序，下一个未来时刻高亮，
+ * 班次时刻 = platforms 真实 schedule_times 并集排序，下一个未来时刻高亮，
  * 无排班如实留白（红线 2：不编造状态）。
  */
 import { computed } from "vue";
-import type { AppItem, PageName } from "../types";
+import type { PlatformItem, PageName } from "../types";
 
-const props = defineProps<{ apps: AppItem[] }>();
+const props = defineProps<{ platforms: PlatformItem[] }>();
 
 const emit = defineEmits<{ navigate: [page: PageName] }>();
 
 const tiles: { page: PageName; title: string; sub: string; icon: string }[] = [
-  { page: "应用", title: "导入应用", sub: "把本机客户端接进来", icon: "plus" },
+  { page: "平台", title: "导入平台", sub: "把本机客户端接进来", icon: "plus" },
   { page: "账户", title: "去领取", sub: "手动领取今日班次", icon: "check" },
   { page: "流量", title: "去采集", sub: "拉取余额与额度快照", icon: "drop" },
   { page: "日志", title: "看日志", sub: "每次动作都有台账", icon: "list" },
 ];
 
 const shiftTimes = computed(() =>
-  [...new Set(props.apps.flatMap((a) => a.schedule_times))]
+  [...new Set(props.platforms.flatMap((a) => a.schedule_times))]
     .filter((t) => /^\d{1,2}:\d{2}$/.test(t))
     .sort(),
 );

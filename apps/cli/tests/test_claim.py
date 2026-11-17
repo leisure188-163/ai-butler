@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 from typer.testing import CliRunner
 
-from cli.main import app
+from cli.main import platform
 
 
 class FakeExecuteAction:
@@ -36,9 +36,9 @@ class FakeAccounts:
     def get(self, account_id: str):
         return SimpleNamespace(id=account_id) if account_id in self._ids else None
 
-    def list_by_app(self, app: str):
+    def list_by_platform(self, platform: str):
         return [
-            SimpleNamespace(id=i) for i in sorted(self._ids) if i.startswith(app + ":")
+            SimpleNamespace(id=i) for i in sorted(self._ids) if i.startswith(platform + ":")
         ]
 
 
@@ -64,19 +64,19 @@ runner = CliRunner()
 
 
 def test_默认main账户(fake_kit: FakeKit) -> None:
-    result = runner.invoke(app, ["claim", "trae_cn"])
+    result = runner.invoke(platform, ["claim", "trae_cn"])
     assert result.exit_code == 0
     assert fake_kit.execute_action.requests[0].account_id == "trae_cn:main"
 
 
 def test_account选项_选第二张卡(fake_kit: FakeKit) -> None:
-    result = runner.invoke(app, ["claim", "trae_cn", "--account", "second"])
+    result = runner.invoke(platform, ["claim", "trae_cn", "--account", "second"])
     assert result.exit_code == 0
     assert fake_kit.execute_action.requests[0].account_id == "trae_cn:second"
 
 
 def test_卡不存在_显式报错并列已有卡(fake_kit: FakeKit) -> None:
-    result = runner.invoke(app, ["claim", "trae_cn", "--account", "nope"])
+    result = runner.invoke(platform, ["claim", "trae_cn", "--account", "nope"])
     assert result.exit_code == 2
     assert "卡不存在" in result.output
     assert "trae_cn:main" in result.output and "trae_cn:second" in result.output
@@ -84,12 +84,12 @@ def test_卡不存在_显式报错并列已有卡(fake_kit: FakeKit) -> None:
 
 
 def test_未知连接器_显式报错(fake_kit: FakeKit) -> None:
-    result = runner.invoke(app, ["claim", "no_such_app"])
+    result = runner.invoke(platform, ["claim", "no_such_app"])
     assert result.exit_code == 2
     assert "连接器未接入" in result.output
 
 
 def test_未导入应用_提示先import(fake_kit: FakeKit) -> None:
-    result = runner.invoke(app, ["claim", "workbuddy_cn"])
+    result = runner.invoke(platform, ["claim", "workbuddy_cn"])
     assert result.exit_code == 2
     assert "未导入" in result.output

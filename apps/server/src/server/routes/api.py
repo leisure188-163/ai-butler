@@ -2,7 +2,7 @@
 
 本文件不放端点、不放投影模型、不放业务判断——一业务域 = 一模块 =
 一文件，域内自带投影模型与序列化器（红线 2 载体随域走）：
-accounts（卡与凭据）/ apps（应用与导入）/ runs（运行台账）/ usage（用量雷达）/
+accounts（卡与凭据）/ platforms（平台与导入）/ runs（运行台账）/ usage（用量雷达）/
 gateway（网关路由管理面，R4-G6）。
 
 include 顺序 = OpenAPI paths 首现顺序（契约指纹含 paths 键序，乱序即漂移）；
@@ -14,14 +14,14 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from server.routes.accounts import router as accounts_router
-from server.routes.apps import router as apps_router
+from server.routes.platforms import router as platforms_router
 from server.routes.gateway import router as gateway_router
 from server.routes.runs import router as runs_router
 from server.routes.usage import router as usage_router
 
 router = APIRouter()
 router.include_router(accounts_router)
-router.include_router(apps_router)
+router.include_router(platforms_router)
 router.include_router(runs_router)
 router.include_router(usage_router)
 router.include_router(gateway_router)

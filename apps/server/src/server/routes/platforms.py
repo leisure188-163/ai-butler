@@ -8,7 +8,7 @@ from pydantic import BaseModel
 router = APIRouter(tags=["butler"])
 
 
-class AppOut(BaseModel):
+class PlatformOut(BaseModel):
     """应用名册行：连接器能力矩阵 + 调度缺省（A2-02 §2 的端侧投影）。"""
 
     id: str
@@ -47,27 +47,27 @@ def _import_one(registry, kit, target: str) -> ImportOut:
     return ImportOut(target=outcome.target, accounts=outcome.accounts, issues=outcome.issues)
 
 
-@router.get("/apps", response_model=list[AppOut])
-def list_apps(request: Request) -> list[AppOut]:
+@router.get("/platforms", response_model=list[PlatformOut])
+def list_platforms(request: Request) -> list[PlatformOut]:
     """应用名册：连接器能力矩阵（manifest 投影，端零映射）。"""
     registry = request.app.state.registry
     kit = request.app.state.kit
     docked: dict[str, list[str]] = {}
     for account in kit.accounts.list_all():
-        docked.setdefault(account.app, []).append(account.id)
-    out: list[AppOut] = []
-    for app in registry.apps():
-        if getattr(app.manifest, "retired", False):
+        docked.setdefault(account.platform, []).append(account.id)
+    out: list[PlatformOut] = []
+    for platform in registry.platforms():
+        if getattr(platform.manifest, "retired", False):
             continue
-        schedule = app.manifest.schedule.get("provision.run")
-        ids = sorted(docked.get(app.manifest.id, []))
+        schedule = platform.manifest.schedule.get("provision.run")
+        ids = sorted(docked.get(platform.manifest.id, []))
         out.append(
-            AppOut(
-                id=app.manifest.id,
-                display=app.display,
-                capabilities=sorted(app.manifest.capabilities),
-                credential_kinds=list(app.manifest.credential.kinds)
-                if app.manifest.credential
+            PlatformOut(
+                id=platform.manifest.id,
+                display=platform.display,
+                capabilities=sorted(platform.manifest.capabilities),
+                credential_kinds=list(platform.manifest.credential.kinds)
+                if platform.manifest.credential
                 else [],
                 schedule_times=list(schedule.times) if schedule else [],
                 account_id=ids[0] if ids else None,
@@ -77,8 +77,8 @@ def list_apps(request: Request) -> list[AppOut]:
     return out
 
 
-@router.post("/apps/{target}/import", response_model=ImportOut)
-def import_app(target: str, request: Request) -> ImportOut:
+@router.post("/platforms/{target}/import", response_model=ImportOut)
+def import_platform(target: str, request: Request) -> ImportOut:
     """导入（接入扫描）：扫本机客户端 → 注册卡位 → 凭据入库。
 
     单家失败不拖累全家族：结果如实分列（accounts/issues），不静默。
@@ -88,17 +88,17 @@ def import_app(target: str, request: Request) -> ImportOut:
     return _import_one(request.app.state.registry, request.app.state.kit, target)
 
 
-@router.post("/apps/import-all", response_model=list[ImportOut])
-def import_all_apps(request: Request) -> list[ImportOut]:
+@router.post("/platforms/import-all", response_model=list[ImportOut])
+def import_all_platforms(request: Request) -> list[ImportOut]:
     """一键导入：全部未泊位连接器逐家接入（结果如实分列，单家失败已在 dock 内收进 issues）。
 
     选谁不选谁是编排语义，归 server（A1-02 编排层）；端零入参。
     """
     registry = request.app.state.registry
     kit = request.app.state.kit
-    docked = {a.app for a in kit.accounts.list_all()}
+    docked = {a.platform for a in kit.accounts.list_all()}
     return [
-        _import_one(registry, kit, app.manifest.id)
-        for app in registry.apps()
-        if app.manifest.id not in docked and not getattr(app.manifest, "retired", False)
+        _import_one(registry, kit, platform.manifest.id)
+        for platform in registry.platforms()
+        if platform.manifest.id not in docked and not getattr(platform.manifest, "retired", False)
     ]

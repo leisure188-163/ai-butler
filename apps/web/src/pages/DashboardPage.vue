@@ -10,12 +10,12 @@
 import { computed } from "vue";
 import QuickPanel from "../components/QuickPanel.vue";
 import TodoRail from "../components/TodoRail.vue";
-import type { AccountItem, AppItem, PageName, RadarRow, RunItem, Signal } from "../types";
+import type { AccountItem, PlatformItem, PageName, RadarRow, RunItem, Signal } from "../types";
 import { isToday, signalText } from "../utils";
 
 const props = defineProps<{
   accounts: AccountItem[];
-  apps: AppItem[];
+  platforms: PlatformItem[];
   runs: RunItem[];
   pending: RunItem[];
   radarRows: RadarRow[];
@@ -79,9 +79,9 @@ const todayActions = computed(() => {
 });
 
 /* ---- 下次班次（v6.2 ③）：全应用班次时刻并集中取下一个未来时刻——
-   时刻来自 apps 真实排班（schedule_times），不到点不编造状态 ---- */
+   时刻来自 platforms 真实排班（schedule_times），不到点不编造状态 ---- */
 const shiftTimes = computed(() =>
-  [...new Set(props.apps.flatMap((a) => a.schedule_times))]
+  [...new Set(props.platforms.flatMap((a) => a.schedule_times))]
     .filter((t) => /^\d{1,2}:\d{2}$/.test(t))
     .sort(),
 );
@@ -340,7 +340,7 @@ const trafficSub = computed(() => {
       />
     </section>
     <aside class="dash-side">
-      <QuickPanel :apps="apps" @navigate="emit('navigate', $event)" />
+      <QuickPanel :platforms="platforms" @navigate="emit('navigate', $event)" />
     </aside>
   </div>
 

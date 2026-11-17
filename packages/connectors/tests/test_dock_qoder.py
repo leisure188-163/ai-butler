@@ -48,8 +48,8 @@ class MemAccounts(AccountRepository):
     def get(self, account_id):
         return self.rows.get(account_id)
 
-    def list_by_app(self, app):
-        return [a for a in self.rows.values() if a.app == app]
+    def list_by_platform(self, platform):
+        return [a for a in self.rows.values() if a.platform == platform]
 
     def list_all(self):
         return list(self.rows.values())
@@ -89,7 +89,7 @@ def make_qoder_spec(storage_glob: str | list[str]) -> DeclarativeSpec:
 def data_dir(tmp_path, monkeypatch):
     """Windows 侧同形数据目录：auth.v1.dat + Local State + auth.machine-id（平台面钉 win32）。"""
     monkeypatch.setattr(sys, "platform", "win32")
-    root = tmp_path / "com.qodercn.app.stable"
+    root = tmp_path / "com.qodercn.platform.stable"
     root.mkdir()
     envelope = seal_envelope(
         {
@@ -123,7 +123,7 @@ def data_dir(tmp_path, monkeypatch):
 def mac_data_dir(tmp_path, monkeypatch):
     """mac 同形数据目录（2026-11-12 取证）：dat-only + machine-id；Local State 无 os_crypt。"""
     monkeypatch.setattr(sys, "platform", "darwin")
-    root = tmp_path / "com.qoder.app.stable"
+    root = tmp_path / "com.qoder.platform.stable"
     root.mkdir()
     envelope = seal_mac_envelope({"token": "T-M", "expiresAt": "2026-12-02T13:37:13Z"})
     dat = base64.b64decode(json.loads(base64.b64decode(envelope))["dat"])
@@ -159,7 +159,7 @@ def dual_data_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(unlock, "dpapi_unprotect", lambda blob: TEST_KEY)
     _write_win_profile(
-        tmp_path / "com.qodercn.app.stable",
+        tmp_path / "com.qodercn.platform.stable",
         {
             "token": "T-CN",
             "expiresAt": "2026-12-04T09:54:14Z",
@@ -171,7 +171,7 @@ def dual_data_dirs(tmp_path, monkeypatch):
         },
     )
     _write_win_profile(
-        tmp_path / "com.qoder.app.stable",
+        tmp_path / "com.qoder.platform.stable",
         {
             "token": "T-GLOBAL",
             "expiresAt": "2026-12-12T09:03:10Z",
@@ -211,7 +211,7 @@ def _dock(spec: DeclarativeSpec, vault: MemVault):
 
 def test_dock_qoder_full_chain(data_dir, umid_ready):
     vault = MemVault()
-    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.app*")), vault)
+    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.platform*")), vault)
     assert outcome.issues == [], outcome.issues
     assert outcome.accounts == ["qoder_cn:main"]
 
@@ -231,7 +231,7 @@ def test_dock_qoder_full_chain(data_dir, umid_ready):
 
 def test_dock_qoder_switch_cn_account_keeps_main(data_dir, umid_ready):
     """切换 CN 账户：已有 main(A) 不被覆盖，新账户 B 用 cn-<hash> 新增。"""
-    spec = make_qoder_spec(str(data_dir.parent / "com.qodercn.app*"))
+    spec = make_qoder_spec(str(data_dir.parent / "com.qodercn.platform*"))
     vault = MemVault()
     first = _dock(spec, vault)
     assert first.accounts == ["qoder_cn:main"]
@@ -265,8 +265,8 @@ def test_dock_qoder_two_profiles_same_app(dual_data_dirs, umid_ready):
     vault = MemVault()
     spec = make_qoder_spec(
         [
-            str(dual_data_dirs / "com.qodercn.app*"),
-            str(dual_data_dirs / "com.qoder.app*"),
+            str(dual_data_dirs / "com.qodercn.platform*"),
+            str(dual_data_dirs / "com.qoder.platform*"),
         ]
     )
     outcome = _dock(spec, vault)
@@ -282,14 +282,14 @@ def test_dock_qoder_two_profiles_same_app(dual_data_dirs, umid_ready):
 
 def test_dock_qoder_duplicate_user_id_skipped(dual_data_dirs, umid_ready):
     """同一 user id 出现在两个目录 → 只留首份，第二份如实记 issue（不重复注册）。"""
-    dup = dual_data_dirs / "com.qoder.app.stable"
+    dup = dual_data_dirs / "com.qoder.platform.stable"
     (dup / "auth.v1.dat").write_bytes(
-        (dual_data_dirs / "com.qodercn.app.stable" / "auth.v1.dat").read_bytes()
+        (dual_data_dirs / "com.qodercn.platform.stable" / "auth.v1.dat").read_bytes()
     )
     spec = make_qoder_spec(
         [
-            str(dual_data_dirs / "com.qodercn.app*"),
-            str(dual_data_dirs / "com.qoder.app*"),
+            str(dual_data_dirs / "com.qodercn.platform*"),
+            str(dual_data_dirs / "com.qoder.platform*"),
         ]
     )
     outcome = _dock(spec, MemVault())
@@ -300,7 +300,7 @@ def test_dock_qoder_duplicate_user_id_skipped(dual_data_dirs, umid_ready):
 def test_dock_qoder_missing_umid_component(data_dir, monkeypatch):
     """runtime-info 定位失败 → 显式 issue（绝不静默停靠半套凭据，ADR-006 §4）。"""
     monkeypatch.setattr(dockio, "_locate_umid", lambda: None)
-    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.app*")), MemVault())
+    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.platform*")), MemVault())
     assert outcome.accounts == []
     assert outcome.issues and "runtime-info" in outcome.issues[0]
 
@@ -308,7 +308,7 @@ def test_dock_qoder_missing_umid_component(data_dir, monkeypatch):
 def test_dock_qoder_missing_umid_component_mac_order(mac_data_dir, monkeypatch):
     """mac 定位失败文案按平台报定位顺序（不指向卸载注册表）。"""
     monkeypatch.setattr(dockio, "_locate_umid", lambda: None)
-    outcome = _dock(make_qoder_spec(str(mac_data_dir.parent / "com.qoder.app*")), MemVault())
+    outcome = _dock(make_qoder_spec(str(mac_data_dir.parent / "com.qoder.platform*")), MemVault())
     assert outcome.issues and "/Applications" in outcome.issues[0]
     assert "卸载注册表" not in outcome.issues[0]
 
@@ -320,7 +320,7 @@ def test_dock_qoder_unlock_failure_not_masked_by_umid(data_dir, monkeypatch):
         raise RuntimeError("CryptUnprotectData 失败")
 
     monkeypatch.setattr(unlock, "dpapi_unprotect", boom)
-    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.app*")), MemVault())
+    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.platform*")), MemVault())
     assert outcome.accounts == []
     assert len(outcome.issues) == 1
     assert outcome.issues[0] == (
@@ -331,23 +331,23 @@ def test_dock_qoder_unlock_failure_not_masked_by_umid(data_dir, monkeypatch):
 def test_dock_qoder_mac_keychain_failure_is_explicit(tmp_path, monkeypatch):
     """mac 钥匙取不到 → 显式 issue 指向 Keychain 服务名，不静默停靠。"""
     monkeypatch.setattr(sys, "platform", "darwin")
-    root = tmp_path / "com.qoder.app.stable"
+    root = tmp_path / "com.qoder.platform.stable"
     root.mkdir()
     envelope = seal_mac_envelope({"token": "T-M"})
     dat = base64.b64decode(json.loads(base64.b64decode(envelope))["dat"])
     (root / "auth.v1.dat").write_bytes(dat)
 
     def no_key():
-        raise RuntimeError("Keychain 未取到 'Qoder App Safe Storage'——确认客户端登录过")
+        raise RuntimeError("Keychain 未取到 'Qoder Platform Safe Storage'——确认客户端登录过")
 
     monkeypatch.setattr(unlock, "macos_safe_storage_password", no_key)
-    outcome = _dock(make_qoder_spec(str(root.parent / "com.qoder.app*")), MemVault())
+    outcome = _dock(make_qoder_spec(str(root.parent / "com.qoder.platform*")), MemVault())
     assert outcome.accounts == []
-    assert outcome.issues and "Qoder App Safe Storage" in outcome.issues[0]
+    assert outcome.issues and "Qoder Platform Safe Storage" in outcome.issues[0]
 
 
 def test_dock_qoder_no_data_dir(tmp_path, umid_ready):
-    outcome = _dock(make_qoder_spec(str(tmp_path / "com.qodercn.app*")), MemVault())
+    outcome = _dock(make_qoder_spec(str(tmp_path / "com.qodercn.platform*")), MemVault())
     assert outcome.accounts == []
     assert outcome.issues and "未发现可解锁登录态" in outcome.issues[0]
 
@@ -357,7 +357,7 @@ def test_dock_qoder_no_data_dir(tmp_path, umid_ready):
 
 def test_dock_qoder_mac_full_chain(mac_data_dir, umid_ready):
     vault = MemVault()
-    outcome = _dock(make_qoder_spec(str(mac_data_dir.parent / "com.qoder.app*")), vault)
+    outcome = _dock(make_qoder_spec(str(mac_data_dir.parent / "com.qoder.platform*")), vault)
     assert outcome.issues == [], outcome.issues
     assert outcome.accounts == ["qoder_cn:main"]
 
@@ -370,7 +370,7 @@ def test_dock_qoder_mac_full_chain(mac_data_dir, umid_ready):
 def test_dock_qoder_mac_win_envelope_never_docks_on_darwin(tmp_path, monkeypatch):
     """mac 上拿到 Windows 形信封（有 key_b64）→ DPAPI 链显式爆，不静默走 mac 链。"""
     monkeypatch.setattr(sys, "platform", "darwin")
-    root = tmp_path / "com.qoder.app.stable"
+    root = tmp_path / "com.qoder.platform.stable"
     root.mkdir()
     envelope = seal_envelope({"token": "T-1"})
     dat = base64.b64decode(json.loads(base64.b64decode(envelope))["dat"])
@@ -381,7 +381,7 @@ def test_dock_qoder_mac_win_envelope_never_docks_on_darwin(tmp_path, monkeypatch
         ),
         encoding="utf-8",
     )
-    outcome = _dock(make_qoder_spec(str(root.parent / "com.qoder.app*")), MemVault())
+    outcome = _dock(make_qoder_spec(str(root.parent / "com.qoder.platform*")), MemVault())
     assert outcome.accounts == []
     assert outcome.issues and "登录态解不开" in outcome.issues[0]
 
@@ -479,8 +479,8 @@ def test_locate_umid_env_override(tmp_path, monkeypatch):
 
 
 def test_locate_umid_mac_app_bundle(tmp_path, monkeypatch):
-    """mac .app 束定位（2026-11-12 本机取证：Contents/Resources/umid/runtime-info）。"""
-    umid_dir = tmp_path / "Qoder.app" / "Contents" / "Resources" / "umid"
+    """mac .platform 束定位（2026-11-12 本机取证：Contents/Resources/umid/runtime-info）。"""
+    umid_dir = tmp_path / "Qoder.platform" / "Contents" / "Resources" / "umid"
     umid_dir.mkdir(parents=True)
     exe = umid_dir / "runtime-info"
     exe.write_bytes(b"x")

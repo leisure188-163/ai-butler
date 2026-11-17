@@ -45,8 +45,8 @@ def qoder_region(session: dict, data_dir: Path, platform: str) -> str:
     """判定产品域：优先会话里的头像域/认证上下文，其次数据目录名与平台。
 
     Qoder CN：avatar 域 qoder.com.cn；Qoder Global：qoder.com，且会话多
-    authenticationContext。mac 的 com.qoder.app 是 CN 客户端（旧目录名），
-    Windows 的 com.qoder.app 是 Global，不能只凭目录名一刀切。
+    authenticationContext。mac 的 com.qoder.platform 是 CN 客户端（旧目录名），
+    Windows 的 com.qoder.platform 是 Global，不能只凭目录名一刀切。
     """
     user = session.get("user") if isinstance(session.get("user"), dict) else {}
     avatar = str(user.get("avatarUrl") or "")
@@ -57,15 +57,15 @@ def qoder_region(session: dict, data_dir: Path, platform: str) -> str:
     if "authenticationContext" in session:
         return "global"
     name = data_dir.name.casefold()
-    if name.startswith("com.qodercn.app"):
+    if name.startswith("com.qodercn.platform"):
         return "cn"
-    if name.startswith("com.qoder.app"):
+    if name.startswith("com.qoder.platform"):
         return "global" if platform == "win32" else "cn"
     return "cn"
 
 
 def qoder_display(region: str, user: dict) -> str:
-    """账户显示名：区域 + 客户端里的 name/email（没有就交给 app.display）。"""
+    """账户显示名：区域 + 客户端里的 name/email（没有就交给 platform.display）。"""
     label = next(
         (
             str(user.get(key))

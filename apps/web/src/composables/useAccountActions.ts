@@ -27,7 +27,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
           ? `已导入：${imported.join("、")}` + (issues.length ? ` · ${issues.join("；")}` : "")
           : issues.length
             ? issues.join("；")
-            : "没有发现可导入的应用。",
+            : "没有发现可导入的平台。",
         tone: imported.length ? "ok" : "warn",
       };
     } catch (e) {
@@ -149,7 +149,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
           ...issues,
         ]
           .filter(Boolean)
-          .join(" · ") || "没有待导入的应用。";
+          .join(" · ") || "没有待导入的平台。";
       actionMsg.value = { text, tone: issues.length ? "warn" : "ok" };
     } catch (e) {
       if (e instanceof api.ApiError) {
@@ -166,8 +166,8 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
-  /* 同步全部（2026-11-17）：已导入应用也要重扫，捕获客户端当前登录态，
-   * 新账户按稳定 key 追加；单家失败只入 issues，不阻断其余应用。 */
+  /* 同步全部（2026-11-17）：已导入平台也要重扫，捕获客户端当前登录态，
+   * 新账户按稳定 key 追加；单家失败只入 issues，不阻断其余平台。 */
   async function syncAllApps(targets: string[]) {
     if (!targets.length) return;
     busyTarget.value = "batch";
@@ -216,7 +216,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
         );
       const text = rows.length
         ? `共发起 ${rows.length} 个账户，完成 ${done} 个` + (rest.length ? ` · ${rest.join(" · ")}` : "")
-        : "还没有已导入的应用——先到「应用」页导入。";
+        : "还没有已导入的平台——先到「平台」页导入。";
       actionMsg.value = { text, tone: rest.length ? "warn" : "ok" };
     } catch (e) {
       if (e instanceof api.ApiError) {

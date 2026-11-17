@@ -504,10 +504,10 @@ def test_dock_registers_b_account_when_active(tmp_path, monkeypatch):
     class RegisterSpy:
         calls: list = field(default_factory=list)
 
-        def execute(self, app, display_name, *, account_key="main", account_id=None):
-            self.calls.append((app, display_name, account_key))
+        def execute(self, platform, display_name, *, account_key="main", account_id=None):
+            self.calls.append((platform, display_name, account_key))
             from types import SimpleNamespace
-            return SimpleNamespace(id=f"{app}:{account_key}")
+            return SimpleNamespace(id=f"{platform}:{account_key}")
 
     @dataclass
     class Ctx:
@@ -537,10 +537,10 @@ def test_dock_registers_registered_other_when_channel_only_has_main(tmp_path, mo
     class RegisterSpy:
         calls: list = field(default_factory=list)
 
-        def execute(self, app, display_name, *, account_key="main", account_id=None):
-            self.calls.append((app, display_name, account_key))
+        def execute(self, platform, display_name, *, account_key="main", account_id=None):
+            self.calls.append((platform, display_name, account_key))
             from types import SimpleNamespace
-            return SimpleNamespace(id=f"{app}:{account_key}")
+            return SimpleNamespace(id=f"{platform}:{account_key}")
 
     @dataclass
     class Ctx:
@@ -562,9 +562,9 @@ def test_dock_first_visit_saves_main_baseline(tmp_path, monkeypatch, request_ctx
 
     @dataclass
     class RegisterOk:
-        def execute(self, app, display_name, *, account_key="main", account_id=None):
+        def execute(self, platform, display_name, *, account_key="main", account_id=None):
             from types import SimpleNamespace
-            return SimpleNamespace(id=f"{app}:{account_key}")
+            return SimpleNamespace(id=f"{platform}:{account_key}")
 
     @dataclass
     class Ctx:

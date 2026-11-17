@@ -52,7 +52,7 @@ _CBC_IV = b" " * 16
 _PBKDF2_SALT = b"saltysalt"
 _PBKDF2_ITERS = 1003
 _CBC_KEY_LEN = 16
-_MACOS_KEYCHAIN_SERVICE = "Qoder App Safe Storage"  # 实测名（dump-keychain 元数据取证）
+_MACOS_KEYCHAIN_SERVICE = "Qoder Platform Safe Storage"  # 实测名（dump-keychain 元数据取证）
 
 
 def dpapi_unprotect(blob: bytes) -> bytes:
@@ -246,7 +246,7 @@ def decrypt_chromium_cookie(blob: bytes, key: bytes, *, gcm: bool) -> bytes:
     mac 链双形状自识别（经典 / 16B 段+IV 前缀，见函数体取证注）；win 链 =
     nonce(12) + AES-256-GCM（Chromium v80+ 标准形状，2026-11-13 Windows 真机
     验收：DPAPI 钥匙腿实解通过；cookie 腿真机全量 v20，见 CookieShapeError）。
-    v20 = Chrome 127+ 应用绑定加密（App-Bound）：解密须冒充 Chrome 进程调
+    v20 = Chrome 127+ 应用绑定加密（Platform-Bound）：解密须冒充 Chrome 进程调
     IElevator COM，属对抗绕过——本通道不做（A1-04 §7 遇 challenge 如实落榜），
     显式形状错误指明原因，不误导「重扫」。
     密文非 v10/v20 头显式爆。

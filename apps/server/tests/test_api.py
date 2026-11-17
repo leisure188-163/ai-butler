@@ -77,7 +77,7 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
             {
                 "account_id": "acc1",
                 "account_key": "acc1",  # 多账号维度（ADR-003）
-                "app": "",  # vault-only 账号：号册无记录，如实空串
+                "platform": "",  # vault-only 账号：号册无记录，如实空串
                 "display_name": "acc1",  # 缺省回落 account_id
                 "level": "healthy",  # core 出产字面量，server 原样传递
                 "signal": "ok",  # core 出产视觉分类（端零映射）
@@ -294,7 +294,7 @@ def test_usage_collect_then_radar_roundtrip(tmp_path):
         assert len(radar) == 1
         row = radar[0]
         assert row["account_id"] == account.id
-        assert row["app"] == "trae_cn"
+        assert row["platform"] == "trae_cn"
         assert row["packages"] == [
             {
                 "package_id": "add_on_quota", "name": "加量包",
@@ -396,8 +396,8 @@ class _StubRegistry:
         from butler_connectors.registry import DockOutcome
 
         for acc in self._accounts:
-            app = acc.split(":")[0]
-            ctx.register.execute(app, app)  # 真 dock 同款：身份落册
+            platform = acc.split(":")[0]
+            ctx.register.execute(platform, platform)  # 真 dock 同款：身份落册
         return [DockOutcome(target=target, accounts=list(self._accounts))]
 
 
@@ -407,7 +407,7 @@ class _BatchRegistry:
     def __init__(self, targets):
         self._targets = list(targets)
 
-    def apps(self):
+    def platforms(self):
         from types import SimpleNamespace
 
         return [SimpleNamespace(manifest=SimpleNamespace(id=t)) for t in self._targets]
@@ -422,7 +422,7 @@ class _BatchRegistry:
 def test_apps_hidden_retired_web_connectors(tmp_path):
     """退役连接器不再出现在应用名册；代码保留用于回滚/审计。"""
     with _client(tmp_path) as client:
-        ids = [row["id"] for row in client.get("/api/v1/apps").json()]
+        ids = [row["id"] for row in client.get("/api/v1/platforms").json()]
         assert "chatgpt_web" not in ids
         assert "claude_web" not in ids
         assert "agentrouter" in ids
@@ -435,7 +435,7 @@ def test_import_skips_usage_error_for_checkin_only_connector(tmp_path):
         client.app.state.registry = _StubRegistry(["agentrouter:main"])
         kit.collect_usage.ports = {}
 
-        out = client.post("/api/v1/apps/agentrouter/import").json()
+        out = client.post("/api/v1/platforms/agentrouter/import").json()
         assert out["accounts"] == ["agentrouter:main"]
         assert out["issues"] == []
 
@@ -447,7 +447,7 @@ def test_import_triggers_usage_collect_and_reports_errors(tmp_path):
         client.app.state.registry = _StubRegistry(["trae_cn:main"])
         kit.collect_usage.ports = {"trae_cn": FakeUsagePort([_usage_result(2000)])}
 
-        out = client.post("/api/v1/apps/trae_cn/import").json()
+        out = client.post("/api/v1/platforms/trae_cn/import").json()
         assert out["accounts"] == ["trae_cn:main"]
         assert out["issues"] == []  # 采集成功：issues 无噪音
 
@@ -456,7 +456,7 @@ def test_import_triggers_usage_collect_and_reports_errors(tmp_path):
 
         # 采集失败 → issues 如实上报（红线 5），导入本身不受累
         kit.collect_usage.ports = {"trae_cn": _BoomUsagePort()}
-        out2 = client.post("/api/v1/apps/trae_cn/import").json()
+        out2 = client.post("/api/v1/platforms/trae_cn/import").json()
         assert out2["accounts"] == ["trae_cn:main"]
         assert any("用量采集" in i and "本机客户端不在" in i for i in out2["issues"])
 
@@ -472,7 +472,7 @@ def test_import_all_skips_docked_and_reports_collect_errors(tmp_path):
         kit.register_account.execute("trae_cn", "Trae CN")  # 已泊位 → 跳过
         kit.collect_usage.ports = {}  # 显式接管端口面：全部采集失败 → issues
 
-        rows = client.post("/api/v1/apps/import-all").json()
+        rows = client.post("/api/v1/platforms/import-all").json()
         assert [r["target"] for r in rows] == ["qoder_cn", "doubao_cn"]
         for row in rows:
             assert row["accounts"] == [f"{row['target']}:main"]
@@ -482,7 +482,7 @@ def test_import_all_skips_docked_and_reports_collect_errors(tmp_path):
 def test_import_all_empty_when_nothing_to_dock(tmp_path):
     with _client(tmp_path) as client:
         client.app.state.registry = _BatchRegistry([])
-        assert client.post("/api/v1/apps/import-all").json() == []
+        assert client.post("/api/v1/platforms/import-all").json() == []
 
 
 def test_claim_all_claims_docked_and_replays(tmp_path):

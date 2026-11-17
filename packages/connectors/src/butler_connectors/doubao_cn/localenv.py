@@ -23,12 +23,12 @@ from pathlib import Path
 _DEFAULT_PORT = 9222
 _PROCESS_NAME = "Doubao.exe"
 _VERSION_RE = re.compile(r"^(\d{1,2})\.(\d{1,2})(?:\.(\d{1,2}))?$")
-#: mac .app 查找根（~ 兜用户级安装）；2026-11-12 本机取证：/Applications/Doubao.app
+#: mac .platform 查找根（~ 兜用户级安装）；2026-11-12 本机取证：/Applications/Doubao.platform
 _MAC_APP_BASES = ("/Applications", "~/Applications")
-_MAC_MAIN_REL = ("Doubao.app", "Contents", "MacOS", "Doubao")
-_MAC_PLIST_REL = ("Doubao.app", "Contents", "Info.plist")
-#: mac 主进程匹配串——helper 进程路径形如 `Doubao Browser.app/...`，不含本串不误中
-_MAC_PROC_PATTERN = "Doubao.app/Contents/MacOS/Doubao"
+_MAC_MAIN_REL = ("Doubao.platform", "Contents", "MacOS", "Doubao")
+_MAC_PLIST_REL = ("Doubao.platform", "Contents", "Info.plist")
+#: mac 主进程匹配串——helper 进程路径形如 `Doubao Browser.platform/...`，不含本串不误中
+_MAC_PROC_PATTERN = "Doubao.platform/Contents/MacOS/Doubao"
 
 
 def version_code(version: str) -> int | None:
@@ -158,7 +158,7 @@ def _registry_entries() -> list[dict[str, str]]:
 
 def _locate_exe() -> Path | None:
     """主程序定位（PROTOCOL §1）：DOUBAO_EXE 覆盖 → 平台默认位置
-    （win: 卸载注册表 DisplayIcon 父目录 + app/Doubao.exe；mac: .app 束主程序）。"""
+    （win: 卸载注册表 DisplayIcon 父目录 + platform/Doubao.exe；mac: .platform 束主程序）。"""
     override = os.environ.get("DOUBAO_EXE")
     if override:
         path = Path(override)
@@ -172,7 +172,7 @@ def _locate_exe() -> Path | None:
     if sys.platform != "win32":
         return None
     for root in _registry_install_roots():
-        candidate = root / "app" / _PROCESS_NAME
+        candidate = root / "platform" / _PROCESS_NAME
         if candidate.is_file():
             return candidate
     return None

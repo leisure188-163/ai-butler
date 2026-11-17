@@ -24,11 +24,11 @@ def test_trae_loaded_with_shape(registry):
         "trae_cn",
         "workbuddy_cn",
     ]  # 按目录名排序
-    app = registry.get("trae_cn")
-    assert app.display == "Trae CN"
-    assert app.manifest.capabilities[ActionKind.PROVISION_RUN.value].kind == "declarative"
-    qoder = registry.get("qoder_cn")  # ADR-006：声明式扩展接入，零 per-app 代码
-    assert qoder.display == "Qoder"  # CN/Global 双账户同一 app
+    platform = registry.get("trae_cn")
+    assert platform.display == "Trae CN"
+    assert platform.manifest.capabilities[ActionKind.PROVISION_RUN.value].kind == "declarative"
+    qoder = registry.get("qoder_cn")  # ADR-006：声明式扩展接入，零 per-platform 代码
+    assert qoder.display == "Qoder"  # CN/Global 双账户同一 platform
     assert qoder.manifest.credential.kinds == ["dpapi_gcm_v10", "umid_cosy"]
     workbuddy = registry.get("workbuddy_cn")  # ADR-008：端口实现接入（加密凭据解密链）
     assert workbuddy.display == "WorkBuddy CN"
@@ -137,7 +137,7 @@ def test_adapter_build_port_receives_transport(monkeypatch):
 
     mod.butler = _Boot()
     monkeypatch.setitem(sys.modules, "butler_connectors.stub_boot.adapter", mod)
-    from butler_connectors.registry import ConnectorApp, Registry
+    from butler_connectors.registry import ConnectorPlatform, Registry
 
     manifest = ConnectorManifest.model_validate(
         {
@@ -148,7 +148,7 @@ def test_adapter_build_port_receives_transport(monkeypatch):
             },
         }
     )
-    registry = Registry({"stub_boot": ConnectorApp(manifest=manifest, root=Path("."))})
+    registry = Registry({"stub_boot": ConnectorPlatform(manifest=manifest, root=Path("."))})
     sentinel_vault, sentinel_transport = object(), object()
     registry.provision_ports(vault=sentinel_vault, transport=sentinel_transport)
     assert seen["vault"] is sentinel_vault
@@ -193,7 +193,7 @@ def test_usage_collect_declarative_rejected():
     """usage.collect 只认 adapter（用量编排各家专属）——其他 kind 显式爆。"""
     from pathlib import Path
 
-    from butler_connectors.registry import ConnectorApp, Registry
+    from butler_connectors.registry import ConnectorPlatform, Registry
 
     manifest = ConnectorManifest.model_validate(
         {
@@ -204,7 +204,7 @@ def test_usage_collect_declarative_rejected():
             },
         }
     )
-    registry = Registry({"stub_boot": ConnectorApp(manifest=manifest, root=Path("."))})
+    registry = Registry({"stub_boot": ConnectorPlatform(manifest=manifest, root=Path("."))})
     with pytest.raises(ManifestInvalid, match="adapter"):
         registry.usage_ports(vault=None, transport=None)
 

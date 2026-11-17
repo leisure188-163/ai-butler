@@ -32,7 +32,7 @@ def test_channel_failure_isolated():
 
     broken, in_app = BrokenChannel(), InAppChannel()
     center = NotificationCenter([broken, in_app])
-    center.on_event(_event(Severity.BADGE))  # broken 抛错不得影响 in-app
+    center.on_event(_event(Severity.BADGE))  # broken 抛错不得影响 in-platform
     assert len(in_app.items) == 1
 
 

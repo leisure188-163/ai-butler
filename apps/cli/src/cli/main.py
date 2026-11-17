@@ -22,9 +22,9 @@ if sys.platform == "win32":
         if _stream is not None and hasattr(_stream, "reconfigure"):
             _stream.reconfigure(encoding="utf-8", errors="replace")
 
-app = typer.Typer(help="Butler · 你的 AI 卡包（执行器/排障）")
+platform = typer.Typer(help="Butler · 你的 AI 卡包（执行器/排障）")
 cards = typer.Typer(help="卡（账号）管理")
-app.add_typer(cards, name="cards")
+platform.add_typer(cards, name="cards")
 console = Console()
 
 
@@ -57,20 +57,20 @@ def _unknown_target(target: str) -> None:
     raise typer.Exit(code=2)
 
 
-@app.command("apps")
-def apps() -> None:
-    """应用名册：已接入连接器 × 导入状态（与 server GET /apps 同源投影）。"""
+@platform.command("platforms")
+def platforms() -> None:
+    """平台名册：已接入连接器 × 导入状态（与 server GET /platforms 同源投影）。"""
     kit = _kit()
     try:
         imported: dict[str, list[str]] = {}
         for account in kit.accounts.list_all():
-            imported.setdefault(account.app, []).append(account.id)
-        table = Table("应用", "能力", "凭据", "时间表", "卡")
-        for app_obj in _registry().apps():
-            m = app_obj.manifest
+            imported.setdefault(account.platform, []).append(account.id)
+        table = Table("平台", "能力", "凭据", "时间表", "卡")
+        for platform_obj in _registry().platforms():
+            m = platform_obj.manifest
             schedule = m.schedule.get("provision.run")
             table.add_row(
-                f"{app_obj.display} ({m.id})",
+                f"{platform_obj.display} ({m.id})",
                 ", ".join(sorted(m.capabilities)),
                 ", ".join(m.credential.kinds) if m.credential else "—",
                 " ".join(schedule.times) if schedule else "—",
@@ -81,7 +81,7 @@ def apps() -> None:
         kit.close()
 
 
-@app.command("import")
+@platform.command("import")
 def import_cmd(target: str) -> None:
     """导入：扫本机客户端 → 账号入卡包 → 凭据入库（结果如实分列，不静默）。"""
     from butler_connectors.registry import DockContext
@@ -104,7 +104,7 @@ def import_cmd(target: str) -> None:
         kit.close()
 
 
-@app.command()
+@platform.command()
 def claim(
     target: str,
     account: str = typer.Option(
@@ -126,7 +126,7 @@ def claim(
             _unknown_target(target)
         account_id = f"{target}:{account}"
         if kit.accounts.get(account_id) is None:
-            known = [a.id for a in kit.accounts.list_by_app(target)]
+            known = [a.id for a in kit.accounts.list_by_platform(target)]
             console.print(
                 f"[red]卡不存在: {account_id}[/red]"
                 f"（该应用已有: {', '.join(known) or '未导入——先跑 import'}）"
@@ -183,7 +183,7 @@ def cards_list() -> None:
         kit.close()
 
 
-@app.command()
+@platform.command()
 def records(limit: int = typer.Option(30, help="最多展示条数")) -> None:
     """领取记录：最近 Run。"""
     kit = _kit()
@@ -203,7 +203,7 @@ def records(limit: int = typer.Option(30, help="最多展示条数")) -> None:
         kit.close()
 
 
-@app.command()
+@platform.command()
 def check() -> None:
     """体检：立即跑一次凭据到期扫描（日常由每日 job 自动执行）。"""
     kit = _kit()
@@ -221,4 +221,4 @@ def check() -> None:
 
 
 if __name__ == "__main__":
-    app()
+    platform()

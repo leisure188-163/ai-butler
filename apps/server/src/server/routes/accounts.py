@@ -42,7 +42,7 @@ class SessionOut(BaseModel):
 class AccountOut(BaseModel):
     account_id: str
     account_key: str  # 应用内账号序（ADR-003：target = 应用 + 账号）
-    app: str  # 连接器 id（号册归属，A2-01 §1）
+    platform: str  # 连接器 id（号册归属，A2-01 §1）
     display_name: str  # 应用名（账号册出产）
     level: str  # AssessAccountHealth 出产的五级字面量
     signal: str  # core 出产视觉分类（ok/notice/attention/danger）
@@ -85,7 +85,7 @@ def list_accounts(request: Request) -> list[AccountOut]:
                 account_id=account_id,
                 account_key=getattr(account, "account_key", None)
                 or account_id.split(":", 1)[-1],
-                app=getattr(account, "app", "") or "",
+                platform=getattr(account, "platform", "") or "",
                 display_name=getattr(account, "display_name", "") or account_id,
                 level=health.level.value,
                 signal=health.level.signal,
@@ -125,7 +125,7 @@ def scan_account_sessions(account_id: str, request: Request) -> SessionsScanOut:
     account = kit.accounts.get(account_id)
     if account is None:
         raise HTTPException(status_code=404, detail=f"卡不存在: {account_id}")
-    outcome = kit.session_scan.scan(account.app)
+    outcome = kit.session_scan.scan(account.platform)
     refreshed = kit.accounts.get(account_id)
     sessions = refreshed.sessions if refreshed else account.sessions
     return SessionsScanOut(

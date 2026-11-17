@@ -22,9 +22,9 @@ from butler_core.accounts.domain import (
 
 
 class FakeScanner:
-    app = "trae_cn"
+    platform = "trae_cn"
 
-    def scan_sessions(self, app: str):
+    def scan_sessions(self, platform: str):
         return [
             SessionSighting(
                 location="/ws/a", kind=SessionKind.WORKSPACE, device_ref="1352866089939851"
@@ -32,7 +32,7 @@ class FakeScanner:
             SessionSighting(location="/User/settings.json", kind=SessionKind.WORKSPACE),
         ]
 
-    def enumerate_accounts(self, app: str):
+    def enumerate_accounts(self, platform: str):
         return []
 
 
@@ -61,7 +61,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     with TestClient(app) as tc:
         account = Account(
             id=account_identity("trae_cn", "main"),
-            app="trae_cn",
+            platform="trae_cn",
             display_name="trae",
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         )

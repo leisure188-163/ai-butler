@@ -13,7 +13,7 @@ type Contract = components["schemas"];
 
 export type Signal = "ok" | "notice" | "attention" | "danger" | "quiet";
 
-export type PageName = "仪表盘" | "应用" | "账户" | "流量" | "日志" | "设置";
+export type PageName = "仪表盘" | "平台" | "账户" | "流量" | "日志" | "设置";
 
 /** signal 窄化包装：除 signal 外的形状全部继承契约 */
 type WithSignal<T> = Omit<T, "signal"> & { signal: Signal };
@@ -24,7 +24,7 @@ export type AccountItem = Omit<Contract["AccountOut"], "signal" | "credentials">
   signal: Signal;
   credentials: CredentialItem[];
 };
-export type AppItem = Contract["AppOut"];
+export type PlatformItem = Contract["PlatformOut"];
 export type ImportResult = Contract["ImportOut"];
 export type EvidenceItem = Contract["EvidenceOut"];
 export type RunItem = WithSignal<Contract["RunOut"]>;

@@ -7,12 +7,12 @@
 import { computed, ref } from "vue";
 import AppBadge from "./AppBadge.vue";
 import AccountDetail from "./AccountDetail.vue";
-import type { AccountItem, AppItem, RadarRow, RunItem } from "../types";
+import type { AccountItem, PlatformItem, RadarRow, RunItem } from "../types";
 import { earliestExpiry, faceOf, fmtTime, isToday, signalText } from "../utils";
 
 const props = defineProps<{
   accounts: AccountItem[];
-  apps: AppItem[];
+  platforms: PlatformItem[];
   radar: RadarRow[];
   runs: RunItem[];
   busyTarget: string | null;
@@ -29,12 +29,12 @@ const emit = defineEmits<{
 const appFilter = ref("");
 const statusFilter = ref<"all" | "issues" | "ok">("all");
 
-/* 关联以账户的 app 为准；AppOut.account_id 只是排序后的首个账户，
- * 不能拿它判断同一应用的第 2、第 3 个账户（否则会误显示“未关联”）。 */
-function appOf(account: AccountItem): AppItem | null {
+/* 关联以账户的 platform 为准；AppOut.account_id 只是排序后的首个账户，
+ * 不能拿它判断同一平台的第 2、第 3 个账户（否则会误显示“未关联”）。 */
+function appOf(account: AccountItem): PlatformItem | null {
   return (
-    props.apps.find((x) => x.id === account.app) ??
-    props.apps.find((x) => x.account_ids?.includes(account.account_id)) ??
+    props.platforms.find((x) => x.id === account.platform) ??
+    props.platforms.find((x) => x.account_ids?.includes(account.account_id)) ??
     null
   );
 }
@@ -42,8 +42,8 @@ function appOf(account: AccountItem): AppItem | null {
 const filteredAccounts = computed(() =>
   props.accounts.filter((a) => {
     if (appFilter.value) {
-      const app = appOf(a);
-      if (!app || app.id !== appFilter.value) return false;
+      const platform = appOf(a);
+      if (!platform || platform.id !== appFilter.value) return false;
     }
     if (statusFilter.value === "issues" && a.signal === "ok") return false;
     if (statusFilter.value === "ok" && a.signal !== "ok") return false;
@@ -81,8 +81,8 @@ const selectedClaimTargets = computed(() =>
   filteredAccounts.value
     .filter((a) => selected.value.has(a.account_id))
     .map((a) => appOf(a))
-    .filter((app): app is AppItem => Boolean(app) && app!.capabilities.includes("provision.run"))
-    .map((app) => app.id),
+    .filter((platform): platform is PlatformItem => Boolean(platform) && platform!.capabilities.includes("provision.run"))
+    .map((platform) => platform.id),
 );
 
 /* ---- 详情展开（点行 toggle；交互单元格 @click.stop 不触发）---- */
@@ -173,9 +173,9 @@ function lastRunAtOf(accountId: string): string | null {
 
     <!-- 筛选 -->
     <p class="filters">
-      <select v-model="appFilter" class="input" aria-label="按应用筛选">
-        <option value="">全部应用</option>
-        <option v-for="app in apps" :key="app.id" :value="app.id">{{ app.display }}</option>
+      <select v-model="appFilter" class="input" aria-label="按平台筛选">
+        <option value="">全部平台</option>
+        <option v-for="platform in platforms" :key="platform.id" :value="platform.id">{{ platform.display }}</option>
       </select>
       <select v-model="statusFilter" class="input" aria-label="按状态筛选">
         <option value="all">全部状态</option>
@@ -198,7 +198,7 @@ function lastRunAtOf(accountId: string): string | null {
                 @change="toggleAll"
               />
             </th>
-            <th>应用</th>
+            <th>平台</th>
             <th>账户</th>
             <th>状态</th>
             <th>今日动作</th>
@@ -225,7 +225,7 @@ function lastRunAtOf(accountId: string): string | null {
               </td>
               <td>
                 <AppBadge
-                  :name="appOf(account)?.display ?? account.app"
+                  :name="appOf(account)?.display ?? account.platform"
                   :color-index="faceOf(account.account_id)"
                 />
               </td>
@@ -284,7 +284,7 @@ function lastRunAtOf(accountId: string): string | null {
               <td :colspan="9" @click.stop>
                 <AccountDetail
                   :account="account"
-                  :app="appOf(account)"
+                  :platform="appOf(account)"
                   :busy="busyTarget !== null"
                   @claim="emit('claim', $event)"
                   @health="emit('health', $event)"
@@ -298,7 +298,7 @@ function lastRunAtOf(accountId: string): string | null {
       </table>
     </div>
     <p v-else-if="accounts.length" class="quietline">当前筛选没有匹配的账户——换个条件试试。</p>
-    <p v-else class="quietline">还没有账户——到「应用」页导入应用。</p>
+    <p v-else class="quietline">还没有账户——到「平台」页导入平台。</p>
   </section>
 </template>
 

@@ -8,7 +8,7 @@ import type { PageName } from "../types";
 
 const hashByPage: Record<PageName, string> = {
   仪表盘: "dashboard",
-  应用: "apps",
+  平台: "platforms",
   账户: "accounts",
   流量: "traffic",
   日志: "logs",

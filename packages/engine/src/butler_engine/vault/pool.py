@@ -4,7 +4,7 @@
   miss 路径的解密由 LayeredVault.load 自带 vault 级审计——两层事实都留痕，
   不存在未审计的凭据读取（plans/02 §0 红线级：不得绕行 vault 审计路径）
 - 缓存策略 = CachePolicy(kind, ttl_seconds) 数据表（A2-02 §3 判据：kind 数据
-  而非 per-app 分支）；未声明 kind → ttl 0 = 严格现用现取（保守默认）
+  而非 per-platform 分支）；未声明 kind → ttl 0 = 严格现用现取（保守默认）
 - TTL 时钟可注入（测试确定性，core 用例同款先例）
 - 缓存命中的 Secret 是同一明文载体对象（Secret repr 恒 [REDACTED]，A4-01 §1）
 """

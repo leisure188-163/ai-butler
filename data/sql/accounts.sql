@@ -5,18 +5,20 @@
 -- 重新生成：uv run python scripts/dump_db_schema.py
 -- 运行库落项目内 data/database/butler.db（BUTLER_DB 可覆盖）。
 CREATE TABLE accounts (
-    id               TEXT PRIMARY KEY,
-    app              TEXT NOT NULL,
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id       TEXT NOT NULL UNIQUE,
+    platform         TEXT NOT NULL,
     account_key      TEXT NOT NULL DEFAULT 'main',
     display_name     TEXT NOT NULL,
     base_url         TEXT,
     device_ref       TEXT,
     sessions         TEXT NOT NULL DEFAULT '[]',
     entitlement_json TEXT,
-    enabled          INTEGER NOT NULL DEFAULT 1,
+    is_active        INTEGER NOT NULL DEFAULT 1,
     created_at       TEXT NOT NULL,
     updated_at       TEXT NOT NULL,
     deleted_at       TEXT
 );
-CREATE UNIQUE INDEX uq_accounts_app_key ON accounts (app, account_key);
-CREATE INDEX idx_accounts_app ON accounts (app);
+CREATE UNIQUE INDEX uq_accounts_platform_key
+    ON accounts (platform, account_key);
+CREATE INDEX idx_accounts_platform ON accounts (platform);

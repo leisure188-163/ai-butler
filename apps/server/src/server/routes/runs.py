@@ -106,7 +106,7 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
     registry = request.app.state.registry
     kit = request.app.state.kit
     try:
-        app = registry.get(payload.target)  # 未接入连接器 → 404（显式不静默）
+        platform = registry.get(payload.target)  # 未接入连接器 → 404（显式不静默）
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     try:
@@ -115,7 +115,7 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
         raise HTTPException(status_code=422, detail=f"未知动作 kind: {payload.kind!r}") from exc
 
     if kind is ActionKind.HEALTH_CHECK:
-        if app.manifest.capabilities.get("health.check") is None:
+        if platform.manifest.capabilities.get("health.check") is None:
             raise HTTPException(
                 status_code=422, detail=f"{payload.target} 未申报 health.check 能力"
             )
@@ -123,7 +123,7 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
             RunRequest(
                 action=Action(kind=kind, target=payload.target),
                 account_id=resolved_account,
-                budget=timedelta(seconds=app.provision_budget("health.check")),
+                budget=timedelta(seconds=platform.provision_budget("health.check")),
             )
         )
         _assess_after_run(kit, resolved_account)
@@ -145,7 +145,7 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
             account_id=resolved_account,
             window=window,
             dry_run=payload.dry_run,
-            budget=timedelta(seconds=app.provision_budget("provision.run")),
+            budget=timedelta(seconds=platform.provision_budget("provision.run")),
         )
     )
     _assess_after_run(kit, resolved_account)
@@ -167,20 +167,20 @@ def claim_all_runs(request: Request) -> list[RunOut]:
     # 多账号（ADR-003）：同一应用下每个账户各自发起，幂等键按账号粒度
     docked: dict[str, list[str]] = {}
     for account in kit.accounts.list_all():
-        docked.setdefault(account.app, []).append(account.id)
+        docked.setdefault(account.platform, []).append(account.id)
     refresh = {e["target"]: e["refresh_at"] for e in registry.schedule_entries()}
     out: list[RunOut] = []
-    for app in registry.apps():
-        if app.manifest.capabilities.get("provision.run") is None:
+    for platform in registry.platforms():
+        if platform.manifest.capabilities.get("provision.run") is None:
             continue  # 网页连接器无领取概念（A1-04 §6），一键领取跳过
-        for account_id in docked.get(app.manifest.id, []):
-            window = claim_window(datetime.now(), refresh.get(app.manifest.id, "00:00"))
+        for account_id in docked.get(platform.manifest.id, []):
+            window = claim_window(datetime.now(), refresh.get(platform.manifest.id, "00:00"))
             run = kit.execute_action.execute(
                 RunRequest(
-                    action=Action(kind=ActionKind.PROVISION_RUN, target=app.manifest.id),
+                    action=Action(kind=ActionKind.PROVISION_RUN, target=platform.manifest.id),
                     account_id=account_id,
                     window=window,
-                    budget=timedelta(seconds=app.provision_budget("provision.run")),
+                    budget=timedelta(seconds=platform.provision_budget("provision.run")),
                 )
             )
             out.append(_run_out(run))

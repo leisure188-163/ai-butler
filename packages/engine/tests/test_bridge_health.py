@@ -59,8 +59,8 @@ def test_daily_health_scan_job(tmp_path):
     kit = build_engine(tmp_path / "butler.db")
     fake = FakeHealthPort(RunResult(status=Status.ALREADY))
     kit.register_health_ports(targets={"chatgpt_web": fake})
-    kit.register_account.execute("chatgpt_web", "ChatGPT")  # 名册账号：app 有探针
-    kit.register_account.execute("trae_cn", "Trae")  # app 无探针端口 → 跳过
+    kit.register_account.execute("chatgpt_web", "ChatGPT")  # 名册账号：platform 有探针
+    kit.register_account.execute("trae_cn", "Trae")  # platform 无探针端口 → 跳过
     kit.vault.store("acc-lonely", "cookie", Secret("x"), expires_at=None)  # vault-only → 跳过
     try:
         assert kit.health_job is None  # 默认不启动，由端显式 start

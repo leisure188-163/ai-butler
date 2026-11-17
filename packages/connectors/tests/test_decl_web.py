@@ -248,11 +248,11 @@ def test_dock_dispatch_falls_to_session_import(registry, monkeypatch):
 
     seen: dict = {}
 
-    def fake_capture(app, spec, kinds, ctx):
-        seen["target"] = app.manifest.id
+    def fake_capture(platform, spec, kinds, ctx):
+        seen["target"] = platform.manifest.id
         seen["spec"] = type(spec).__name__
         seen["kinds"] = kinds
-        return DockOutcome(target=app.manifest.id, accounts=["fake"])
+        return DockOutcome(target=platform.manifest.id, accounts=["fake"])
 
     monkeypatch.setattr(browser_mod, "capture_cookies", fake_capture)
     outcomes = registry.dock(DockContext(vault=None, register=None), target="claude_web")
