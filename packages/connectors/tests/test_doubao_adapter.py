@@ -1,4 +1,9 @@
-"""doubao_cn 适配器离线测试：PROTOCOL §3 判定表逐场景 + 引擎 PROTOCOL_CHANGED 联动。"""
+"""doubao_cn 适配器离线测试：PROTOCOL §3 判定表逐场景 + 引擎 PROTOCOL_CHANGED 联动。
+
+detail 已改活动页上下文 fetch（ADR-017，零裸请求）：假通道按序回放
+detail fetch 结果（detail_results）与页面求值结果（eval_results），
+并留痕 fetch 表达式（detail_calls）供契约测试断言「零手拼头/凭据」。
+"""
 
 from __future__ import annotations
 
@@ -11,9 +16,8 @@ from butler_core.execution.ports import Capabilities, ProvisionRequest
 from butler_core.execution.domain import Action, ActionKind
 from butler_core.shared.results import Status, UnknownEngineCode
 from butler_core.execution.domain import RunResult
-from butler_connectors.cdp import CdpConnection, CdpError
+from butler_connectors.cdp import CdpError
 from butler_connectors.doubao_cn import adapter
-from butler_connectors.transport import HttpResponse, TransportError
 
 
 # --- 假件（A2-02 §8：不起浏览器，离线测全链）---
@@ -60,11 +64,14 @@ class FakeEnv:
 
 @dataclass
 class FakeChannel:
-    """cdp.CdpChannel 同形状假通道：探针失败可编排，点击/求值留痕。"""
+    """cdp.CdpChannel 同形状假通道：探针失败可编排，detail fetch/求值留痕。"""
 
     probe_errors: list[CdpError | None] = field(default_factory=list)
     pages: list[dict] = field(default_factory=list)  # 字段名避开方法 targets()（防遮蔽）
-    eval_results: list[object] = field(default_factory=list)
+    detail_results: list[object] = field(default_factory=list)  # detail fetch 按序回放
+    eval_results: list[object] = field(default_factory=list)  # 找按钮/页面文本按序回放
+    detail_calls: list[str] = field(default_factory=list)  # fetch JS 表达式留痕（契约测试）
+    detail_awaits: list[bool] = field(default_factory=list)  # awaitPromise 语义留痕
     conn: FakeConn = field(default_factory=FakeConn)
     opened: list[str] = field(default_factory=list)
     clicks: list[tuple[int, int]] = field(default_factory=list)
@@ -93,44 +100,27 @@ class FakeChannel:
         self.opened.append(url)
         return self.conn
 
-    def cookies(self, conn, url: str = "https://www.doubao.com") -> list[dict]:
-        return [
-            {"name": "sessionid", "value": "s3cret-session"},
-            {"name": "msToken", "value": "tok"},
-            {"name": "sessionid", "value": "dup-ignored"},  # 按 name 去重先到先得
-        ]
-
-    def evaluate(self, conn, expression: str, *, wait: float = 20.0):
+    def evaluate(self, conn, expression: str, *, wait: float = 20.0,
+                 await_promise: bool = False):
         if "for_ban_appeal_sec_user_id" in expression:  # 活跃身份查询（identity.py）
             return dict(self.identity) if self.identity else None
-        if not self.eval_results:
-            return None
-        item = self.eval_results.pop(0)
+        if "/alice/ug/campaign/v3/detail/" in expression:  # detail 页面 fetch（ADR-017）
+            self.detail_calls.append(expression)
+            self.detail_awaits.append(await_promise)
+            return self._next(self.detail_results)
+        return self._next(self.eval_results)
+
+    @staticmethod
+    def _next(queue: list):
+        if not queue:
+            return None  # 队列耗尽 = 页面没可取内容（chip 定位失败等场景按 None 走）
+        item = queue.pop(0)
         if isinstance(item, CdpError):
             raise item
         return item
 
     def click(self, conn, x: int, y: int) -> None:
         self.clicks.append((x, y))
-
-
-class FakeTransport:
-    """按序回放 HTTP 响应/异常；请求留痕。"""
-
-    def __init__(self, responses: list) -> None:
-        self.responses = list(responses)
-        self.requests: list = []
-
-    def __call__(self, request, *, deadline):
-        self.requests.append(request)
-        item = self.responses.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-
-def ok(payload: dict) -> HttpResponse:
-    return HttpResponse(status_code=200, payload=payload)
 
 
 MAIN_SEC_UID = "MS4wTESTMAIN000000"  # main 基线假身份
@@ -144,7 +134,7 @@ def _main_identity_baseline(tmp_path, monkeypatch):
     """每个测试独立身份基线文件：main 基线预置 MAIN_SEC_UID（run 匹配的前提）。"""
     path = tmp_path / "doubao_identity.json"
     monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(path))
-    monkeypatch.setenv("DOUBAO_REQUEST_CAPTURE", "0")  # 默认测试不落请求快照
+    monkeypatch.setenv("DOUBAO_REQUEST_CAPTURE", "0")  # 默认测试不装页面旁路
     doubao_identity.save_main_baseline(
         doubao_identity.ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname="逍遥酒鬼")
     )
@@ -171,10 +161,9 @@ def detail_payload(checked: bool, days: int = 5, amount: int = 200) -> dict:
     }
 
 
-def make_port(transport=None, *, env=None, channel=None, dry_run=False):
+def make_port(*, env=None, channel=None):
     return adapter.butler.build_port(
         vault=object(),
-        transport=transport,
         env=env if env is not None else FakeEnv(),
         channel=channel if channel is not None else FakeChannel(),
     )
@@ -215,162 +204,191 @@ def test_version_bad_shape_is_failed():
 
 
 def test_checked_in_today_is_already_without_click():
-    transport = FakeTransport([ok(detail_payload(checked=True))])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/pc/agent-explore",
-                                    "webSocketDebuggerUrl": "ws://p"}])
-    result = make_port(transport, channel=channel).run(request())
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/pc/agent-explore",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[detail_payload(checked=True)],
+    )
+    result = make_port(channel=channel).run(request())
     assert result.status is Status.ALREADY
     assert channel.clicks == []  # 权威判定后绝不点击
     assert "连签 5 天" in result.evidence[0].summary
 
 
 def test_click_then_recheck_true_is_claimed():
-    transport = FakeTransport([ok(detail_payload(False)), ok(detail_payload(True))])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}],
-                          eval_results=[{"x": 10, "y": 20, "text": "立即签到"}])
-    result = make_port(transport, channel=channel).run(request())
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[detail_payload(False), detail_payload(True)],
+        eval_results=[{"x": 10, "y": 20, "text": "立即签到"}],
+    )
+    result = make_port(channel=channel).run(request())
     assert result.status is Status.CLAIMED
     assert channel.clicks == [(10, 20)]
-    assert len(transport.requests) == 2  # 点击前 detail + 复查 detail
+    assert len(channel.detail_calls) == 2  # 点击前 detail + 复查 detail
     assert "立即签到" in result.evidence[0].summary
 
 
 def test_click_then_recheck_false_is_failed():
-    transport = FakeTransport(
-        [ok(detail_payload(False))] + [ok(detail_payload(False))] * len(adapter._RECHECK_DELAYS)
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[detail_payload(False)] + [detail_payload(False)] * len(adapter._RECHECK_DELAYS),
+        eval_results=[{"x": 1, "y": 2, "text": "签到"}],
     )
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}],
-                          eval_results=[{"x": 1, "y": 2, "text": "签到"}])
-    result = make_port(transport, channel=channel).run(request())
+    result = make_port(channel=channel).run(request())
     assert result.status is Status.FAILED
     # 点击已送达但退避复查 3 次仍未签（PROTOCOL §3 FAILED 行，2026-11-16 语义）
     assert f"复查 {len(adapter._RECHECK_DELAYS)} 次仍未签" in result.evidence[0].summary
-    assert len(transport.requests) == 1 + len(adapter._RECHECK_DELAYS)
+    assert len(channel.detail_calls) == 1 + len(adapter._RECHECK_DELAYS)
 
 
 def test_click_recheck_retry_then_true_is_claimed():
     """复查退避：前两次未翻转、第三次已签 → CLAIMED（2026-11-16 真机失败根因）。"""
-    transport = FakeTransport(
-        [ok(detail_payload(False))]
-        + [ok(detail_payload(False)), ok(detail_payload(False)), ok(detail_payload(True))]
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[
+            detail_payload(False),
+            detail_payload(False),
+            detail_payload(False),
+            detail_payload(True),
+        ],
+        eval_results=[{"x": 1, "y": 2, "text": "立即签到"}],
     )
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}],
-                          eval_results=[{"x": 1, "y": 2, "text": "立即签到"}])
-    result = make_port(transport, channel=channel).run(request())
+    result = make_port(channel=channel).run(request())
     assert result.status is Status.CLAIMED
     assert "复查第 3 次" in result.evidence[0].summary
-    assert len(transport.requests) == 4
+    assert len(channel.detail_calls) == 4
 
 
-def test_click_recheck_transport_error_then_true_is_claimed():
+def test_click_recheck_detail_error_then_true_is_claimed():
     """复查中 detail 瞬时故障不误判失败——继续退避重试。"""
-    transport = FakeTransport(
-        [ok(detail_payload(False)), TransportError("timeout"), ok(detail_payload(True))]
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[detail_payload(False), CdpError("timeout"), detail_payload(True)],
+        eval_results=[{"x": 1, "y": 2, "text": "签到"}],
     )
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}],
-                          eval_results=[{"x": 1, "y": 2, "text": "签到"}])
-    result = make_port(transport, channel=channel).run(request())
+    result = make_port(channel=channel).run(request())
     assert result.status is Status.CLAIMED
     assert "复查第 2 次" in result.evidence[0].summary  # 第 1 次复查遇瞬时故障不计失败
 
 
 def test_no_button_failed_with_page_text_summary():
-    transport = FakeTransport([ok(detail_payload(False))])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}],
-                          eval_results=[None, None, None, "每日签到 +200 额度（页面诊断摘要）"])
-    result = make_port(transport, channel=channel).run(request())
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[detail_payload(False)],
+        eval_results=[None, None, None, "每日签到 +200 额度（页面诊断摘要）"],
+    )
+    result = make_port(channel=channel).run(request())
     assert result.status is Status.FAILED
     assert "页面诊断摘要" in result.evidence[0].summary  # 找不到按钮 = 协议事故显式报
 
 
 def test_detail_710012001_is_no_auth_with_dock_hint():
-    transport = FakeTransport([ok({"code": 710012001, "msg": "login required"})])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}])
-    result = make_port(transport, channel=channel).run(request())
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[{"code": 710012001, "msg": "login required"}],
+    )
+    result = make_port(channel=channel).run(request())
     assert result.status is Status.NO_AUTH
     assert result.repair_hint is not None and result.repair_hint.action_id == "dock"
 
 
 def test_detail_code_2_raises_unknown_engine_code():
     """code=2 刻意不在方言 → UnknownEngineCode → 用例层转 PROTOCOL_CHANGED（引擎集成见下）。"""
-    transport = FakeTransport([ok({"code": 2, "msg": "campaign not found"})])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}])
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[{"code": 2, "msg": "campaign not found"}],
+    )
     with pytest.raises(UnknownEngineCode) as excinfo:
-        make_port(transport, channel=channel).run(request())
+        make_port(channel=channel).run(request())
     assert excinfo.value.code == "2"
 
 
 def test_detail_unknown_code_raises_unknown_engine_code():
-    transport = FakeTransport([ok({"code": 99999})])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}])
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[{"code": 99999}],
+    )
     with pytest.raises(UnknownEngineCode):
-        make_port(transport, channel=channel).run(request())
+        make_port(channel=channel).run(request())
 
 
 def test_detail_710010702_is_failed_with_hint():
-    transport = FakeTransport([ok({"code": 710010702, "msg": "system error"})])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}])
-    result = make_port(transport, channel=channel).run(request())
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[{"code": 710010702, "msg": "system error"}],
+    )
+    result = make_port(channel=channel).run(request())
     assert result.status is Status.FAILED
     assert "手工点一次" in result.evidence[0].summary  # 三义码不猜
 
 
-def test_detail_transport_error_is_failed():
-    transport = FakeTransport([TransportError("boom")])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}])
-    result = make_port(transport, channel=channel).run(request())
+def test_detail_fetch_error_is_failed():
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[CdpError("boom")],
+    )
+    result = make_port(channel=channel).run(request())
     assert result.status is Status.FAILED
 
 
+def test_detail_http_non_2xx_is_transport_failure():
+    """非 2xx = 传输层失败（旧裸 HTTP 语义保持，ADR-017 哨兵键回传）。"""
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[{"butler_http_status": 403}],
+    )
+    result = make_port(channel=channel).run(request())
+    assert result.status is Status.FAILED
+    assert "HTTP 403" in result.evidence[0].summary
+
+
 def test_dry_run_skips_click():
-    transport = FakeTransport([ok(detail_payload(False))])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}])
-    result = make_port(transport, channel=channel).run(request(dry_run=True))
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[detail_payload(False)],
+    )
+    result = make_port(channel=channel).run(request(dry_run=True))
     assert result.status is Status.SKIPPED
     assert channel.clicks == []
 
 
 def test_no_target_opens_activity_page():
-    transport = FakeTransport([ok(detail_payload(True))])
-    channel = FakeChannel(pages=[])  # 客户端刚启动只有内部页
-    result = make_port(transport, channel=channel).run(request())
+    channel = FakeChannel(pages=[], detail_results=[detail_payload(True)])
+    result = make_port(channel=channel).run(request())
     assert channel.opened == [adapter._ACTIVITY_URL]
     assert result.status is Status.ALREADY
 
 
-def test_detail_request_contract():
-    """公共查询参数/头/体形状对齐 PROTOCOL §2（spike + 旧仓库 api 契约）。"""
-    transport = FakeTransport([ok(detail_payload(True))])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}])
-    make_port(transport, channel=channel).run(request())
-    req = transport.requests[0]
-    assert req.url.startswith("https://www.doubao.com/alice/ug/campaign/v3/detail/?")
-    assert "version_code=23508" in req.url and "aid=497858" in req.url
-    assert req.headers["Cookie"].startswith("sessionid=s3cret-session")  # 去重后首个生效
-    assert "SamanthaDoubao/2.35.8" in req.headers["User-Agent"]
-    assert req.body == {"campaign_group_code": adapter.CAMPAIGN_GROUP_CODE}
-
-
-def test_evidence_never_carries_cookie_values():
-    transport = FakeTransport([ok(detail_payload(False)), ok(detail_payload(True))])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}],
-                          eval_results=[{"x": 1, "y": 2, "text": "签到"}])
-    result = make_port(transport, channel=channel).run(request())
-    for evidence in result.evidence:
-        assert "s3cret-session" not in evidence.summary  # 脱敏：凭据明文绝不入 evidence
+def test_detail_fetch_contract():
+    """页面上下文 fetch 形状对齐 PROTOCOL §2（ADR-017：零裸请求，凭据零手拼）。"""
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[detail_payload(True)],
+    )
+    make_port(channel=channel).run(request())
+    expr = channel.detail_calls[0]
+    assert "/alice/ug/campaign/v3/detail/?" in expr
+    assert "version_code=23508" in expr and "aid=497858" in expr
+    assert adapter.CAMPAIGN_GROUP_CODE in expr
+    # 凭据/签名/设备头全部浏览器原生自带——连接器绝不手拼（ADR-017 核心）
+    assert "Cookie" not in expr
+    assert "msToken" not in expr and "a_bogus" not in expr
+    assert "User-Agent" not in expr
+    # 11-16 实证：async fetch 不传 awaitPromise 会被序列化成 {}（空对象误判）
+    assert channel.detail_awaits == [True]
 
 
 def test_capabilities():
@@ -400,11 +418,13 @@ def test_engine_publishes_protocol_changed_on_code_2():
         def publish(self, event):
             self.events.append(event)
 
-    transport = FakeTransport([ok({"code": 2})])
-    channel = FakeChannel(pages=[{"type": "page", "url": "https://www.doubao.com/x",
-                                    "webSocketDebuggerUrl": "ws://p"}])
+    channel = FakeChannel(
+        pages=[{"type": "page", "url": "https://www.doubao.com/x",
+                "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[{"code": 2}],
+    )
     ledger, sink = FakeLedger(), FakeSink()
-    usecase = ExecuteAction(ledger=ledger, sink=sink, ports=lambda action: make_port(transport, channel=channel))
+    usecase = ExecuteAction(ledger=ledger, sink=sink, ports=lambda action: make_port(channel=channel))
     run = usecase.execute(
         RunRequest(
             action=Action(kind=ActionKind.PROVISION_RUN, target="doubao_cn"),
@@ -456,9 +476,9 @@ def test_b_active_b_request_proceeds_already():
         identity={"sec_uid": B_SEC_UID, "nickname": "小号"},
         pages=[{"type": "page", "url": "https://www.doubao.com/x",
                 "webSocketDebuggerUrl": "ws://p"}],
+        detail_results=[detail_payload(True)],
     )
-    transport = FakeTransport([ok(detail_payload(True))])
-    result = make_port(transport, channel=channel).run(request_b())
+    result = make_port(channel=channel).run(request_b())
     assert result.status is Status.ALREADY
     assert "detail 权威判定" in result.evidence[0].summary
 

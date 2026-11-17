@@ -1,10 +1,12 @@
 """豆包请求快照（只读取证，不改变任何出站请求）。
 
 背景：2026-11-17 签到 702 取证需要区分「连接器拼的 detail 请求」和「客户端
-页面自己发的 checkin 请求」。本模块把两者脱敏后追加到本地 JSONL，供后续
-成功/失败样本对照；绝不保存 Cookie/Authorization/msToken/a_bogus 等明文。
+页面自己发的 checkin 请求」。**ADR-017（2026-11-17）落地后 detail 改页面上下文
+fetch，连接器不再自组任何 HTTP 请求**——原 detail 请求快照（record_detail）
+随之退役：capture=1 时页面旁路（_TRACE_INSTALL_JS）会连带记录 detail fetch
+（JS 可见 URL 无签名——记录面局限），请求级取证首选 CDP Network 域旁听
+（PROTOCOL §2.1）。本模块现仅剩 checkin 点击轨迹：
 
-- detail：连接器唯一的裸 HTTP 请求（query/body/headers + 业务响应摘要）
 - checkin：活动页内 fetch/XHR 的 URL/请求体/响应摘要（由 adapter 的页面旁路抓取）
 - 默认目录 ``~/.butler/doubao_requests``，``DOUBAO_REQUEST_DIR`` 可覆盖
 - 快照失败不阻断签到：adapter 以 best-effort 调用
@@ -19,8 +21,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import parse_qsl, urlsplit
-
-from butler_connectors.transport import HttpRequest, HttpResponse
 
 #: 这些头/查询参数只存 hash + 长度，不落明文（会话凭据/签名/设备指纹）。
 _SENSITIVE_KEYS = frozenset(
@@ -107,23 +107,6 @@ def _trim(value: Any) -> Any:
     return value
 
 
-def _response_summary(payload: Any) -> dict[str, Any] | None:
-    if not isinstance(payload, dict):
-        return None
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    daily = None
-    for task in (data.get("tasks") or []):
-        if isinstance(task, dict) and task.get("campaign_code") == "daily_signin":
-            daily = task.get("daily_checkin")
-            break
-    return {
-        "code": payload.get("code"),
-        "msg": payload.get("msg"),
-        "message": payload.get("message"),
-        "daily_checkin": _trim(daily),
-    }
-
-
 def _append(record: dict[str, Any]) -> Path:
     directory = snapshot_dir()
     directory.mkdir(parents=True, exist_ok=True)
@@ -132,37 +115,6 @@ def _append(record: dict[str, Any]) -> Path:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(line + "\n")
     return path
-
-
-def record_detail(
-    *,
-    account_id: str,
-    version: str,
-    vcode: int | None,
-    request: HttpRequest,
-    response: HttpResponse | None = None,
-    error: str | None = None,
-) -> Path:
-    """记录一次 detail 请求/响应（连接器自己拼的裸 HTTP 请求）。"""
-    record: dict[str, Any] = {
-        "ts": _now(),
-        "event": "detail",
-        "account_id": account_id,
-        "version": version,
-        "version_code": vcode,
-        "request": {
-            "method": request.method,
-            "url": redact_url(request.url),
-            "query": redact_query(request.url),
-            "body": _trim(request.body),
-            "headers": redact_headers(request.headers),
-        },
-        "response": _response_summary(response.payload) if response is not None else None,
-        "http_status": response.status_code if response is not None else None,
-    }
-    if error:
-        record["error"] = error
-    return _append(record)
 
 
 def record_checkin_trace(

@@ -21,7 +21,6 @@ from butler_connectors.doubao_cn import adapter
 from butler_connectors.doubao_cn import identity as doubao_identity
 from butler_connectors.doubao_cn.identity import ActiveIdentity
 from butler_connectors.doubao_cn.switch import SwitchError, switch_session
-from butler_connectors.transport import HttpResponse, TransportError
 
 MAIN_SEC_UID = "MS4wTESTMAIN000000"
 B_SEC_UID = "MS4wTESTBBBB000000"
@@ -89,6 +88,8 @@ class FakeChannel:
     pages: list = field(default_factory=list)
     focus_states: list = field(default_factory=list)  # 键盘导航逐步焦点状态
     eval_results: list = field(default_factory=list)
+    detail_results: list = field(default_factory=list)  # detail 页面 fetch 按序回放（ADR-017）
+    detail_calls: list = field(default_factory=list)  # detail fetch 次数留痕
     clicks: list = field(default_factory=list)
     keys: list = field(default_factory=list)
     closed_targets: list = field(default_factory=list)
@@ -122,7 +123,8 @@ class FakeChannel:
     def cookies(self, conn, url: str = "https://www.doubao.com") -> list[dict]:
         return [{"name": "sessionid", "value": "s3cret-session"}]
 
-    def evaluate(self, conn, expression: str, *, wait: float = 20.0):
+    def evaluate(self, conn, expression: str, *, wait: float = 20.0,
+                 await_promise: bool = False):
         if "for_ban_appeal_sec_user_id" in expression:  # 身份查询（identity.py）
             if self.flip_after_enter is not None and "Enter" in self.keys:
                 return dict(self.flip_after_enter)
@@ -131,6 +133,14 @@ class FakeChannel:
             if not self.focus_states:
                 return None
             item = self.focus_states.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+        if "/alice/ug/campaign/v3/detail/" in expression:  # detail 页面 fetch（ADR-017）
+            self.detail_calls.append(expression)
+            if not self.detail_results:
+                return None
+            item = self.detail_results.pop(0)
             if isinstance(item, Exception):
                 raise item
             return item
@@ -202,23 +212,6 @@ class OpsEnv(FakeEnv):
         self.ops.append(f"sleep:{seconds}")
 
 
-class FakeTransport:
-    def __init__(self, responses: list) -> None:
-        self.responses = list(responses)
-        self.requests: list = []
-
-    def __call__(self, request, *, deadline):
-        self.requests.append(request)
-        item = self.responses.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-
-def ok(payload: dict) -> HttpResponse:
-    return HttpResponse(status_code=200, payload=payload)
-
-
 def detail_payload(checked: bool, days: int = 10, amount: int = 200) -> dict:
     return {
         "code": 0,
@@ -249,12 +242,11 @@ def _identity_registry(tmp_path, monkeypatch):
     yield path
 
 
-def make_port(transport=None, *, channel=None, env=None, clock: FakeClock | None = None):
+def make_port(*, channel=None, env=None, clock: FakeClock | None = None):
     if env is None:
         env = FakeEnv(clock=clock)  # sleep 与 monotonic 强制同一时间源（防 deadline 失效）
     return adapter.butler.build_port(
         vault=object(),
-        transport=transport,
         env=env,
         channel=channel if channel is not None else FakeChannel(),
         monotonic=clock.monotonic if clock is not None else None,
@@ -378,14 +370,15 @@ def test_b_active_main_request_auto_switches_and_claims():
         }],
     )
     clock = FakeClock()
-    transport = FakeTransport([ok(detail_payload(True))])
-    result = make_port(transport, channel=channel, clock=clock).run(request_main())
+    channel.detail_results = [detail_payload(True)]
+    result = make_port(channel=channel, clock=clock).run(request_main())
     assert result.status is Status.ALREADY
     assert "自动切号到「逍遥酒鬼」" in result.evidence[0].summary
     assert channel.closed_targets == ["stale-act"]  # 旧页关净（防签错账户）
     assert channel.opened == [adapter._ACTIVITY_URL]  # 新页 = 新会话 Cookie
     assert channel.keys[-1] == "Enter"
-    assert len(transport.requests) == 1  # detail 已签：只查一次，无点击复查
+    assert len(channel.detail_calls) == 1  # detail 已签：只查一次，无点击复查
+    assert channel.eval_results == []  # chip 消费后无签到按钮查找（ALREADY 不进点击编排）
 
 
 def test_main_active_b_request_auto_switches_to_registered_b():
@@ -401,9 +394,9 @@ def test_main_active_b_request_auto_switches_to_registered_b():
         flip_after_enter={"sec_uid": B_SEC_UID, "nickname": B_NICK},
         focus_states=focus_path(B_NICK),
         eval_results=[CHIP, {"x": 10, "y": 20, "text": "立即签到"}],  # 切完后的签到按钮
+        detail_results=[detail_payload(False), detail_payload(True)],
     )
-    transport = FakeTransport([ok(detail_payload(False)), ok(detail_payload(True))])
-    result = make_port(transport, channel=channel).run(request_b())
+    result = make_port(channel=channel).run(request_b())
     assert result.status is Status.CLAIMED
     assert "自动切号到「Leisure520」" in result.evidence[0].summary
 
@@ -426,13 +419,12 @@ def test_auto_switch_flip_timeout_is_pending():
     """
     channel = FakeChannel(focus_states=focus_path(MAIN_NICK))  # flip_after_enter=None
     env = FakeEnv(clock=FakeClock())
-    transport = FakeTransport([])
     result = make_port(
-        transport, channel=channel, env=env, clock=env.clock
+        channel=channel, env=env, clock=env.clock
     ).run(request_main())
     assert result.status is Status.PENDING
     assert "自动切号" in result.evidence[0].summary
-    assert transport.requests == []  # 绝不带着不确定身份发 detail
+    assert channel.detail_calls == []  # 绝不带着不确定身份发 detail
 
 
 def test_switch_target_unregistered_is_pending():
@@ -457,11 +449,11 @@ def test_stale_activity_page_unclosable_is_pending():
         raise CdpError("close refused")
 
     channel.close_target = boom
-    transport = FakeTransport([ok(detail_payload(True))])
-    result = make_port(transport, channel=channel, clock=clock).run(request_main())
+    channel.detail_results = [detail_payload(True)]
+    result = make_port(channel=channel, clock=clock).run(request_main())
     assert result.status is Status.PENDING
     assert "暂缓签到" in result.evidence[0].summary
-    assert transport.requests == []  # 没关净就不发任何请求
+    assert channel.detail_calls == []  # 没关净就不发任何请求
 
 
 # --- bug ①：dock 拉起 settle（杀净 → 落定 → 拉起）---

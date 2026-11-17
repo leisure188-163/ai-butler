@@ -24,7 +24,6 @@ from butler_connectors.doubao_cn.adapter import (
     _ACTIVITY_URL,
     _BASE,
     _COMMON_QUERY,
-    _UA_TEMPLATE,
     CONN_ID as _TARGET,
 )
 from butler_connectors.doubao_cn.identity import (
@@ -34,6 +33,12 @@ from butler_connectors.doubao_cn.identity import (
 )
 from butler_connectors.doubao_cn.localenv import real_env, version_code
 from butler_connectors.transport import HttpRequest, Transport, TransportError, httpx_transport
+
+#: 用量通道 UA（spike 实证串；用量端口 M2 仍裁，裸读未收编进 ADR-017 零裸请求）。
+_UA_TEMPLATE = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 SamanthaDoubao/{version}"
+)
 
 _RECORDS_PATH = "/alice/ug/campaign/quota/records/"
 _MAX_PAGES = 10  # 翻页防御（本机全量 15 条实证远小于此）

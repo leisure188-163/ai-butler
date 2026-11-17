@@ -1,9 +1,11 @@
 """doubao_cn 连接器（ADR-007）：CDP 界面通道端口实现——豆包专属的只有编排。
 
 - registry adapter 契约（registry._load_entry）：``adapter.butler`` 提供
-  build_port / dock 两钩子；vault 参数保留（契约签名）但零凭据设计不使用
-- 编排（PROTOCOL §3 判定表）：probe → 版本派生 → 活动页 → Cookie 现取 →
-  detail 权威判定 →（未签）界面受信任点击 → 复查；PENDING = 客户端不可达（暂态）
+  build_port / dock 两钩子；vault/transport 参数保留（契约签名）但零凭据 +
+  零裸请求设计均不使用（ADR-007 决策 2 / ADR-017）
+- 编排（PROTOCOL §3 判定表）：probe → 版本派生 → 活动页 → detail 页面上下文
+  fetch 权威判定（零裸请求，ADR-017）→（未签）界面受信任点击 → 复查；
+  PENDING = 客户端不可达（暂态）
 - 方言装载期自注册（ADR-004）：code=2 刻意不注册——未知码 → UnknownEngineCode
   → 用例层统一 FAILED + PROTOCOL_CHANGED（活动换季探测）
 - CDP 原语在 cdp.py（通用）；本机环境在 localenv.py（doubao 专属）
@@ -14,7 +16,6 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import replace
-from datetime import datetime
 
 from butler_core.execution.ports import Capabilities, ProvisionPort, ProvisionRequest
 from butler_core.shared.results import Status, from_engine
@@ -43,7 +44,6 @@ from butler_connectors.doubao_cn.switch import (
     switch_session,
 )
 from butler_connectors.registry import DockContext, DockOutcome
-from butler_connectors.transport import HttpRequest, TransportError, httpx_transport
 
 CONN_ID = "doubao_cn"
 DISPLAY = "Doubao CN"
@@ -63,10 +63,6 @@ _COMMON_QUERY = (
     "real_aid=497858",
     "pkg_type=release_version",
 )
-_UA_TEMPLATE = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 SamanthaDoubao/{version}"
-)
 
 from butler_connectors.doubao_cn.results import (
     daily_checkin as _daily_checkin,
@@ -74,6 +70,8 @@ from butler_connectors.doubao_cn.results import (
     pending as _pending,
 )
 from butler_connectors.doubao_cn.ui_js import (
+    _DETAIL_FETCH_JS,
+    _DETAIL_WAIT_SECONDS,
     _FIND_CLICK_JS,
     _FIND_RETRIES,
     _KILL_SETTLE_SECONDS,
@@ -93,10 +91,9 @@ class DoubaoCdpProvisionPort(ProvisionPort):
     """
 
     def __init__(
-        self, *, transport, env: LocalEnv, channel: CdpChannel, sleep=time.sleep,
+        self, *, env: LocalEnv, channel: CdpChannel, sleep=time.sleep,
         monotonic=time.monotonic, capture: bool = False,
     ) -> None:
-        self.transport = transport
         self.env = env
         self.channel = channel
         self.sleep = sleep
@@ -149,7 +146,7 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         except CdpError as exc:
             return _failed(f"活动页不可用（{exc}）——建页失败属协议事故，绝不静默")
         try:
-            result = self._orchestrate(conn, req, version=version, vcode=vcode)
+            result = self._orchestrate(conn, req, vcode=vcode)
         finally:
             conn.close()
         if self._switch_note:
@@ -232,17 +229,11 @@ class DoubaoCdpProvisionPort(ProvisionPort):
     # --- 编排步骤 ---
 
     def _orchestrate(
-        self, conn: CdpConnection, req: ProvisionRequest, *, version: str, vcode: int
+        self, conn: CdpConnection, req: ProvisionRequest, *, vcode: int
     ) -> RunResult:
         try:
-            cookie_header = self._cookie_header(conn)
+            payload = self._detail(conn, vcode)
         except CdpError as exc:
-            return _failed(f"CDP 取 Cookie 失败（{exc}）")
-        try:
-            payload = self._detail(
-                cookie_header, vcode, version, req.deadline, req.account_id
-            )
-        except TransportError as exc:
             return _failed(f"detail 查询失败（只读接口）: {exc}")
         code = str((payload or {}).get("code"))
         if code != "0":
@@ -267,9 +258,7 @@ class DoubaoCdpProvisionPort(ProvisionPort):
                 Status.SKIPPED,
                 evidence=(Evidence("今日未签；dry_run 只查不点（不发界面点击）", raw_code=code),),
             )
-        return self._click_and_confirm(
-            conn, cookie_header, vcode, version, req.deadline, code, req.account_id
-        )
+        return self._click_and_confirm(conn, vcode, code, req.account_id)
 
     def _activity_conn(self) -> CdpConnection:
         """活动页连接：已有 doubao 页则附上去，没有才经 createTarget 开（省资源）。"""
@@ -278,74 +267,25 @@ class DoubaoCdpProvisionPort(ProvisionPort):
             return self.channel.attach(target)
         return self.channel.open_activity(_ACTIVITY_URL)
 
-    def _cookie_header(self, conn: CdpConnection) -> str:
-        pairs: dict[str, str] = {}
-        for cookie in self.channel.cookies(conn):
-            name, value = cookie.get("name"), cookie.get("value")
-            if name and value:
-                pairs.setdefault(name, value)  # 按 name 去重先到先得（旧系统同语义）
-        if not pairs:
-            raise CdpError("Network.getCookies 返回空——会话异常?")
-        return "; ".join(f"{name}={value}" for name, value in pairs.items())
+    def _detail(self, conn: CdpConnection, vcode: int) -> dict:
+        """detail 只读查询 = 活动页上下文 fetch（ADR-017：全链路零裸请求）。
 
-    def _detail(
-        self,
-        cookie_header: str,
-        vcode: int,
-        version: str,
-        deadline: datetime,
-        account_id: str,
-    ) -> dict:
-        """detail 只读查询（M1 唯一裸 HTTP 接口，PROTOCOL §2 契约形状）。
-
-        capture 开启时每请求写一份脱敏快照（成功/失败/复查），用于对比
-        「我们发的 detail」与「客户端页面自己发的 checkin」——快照失败不
-        影响签到；默认关闭（取证改走 CDP Network 域旁听，PROTOCOL §2.1）。
+        Cookie/Origin/Referer/UA 由浏览器原生自带，msToken/a_bogus 由客户端
+        网络栈自动补签（页面 JS 可见层之下，2026-11-16/17 双机 spike 实证）；
+        查询参数/body/业务码契约同 PROTOCOL §2，非 2xx 保持旧「传输层失败」
+        语义（哨兵键回传）。capture=1 时页面旁路（_TRACE_INSTALL_JS）会
+        连带记录本次 fetch（JS 可见 URL 无签名——记录面局限，PROTOCOL §2.1）。
         """
         query = "&".join((f"version_code={vcode}", *_COMMON_QUERY))
-        request = HttpRequest(
-            method="POST",
-            url=f"{_BASE}{_DETAIL_PATH}?{query}",
-            headers={
-                "Cookie": cookie_header,
-                "Content-Type": "application/json",
-                "Origin": _BASE,
-                "Referer": _ACTIVITY_URL,
-                "User-Agent": _UA_TEMPLATE.format(version=version),
-            },
-            body={"campaign_group_code": CAMPAIGN_GROUP_CODE},
+        js = _DETAIL_FETCH_JS.replace(
+            "__URL__", f"{_DETAIL_PATH}?{query}"
+        ).replace("__GROUP__", CAMPAIGN_GROUP_CODE)
+        payload = self.channel.evaluate(
+            conn, js, wait=_DETAIL_WAIT_SECONDS, await_promise=True
         )
-        try:
-            response = self.transport(request, deadline=deadline)
-        except TransportError as exc:
-            self._snapshot_detail(
-                account_id=account_id,
-                version=version,
-                vcode=vcode,
-                request=request,
-                error=str(exc),
-            )
-            raise
-        self._snapshot_detail(
-            account_id=account_id,
-            version=version,
-            vcode=vcode,
-            request=request,
-            response=response,
-        )
-        if not response.ok:
-            raise TransportError(f"HTTP {response.status_code}")
-        payload = response.payload
+        if isinstance(payload, dict) and "butler_http_status" in payload:
+            raise CdpError(f"HTTP {payload['butler_http_status']}")
         return payload if isinstance(payload, dict) else {}
-
-    def _snapshot_detail(self, **kwargs) -> None:
-        """best-effort 写 detail 快照；任何 IO/序列化故障都不得阻断签到。"""
-        if not self.capture:
-            return
-        try:
-            request_snapshot.record_detail(**kwargs)
-        except Exception:
-            return
 
     def _business_code(self, code: str, payload: dict) -> RunResult:
         if code == "710012001":  # 登录过期（方言 NO_AUTH 语义 + 修复指引）
@@ -365,10 +305,7 @@ class DoubaoCdpProvisionPort(ProvisionPort):
     def _click_and_confirm(
         self,
         conn: CdpConnection,
-        cookie_header: str,
         vcode: int,
-        version: str,
-        deadline: datetime,
         raw_code: str,
         account_id: str,
     ) -> RunResult:
@@ -400,17 +337,15 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         trace = self._read_trace(conn)
         # 复查退避重试（PROTOCOL §3）：点击送达≠状态即时翻转——任一次
         # checked_in_today=true 即 CLAIMED，全部 false 才判 FAILED
-        last_transport_error: TransportError | None = None
+        last_detail_error: CdpError | None = None
         try:
             for attempt, extra in enumerate(_RECHECK_DELAYS, start=1):
                 if attempt > 1:
                     self.sleep(extra)
                 try:
-                    payload = self._detail(
-                        cookie_header, vcode, version, deadline, account_id
-                    )
-                except TransportError as exc:
-                    last_transport_error = exc
+                    payload = self._detail(conn, vcode)
+                except CdpError as exc:
+                    last_detail_error = exc
                     continue
                 checkin = _daily_checkin(payload)
                 if checkin is not None and checkin.get("checked_in_today"):
@@ -426,9 +361,9 @@ class DoubaoCdpProvisionPort(ProvisionPort):
                             ),
                         ),
                     )
-            if last_transport_error is not None:
+            if last_detail_error is not None:
                 return _failed(
-                    f"点击后复查 detail 失败: {last_transport_error}", raw_code=raw_code
+                    f"点击后复查 detail 失败: {last_detail_error}", raw_code=raw_code
                 )
             return _failed(
                 f"已在客户端界面点击「{text}」但复查 {len(_RECHECK_DELAYS)} 次仍未签"
@@ -521,10 +456,11 @@ class _Butler:
         channel: CdpChannel | None = None,
         monotonic=None,
     ) -> DoubaoCdpProvisionPort:
-        # vault 参数保留（registry 契约签名）；零凭据设计不使用（ADR-007 决策 2）
+        # vault/transport 参数保留（registry 契约签名，registry 对所有连接器统一
+        # 传参）；零凭据设计不用 vault（ADR-007 决策 2）、零裸请求设计不用
+        # transport（ADR-017）
         env = env if env is not None else real_env()
         return DoubaoCdpProvisionPort(
-            transport=transport if transport is not None else httpx_transport(),
             env=env,
             channel=channel if channel is not None else CdpChannel(env.resolve_port()),
             sleep=env.sleep,  # 重试/落定间隔走环境束：测试假束离线、真机 time.sleep

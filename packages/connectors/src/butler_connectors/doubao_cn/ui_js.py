@@ -1,6 +1,7 @@
 """豆包活动页的页面侧 JS 常量（从 adapter.py 拆出控制行数）。
 
-纯字符串/常量，不含控制流：按钮查找、页面诊断、只读请求旁路安装与读取。
+纯字符串/常量，不含控制流：按钮查找、页面诊断、detail 页面 fetch（ADR-017）、
+只读请求旁路安装与读取。
 """
 
 from __future__ import annotations
@@ -156,7 +157,27 @@ _TRACE_READ_JS = """
 })()
 """
 
+#: detail 只读查询 = 活动页上下文 fetch（ADR-017：全链路零裸请求——Cookie/
+#: Origin/Referer/UA 由浏览器原生自带，msToken/a_bogus 由客户端网络栈在页面
+#: JS 可见层之下自动补签，2026-11-16 Windows + 11-17 mac 双机 spike 实证）。
+#: __URL__ = detail path + 公共查询参数串、__GROUP__ = 活动分组码（adapter 注入，
+#: 单源在 adapter 常量）；哨兵键 butler_http_status 回传非 2xx（保持旧裸 HTTP
+#: 「非 2xx = 传输层失败」语义，业务码判定只对 2xx JSON 生效，PROTOCOL §2）。
+_DETAIL_FETCH_JS = """
+(async () => {
+  const resp = await fetch("__URL__", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    credentials: "include",
+    body: JSON.stringify({campaign_group_code: "__GROUP__"})
+  });
+  if (!resp.ok) return {butler_http_status: resp.status};
+  return await resp.json();
+})()
+"""
+
 _SETTLE_SECONDS = 3.0  # 点击后等客户端 SDK 发完请求（PROTOCOL §6 ⑤）
+_DETAIL_WAIT_SECONDS = 25.0  # detail 页面 fetch 求值上限（2026-11-17 mac spike 实证量级）
 _FIND_RETRIES = 3  # 活动页可能还在加载（PROTOCOL §6 ⑥）
 #: 点击后复查退避序列（2026-11-16 真机取证：点击生效但状态翻转有延迟，
 #: 3s 即查会误判 FAILED——退避复查 3 次再判失败，PROTOCOL §3 FAILED 行语义）。

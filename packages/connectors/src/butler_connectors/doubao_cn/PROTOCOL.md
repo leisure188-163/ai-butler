@@ -41,7 +41,9 @@
   预留的「页面内 Runtime.evaluate 同源 fetch」升级路径可行性坐实**：签名由
   页面 JS 自产，evaluate 的 fetch 即合法签名请求。签到写接口（landing/checkin）
   的请求形状尚待取证（取证当日点击已生效、按钮消失，未捕获写请求）——取证后
-  可评估「evaluate fetch 签到」替代受信任点击
+  可评估「evaluate fetch 签到」替代受信任点击。**2026-11-17 mac（2.36.8 重装后
+  环境）复证**：注入 fetch 的请求 URL 自动带 `msToken(184)/a_bogus(192)`，
+  detail `code=0`——ADR-017（detail 改页面上下文 fetch）落地依据
 - **Runtime.evaluate 必须 `awaitPromise=True`**：async 表达式不传该参数，
   `returnByValue` 把未落定的 Promise 序列化成 `{}`（cdp.py `evaluate` 已加
   `await_promise` 形参，默认 False 向后兼容）
@@ -56,26 +58,30 @@ Base：`https://www.doubao.com`
 
 | 端点 | 方法 | 说明 |
 |---|---|---|
-| `/alice/ug/campaign/v3/detail/` | POST | 活动详情（**只读，M1 唯一裸 HTTP 接口**）：`{"campaign_group_code": "pc_incentive_task_mvp_v3"}`；权威判定源（§3） |
+| `/alice/ug/campaign/v3/detail/` | POST | 活动详情（**只读**；ADR-017 起由活动页上下文 fetch 发出——浏览器原生头 + 客户端自动补签，**全链路零裸请求**）：`{"campaign_group_code": "pc_incentive_task_mvp_v3"}`；权威判定源（§3） |
 | `/alice/ug/campaign/landing/checkin/` | POST | 签到（幂等）——**M1 不发**（界面通道由客户端 JS 自己发） |
 | `/alice/ug/campaign/item/reward/claim/` | POST | 任务奖励领取——**M2 清扫再裁**（裸写有会话受限风险） |
 
 公共约定（detail 用）：
 
 - 公共查询参数**缺一不可**：`version_code=<派生>&language=zh&device_platform=web&doubao_device_platform=web&aid=497858&real_aid=497858&pkg_type=release_version`；`version_code` 写死会在客户端升级后回 710010702（旧系统 NOTE-04 §4.5 复盘）
-- 头：`Cookie`（CDP 现取，按 name 去重）、`Content-Type: application/json`、`Origin`、`Referer: https://www.doubao.com/pc/agent-explore`、`User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) … Chrome/147.0.0.0 Safari/537.36 SamanthaDoubao/<version>`（spike 实证串）
+- 头（ADR-017 起全部浏览器原生自带，**连接器零手拼**）：`Cookie`（页面 fetch `credentials:"include"` 自动携带）、`Origin`/`Referer`（同源自动）、`User-Agent`（客户端原值，含 `SamanthaDoubao/<version>`——历史 spike 串留存备考）；连接器只显式设 `Content-Type: application/json`（fetch 参数）
+- 公共查询参数仍由连接器拼进 fetch URL（**缺一不可**，同上）；`msToken`/`a_bogus` 不拼——客户端网络栈在页面 JS 可见层之下自动补签（2026-11-16 Windows + 11-17 mac 双机 spike 实证，注入 fetch 一视同仁）
 - 业务码：`0`=ok；`2`=campaign not found（**活动换季**——更新声明的 campaign 常量）；`710012001`=登录过期 → NO_AUTH（旧系统按 `710012*` 前缀判过期）；`710010702`=system error（**三义**：请求不合法/会话被降权/服务端故障——界面通道下签名合法仍 702 = 后两者，不猜，指引手工点一次判定）。**2026-11-17 真机抓包（页面 XHR 旁路）**：客户端自己右侧「立即签到」发出的 `/landing/checkin` 请求为 `version_code=20800&language=zh&device_platform=web&doubao_device_platform=web&aid=497858&real_aid=497858&pkg_type=release_version&pc_version=2.36.8&doubao_pc_version=5.74.99&web_id=<redacted>&tea_uuid=<redacted>&runtime=web…`，body `{"scene":"pc_incentive_task_mvp_v3"}`，响应 HTTP 200 + `710010702`；同页 `/v3/detail/` 用同一会话仍 `code=0`。该 XHR 的 JS 可见 URL/请求头里未出现 `msToken/a_bogus`（可能在 Cookie 中；快照已脱敏），所以“702 是我们拼的 detail 字段缺项”不成立；成功样本（`Leisure520` 2026-11-17 08:46 +200）当时未抓包，不能据此断缺项。遇到 702 停止连续点击，等平台恢复/重启客户端，或换另一账户验证。**勘误（同日 20:36 CDP Network 域零污染旁听）**：`msToken/a_bogus` 实际就在该 XHR 的 URL query 中（早前页面旁路快照未记录到是包装器记录面局限，非请求本身缺失）；「702 非 detail 缺项」在零注入条件下复证成立——现场样本见 §2.1。
 - **detail 判定字段路径**：`data.tasks[]` 里 `campaign_code=="daily_signin"` 的项 → `.daily_checkin` 子结构：`checked_in_today`（布尔权威）/`reward.reward_amount`/`continuous_days`/`last_checkin_date`（2026-11-11 旧仓库 oracle 提炼 + spike 实证）
 - 本机 127.0.0.1 的 CDP HTTP 探测必须**绕系统代理**（旧系统实测：系统代理开着时 urllib 会把调试端口请求发给代理，直连失败）
 
 ## 2.1 请求快照与取证（2026-11-17 修订：页面旁路默认关闭，旁听改 CDP Network 域）
 
-目的：区分「连接器拼的 detail」与「客户端页面自己发的 checkin」，并为成功/失败样本留档。
+目的：为成功/失败样本留档（~~区分「连接器拼的 detail」与「客户端页面自己发的
+checkin」~~——ADR-017 起连接器零自组请求，两者已同源同栈，仅剩样本对照价值）。
 
 - **页面 `fetch`/XHR 猴补默认不装**（`DOUBAO_REQUEST_CAPTURE` 默认 `0`，显式 `=1` 才开）：
   字节反爬对原生函数被包装存在指纹检测风险，生产 run 必须零注入；显式开启时落
   `~/.butler/doubao_requests/doubao_requests-YYYY-MM-DD.jsonl`（`DOUBAO_REQUEST_DIR` 可覆盖），
-  detail 每请求一条 + checkin_trace（点击前装、点击后读），不阻断原请求。
+  checkin_trace（点击前装、点击后读）**连带记录连接器自己的 detail fetch**（JS 可见
+  URL 无签名——记录面局限，PROTOCOL §2.1 勘误）；原 detail 请求快照
+  （`record_detail`）已随零裸请求退役。
 - **取证首选 CDP Network 域旁听（页面 JS 完全不可见、零污染）**：浏览器级 ws +
   `Target.attachToTarget(flatten)` + `Network.enable`，与真实 claim（capture=OFF）并行，
   收 `requestWillBeSent/responseReceived/loadingFinished` 后于会话存活期内 `getResponseBody`；
@@ -96,7 +102,10 @@ Base：`https://www.doubao.com`
 - **同型事故**：2026-11-04 21:07 后连续 `710010702`——客户端自己的请求（全设备参数齐全）也 702、同会话 detail `code=0`、**卸载→清残留→重装→重登，新 session 依然失败**（§4.5，与本次 11-16 起逐字同型）。
 - **恢复**：未依赖重装——客户端升 2.36.8 是 11-13 21:01，晚于恢复；新 butler 台账连签计数倒推恢复发生在 11-08–11-12 之间（11-12 ALREADY 连签 5 天）。同期变化 = 旧 kit 11-09 落「auto 不再裸接口兜底」、裸请求停发 + 时间过去。
 - **机理（旧 kit §4.3）**：裸 HTTP 缺 `a_bogus/msToken` 签名 → 服务端判异常流量 → 先**会话级受限**（重装 = 新 session 可恢复，11-07 用户亲证"重装后手工点正常，跑一次工具又挂"）→ 反复裸请求升级为**账号级**（重装无效，§4.5；本次同为账号级）。
-- **对本次的启示**：① 上次是「停裸请求 + 等待」恢复的，不是重装；② 本仓库 detail 仍是裸 POST（全链路唯一非客户端指纹流量，每次 run 最多 4 次）——候选改造：detail 查询改页面上下文 fetch（浏览器原生自带完整签名，§4.2 实证可行）；③ 复验期间绝不连点。
+- **对本次的启示**：① 上次是「停裸请求 + 等待」恢复的，不是重装；② 本仓库
+  detail 裸 POST（全链路唯一非客户端指纹流量，每次 run 最多 4 次）——**已于
+  2026-11-17 落地改造（ADR-017）**：detail 改活动页上下文 fetch，全链路零裸请求
+  （注入 fetch 自动补签 mac 复证，§1.2）；③ 复验期间绝不连点。
 
 ## 3. 结果判定（detail 权威，不信签到接口返回）
 
@@ -159,7 +168,8 @@ Base：`https://www.doubao.com`
   逐项 + 焦点文本精确校验 → Enter 激活 → 45s 轮询身份翻转，超时显式
   SwitchError；两次尝试间点空白收起弹层）→ adapter 复核活跃身份与目标一致 →
   **旧活动页关净**（cdp.py 新原语 `Target.closeTarget`，target 已不在 = 关净
-  达成同语义不报错）→ `_activity_conn` 开新页（Cookie 现取 = 新会话）→ 正常
+  达成同语义不报错）→ `_activity_conn` 开新页（新页 = 新会话上下文，Cookie 由
+  浏览器按页携带）→ 正常
   编排。cdp.py 另补 `key()` 原语（Input.dispatchKeyEvent down+up）。切号留痕
   进台账 evidence 首位
 - **身份登记簿**：dock 采集后持久化 `~/.butler/doubao_identity.json`
@@ -186,10 +196,13 @@ Base：`https://www.doubao.com`
 
 - **通道裁决（本设计的根）**：①**裸 HTTP 写操作禁令**——缺 `a_bogus`/`msToken`
   签名的连续裸请求会把会话搞受限（连手工点都失败，重装才恢复；旧系统
-  2026-11-07/11-08 两次事故），M1 绝不实现裸写通道；②detail 只读裸 HTTP
-  实测无害（受限会话下 detail 仍 code=0），M1 唯一保留的裸接口——若未来
-  detail 也强校验签名，升级路径 = 页面内 Runtime.evaluate 同源 fetch 或读界面；
-  ③文件解 Cookie 不做（Profile N 独占锁 + Default 过期态 + 界面通道用不上）
+  2026-11-07/11-08 两次事故），M1 绝不实现裸写通道；②detail 只读接口
+  **2026-11-17 起 ADR-017 修订**：由连接器裸 httpx POST 改**活动页上下文
+  fetch**（浏览器原生头 + 客户端网络栈自动补签）——原「只读裸 HTTP 实测无害、
+  唯一保留」的口径撤销，升级路径「页面内 Runtime.evaluate 同源 fetch」正式启用；
+  直接诱因 = 702 账号级事故链 + 旧 kit NOTE-04 同型事故机理（裸请求是会话
+  受限→账号受限升级链的诱因，只读也不留）；③文件解 Cookie 不做（Profile N
+  独占锁 + Default 过期态 + 界面通道用不上；ADR-017 后连接器零 Cookie 处理面）
 - **自动拉起**（用户裁决 2026-11-11）：dock 体检发现客户端无端口运行 → 杀
   实例 → 带端口重启 → 轮询就绪；拉起失败/找不到 exe → 显式 issue 给指引。
   M1 自动拉起仅 Windows；mac probe 可达即过（手动带端口启动），不可达出
@@ -209,13 +222,16 @@ Base：`https://www.doubao.com`
 - **活动页优选**：target 匹配按域 `doubao.com` 不限 type（`doubao://` 内部页
   排除，2026-11-07 实测内部页同样含 "doubao" 字样）；多个命中时 url 含
   `campaign`/`agent-explore`/`incentive` 者优先，否则取第一个
-- **Cookie 现取口径**：直接在活动页连接上 `Network.getCookies`，按 name 去重；
-  会话过期与否由 detail 业务码判定（cookie 在不等于登录态有效）
+- ~~**Cookie 现取口径**：直接在活动页连接上 `Network.getCookies`，按 name 去重~~
+  **已退役（ADR-017）**：detail 改页面上下文 fetch 后 Cookie 由浏览器原生携带，
+  连接器零 Cookie 处理面（零凭据更彻底）；会话过期与否仍由 detail 业务码判定
+  （cookie 在不等于登录态有效，语义不变）
 - 换季预案：`campaign_group_code` 是 adapter 模块常量（`CAMPAIGN_GROUP_CODE`），
   服务端换 scene 时 detail 报 code=2 → FAILED + PROTOCOL_CHANGED 事件，更新
   常量即可
 - 会话受限唯一恢复手段 = 重装客户端（新 session）；"手工点一次"是判别器
-- msToken 等 cookie 有时效——每次运行时 CDP 现取，绝不持久化（零凭据入 vault）
+- msToken/a_bogus 由客户端网络栈每次请求自产自用——连接器不接触、不持久化
+  （零凭据入 vault 不变；ADR-017 后连读取也不再发生）
 
 ## 7. 用量取证（2026-11-12，M2 真机只读 spike，客户端 2.36.6 / Windows）
 
@@ -249,12 +265,14 @@ Base：`https://www.doubao.com`
   **周一 400**（11-02/11-09 两个周一双实证），断签无补登记录
 - cursor 为 base64 JSON `{"create_time", "id"}`
 
-### 7.3 ADR-007 遗留三选一：裁决材料齐（倾向「detail 裸读，不做 CDP 读用量」）
+### 7.3 ADR-007 遗留三选一：裁决材料齐（倾向「detail 读，不做 CDP 读用量」）
 
 CDP DOM/截图实证（agent-explore 活动页 + doubao-chat 主聊天页）：界面能读到
 的额度信息只有「累计获得额度」（与 detail.total_amount 完全重复）——**CDP 读
-用量无增量价值**；用量通道建议 = detail 裸读（面额/活动池）+ quota/records
-裸读（入账流水），CDP 通道保留给签到点击（M1 既有）。
+用量无增量价值**；用量通道建议 = detail 读（面额/活动池）+ quota/records 读
+（入账流水），CDP 通道保留给签到点击（M1 既有）。**ADR-017 后约束**：detail
+读已是页面 fetch 形状；quota/records 若 M2 落地生产，**须同法走页面上下文
+fetch**（裸请求禁令已扩展到只读），或届时另裁。
 
 ### 7.4 本地数据源
 
