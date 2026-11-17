@@ -48,7 +48,7 @@ class RadarAccountOut(BaseModel):
     """单账号雷达行：无快照 = packages 空（尚未采集）；doubao 只有流水。"""
 
     account_id: str
-    provider: str
+    app: str
     display_name: str
     collected_at: datetime | None
     packages: list[PackageQuotaOut]
@@ -74,7 +74,7 @@ def collect_usage(request: Request) -> list[CollectOutcomeOut]:
     """全账号用量采集（手动触发）：逐账号 CollectUsage，单账号失败不拖累其余。"""
     kit = request.app.state.kit
     outcomes = [
-        kit.collect_usage.execute(account.provider, account.id)
+        kit.collect_usage.execute(account.app, account.id)
         for account in kit.accounts.list_all()
     ]
     return [
@@ -107,7 +107,7 @@ def usage_radar(request: Request) -> list[RadarAccountOut]:
         out.append(
             RadarAccountOut(
                 account_id=account.id,
-                provider=account.provider,
+                app=account.app,
                 display_name=account.display_name,
                 collected_at=current.collected_at if current else None,
                 packages=[

@@ -29,7 +29,7 @@ class FakeMeter:
 
 
 class FakeUpstream:
-    provider = "trae_cn"
+    app = "trae_cn"
     credential_kind = "ss_aes"
 
     def __init__(self, reply: UpstreamReply) -> None:
@@ -43,7 +43,7 @@ class FakeAccounts:
     def __init__(self) -> None:
         self._a = Account(
             id=account_identity("trae_cn", "main"),
-            provider="trae_cn",
+            app="trae_cn",
             display_name="trae main",
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         )
@@ -168,5 +168,5 @@ def test_health含proxy节(client: tuple[TestClient, FakeMeter]) -> None:
     tc, _ = client
     health = tc.get("/health").json()
     assert health["proxy"]["surfaces"] == ["/v1/chat/completions", "/v1/messages"]
-    assert health["proxy"]["provider_adapters"] == ["trae_cn"]
+    assert health["proxy"]["app_adapters"] == ["trae_cn"]
     assert health["proxy"]["limiter_in_use"] == {}

@@ -1,9 +1,9 @@
-"""上游适配端口与注册表（R4-G5，ADR-012 裁决 5 / A2-02 §3）：provider 插件。
+"""上游适配端口与注册表（R4-G5，ADR-012 裁决 5 / A2-02 §3）：app 插件。
 
-- A2-02 §3：gateway provider 插件**禁止声明式**——适配器是代码注册，不是配置
-- G5 M1 只立端口与注册表：各 provider 推理通道取证未回收（plans/02 §3；
-  ADR-012 后果「取证不全 = 不开工该 provider」），**不编造请求形状**——
-  未注册 provider 在转移编排（forwarder）中如实记 skipped，绝不猜头/猜体
+- A2-02 §3：gateway app 插件**禁止声明式**——适配器是代码注册，不是配置
+- G5 M1 只立端口与注册表：各 app 推理通道取证未回收（plans/02 §3；
+  ADR-012 后果「取证不全 = 不开工该 app」），**不编造请求形状**——
+  未注册 app 在转移编排（forwarder）中如实记 skipped，绝不猜头/猜体
 - 适配器实现方职责：凭证 kind 声明、鉴权头组装、端点/请求体形状、
   （取证回收后）流式支持
 - 适配器契约：仅账户级失败（connect/timeout/5xx/429/凭据被拒）抛
@@ -45,17 +45,17 @@ class UpstreamFailure(Exception):
         self.detail = detail
 
 
-class ProviderUpstream(Protocol):
-    """provider 上游适配器：转发一次非流式推理调用（异步）。"""
+class AppUpstream(Protocol):
+    """app 上游适配器：转发一次非流式推理调用（异步）。"""
 
     @property
-    def provider(self) -> str:
-        """connector id（与 Account.provider 同源编址）。"""
+    def app(self) -> str:
+        """connector id（与 Account.app 同源编址）。"""
         ...
 
     @property
     def credential_kind(self) -> str:
-        """本 provider 转发所需的最小授权凭据 kind（一次只解密一个）。"""
+        """本 app 转发所需的最小授权凭据 kind（一次只解密一个）。"""
         ...
 
     async def forward(
@@ -65,24 +65,24 @@ class ProviderUpstream(Protocol):
         ...
 
 
-_REGISTRY: dict[str, ProviderUpstream] = {}
+_REGISTRY: dict[str, AppUpstream] = {}
 
 
-def register_upstream(adapter: ProviderUpstream, *, replace: bool = False) -> None:
-    """注册 provider 适配器；重复注册显式拒绝（replace=True 才可重装）。"""
-    existing = _REGISTRY.get(adapter.provider)
+def register_upstream(adapter: AppUpstream, *, replace: bool = False) -> None:
+    """注册 app 适配器；重复注册显式拒绝（replace=True 才可重装）。"""
+    existing = _REGISTRY.get(adapter.app)
     if existing is not None and existing is not adapter and not replace:
         raise ValueError(
-            f"provider {adapter.provider!r} 上游适配器重复注册（显式 replace=True 才可重装）"
+            f"app {adapter.app!r} 上游适配器重复注册（显式 replace=True 才可重装）"
         )
-    _REGISTRY[adapter.provider] = adapter
+    _REGISTRY[adapter.app] = adapter
 
 
-def upstream_for(provider: str) -> ProviderUpstream | None:
-    """按 provider 取适配器；未注册返回 None（调用方如实记 skipped，不猜）。"""
-    return _REGISTRY.get(provider)
+def upstream_for(app: str) -> AppUpstream | None:
+    """按 app 取适配器；未注册返回 None（调用方如实记 skipped，不猜）。"""
+    return _REGISTRY.get(app)
 
 
-def registered_providers() -> tuple[str, ...]:
-    """已注册 provider 清单（/health 观测面用，稳定排序）。"""
+def registered_apps() -> tuple[str, ...]:
+    """已注册 app 清单（/health 观测面用，稳定排序）。"""
     return tuple(sorted(_REGISTRY))

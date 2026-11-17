@@ -64,7 +64,7 @@ def apps() -> None:
     try:
         imported: dict[str, list[str]] = {}
         for account in kit.accounts.list_all():
-            imported.setdefault(account.provider, []).append(account.id)
+            imported.setdefault(account.app, []).append(account.id)
         table = Table("应用", "能力", "凭据", "时间表", "卡")
         for app_obj in _registry().apps():
             m = app_obj.manifest
@@ -126,7 +126,7 @@ def claim(
             _unknown_target(target)
         account_id = f"{target}:{account}"
         if kit.accounts.get(account_id) is None:
-            known = [a.id for a in kit.accounts.list_by_provider(target)]
+            known = [a.id for a in kit.accounts.list_by_app(target)]
             console.print(
                 f"[red]卡不存在: {account_id}[/red]"
                 f"（该应用已有: {', '.join(known) or '未导入——先跑 import'}）"

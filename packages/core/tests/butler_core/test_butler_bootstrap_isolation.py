@@ -15,7 +15,7 @@ DOMAINS = {"accounts", "execution", "usage", "health", "scheduling"}
 class _Accounts(AccountRepository):
     def save(self, account): pass
     def get(self, account_id): return None
-    def list_by_provider(self, provider): return []
+    def list_by_app(self, app): return []
     def list_all(self): return []
 
 

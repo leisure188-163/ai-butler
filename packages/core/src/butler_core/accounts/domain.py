@@ -1,6 +1,6 @@
-"""账户域（A2-04）：Provider / Account 集合 / 凭据事实。
+"""账户域（A2-04）：App / Account 集合 / 凭据事实。
 
-多账号（ADR-003）：一 Provider 挂 N 个 Account，身份 = (provider, account_key)；
+多账号（ADR-003）：一 App 挂 N 个 Account，身份 = (app, account_key)；
 凭据/权益/会话全部挂 account_id。凭据明文载体 Secret 与保险库引用也在本域
 ——健康分级枚举来自 shared 内核，域之间不互依（A1-05 §2 依赖恒等式）。
 """
@@ -25,31 +25,31 @@ class AccountInvalid(DomainError):
 
 
 class AccountAlreadyExists(AccountInvalid):
-    """(provider, account_key) 已存在且事实冲突——不静默改号。"""
+    """(app, account_key) 已存在且事实冲突——不静默改号。"""
 
 
 class EmptySecret(DomainError):
     """空明文入库 = 拒绝执行（红线 5）。"""
 
 
-def account_identity(provider: str, account_key: str = DEFAULT_ACCOUNT_KEY) -> str:
-    """账户规范 id：``{provider}:{account_key}``——全库唯一锚点单源。"""
+def account_identity(app: str, account_key: str = DEFAULT_ACCOUNT_KEY) -> str:
+    """账户规范 id：``{app}:{account_key}``——全库唯一锚点单源。"""
 
-    if not provider.strip():
-        raise AccountInvalid("provider（connector id）不能为空")
+    if not app.strip():
+        raise AccountInvalid("app（connector id）不能为空")
     if not account_key.strip() or ":" in account_key:
         raise AccountInvalid("account_key 非空且不含冒号")
-    return f"{provider.strip()}:{account_key.strip()}"
+    return f"{app.strip()}:{account_key.strip()}"
 
 
-def main_account_id(provider: str) -> str:
+def main_account_id(app: str) -> str:
     """兼容名：首账号（main）的规范 id——与存量 `:main` 编址零迁移兼容。"""
 
-    return account_identity(provider, DEFAULT_ACCOUNT_KEY)
+    return account_identity(app, DEFAULT_ACCOUNT_KEY)
 
 
 @dataclass(frozen=True)
-class Provider:
+class App:
     """Connector 的产品级身份，不进 UI 导航（下沉为实现细节）。"""
 
     id: str
@@ -128,7 +128,7 @@ class Account:
     """账户聚合根（集合语义）：Run / Event / Sample / 凭据全挂 account_id。"""
 
     id: str
-    provider: str
+    app: str
     display_name: str
     created_at: datetime
     account_key: str = DEFAULT_ACCOUNT_KEY
@@ -136,20 +136,23 @@ class Account:
     entitlement: Entitlement | None = None
     sessions: tuple[Session, ...] = ()
     deleted_at: datetime | None = None
+    base_url: str = ""  # 账户级 API 基址（Qoder CN/Global 双 host 事实落库；空 = 用连接器缺省）
+    device_ref: str | None = None  # 供应商侧账户标识绑定；绑定不可得 = 如实 None（A2-04 §4.1）
+    enabled: bool = True  # 用户管理开关（停用是运营动作；健康熔断仍归 health 域，A2-04 §6）
 
     def __post_init__(self) -> None:
-        if not self.id.strip() or not self.provider.strip():
-            raise AccountInvalid("Account 需要非空 id 与 provider")
+        if not self.id.strip() or not self.app.strip():
+            raise AccountInvalid("Account 需要非空 id 与 app")
         if not self.display_name.strip():
             raise AccountInvalid("Account 需要非空 display_name")
-        if self.id != account_identity(self.provider, self.account_key):
+        if self.id != account_identity(self.app, self.account_key):
             # 存量行/适配器只带 id 时，从规范 id 反推 account_key（多账号兼容）：
             # 形状不对就显式拒绝，绝不静默改号。
-            prefix = f"{self.provider.strip()}:"
+            prefix = f"{self.app.strip()}:"
             suffix = self.id[len(prefix):] if self.id.startswith(prefix) else ""
             if not suffix or ":" in suffix:
                 raise AccountInvalid(
-                    f"Account id {self.id!r} 与 (provider, account_key) 编址不一致"
+                    f"Account id {self.id!r} 与 (app, account_key) 编址不一致"
                 )
             object.__setattr__(self, "account_key", suffix)
         for cred in self.credentials:
@@ -158,7 +161,7 @@ class Account:
 
     @property
     def identity(self) -> tuple[str, str]:
-        return (self.provider, self.account_key)
+        return (self.app, self.account_key)
 
 
 @dataclass(frozen=True)
@@ -246,7 +249,7 @@ class CachePolicy:
 class AccountDraft:
     """注册用例的入参形状（避免在用例签名里堆参数）。"""
 
-    provider: str
+    app: str
     display_name: str
     account_key: str = DEFAULT_ACCOUNT_KEY
     credentials: tuple[Credential, ...] = field(default_factory=tuple)

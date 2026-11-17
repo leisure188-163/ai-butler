@@ -138,7 +138,7 @@ usage_summary / 包分账本。
 - Agent 核心 = Rust `icube_server_rs/llm-client`（modules/ai-agent
   libai_agent.dylib）：**自带多协议 LLM 路由器**——OpenAI 形
   `/models/chat/completions`、`/v1/models`、Anthropic 形 `/v1/messages`
-  共存（provider 名单含 openrouter/openai/anthropic/aws/gemini）
+  共存（LLM 服务商名单含 openrouter/openai/anthropic/aws/gemini）
 - 服务域：`api.trae.com.cn`（product.json `iCubeAgent`；账号面
   `api.trae.cn` = M1 已通）
 - 端点串（libai_agent.dylib）：`api/ide/v1/llm_raw_chat`、

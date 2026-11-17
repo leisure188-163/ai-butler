@@ -77,7 +77,7 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
             {
                 "account_id": "acc1",
                 "account_key": "acc1",  # 多账号维度（ADR-003）
-                "provider": "",  # vault-only 账号：号册无记录，如实空串
+                "app": "",  # vault-only 账号：号册无记录，如实空串
                 "display_name": "acc1",  # 缺省回落 account_id
                 "level": "healthy",  # core 出产字面量，server 原样传递
                 "signal": "ok",  # core 出产视觉分类（端零映射）
@@ -294,7 +294,7 @@ def test_usage_collect_then_radar_roundtrip(tmp_path):
         assert len(radar) == 1
         row = radar[0]
         assert row["account_id"] == account.id
-        assert row["provider"] == "trae_cn"
+        assert row["app"] == "trae_cn"
         assert row["packages"] == [
             {
                 "package_id": "add_on_quota", "name": "加量包",
@@ -396,8 +396,8 @@ class _StubRegistry:
         from butler_connectors.registry import DockOutcome
 
         for acc in self._accounts:
-            provider = acc.split(":")[0]
-            ctx.register.execute(provider, provider)  # 真 dock 同款：身份落册
+            app = acc.split(":")[0]
+            ctx.register.execute(app, app)  # 真 dock 同款：身份落册
         return [DockOutcome(target=target, accounts=list(self._accounts))]
 
 

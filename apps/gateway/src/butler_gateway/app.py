@@ -35,7 +35,7 @@ from butler_gateway.control import ControlClient
 from butler_gateway.forwarder import Forwarder
 from butler_gateway.limiter import AccountLimiter
 from butler_gateway.routes_source import RoutesSource
-from butler_gateway.upstream import registered_providers
+from butler_gateway.upstream import registered_apps
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ def create_app() -> FastAPI:
             },
             "proxy": {
                 "surfaces": list(proxy.PROTOCOL_SURFACES),
-                "provider_adapters": list(registered_providers()),
+                "app_adapters": list(registered_apps()),
                 "limiter_in_use": app.state.limiter.in_use,
             },
             "control": {

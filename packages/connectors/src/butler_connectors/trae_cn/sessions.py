@@ -51,13 +51,13 @@ def _account_prefixes(vscdb: Path) -> set[str]:
 class TraeSessionScanner:
     """实现 SessionSourcePort.scan_sessions（只读枚举，形状见模块 docstring）。"""
 
-    provider = "trae_cn"
+    app = "trae_cn"
 
     def __init__(self, data_root: Path = _DEFAULT_DATA_ROOT) -> None:
         self._root = data_root
 
-    def scan_sessions(self, provider: str) -> Iterable[SessionSighting]:
-        if provider != self.provider:
+    def scan_sessions(self, app: str) -> Iterable[SessionSighting]:
+        if app != self.app:
             return []  # 通道不匹配：如实空（不是错误）
         user = self._root / "User"
         sightings: list[SessionSighting] = []

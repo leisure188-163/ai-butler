@@ -54,7 +54,7 @@ def list_apps(request: Request) -> list[AppOut]:
     kit = request.app.state.kit
     docked: dict[str, list[str]] = {}
     for account in kit.accounts.list_all():
-        docked.setdefault(account.provider, []).append(account.id)
+        docked.setdefault(account.app, []).append(account.id)
     out: list[AppOut] = []
     for app in registry.apps():
         if getattr(app.manifest, "retired", False):
@@ -96,7 +96,7 @@ def import_all_apps(request: Request) -> list[ImportOut]:
     """
     registry = request.app.state.registry
     kit = request.app.state.kit
-    docked = {a.provider for a in kit.accounts.list_all()}
+    docked = {a.app for a in kit.accounts.list_all()}
     return [
         _import_one(registry, kit, app.manifest.id)
         for app in registry.apps()

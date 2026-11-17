@@ -148,7 +148,7 @@ class EngineKit:
     def register_session_source(self, source: Any) -> None:
         """装配会话扫描源（R5-S1，ADR-013）：只准装配一次（重复 = 装配 bug 显式爆）。
 
-        source.scan_sessions(provider) 需按 provider 分发（trae 扫描器只认
+        source.scan_sessions(app) 需按 app 分发（trae 扫描器只认
         trae_cn）；未装配 = session_scan 保持 None（端侧如实 503，不猜）。"""
         if self.session_scan is not None:
             raise ValueError("会话扫描源重复装配——显式拒绝（红线 5）")
@@ -263,16 +263,16 @@ class EngineKit:
             self.usage_job.start()
 
     def _daily_usage(self) -> None:
-        """号册全账号采集一轮；无 provider 或装配里没有该目标用量端口的跳过
+        """号册全账号采集一轮；无 app 或装配里没有该目标用量端口的跳过
         （R3 网页连接器无采集通道——job 不为它们天天报错）。
 
         单账号失败收进 outcome.error（编排不中断）；job 语境无人消费 outcome，
         落 WARNING 日志留痕——不静默（红线 5）。
         """
         for account in self.accounts.list_all():
-            if not account.provider or account.provider not in self._usage_ports:
+            if not account.app or account.app not in self._usage_ports:
                 continue
-            outcome = self.collect_usage.execute(account.provider, account.id)
+            outcome = self.collect_usage.execute(account.app, account.id)
             if outcome.error:
                 logger.warning("每日用量采集失败 %s: %s", account.id, outcome.error)
 
@@ -286,7 +286,7 @@ class EngineKit:
             self.health_job.start()
 
     def _daily_health(self) -> None:
-        """号册全账号体检一轮；无 provider 或未挂探针端口的跳过（轮询名册 = 探针名册）。
+        """号册全账号体检一轮；无 app 或未挂探针端口的跳过（轮询名册 = 探针名册）。
 
         Run 照常落台账——EXPIRED/NO_AUTH 修复建议随 Run 出账，连败升级走
         AssessAccountHealth 既有链（体检是这个反馈回路的输入）。外层预算走
@@ -296,13 +296,13 @@ class EngineKit:
         落账后原样上抛，这里兜住）——不静默（红线 5）。
         """
         for account in self.accounts.list_all():
-            if not account.provider or account.provider not in self._health_ports:
+            if not account.app or account.app not in self._health_ports:
                 continue
             try:
                 self.execute_action.execute(
                     RunRequest(
                         action=Action(
-                            kind=ActionKind.HEALTH_CHECK, target=account.provider
+                            kind=ActionKind.HEALTH_CHECK, target=account.app
                         ),
                         account_id=account.id,
                     )

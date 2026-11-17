@@ -270,8 +270,8 @@ export interface components {
             account_id: string;
             /** Account Key */
             account_key: string;
-            /** Provider */
-            provider: string;
+            /** App */
+            app: string;
             /** Display Name */
             display_name: string;
             /** Level */
@@ -441,8 +441,8 @@ export interface components {
         RadarAccountOut: {
             /** Account Id */
             account_id: string;
-            /** Provider */
-            provider: string;
+            /** App */
+            app: string;
             /** Display Name */
             display_name: string;
             /** Collected At */

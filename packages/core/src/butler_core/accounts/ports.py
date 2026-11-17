@@ -20,7 +20,7 @@ class CredentialRevoked(CredentialMissing):
 
 
 class AccountRepository(ABC):
-    """账户名册端口：集合语义（按 provider 列多账号）。"""
+    """账户名册端口：集合语义（按 app 列多账号）。"""
 
     @abstractmethod
     def save(self, account: Account) -> None: ...
@@ -29,7 +29,7 @@ class AccountRepository(ABC):
     def get(self, account_id: str) -> Account | None: ...
 
     @abstractmethod
-    def list_by_provider(self, provider: str) -> list[Account]: ...
+    def list_by_app(self, app: str) -> list[Account]: ...
 
     @abstractmethod
     def list_all(self) -> list[Account]: ...
@@ -92,11 +92,11 @@ class CredentialPool(Protocol):
 class SessionSourcePort(Protocol):
     """本机会话/凭据扫描：多 profile 枚举（ADR-003 §3）+ 会话观测（R5-S1）。"""
 
-    def enumerate_accounts(self, provider: str) -> Iterable[tuple[str, str]]:
+    def enumerate_accounts(self, app: str) -> Iterable[tuple[str, str]]:
         """产出 (account_key, display_name)；不可得通道如实返回空。"""
         ...
 
-    def scan_sessions(self, provider: str) -> Iterable[SessionSighting]:
+    def scan_sessions(self, app: str) -> Iterable[SessionSighting]:
         """只读枚举本机会话位置（R5-S1，ADR-013 裁决 1：首批 workspace）。
 
         适配器契约：看形状即止，禁写动作；客户端运行中持锁等读不了的情况

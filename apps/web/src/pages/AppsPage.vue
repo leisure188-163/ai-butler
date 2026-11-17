@@ -42,7 +42,7 @@ function accountCount(app: AppItem): number {
 
 function accountsOf(app: AppItem): AccountItem[] {
   const ids = new Set(app.account_ids ?? (app.account_id ? [app.account_id] : []));
-  return props.accounts.filter((a) => ids.has(a.account_id) || a.provider === app.id);
+  return props.accounts.filter((a) => ids.has(a.account_id) || a.app === app.id);
 }
 
 const signals: Signal[] = ["ok", "notice", "attention", "danger", "quiet"];

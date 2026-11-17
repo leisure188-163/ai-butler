@@ -26,6 +26,8 @@ _SECTIONS: dict[str, str] = {
     # 账户域（accounts/sqlite.py）
     "accounts": "accounts",
     "idx_accounts_provider": "accounts",
+    "idx_accounts_app": "accounts",
+    "uq_accounts_app_key": "accounts",
     # 执行域（ledger/sqlite.py）
     "runs": "execution",
     "idx_runs_idempotency": "execution",

@@ -74,4 +74,4 @@ def test_坏库_如实跳过不爆(tmp_path: Path) -> None:
 
 def test_工厂契约() -> None:
     scanner = build_session_source()
-    assert scanner.provider == "trae_cn"
+    assert scanner.app == "trae_cn"

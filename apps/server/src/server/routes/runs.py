@@ -167,7 +167,7 @@ def claim_all_runs(request: Request) -> list[RunOut]:
     # 多账号（ADR-003）：同一应用下每个账户各自发起，幂等键按账号粒度
     docked: dict[str, list[str]] = {}
     for account in kit.accounts.list_all():
-        docked.setdefault(account.provider, []).append(account.id)
+        docked.setdefault(account.app, []).append(account.id)
     refresh = {e["target"]: e["refresh_at"] for e in registry.schedule_entries()}
     out: list[RunOut] = []
     for app in registry.apps():

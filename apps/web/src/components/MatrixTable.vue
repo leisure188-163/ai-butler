@@ -29,11 +29,11 @@ const emit = defineEmits<{
 const appFilter = ref("");
 const statusFilter = ref<"all" | "issues" | "ok">("all");
 
-/* 关联以账户的 provider 为准；AppOut.account_id 只是排序后的首个账户，
+/* 关联以账户的 app 为准；AppOut.account_id 只是排序后的首个账户，
  * 不能拿它判断同一应用的第 2、第 3 个账户（否则会误显示“未关联”）。 */
 function appOf(account: AccountItem): AppItem | null {
   return (
-    props.apps.find((x) => x.id === account.provider) ??
+    props.apps.find((x) => x.id === account.app) ??
     props.apps.find((x) => x.account_ids?.includes(account.account_id)) ??
     null
   );
@@ -225,7 +225,7 @@ function lastRunAtOf(accountId: string): string | null {
               </td>
               <td>
                 <AppBadge
-                  :name="appOf(account)?.display ?? account.provider"
+                  :name="appOf(account)?.display ?? account.app"
                   :color-index="faceOf(account.account_id)"
                 />
               </td>

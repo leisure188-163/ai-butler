@@ -1,7 +1,7 @@
 """MCP 薄壳测试：MockTransport 假 server 走工具全路径（投影/过滤/报错直传）。
 
 与真 server 的形状一致性由 server 侧 test_api.py 把关；这里钉的是薄壳
-投影不越权（字段取舍、错误转述、provider 选取）与 MCP 工具注册面。
+投影不越权（字段取舍、错误转述、app 选取）与 MCP 工具注册面。
 """
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ import pytest
 from butler_mcp import main as mcp_main
 
 
-def _radar_row(provider: str = "trae_cn", display: str = "Trae CN") -> dict:
+def _radar_row(app: str = "trae_cn", display: str = "Trae CN") -> dict:
     return {
-        "account_id": f"{provider}:main",
-        "provider": provider,
+        "account_id": f"{app}:main",
+        "app": app,
         "display_name": display,
         "collected_at": "2026-11-12T09:00:00",
         "packages": [
@@ -100,7 +100,7 @@ def test_tools_registered():
     tools = asyncio.run(mcp_main.mcp.list_tools())
     assert {t.name for t in tools} == {"query_quota", "query_usage", "claim_now"}
     by_name = {t.name: t for t in tools}
-    assert "provider" in by_name["query_quota"].description
+    assert "app" in by_name["query_quota"].description
     assert "CLAIMED" in by_name["claim_now"].description
 
 
@@ -108,7 +108,7 @@ def test_quota_view_projects_quota_fields(mock_transport):
     mock_transport(_mock_transport(rows=[_radar_row()]))
     out = json.loads(mcp_main._quota_text())
     [view] = out
-    assert view["provider"] == "trae_cn"
+    assert view["app"] == "trae_cn"
     assert [p["package_id"] for p in view["packages"]] == ["p1", "p0"]
     assert view["forecasts"][0]["days_left"] == 20.0
     assert view["quota_low"] == ["p1"]
@@ -127,14 +127,14 @@ def test_usage_view_projects_usage_fields(mock_transport):
     assert "forecasts" not in view
 
 
-def test_provider_filter_partial_and_casefold(mock_transport):
+def test_app_filter_partial_and_casefold(mock_transport):
     mock_transport(
         _mock_transport(rows=[_radar_row(), _radar_row("doubao_cn", "豆包")])
     )
     out = json.loads(mcp_main._quota_text("TRAE"))
-    assert [r["provider"] for r in out] == ["trae_cn"]
+    assert [r["app"] for r in out] == ["trae_cn"]
     out = json.loads(mcp_main._quota_text("豆包"))
-    assert [r["provider"] for r in out] == ["doubao_cn"]
+    assert [r["app"] for r in out] == ["doubao_cn"]
     out = json.loads(mcp_main._quota_text(None))
     assert len(out) == 2
     out = json.loads(mcp_main._quota_text("ghost"))

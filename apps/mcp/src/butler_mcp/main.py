@@ -60,17 +60,17 @@ def _fetch_json(
     return resp.json()
 
 
-# --- 投影（shape 投影不含语义决策；provider 过滤是选取不是映射）---
+# --- 投影（shape 投影不含语义决策；app 过滤是选取不是映射）---
 
 
-def _filter_provider(rows: list[dict], provider: str | None) -> list[dict]:
-    if not provider or not provider.strip():
+def _filter_app(rows: list[dict], app: str | None) -> list[dict]:
+    if not app or not app.strip():
         return rows
-    needle = provider.strip().casefold()
+    needle = app.strip().casefold()
     return [
         r
         for r in rows
-        if needle in str(r.get("provider", "")).casefold()
+        if needle in str(r.get("app", "")).casefold()
         or needle in str(r.get("display_name", "")).casefold()
     ]
 
@@ -78,7 +78,7 @@ def _filter_provider(rows: list[dict], provider: str | None) -> list[dict]:
 def _quota_view(row: dict) -> dict:
     return {
         "account_id": row.get("account_id"),
-        "provider": row.get("provider"),
+        "app": row.get("app"),
         "display_name": row.get("display_name"),
         "collected_at": row.get("collected_at"),
         "packages": [
@@ -102,7 +102,7 @@ def _quota_view(row: dict) -> dict:
 def _usage_view(row: dict) -> dict:
     return {
         "account_id": row.get("account_id"),
-        "provider": row.get("provider"),
+        "app": row.get("app"),
         "display_name": row.get("display_name"),
         "aggregate_collected_at": row.get("aggregate_collected_at"),
         "aggregate_summary": row.get("aggregate_summary"),
@@ -122,22 +122,22 @@ def _dump(payload: Any) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
-def _quota_text(provider: str | None = None) -> str:
+def _quota_text(app: str | None = None) -> str:
     try:
         with _http_client(_READ_TIMEOUT) as client:
             rows = _fetch_json(client, "GET", "/api/v1/usage/radar")
     except _ServerError as exc:
         return str(exc)
-    return _dump([_quota_view(r) for r in _filter_provider(rows, provider)])
+    return _dump([_quota_view(r) for r in _filter_app(rows, app)])
 
 
-def _usage_text(provider: str | None = None) -> str:
+def _usage_text(app: str | None = None) -> str:
     try:
         with _http_client(_READ_TIMEOUT) as client:
             rows = _fetch_json(client, "GET", "/api/v1/usage/radar")
     except _ServerError as exc:
         return str(exc)
-    return _dump([_usage_view(r) for r in _filter_provider(rows, provider)])
+    return _dump([_usage_view(r) for r in _filter_app(rows, app)])
 
 
 def _claim_text(target: str) -> str:
@@ -163,36 +163,36 @@ mcp = MCPServer(
     "butler",
     instructions=(
         "Butler（卡包）：本地优先的 AI 账号管家。工具返回 JSON 文本；"
-        "先用查额度/查用量认识卡包里的卡（provider = 连接器 id），再触发领取。"
+        "先用查额度/查用量认识卡包里的卡（app = 连接器 id），再触发领取。"
     ),
 )
 
 
 @mcp.tool()
-def query_quota(provider: str | None = None) -> str:
+def query_quota(app: str | None = None) -> str:
     """查额度：每张卡（账号）当前额度包余额、耗尽预测与低额包列表。
 
-    provider 可选过滤（连接器 id 或应用名，如 trae_cn / Trae CN，支持部分匹配）。
+    app 可选过滤（连接器 id 或应用名，如 trae_cn / Trae CN，支持部分匹配）。
     packages 为空 = 该卡尚未采集过额度。quota_low 里的 package_id 是低额包。
     """
-    return _quota_text(provider)
+    return _quota_text(app)
 
 
 @mcp.tool()
-def query_usage(provider: str | None = None) -> str:
+def query_usage(app: str | None = None) -> str:
     """查用量：每张卡（账号）的累计用量汇总与最近额度入账流水。
 
-    provider 可选过滤（连接器 id 或应用名，支持部分匹配）。
+    app 可选过滤（连接器 id 或应用名，支持部分匹配）。
     aggregate_summary 为 null = 尚未采集过用量。
     """
-    return _usage_text(provider)
+    return _usage_text(app)
 
 
 @mcp.tool()
 def claim_now(target: str) -> str:
     """领取：为一家应用立即跑一次领取（签到/领积分/领权益的统一动作）。
 
-    target = 连接器 id（先查额度/查用量，取结果里的 provider 字段）。
+    target = 连接器 id（先查额度/查用量，取结果里的 app 字段）。
     返回 status 协议字面量：CLAIMED=已领取 / ALREADY=今日已领 / FAILED=失败 /
     NO_AUTH=需要登录 / PENDING=待处理 / EXPIRED=已过期 / SKIPPED=已跳过；
     status 为 null = 预算内未完成。

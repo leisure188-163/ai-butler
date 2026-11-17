@@ -48,8 +48,8 @@ class MemAccounts(AccountRepository):
     def get(self, account_id):
         return self.rows.get(account_id)
 
-    def list_by_provider(self, provider):
-        return [a for a in self.rows.values() if a.provider == provider]
+    def list_by_app(self, app):
+        return [a for a in self.rows.values() if a.app == app]
 
     def list_all(self):
         return list(self.rows.values())
@@ -260,7 +260,7 @@ def test_dock_qoder_switch_cn_account_keeps_main(data_dir, umid_ready):
     assert (f"qoder_cn:{b_key}", "dpapi_gcm_v10") in vault.items
 
 
-def test_dock_qoder_two_profiles_same_provider(dual_data_dirs, umid_ready):
+def test_dock_qoder_two_profiles_same_app(dual_data_dirs, umid_ready):
     """CN + Global 两数据目录 → 两个独立账户凭据， CN 首账户保留 main。"""
     vault = MemVault()
     spec = make_qoder_spec(

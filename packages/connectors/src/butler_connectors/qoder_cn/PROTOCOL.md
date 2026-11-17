@@ -234,7 +234,7 @@ account/usage 旁证一致）。
   CN profile 用稳定 hash key。
 - `auth.base_urls` 按 account_key 选产品域：`main`/`cn-*` → CN，`global-*` →
   Global；provision 与 usage 共用 `account_base_url()` 单源。
-- 调度层 `CheckinSchedule` 原本已按 `accounts.list_by_provider(target)` 遍历；
+- 调度层 `CheckinSchedule` 原本已按 `accounts.list_by_app(target)` 遍历；
   dock 产出两张独立凭据卡后即逐账户触发，无需改调度。
 
 ## 9. 推理通道取证（2026-11-14，mac 资源串侧 · R4 G0）

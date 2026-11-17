@@ -147,7 +147,7 @@ def test_mac_envelope_roundtrip():
     assert session["expiresAt"] == "2026-12-02T13:37:13Z"
 
 
-def test_mac_loader_uses_keychain_provider(monkeypatch):
+def test_mac_loader_uses_keychain_key_source(monkeypatch):
     monkeypatch.setattr(unlock, "macos_safe_storage_password", fake_keychain)
     envelope = seal_mac_envelope({"token": "T-M"})
     assert load_dpapi_gcm_v10(Secret(envelope)) == {"token": "T-M"}

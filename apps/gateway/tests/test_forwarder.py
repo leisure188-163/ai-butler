@@ -1,7 +1,7 @@
 """失败转移编排单元测试（R4-G5，ADR-012 裁决 5）：Fake 端口 + 真限流器，零 mock IO。
 
 覆盖：成功即回 / 5xx 转移 / 401 失效凭据后转移 / 429 转移 / 与账户无关的 4xx
-不转移原样回传 / 候选空 NoRoute / 未注册 provider 如实记 skipped / 缺凭据
+不转移原样回传 / 候选空 NoRoute / 未注册 app 如实记 skipped / 缺凭据
 skipped / 账户缺失 skipped / 全部失败汇总 / Meter 失败不打断 / 每尝试都入账。
 pytest 无 asyncio 插件：异步场景用 asyncio.run() 包同步测试（test_limiter 先例）。
 """
@@ -29,10 +29,10 @@ from butler_gateway.upstream import (
 )
 
 
-def _account(account_id: str, provider: str) -> Account:
+def _account(account_id: str, app: str) -> Account:
     return Account(
-        id=account_identity(provider, account_id.split(":", 1)[1]),
-        provider=provider,
+        id=account_identity(app, account_id.split(":", 1)[1]),
+        app=app,
         display_name=account_id,
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
@@ -85,7 +85,7 @@ class FakeMeter:
 class FakeUpstream:
     """脚本化上游：逐次调用按脚本回放（reply / failure）。"""
 
-    provider = "trae_cn"
+    app = "trae_cn"
     credential_kind = "ss_aes"
 
     def __init__(self, script: list) -> None:
@@ -205,14 +205,14 @@ def test_候选空_NoRoute显式错() -> None:
         asyncio.run(forwarder.forward("unknown-model", {}, usage_parser=_parse_openai))
 
 
-def test_未注册provider_如实记skipped_转下一候选() -> None:
+def test_未注册app_如实记skipped_转下一候选() -> None:
     outcome, _, _ = _run(
         [UpstreamReply(status=200, body=_ok_body())],
         accounts=FakeAccounts(
             [
                 Account(
                     id=account_identity("qoder_cn", "main"),
-                    provider="qoder_cn",
+                    app="qoder_cn",
                     display_name="q",
                     created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
                 ),

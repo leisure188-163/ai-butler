@@ -30,9 +30,9 @@ def envelope_token() -> dict:  # same fake envelope as adapter tests (duplicated
 class FakeRegister:
     calls: list[tuple[str, str]] = field(default_factory=list)
 
-    def execute(self, provider: str, display_name: str, *, account_id: str | None = None):
-        self.calls.append((provider, display_name))
-        return SimpleNamespace(id=f"{provider}:main")
+    def execute(self, app: str, display_name: str, *, account_id: str | None = None):
+        self.calls.append((app, display_name))
+        return SimpleNamespace(id=f"{app}:main")
 
 
 @dataclass

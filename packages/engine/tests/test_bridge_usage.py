@@ -79,8 +79,8 @@ def test_daily_usage_scan_job(tmp_path):
     kit = build_engine(tmp_path / "butler.db")
     port = FakeUsagePort(UsageResult(snapshot=_snap("trae_cn:main", "trae_cn")))
     kit.register_usage_ports(targets={"trae_cn": port})
-    kit.register_account.execute("trae_cn", "Trae")  # 名册账号：provider=trae_cn
-    kit.vault.store("acc-lonely", "cookie", Secret("x"), expires_at=None)  # vault-only：无 provider
+    kit.register_account.execute("trae_cn", "Trae")  # 名册账号：app=trae_cn
+    kit.vault.store("acc-lonely", "cookie", Secret("x"), expires_at=None)  # vault-only：无 app
     try:
         assert kit.usage_job is None  # 默认不启动，由端显式 start
 

@@ -86,7 +86,7 @@ function aggText(s: { [key: string]: unknown }): string {
       </header>
       <div class="acct-body">
         <p class="row-sub">
-          {{ row.provider || "vault-only" }}
+          {{ row.app || "vault-only" }}
           <template v-if="row.collected_at"> · 采集于 {{ fmtTime(row.collected_at) }}</template>
           <template v-else> · 尚未采集</template>
         </p>

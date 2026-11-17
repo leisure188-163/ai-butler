@@ -36,9 +36,9 @@ class FakeAccounts:
     def get(self, account_id: str):
         return SimpleNamespace(id=account_id) if account_id in self._ids else None
 
-    def list_by_provider(self, provider: str):
+    def list_by_app(self, app: str):
         return [
-            SimpleNamespace(id=i) for i in sorted(self._ids) if i.startswith(provider + ":")
+            SimpleNamespace(id=i) for i in sorted(self._ids) if i.startswith(app + ":")
         ]
 
 

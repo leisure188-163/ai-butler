@@ -35,8 +35,8 @@ class MemAccounts(AccountRepository):
     def get(self, account_id):
         return self.rows.get(account_id)
 
-    def list_by_provider(self, provider):
-        return [a for a in self.rows.values() if a.provider == provider]
+    def list_by_app(self, app):
+        return [a for a in self.rows.values() if a.app == app]
 
     def list_all(self):
         return list(self.rows.values())
