@@ -7,6 +7,38 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
+
+from butler_core.accounts.ports import CredentialMissing, CredentialRevoked
+
+from butler_connectors.unlock import session_from_dpapi_gcm_v10
+
+
+def qoder_main_identity(ctx: Any, conn_id: str) -> str | None:
+    """已有 ``:main`` 卡的登录 user id；切换 CN 账户时用于避免覆盖旧主卡。
+
+    返回 None = 还没有 :main（首账户可用 main）；返回空串 = 有 :main 但
+    当前无法解码（一律用 hash key，宁可新增也不覆盖旧卡）。
+    """
+    loader = getattr(ctx.vault, "load", None)
+    if loader is None:
+        return None
+    try:
+        secret = loader(f"{conn_id}:main", ["dpapi_gcm_v10"])[0]
+    except CredentialRevoked:
+        return ""
+    except CredentialMissing:
+        return None
+    except (IndexError, KeyError):
+        return None
+    except (OSError, RuntimeError, ValueError):
+        return ""
+    try:
+        session = session_from_dpapi_gcm_v10(secret.expose())
+    except (OSError, RuntimeError, ValueError):
+        return ""
+    user = session.get("user") if isinstance(session.get("user"), dict) else {}
+    return str(user.get("id") or "")
 
 
 def qoder_region(session: dict, data_dir: Path, platform: str) -> str:

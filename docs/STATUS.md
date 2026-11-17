@@ -19,8 +19,17 @@ Qoder 账户来源——`%APPDATA%\com.qodercn.app.stable`（CN，user
 （双账户 claim 写入路径首次跑通）；server `POST /api/v1/apps/qoder_cn/import`
 返回两张卡、`POST /api/v1/runs` 两账户均 `ALREADY`。新增 dock 双 profile/去重、
 decl 基址切换、usage Global host 测试；`pytest -q` 717 passed / 2 skipped，
-`verify_project.py --project . --test` 九项 PASS。`auth-profile-overlays.v1.dat`
-仍未解析，同一目录内多 CN profile 未取证，不推断。
+`verify_project.py --project . --test` 九项 PASS。**补充取证（同日）**：
+两目录 `auth-profile-overlays.v1.dat` 已解密——均为 `schemaVersion=1`、
+`profiles={}`、仅一条 `nicknameMigrations`；两 `main.sqlite.account_profiles`
+均 0 行，全库 distinct 登录 user id 仍只有上述 CN/Global 两个。结论：本机 Qoder
+客户端当前只保留“每个产品域一份”登录态，系统能看到并自动签到的真实账户就是
+这两个；用户若还有更多 Qoder 账户，其凭据不在本机这两个数据目录里，需另行
+提供来源（浏览器会话、其他设备或手工 token），不能凭空生成。
+**同日补丁**：`dockio` 在给 CN profile 分配 key 前先解密已有 `:main` 卡的
+user id；只有同一 user id 才继续用 `main`，切换后的新 CN 账户改用
+`cn-<sha1(user.id)[:8]>` 新增，旧主卡不再被覆盖。这样用户逐个登录并导入时，
+历史账户会累积而不是互相替换（仍不能发现从未在本机登录过的账户）。
 
 **豆包双账户登记补齐与切号复测（2026-11-17）**：Windows 真机发现两个真实缺口并修复：
 ①`save_identity_registry` 在单会话采集只返回当前账户时会把 `others` 重写空，用户切过号后

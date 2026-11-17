@@ -211,15 +211,20 @@ account/usage 旁证一致）。
 - 2026-11-16 只读探测两账户 campaigns 均 200、当前无待领；2026-11-17 真机
   Global status 出现 1 项待领，按本连接器声明式逐项 claim + status 复查
   返回 `CLAIMED`（CN 同期 `ALREADY`）——**双账户 claim 写入路径已实测**。
-- `auth-profile-overlays.v1.dat`（两个目录各 159 B，`v10` 前缀）仍**未读取**；
-  同一目录内多 profile 的语义未取证，不推断。当前双账户以数据目录为单位。
+- `auth-profile-overlays.v1.dat`（两目录各 159 B）：2026-11-17 已用同一 DPAPI/
+  AES-GCM 信封解密，内容均为 `schemaVersion=1`、`profiles={}`，仅有一条
+  `nicknameMigrations`；两库 `account_profiles` 表均 0 行。**结论：当前客户端
+  没有保存多 profile**，同一目录多 CN profile 的语义仍无样本，不推断。当前
+  双账户以数据目录为单位；更多账户的凭据不存在于这两个目录，需另行采集。
 
 ### 8.3 dock 多账户结论
 
 - 逐候选 glob、逐数据目录扫描，不再首目录命中即返回。
 - 同一 `user.id` 只保留首份登录态；重复目录如实记 issue，不重复注册。
-- CN 首账户沿用 `account_key=main` 兼容存量 `qoder_cn:main`；Global 与额外 CN
-  profile 用稳定 key：`global-<sha1(user.id)[:8]>` / `cn-<sha1(user.id)[:8]>`。
+- CN 首账户沿用 `account_key=main` 兼容存量 `qoder_cn:main`；但扫描前会先
+  解密已有 `:main` 卡的 user id：只有同一 user id 才继续用 `main`，切换后的
+  新 CN 账户用 `cn-<sha1(user.id)[:8]>` 新增，旧主卡不被覆盖。Global 与额外
+  CN profile 用稳定 hash key。
 - `auth.base_urls` 按 account_key 选产品域：`main`/`cn-*` → CN，`global-*` →
   Global；provision 与 usage 共用 `account_base_url()` 单源。
 - 调度层 `CheckinSchedule` 原本已按 `accounts.list_by_provider(target)` 遍历；

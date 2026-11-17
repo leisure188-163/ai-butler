@@ -17,7 +17,7 @@ from butler_core.accounts.domain import Secret
 from butler_connectors.dock_storage import dpapi_envelope, glob_dirs, mac_envelope
 from butler_connectors.manifest import AuthSpec, DeclarativeSpec, ManifestInvalid
 from butler_connectors.paths import expand_storage_path
-from butler_connectors.qoder_identity import qoder_display, qoder_region
+from butler_connectors.qoder_identity import qoder_display, qoder_main_identity, qoder_region
 from butler_connectors.registry import ConnectorApp, DockContext, DockOutcome
 
 #: 兼容旧模块内调用名（本文件只用别名，不复制实现）。
@@ -38,7 +38,13 @@ def scan_storage(
             issues=[f"{app.manifest.id}: 没有候选扫描路径（声明里 auth.storage 为空）"],
         )
     try:
-        facts_list = _scan_kind(auth, app.manifest.id, candidates, kinds)
+        facts_list = _scan_kind(
+            auth,
+            app.manifest.id,
+            candidates,
+            kinds,
+            existing_main_identity=qoder_main_identity(ctx, app.manifest.id),
+        )
     except StorageNotFound as exc:
         return DockOutcome(target=app.manifest.id, issues=[str(exc)])
     except ManifestInvalid as exc:  # 采集器/扫描器的显式事故 → 如实出账
@@ -70,7 +76,12 @@ class StorageNotFound(Exception):
 
 
 def _scan_kind(
-    auth: AuthSpec, conn_id: str, candidates: list[str], kinds: tuple[str, ...]
+    auth: AuthSpec,
+    conn_id: str,
+    candidates: list[str],
+    kinds: tuple[str, ...],
+    *,
+    existing_main_identity: str | None = None,
 ) -> list[dict[str, str]]:
     """kind 分发扫认证事实。返回每个 profile 的 kind → Secret 源值（还没进 vault）。
 
@@ -80,7 +91,9 @@ def _scan_kind(
     if auth.kind == "ss_aes":
         return [_scan_ss_aes(auth, conn_id, candidates)]
     if auth.kind == "dpapi_gcm_v10":
-        profiles = _scan_dpapi_gcm_v10(conn_id, candidates)
+        profiles = _scan_dpapi_gcm_v10(
+            conn_id, candidates, existing_main_identity=existing_main_identity
+        )
         good = [facts for facts in profiles if "_issue" not in facts]
         if good:
             # 机器身份是同一台机器的共享头组：只采集一次，再复制给其余 profile。
@@ -96,7 +109,12 @@ def _scan_kind(
 # --- dpapi_gcm_v10（qoder_cn）：glob 数据目录 → 自包含信封（ADR-006）---
 
 
-def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> list[dict[str, str]]:
+def _scan_dpapi_gcm_v10(
+    conn_id: str,
+    candidates: list[str],
+    *,
+    existing_main_identity: str | None = None,
+) -> list[dict[str, str]]:
     """Qoder 数据目录（glob）：逐目录扫描 auth.v1.dat，返回每账户一份 facts。
 
     Windows 信封自包含（dat + key_b64，unlock.session_from_dpapi_gcm_v10 解链），
@@ -105,8 +123,10 @@ def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> list[dict[str, s
     解码一次只为验形 + 取 expiresAt/user 元数据，明文即刻丢弃，入库的是信封原文。
 
     多账户身份锚点：同一 user id 只保留首份登录态；Qoder CN 首账户沿用
-    account_key=main 兼容存量卡，Qoder Global 与额外 CN profile 用稳定 hash key。
-    同一产品域内多个 CN profile 仍以数据目录为单位，不解析 auth-profile-overlays。
+    account_key=main 兼容存量卡。已有 :main 卡时，只有同一 user id 才能继续
+    使用 main；切换后的新 CN 账户用 cn-<hash> 新增，绝不覆盖旧主卡。Qoder
+    Global 与额外 CN profile 用稳定 hash key。同一产品域内多个 CN profile 仍
+    以数据目录为单位，不解析 auth-profile-overlays。
     """
     import hashlib
     import sys
@@ -168,7 +188,10 @@ def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> list[dict[str, s
                 seen_users[identity] = data_dir
 
             region = qoder_region(session, data_dir, sys.platform)
-            if region == "cn" and not used_main:
+            if region == "cn" and (
+                (identity and identity == existing_main_identity)
+                or (existing_main_identity is None and not used_main)
+            ):
                 account_key = "main"  # 兼容存量 qoder_cn:main
                 used_main = True
             else:

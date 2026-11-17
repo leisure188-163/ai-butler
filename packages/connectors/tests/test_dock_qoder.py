@@ -34,6 +34,9 @@ class MemVault:
     def store(self, account_id, kind, secret, *, expires_at=None, backend=None):
         self.items[(account_id, kind)] = (secret, expires_at)
 
+    def load(self, account_id, kinds):
+        return [self.items[(account_id, kind)][0] for kind in kinds]
+
 
 class MemAccounts(AccountRepository):
     def __init__(self) -> None:
@@ -88,7 +91,17 @@ def data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")
     root = tmp_path / "com.qodercn.app.stable"
     root.mkdir()
-    envelope = seal_envelope({"token": "T-1", "expiresAt": "2026-11-17T00:59:05.212Z"})
+    envelope = seal_envelope(
+        {
+            "token": "T-1",
+            "expiresAt": "2026-11-17T00:59:05.212Z",
+            "user": {
+                "id": "cn-user-id",
+                "name": "cn-user",
+                "avatarUrl": "https://qoder.com.cn/users/cn-user-id/default/avatars",
+            },
+        }
+    )
     dat = base64.b64decode(json.loads(base64.b64decode(envelope))["dat"])
     (root / "auth.v1.dat").write_bytes(dat)  # 协议同形：v10+nonce+ct
     (root / "Local State").write_text(
@@ -214,6 +227,37 @@ def test_dock_qoder_full_chain(data_dir, umid_ready):
         assert os_str.endswith("_windows")  # SDK 口径（取证 risk.py）
     else:
         assert os_str.endswith("_darwin")  # _machine_os 按当前平台派生（组装形状回归）
+
+
+def test_dock_qoder_switch_cn_account_keeps_main(data_dir, umid_ready):
+    """切换 CN 账户：已有 main(A) 不被覆盖，新账户 B 用 cn-<hash> 新增。"""
+    spec = make_qoder_spec(str(data_dir.parent / "com.qodercn.app*"))
+    vault = MemVault()
+    first = _dock(spec, vault)
+    assert first.accounts == ["qoder_cn:main"]
+
+    b_envelope = seal_envelope(
+        {
+            "token": "T-CN-B",
+            "expiresAt": "2026-12-04T09:54:14Z",
+            "user": {
+                "id": "cn-user-b",
+                "name": "cn-user-b",
+                "avatarUrl": "https://qoder.com.cn/users/cn-user-b/default/avatars",
+            },
+        }
+    )
+    b_dat = base64.b64decode(json.loads(base64.b64decode(b_envelope))["dat"])
+    (data_dir / "auth.v1.dat").write_bytes(b_dat)
+
+    second = _dock(spec, vault)
+    b_key = "cn-" + hashlib.sha1(b"cn-user-b").hexdigest()[:8]
+    # 本次只扫到 B（旧 main 已存在、无需重扫）；B 必须用独立 hash key。
+    assert second.accounts == [f"qoder_cn:{b_key}"]
+    # 旧 main 的信封仍在；新账户是独立信封
+    main_secret, _ = vault.items[("qoder_cn:main", "dpapi_gcm_v10")]
+    assert unlock.session_from_dpapi_gcm_v10(main_secret.expose())["user"]["id"] == "cn-user-id"
+    assert (f"qoder_cn:{b_key}", "dpapi_gcm_v10") in vault.items
 
 
 def test_dock_qoder_two_profiles_same_provider(dual_data_dirs, umid_ready):
