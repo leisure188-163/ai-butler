@@ -87,7 +87,7 @@ Base：`https://www.doubao.com`
 - 客户端自发 `POST /alice/ug/campaign/landing/checkin`：query `version_code=20800&…&device_id=<空>&pc_version=2.36.8&doubao_pc_version=5.74.99&web_id=<19位>&tea_uuid=<16位>&runtime=web&msToken=<168>&a_bogus=<188>`，body `{"scene":"pc_incentive_task_mvp_v3"}` → HTTP 200 `{"code":710010702,"msg":"系统错误"}`。
 - 同会话同分钟页面自身 `POST /v3/detail/`（同样 `device_id=<空>`）→ HTTP 200 满数据。
 - 判读：**702 非参数缺项、非签名失效**——msToken/a_bogus 在 URL 且同参数 detail 被受理；「系统错误」是服务端内部错误文案，指向账号/设备绑定的服务侧状态。佐证：另一账户（Leisure520）同机同栈 08:46 +200 成功；Windows 同账号同 702 → 账号级。`device_id` 空值非异常信号（detail 照常受理）。
-- 「卸载重装恢复」假说（待复验）：重装重置本机设备身份（web_id/tea_uuid/device_id）与登录态 → 服务端为账号重建设备绑定，绕开坏记录。
+- ~~「卸载重装恢复」假说~~ **已被重装对照实验证伪（2026-11-17 20:56）**：全卸载重装同版 2.36.8 + 全新登录态，设备身份确已重置（tea_uuid 16→19 位、msToken 168→184、a_bogus 188→192），同账号 checkin 仍 710010702「系统错误」，同刻 detail `code=0`（读路径正常）。→ 702「系统错误」定性升级：**账号级服务侧写路径故障**——三证据收敛（同机他号 08:46 +200 成功 / Windows 同号同败 / 重装不复位），与设备绑定、本地态、连接器参数无关。处置：遇 702 停点；旁证路径 = 手机端同账号签到试一次；修复依赖平台自愈或账号侧反馈，本地无可修项。
 - version_code 保真缺口：客户端自发 `20800`，我们派生 `23608`；detail 两者皆受理，checkin 由客户端自发不受影响——记缺口非肇因。
 - 历史样本（页面旁路，已零污染法取代）：2026-11-17 05:01 UTC `main` checkin 请求体完整（`scene=pc_incentive_task_mvp_v3`）响应 702，同刻 detail `code=0`——「点击已送达、服务端/账号侧拒绝」的最早现场证据。
 
