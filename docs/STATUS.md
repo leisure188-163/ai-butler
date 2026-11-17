@@ -67,6 +67,11 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**SQL 规范成文（2026-11-17）**：历次数据层裁决收编为
+`docs/conventions/06-SQL规范.md`（表名域前缀/审计三件/关键字禁用/
+显示列业务命名/code 化/幂等自迁移/不删行/分域产物），规范索引与
+AGENTS.md 路由同步。
+
 **platforms 独立第六业务域（2026-11-17，ADR-022，修正 ADR-021 托管方案）**：
 平台被账户/调度/执行多域引用，独立成域——core 新增 `butler_core/platforms/`
 三件套（PlatformEntry / PlatformRepository / SyncPlatforms），engine 新增

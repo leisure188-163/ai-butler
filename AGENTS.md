@@ -26,7 +26,9 @@
    含第 8 条「裁决必须回收 spec」）；
    起名/写文案 → `docs/conventions/02-命名与文案规范.md`；
    新增/改路由端点、新建代码文件 → `docs/conventions/03-代码文件组织与长度约束.md`
-   （一业务域一模块，600 行硬上限门禁机检）
+   （一业务域一模块，600 行硬上限门禁机检）；
+   建表/改列/写 engine 域适配器 → `docs/conventions/06-SQL规范.md`
+   （表名列名/审计字段/自迁移/分域产物纪律）
 9. **生成任何 git 提交信息前**：读 `docs/conventions/04-提交信息规范.md`
    （格式 `<type>:[<需求单号>]: <中文主题>`，钩子 `.githooks/commit-msg` 强制校验）
 10. **环境与命令**：读 `docs/guides/01-环境与命令.md`
