@@ -104,6 +104,12 @@ class DoubaoCdpProvisionPort(ProvisionPort):
     def capabilities(self) -> Capabilities:
         return Capabilities(dry_run=True, idempotency_window="daily")
 
+    def read_client_version(self) -> str:
+        """本机客户端版本（plat_platform.client_version 同步源，组合根经端口调）。
+
+        纯只读探测，不拉起客户端（拉起归 dock/run）；读不到返回 ""=未知。"""
+        return self.env.read_version() or ""
+
     def run(self, req: ProvisionRequest) -> RunResult:
         try:
             self.channel.probe()
@@ -471,6 +477,12 @@ class _Butler:
             capture=os.environ.get("DOUBAO_REQUEST_CAPTURE", "0").lower()
             not in {"0", "false", "off", "no"},
         )
+
+    def read_client_version(self) -> str:
+        """本机客户端版本（平台册 client_version 列的事实源；探不到返回 ""=未知）。
+
+        组合根同步名册时调本 hook——纯只读探测，不拉起客户端（拉起归 dock/run）。"""
+        return self.env.read_version()
 
     def dock(
         self,

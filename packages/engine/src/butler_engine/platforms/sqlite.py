@@ -21,7 +21,8 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS plat_platform (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     platform_code    TEXT NOT NULL UNIQUE,
-    platform_name     TEXT NOT NULL,
+    platform_name    TEXT NOT NULL,
+    client_version   TEXT NOT NULL DEFAULT '',
     capabilities     TEXT NOT NULL DEFAULT '[]',
     credential_kinds TEXT NOT NULL DEFAULT '[]',
     schedule_times   TEXT NOT NULL DEFAULT '[]',
@@ -34,8 +35,8 @@ CREATE INDEX IF NOT EXISTS idx_plat_platform_active ON plat_platform (is_active)
 """
 
 _COLS = (
-    "platform_code, platform_name, capabilities, credential_kinds, schedule_times, "
-    "is_active, deprecated_at, created_at, updated_at"
+    "platform_code, platform_name, client_version, capabilities, credential_kinds, "
+    "schedule_times, is_active, deprecated_at, created_at, updated_at"
 )
 
 
@@ -72,6 +73,11 @@ class SqlitePlatformRepository(PlatformRepository):
                 conn.execute(
                     "ALTER TABLE plat_platform RENAME COLUMN display_name TO platform_name"
                 )
+            if plat_cols and "client_version" not in plat_cols:
+                # 客户端版本列（2026-11-18 裁决）：老库补列，存量行落 ''（未知）
+                conn.execute(
+                    "ALTER TABLE plat_platform ADD COLUMN client_version TEXT NOT NULL DEFAULT ''"
+                )
             conn.executescript(_SCHEMA)
 
     def _connect(self):
@@ -83,14 +89,17 @@ class SqlitePlatformRepository(PlatformRepository):
         created = entry.created_at.isoformat()
         with self._connect() as conn, conn:
             conn.execute(
-                f"INSERT INTO plat_platform ({_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                f"INSERT INTO plat_platform ({_COLS}) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (platform_code) DO UPDATE SET "
-                "platform_name=excluded.platform_name, capabilities=excluded.capabilities, "
+                "platform_name=excluded.platform_name, client_version=excluded.client_version, "
+                "capabilities=excluded.capabilities, "
                 "credential_kinds=excluded.credential_kinds, schedule_times=excluded.schedule_times, "
                 "updated_at=excluded.updated_at",
                 (
                     entry.platform_code,
                     entry.platform_name,
+                    entry.client_version.strip(),
                     _dump(entry.capabilities),
                     _dump(entry.credential_kinds),
                     _dump(entry.schedule_times),
@@ -142,10 +151,11 @@ def _load(row) -> PlatformEntry | None:
     return PlatformEntry(
         platform_code=row[0],
         platform_name=row[1],
-        capabilities=_load_values(row[2]),
-        credential_kinds=_load_values(row[3]),
-        schedule_times=_load_values(row[4]),
-        is_active=bool(row[5]),
-        deprecated_at=datetime.fromisoformat(row[6]) if row[6] else None,
-        created_at=datetime.fromisoformat(row[7]),
+        client_version=row[2] or "",
+        capabilities=_load_values(row[3]),
+        credential_kinds=_load_values(row[4]),
+        schedule_times=_load_values(row[5]),
+        is_active=bool(row[6]),
+        deprecated_at=datetime.fromisoformat(row[7]) if row[7] else None,
+        created_at=datetime.fromisoformat(row[8]),
     )

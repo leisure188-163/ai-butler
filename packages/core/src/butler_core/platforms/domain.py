@@ -19,7 +19,7 @@ class PlatformInvalid(DomainError):
 
 @dataclass(frozen=True)
 class PlatformEntry:
-    """平台册行（A2-04 §2.2，ADR-021）：连接器 manifest 事实的落库投影。
+    """平台册行（A2-09，ADR-021）：连接器平台事实的落库投影。
 
     DB 为真相源：启动时由组合根从 manifest upsert（SyncPlatforms），manifest
     里消失的平台落 deprecated 标记不删行（审计可溯）；is_active 是用户侧
@@ -28,6 +28,7 @@ class PlatformEntry:
     platform_code: str
     platform_name: str
     created_at: datetime
+    client_version: str = ""  # 本机客户端版本（同步时探测；"" = 探不到=未知，不猜）
     capabilities: tuple[str, ...] = ()  # ActionKind.value 列表（core 词表）
     credential_kinds: tuple[str, ...] = ()
     schedule_times: tuple[str, ...] = ()  # HH:MM 触发时间并集

@@ -67,6 +67,13 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**平台册 client_version（2026-11-18）**：plat_platform 增 client_version
+（列序在 capabilities 之前），组合根同步名册时经 provision 端口
+`read_client_version()` 只读探测（豆包=Info.plist 2.36.8；探不到/网页平台
+落 ''=未知）。坑：hook 必须挂在 provision 端口实例（DoubaoCdpProvisionPort）
+上而不是 manifest 描述对象和 _Butler 工厂上，否则组合根取不到。老库幂等
+补列（plat_cols 非空守卫，空库跳过）。真机验证 doubao_cn=2.36.8。
+
 **真库首启修复 + 豆包 .app 形态（2026-11-18）**：两处真机才暴露的问题——
 ① accounts 适配器 __init__ 建表先于迁移，老库（有 accounts 表）首启
 RENAME 撞名（顺序反了，空测试库测不出），改为迁移先行；② 豆包安装形态

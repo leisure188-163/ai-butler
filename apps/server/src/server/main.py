@@ -30,9 +30,8 @@ def _assemble_connectors(kit) -> None:
     from butler_engine.bridge import ScheduleEntry
 
     registry = load_registry()
-    kit.register_provision_ports(
-        targets=registry.provision_ports(vault=kit.vault, transport=None)
-    )
+    provisions = registry.provision_ports(vault=kit.vault, transport=None)
+    kit.register_provision_ports(targets=provisions)
     # 探针端口随 register_health_ports 挂载（同一条 target 路由 + 每日轮询名册，
     # A2-03 §4）；target 撞车时显式拒绝（红线 5）
     kit.register_health_ports(
@@ -61,6 +60,19 @@ def _assemble_connectors(kit) -> None:
     from butler_core.platforms.domain import PlatformEntry
     from butler_core.shared.time import now_utc
 
+    def _read_client_version(port) -> str:
+        """客户端版本探测钩子（plat_platform.client_version）：端口实例未实现/读不到
+        均落空串（列语义 "" = 未知，名册如实显示未知，不静默造数据）。
+
+        注意取 provision 端口实例（adapter），不是 manifest 描述对象。"""
+        hook = getattr(port, "read_client_version", None)
+        if not callable(hook):
+            return ""
+        try:
+            return hook() or ""
+        except Exception:
+            return ""
+
     facts = []
     for conn in registry.platforms():
         m = conn.manifest
@@ -75,6 +87,7 @@ def _assemble_connectors(kit) -> None:
                 capabilities=tuple(sorted(m.capabilities)),
                 credential_kinds=tuple(m.credential.kinds) if m.credential else (),
                 schedule_times=tuple(sched.times) if sched else (),
+                client_version=_read_client_version(provisions.get(m.id)),
             )
         )
     kit.sync_platforms.execute(tuple(facts))
