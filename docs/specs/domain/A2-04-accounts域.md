@@ -37,7 +37,7 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 统一审计字段 `id / created_at / updated_at` 所有表必备（本表先行立范式，
 其余域分批跟进）；每表代理键 `id INTEGER PRIMARY KEY AUTOINCREMENT`（DDL
 约定见 A4-01 §5）。DDL 权威单源 = `butler_engine/accounts/sqlite.py`
-`_SCHEMA`，生成视图 `data/sql/accounts.sql`（勿手改）。表名带域前缀
+`_SCHEMA`，生成视图 `data/sql/acc.sql`（勿手改，文件名 = 表名域前缀）。表名带域前缀
 `acc_account`（ADR-021 表名纪律）。
 
 | 列 | 类型 | 语义 |

@@ -67,6 +67,11 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**分域产物文件名对齐表名前缀（2026-11-17）**：data/sql/ 下文件名
+= 表名域前缀——accounts.sql→acc.sql、platforms.sql→plat.sql、
+execution.sql→exe.sql（usage/health/vault/audit 本就同名）；
+dump 脚本 _SECTIONS/_DOMAIN_FILES 同步，06-SQL规范/A2-04/A2-09 收编。
+
 **名册收编扫尾（2026-11-17）**：DB 名册为真相源的最后落实——CLI
 `butler platform platforms`、server `import-all`、`claim-all` 三处"选谁"
 逻辑全部改读 plat_platform 名册（删除穿 connectors registry 拼装的编排代码），

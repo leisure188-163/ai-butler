@@ -44,7 +44,7 @@ level: must
 | JSON 列 | TEXT 存 JSON（`capabilities`/`schedule_times`/`sessions`），随聚合整体替换 | 拆出隐式关联表（无聚合语义时） |
 | DDL 单源 | `butler_engine/<域>/sqlite.py` `_SCHEMA` 常量 | SQL 散落在脚本/文档/端侧 |
 | 产物 | `data/sql/<域>.sql` 由 `scripts/dump_db_schema.py` 生成，**勿手改**；改表后必须重跑 | 手工编辑产物、产物与 DDL 漂移 |
-| 产物分域 | 一域一文件（accounts.sql / platforms.sql / execution.sql / usage.sql / health.sql / vault.sql / audit.sql） | 全库挤一个 schema.sql |
+| 产物分域 | 一域一文件，**文件名 = 表名域前缀**（acc.sql / plat.sql / exe.sql / usage.sql / health.sql / vault.sql / audit.sql） | 全库挤一个 schema.sql、文件名与表名前缀脱钩 |
 | 域归属登记 | `dump_db_schema.py` `_SECTIONS` 表/索引→域映射 + `_DOMAIN_FILES` 域→文件 | 新表不登记（产物漏生成） |
 | UPSERT | `ON CONFLICT(<业务键>) DO UPDATE`，保代理键不漂移 | 先 DELETE 再 INSERT |
 | 状态语义分离 | 生命周期（deprecated_at）≠ 用户开关（is_active），两列分开 | 一列混用两义 |

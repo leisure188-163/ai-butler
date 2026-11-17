@@ -9,12 +9,16 @@
 
 | 文件 | 说明 |
 |---|---|
-| `accounts.sql` | 账户域：accounts + idx_accounts_provider（accounts/sqlite.py） |
-| `execution.sql` | 执行域：runs + idx_runs_idempotency（ledger/sqlite.py） |
-| `usage.sql` | 用量域：usage_snapshots / usage_aggregates / quota_ledger / usage_samples + 4 索引（usage/sqlite.py） |
+| `acc.sql` | 账户域：acc_account + 2 索引（accounts/sqlite.py） |
+| `plat.sql` | 平台域：plat_platform + 1 索引（platforms/sqlite.py，ADR-022） |
+| `exe.sql` | 执行域：exe_run + 1 索引（ledger/sqlite.py） |
+| `usage.sql` | 用量域：usage_snapshot / usage_aggregate / usage_quota_ledger / usage_sample + 4 索引（usage/sqlite.py） |
 | `health.sql` | 健康域：health_state（health/state.py） |
-| `vault.sql` | 保管层：vault_items / vault_history（vault/layered.py） |
-| `audit.sql` | shared 内核：audit（audit/sqlite.py） |
+| `vault.sql` | 保管层：vault_item / vault_history（vault/layered.py） |
+| `audit.sql` | shared 内核：audit_log（audit/sqlite.py） |
+
+> **文件名 = 表名域前缀**（2026-11-17 裁决）：acc/plat/exe 与表名
+> acc_account/plat_platform/exe_run 的前缀一字不差，其余域天然同名。
 
 ## 权威单源与纪律
 
@@ -25,7 +29,7 @@
   相同的适配器真实建库后 dump `sqlite_master` 生成——它 dump 的是「真库」，不是
   手抄，可当「代码 ↔ 视图」的漂移探针。
 - **改表流程**：改某域适配器的 `_SCHEMA` → 跑 `uv run python scripts/dump_db_schema.py`
-  → 对应域的 `<域>.sql` 随同批提交（加列/改列还须配套 `PRAGMA user_version` 显式迁移，
+  → 对应域的 `<前缀>.sql` 随同批提交（加列/改列还须配套 `PRAGMA user_version` 显式迁移，
   A4-01 §5 schema 演进纪律）。
 - **防漂移守卫**：导出脚本发现映射之外的表/索引会显式报错退出（红线 5），
   新表必须先在脚本 `_SECTIONS` 登记所属域；登记了域却没有任何对象同样报错。

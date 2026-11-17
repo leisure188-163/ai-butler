@@ -38,7 +38,7 @@
 | `created_at` / `updated_at` | TEXT NOT NULL | 统一审计列 |
 
 DDL 权威单源 = `butler_engine/platforms/sqlite.py` `_SCHEMA`，生成视图
-`data/sql/platforms.sql`（勿手改）。
+`data/sql/plat.sql`（勿手改，文件名 = 表名域前缀）。
 
 ## 3. 端口（platforms/ports.py）
 

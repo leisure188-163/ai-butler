@@ -24,15 +24,15 @@ OUT_DIR = ROOT / "data" / "sql"
 # 库对象 → 业务域 key（新表/索引必须先登记所属域，否则脚本报错退出）
 _SECTIONS: dict[str, str] = {
     # 账户域（accounts/sqlite.py；ADR-021 域前缀表名）
-    "acc_account": "accounts",
-    "uq_acc_account_platform_code_key": "accounts",
-    "idx_acc_account_platform_code": "accounts",
+    "acc_account": "acc",
+    "uq_acc_account_platform_code_key": "acc",
+    "idx_acc_account_platform_code": "acc",
     # 平台域（platforms/sqlite.py；ADR-022 第六业务域）
-    "plat_platform": "platforms",
-    "idx_plat_platform_active": "platforms",
+    "plat_platform": "plat",
+    "idx_plat_platform_active": "plat",
     # 执行域（ledger/sqlite.py）
-    "exe_run": "execution",
-    "idx_exe_run_idempotency": "execution",
+    "exe_run": "exe",
+    "idx_exe_run_idempotency": "exe",
     # 用量域（usage/sqlite.py）
     "usage_snapshot": "usage",
     "usage_aggregate": "usage",
@@ -53,9 +53,9 @@ _SECTIONS: dict[str, str] = {
 
 # 域 key →（生成文件名，域标签）；登记顺序即各文件内输出顺序
 _DOMAIN_FILES: dict[str, tuple[str, str]] = {
-    "accounts": ("accounts.sql", "账户域 · accounts/sqlite.py"),
-    "platforms": ("platforms.sql", "平台域 · platforms/sqlite.py"),
-    "execution": ("execution.sql", "执行域 · ledger/sqlite.py"),
+    "acc": ("acc.sql", "账户域 · accounts/sqlite.py"),
+    "plat": ("plat.sql", "平台域 · platforms/sqlite.py"),
+    "exe": ("exe.sql", "执行域 · ledger/sqlite.py"),
     "usage": ("usage.sql", "用量域 · usage/sqlite.py"),
     "health": ("health.sql", "健康域 · health/state.py"),
     "vault": ("vault.sql", "保管层 · vault/layered.py"),
