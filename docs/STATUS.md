@@ -3,7 +3,7 @@
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
 > 最后更新：2026-11-17
 
-**Qoder 双账户（CN + Global）补全（2026-11-17）**：真机确认 Windows 有两个真实
+**Qoder 多账户（CN + Global）补全（2026-11-17）**：真机确认 Windows 有两个真实
 Qoder 账户来源——`%APPDATA%\com.qodercn.app.stable`（CN，user
 `019ffa59-7821-7f3b-a430-94af21a7150f`，host `openapi.qoder.com.cn`）与
 `%APPDATA%\com.qoder.app.stable`（Global，user
@@ -30,6 +30,11 @@ decl 基址切换、usage Global host 测试；`pytest -q` 717 passed / 2 skippe
 user id；只有同一 user id 才继续用 `main`，切换后的新 CN 账户改用
 `cn-<sha1(user.id)[:8]>` 新增，旧主卡不再被覆盖。这样用户逐个登录并导入时，
 历史账户会累积而不是互相替换（仍不能发现从未在本机登录过的账户）。
+**重启后真机复验**：当前 Global 登录已切到 `Leisure520@sina`，`POST
+/api/v1/apps/qoder_cn/import` 新增 `qoder_cn:global-699e39eb`，旧
+`qoder_cn:global-020dbc5a` 仍在；`GET /apps` 现返回 3 个 Qoder 账户
+（`main`、`global-020dbc5a`、`global-699e39eb`）。三个账户 `POST /runs`
+均 `ALREADY`。这证明同一数据目录换号后可以累积账户，而不是覆盖。
 
 **豆包双账户登记补齐与切号复测（2026-11-17）**：Windows 真机发现两个真实缺口并修复：
 ①`save_identity_registry` 在单会话采集只返回当前账户时会把 `others` 重写空，用户切过号后

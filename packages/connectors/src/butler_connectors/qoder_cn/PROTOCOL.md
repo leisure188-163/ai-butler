@@ -206,6 +206,11 @@ account/usage 旁证一致）。
 
 - 两个目录各自有 `auth.v1.dat` + `Local State`；解锁后 user id 不同，Global 会话
   另有 `authenticationContext` 字段。
+- **2026-11-17 二次导入追加第三账户**：当前 Global 登录切到
+  `Leisure520@sina`，`POST /apps/qoder_cn/import` 新增
+  `qoder_cn:global-699e39eb`，旧 `qoder_cn:global-020dbc5a` 仍保留；三张卡
+  `POST /runs` 均 `ALREADY`。说明“当前登录态换号 + 按 user id 稳定 key”可以
+  累积账户，而不是只保留最后一登录。
 - **host 严格隔离**：CN token → `.com.cn` 200 / `.sh` 401 `TOKEN_EXPIRE`；
   Global token → `.sh` 200 / `.com.cn` 401 `TOKEN_EXPIRE`。同一 token 不能跨域。
 - 2026-11-16 只读探测两账户 campaigns 均 200、当前无待领；2026-11-17 真机
