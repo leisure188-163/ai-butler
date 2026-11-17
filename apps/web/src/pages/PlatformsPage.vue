@@ -4,7 +4,7 @@
  * 六列表 + 虚线邀请行 + 行展开；数据全部来自契约既有 AppOut/AccountOut，
  * 零新端点、零语义加工（能力标签只做协议 kind 的直译，signal 只消费分类）。
  */
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import PlatformBadge from "../components/PlatformBadge.vue";
 import type { AccountItem, PlatformItem, PageName, Signal } from "../types";
 import { faceOf, signalText } from "../utils";
@@ -61,6 +61,29 @@ function statusGroups(platform: PlatformItem) {
     .filter((g) => g.count > 0);
 }
 
+/* 分页（2026-11-18）：每页 10 条——接入平台变多后一屏放不下 */
+const PAGE_SIZE = 10;
+const page = ref(1);
+
+const totalPages = computed(() => Math.max(1, Math.ceil(props.platforms.length / PAGE_SIZE)));
+
+const pagedPlatforms = computed(() => {
+  const start = (page.value - 1) * PAGE_SIZE;
+  return props.platforms.slice(start, start + PAGE_SIZE);
+});
+
+/* 数据刷新/平台增减：页码收敛到合法区间（不跳页、不空页） */
+watch(
+  () => props.platforms.length,
+  () => {
+    if (page.value > totalPages.value) page.value = totalPages.value;
+  },
+);
+
+function goPage(next: number) {
+  page.value = Math.min(Math.max(1, next), totalPages.value);
+}
+
 const expandedId = ref<string | null>(null);
 
 function toggleDetail(id: string) {
@@ -73,7 +96,7 @@ function toggleDetail(id: string) {
     <div class="head-row">
       <div>
         <h1 class="page-title">平台</h1>
-        <p class="page-sub">本机接入的各家 AI 助手与其能力、时间表。</p>
+        <p class="page-sub">本机接入的各家 AI 助手与其能力、调度执行时间。</p>
       </div>
       <div class="head-actions">
         <button
@@ -102,17 +125,19 @@ function toggleDetail(id: string) {
       <table class="matrix">
         <thead>
           <tr>
-            <th>平台</th>
+            <th>平台编码</th>
+            <th>平台名称</th>
             <th>能力</th>
-            <th>时间表</th>
+            <th>调度执行时间</th>
             <th>账户数</th>
             <th>状态汇总</th>
             <th>动作</th>
           </tr>
         </thead>
         <tbody>
-          <template v-for="platform in platforms" :key="platform.id">
+          <template v-for="platform in pagedPlatforms" :key="platform.id">
             <tr :class="{ 'is-selected': expandedId === platform.id }" @click="toggleDetail(platform.id)">
+              <td class="code-cell"><code class="mono">{{ platform.id }}</code></td>
               <td>
                 <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
                 <span class="kind-tag tag tag--quiet">{{ kindText(platform.kind) }}</span>
@@ -160,7 +185,7 @@ function toggleDetail(id: string) {
               </td>
             </tr>
             <tr v-if="expandedId === platform.id" class="detail-row">
-              <td colspan="6" @click.stop>
+              <td colspan="7" @click.stop>
                 <ul class="rows">
                   <li class="row">
                     <span class="row-main">
@@ -170,7 +195,7 @@ function toggleDetail(id: string) {
                   </li>
                   <li class="row">
                     <span class="row-main">
-                      <p class="row-title">时间表</p>
+                      <p class="row-title">调度执行时间</p>
                       <p class="row-sub">{{ platform.schedule_times.join("、") || "—" }}</p>
                     </span>
                   </li>
@@ -190,6 +215,14 @@ function toggleDetail(id: string) {
         </tbody>
       </table>
     </div>
+
+    <nav v-if="platforms.length" class="pager" aria-label="平台分页">
+      <button class="btn btn--ghost" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
+      <span class="pager-info">
+        第 {{ page }} / {{ totalPages }} 页 · 共 {{ platforms.length }} 个平台
+      </span>
+      <button class="btn btn--ghost" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
+    </nav>
 
     <!-- 未接入平台的虚位邀请行（从账户页迁入，ADR-010 §3） -->
     <ul v-if="emptyPlatforms.length" class="slots" aria-label="可导入平台">
@@ -224,7 +257,16 @@ function toggleDetail(id: string) {
   flex-wrap: wrap;
 }
 .platform-wrap { overflow-x: auto; }
-.platform-wrap .matrix { min-width: 720px; }
+.platform-wrap .matrix { min-width: 880px; }
+.code-cell code { font-size: var(--text-xs); color: var(--color-text-muted); }
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.pager-info { font-size: var(--text-xs); color: var(--color-text-muted); }
 .cap-tag { margin-right: var(--space-1); }
 .faint { color: var(--color-text-faint); }
 .unimported {
