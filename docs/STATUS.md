@@ -67,6 +67,13 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**名册收编扫尾（2026-11-17）**：DB 名册为真相源的最后落实——CLI
+`butler platform platforms`、server `import-all`、`claim-all` 三处"选谁"
+逻辑全部改读 plat_platform 名册（删除穿 connectors registry 拼装的编排代码），
+registry 只留运行时分发（dock/预算/时间表解码）；import-all 目标按
+platform_code 排序定序；词表 v2 退役词（泊位/卡位/停靠/卡包）注释全量清理。
+测试 **715 passed + 10 skipped**（test_data_root 存在顺序偶发 flake，单跑即绿）。
+
 **SQL 规范成文（2026-11-17）**：历次数据层裁决收编为
 `docs/conventions/06-SQL规范.md`（表名域前缀/审计三件/关键字禁用/
 显示列业务命名/code 化/幂等自迁移/不删行/分域产物），规范索引与

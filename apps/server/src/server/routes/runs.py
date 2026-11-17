@@ -154,9 +154,9 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
 
 @router.post("/runs/claim-all", response_model=list[RunOut])
 def claim_all_runs(request: Request) -> list[RunOut]:
-    """一键领取：全部已泊位卡逐张发起领取（窗口按 core 时间表规则；同窗口幂等回放）。
+    """一键领取：全部已导入账户逐个发起领取（窗口按 core 时间表规则；同窗口幂等回放）。
 
-    只认已泊位的（卡包里有的卡才领）；端零入参，选卡语义归编排层。
+    只认已导入的（有账户的平台才领）；端零入参，选平台语义归编排层。
     """
     from butler_core.execution.usecases.execute_action import RunRequest
     from butler_core.execution.domain import Action, ActionKind
@@ -170,17 +170,20 @@ def claim_all_runs(request: Request) -> list[RunOut]:
         docked.setdefault(account.platform_code, []).append(account.id)
     refresh = {e["target"]: e["refresh_at"] for e in registry.schedule_entries()}
     out: list[RunOut] = []
-    for platform in registry.platforms():
-        if platform.manifest.capabilities.get("provision.run") is None:
-            continue  # 网页连接器无领取概念（A1-04 §6），一键领取跳过
-        for account_id in docked.get(platform.manifest.id, []):
-            window = claim_window(datetime.now(), refresh.get(platform.manifest.id, "00:00"))
+    # 选哪些平台参与领取 = 名册表裁决（ADR-021/022）：活跃且未退役、
+    # 且申报了 provision.run 能力；网页连接器无领取概念（A1-04 §6）天然跳过。
+    runtime = {p.platform_code: registry.get(p.platform_code) for p in kit.platforms.list_all()}
+    for code, connector in runtime.items():
+        if connector.manifest.capabilities.get("provision.run") is None:
+            continue
+        for account_id in docked.get(code, []):
+            window = claim_window(datetime.now(), refresh.get(code, "00:00"))
             run = kit.execute_action.execute(
                 RunRequest(
-                    action=Action(kind=ActionKind.PROVISION_RUN, target=platform.manifest.id),
+                    action=Action(kind=ActionKind.PROVISION_RUN, target=code),
                     account_id=account_id,
                     window=window,
-                    budget=timedelta(seconds=platform.provision_budget("provision.run")),
+                    budget=timedelta(seconds=connector.provision_budget("provision.run")),
                 )
             )
             out.append(_run_out(run))

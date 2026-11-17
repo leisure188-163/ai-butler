@@ -53,7 +53,7 @@ export interface paths {
         };
         /**
          * List Platforms
-         * @description 平台名册（ADR-021）：读 acc_platform 名册表（DB 为真相源）+ 台账并账。
+         * @description 平台名册（ADR-021/022）：读 plat_platform 名册表（DB 为真相源）+ 台账并账。
          *
          *     启动时组合根已把 manifest 事实同步进名册（退役自动落 deprecated）；
          *     这里只做 DB 投影 + 账户并账，不再穿连接器包拼装（端零映射）。
@@ -78,10 +78,10 @@ export interface paths {
         put?: never;
         /**
          * Import Platform
-         * @description 导入（接入扫描）：扫本机客户端 → 注册卡位 → 凭据入库。
+         * @description 导入（接入扫描）：扫本机客户端 → 账户注册 → 凭据入库。
          *
          *     单家失败不拖累全家族：结果如实分列（accounts/issues），不静默。
-         *     dock 顺带采集（R2-F）：新泊位立即产雷达第一帧；采集失败进 issues，
+         *     dock 顺带采集（R2-F）：新账户立即产雷达第一帧；采集失败进 issues，
          *     绝不打断导入本身（CollectUsage 已把端口异常收进 outcome.error）。
          */
         post: operations["import_platform_api_v1_platforms__target__import_post"];
@@ -151,9 +151,9 @@ export interface paths {
         put?: never;
         /**
          * Claim All Runs
-         * @description 一键领取：全部已泊位卡逐张发起领取（窗口按 core 时间表规则；同窗口幂等回放）。
+         * @description 一键领取：全部已导入账户逐个发起领取（窗口按 core 时间表规则；同窗口幂等回放）。
          *
-         *     只认已泊位的（卡包里有的卡才领）；端零入参，选卡语义归编排层。
+         *     只认已导入的（有账户的平台才领）；端零入参，选平台语义归编排层。
          */
         post: operations["claim_all_runs_api_v1_runs_claim_all_post"];
         delete?: never;

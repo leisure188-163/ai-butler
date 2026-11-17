@@ -1,4 +1,4 @@
-"""平台册（acc_platform）适配器与同步用例测试（ADR-021）。
+"""平台册（plat_platform）适配器与同步用例测试（ADR-021/022）。
 
 真 SQLite tmp_path；同步语义 = upsert 全量事实 + 缺失平台落 deprecated（幂等，
 不删行）。表名纪律见 A4-01 §5。

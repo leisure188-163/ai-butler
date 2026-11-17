@@ -59,22 +59,22 @@ def _unknown_target(target: str) -> None:
 
 @platform.command("platforms")
 def platforms() -> None:
-    """平台名册：已接入连接器 × 导入状态（与 server GET /platforms 同源投影）。"""
+    """平台名册：plat_platform 名册表 × 导入状态（与 server GET /platforms 同源投影）。"""
     kit = _kit()
     try:
         imported: dict[str, list[str]] = {}
         for account in kit.accounts.list_all():
             imported.setdefault(account.platform_code, []).append(account.id)
-        table = Table("平台", "能力", "凭据", "时间表", "卡")
-        for platform_obj in _registry().platforms():
-            m = platform_obj.manifest
-            schedule = m.schedule.get("provision.run")
+        table = Table("平台", "能力", "凭据", "时间表", "账户")
+        for platform in kit.platforms.list_all():  # 名册表（ADR-021/022，DB 为真相源）
+            if platform.deprecated_at is not None or not platform.is_active:
+                continue  # 退役/停用平台不出现在名册
             table.add_row(
-                f"{platform_obj.display} ({m.id})",
-                ", ".join(sorted(m.capabilities)),
-                ", ".join(m.credential.kinds) if m.credential else "—",
-                " ".join(schedule.times) if schedule else "—",
-                ", ".join(imported.get(m.id, [])) or "[yellow]未导入[/yellow]",
+                f"{platform.platform_name} ({platform.platform_code})",
+                ", ".join(sorted(platform.capabilities)) or "—",
+                ", ".join(platform.credential_kinds) or "—",
+                " ".join(platform.schedule_times) or "—",
+                ", ".join(imported.get(platform.platform_code, [])) or "[yellow]未导入[/yellow]",
             )
         console.print(table)
     finally:
@@ -83,7 +83,7 @@ def platforms() -> None:
 
 @platform.command("import")
 def import_cmd(target: str) -> None:
-    """导入：扫本机客户端 → 账号入卡包 → 凭据入库（结果如实分列，不静默）。"""
+    """导入：扫本机客户端 → 账户注册 → 凭据入库（结果如实分列，不静默）。"""
     from butler_connectors.registry import DockContext
 
     kit = _kit()

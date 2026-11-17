@@ -63,7 +63,7 @@ def _run_action(client: TestClient, kind: ActionKind, status: Status, window: st
 def test_health_and_empty_pages(tmp_path):
     with _client(tmp_path) as client:
         assert client.get("/health").json() == {"status": "ok"}
-        assert client.get("/api/v1/accounts").json() == []  # 全新港：无泊位
+        assert client.get("/api/v1/accounts").json() == []  # 全新库：无账户
         assert client.get("/api/v1/runs").json() == []
         assert client.get("/api/v1/pending").json() == []
 
@@ -419,6 +419,28 @@ class _BatchRegistry:
         return [DockOutcome(target=target, accounts=[f"{target}:main"])]
 
 
+def _sync_registry(client):
+    """stub registry 后按组合根同步语义重建名册（server main 装配同款投影）。"""
+    from butler_core.platforms.domain import PlatformEntry
+    from butler_core.shared.time import now_utc
+
+    kit = client.app.state.kit
+    facts = []
+    for conn in client.app.state.registry.platforms():
+        m = conn.manifest
+        facts.append(
+            PlatformEntry(
+                platform_code=m.id,
+                platform_name=getattr(m, "display", m.id),
+                created_at=now_utc(),
+                capabilities=tuple(sorted(getattr(m, "capabilities", ()))),
+                credential_kinds=(),
+                schedule_times=(),
+            )
+        )
+    kit.sync_platforms.execute(tuple(facts))
+
+
 def test_apps_hidden_retired_web_connectors(tmp_path):
     """退役连接器不再出现在应用名册；代码保留用于回滚/审计。"""
     with _client(tmp_path) as client:
@@ -465,15 +487,16 @@ def test_import_triggers_usage_collect_and_reports_errors(tmp_path):
 
 
 def test_import_all_skips_docked_and_reports_collect_errors(tmp_path):
-    """一键导入：只泊未泊位的；顺带采集失败如实进 issues，不拖累别家。"""
+    """一键导入：只导未导入的；顺带采集失败如实进 issues，不拖累别家。"""
     with _client(tmp_path) as client:
         kit = client.app.state.kit
         client.app.state.registry = _BatchRegistry(["trae_cn", "qoder_cn", "doubao_cn"])
-        kit.register_account.execute("trae_cn", "Trae CN")  # 已泊位 → 跳过
+        _sync_registry(client)  # 名册随 stub 重建（ADR-021/022：DB 为真相源）
+        kit.register_account.execute("trae_cn", "Trae CN")  # 已导入 → 跳过
         kit.collect_usage.ports = {}  # 显式接管端口面：全部采集失败 → issues
 
         rows = client.post("/api/v1/platforms/import-all").json()
-        assert [r["target"] for r in rows] == ["qoder_cn", "doubao_cn"]
+        assert [r["target"] for r in rows] == ["doubao_cn", "qoder_cn"]  # 名册序：platform_code 排序
         for row in rows:
             assert row["accounts"] == [f"{row['target']}:main"]
             assert any("用量采集" in i for i in row["issues"])
@@ -482,11 +505,12 @@ def test_import_all_skips_docked_and_reports_collect_errors(tmp_path):
 def test_import_all_empty_when_nothing_to_dock(tmp_path):
     with _client(tmp_path) as client:
         client.app.state.registry = _BatchRegistry([])
+        _sync_registry(client)  # 空 facts → 全部落 deprecated，名册为空
         assert client.post("/api/v1/platforms/import-all").json() == []
 
 
 def test_claim_all_claims_docked_and_replays(tmp_path):
-    """一键领取：逐泊位发起；同窗口再点 → 幂等回放同 Run（不重复领取）。"""
+    """一键领取：逐已导入账户发起；同窗口再点 → 幂等回放同 Run（不重复领取）。"""
     with _client(tmp_path) as client:
         kit = client.app.state.kit
         kit.execute_action.ports = routing_ports(

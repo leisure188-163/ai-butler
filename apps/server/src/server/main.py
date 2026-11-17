@@ -56,7 +56,7 @@ def _assemble_connectors(kit) -> None:
         for entry in registry.schedule_entries()
     ]
     app.state.registry = registry  # 端读 manifest/导入分发用（server 自持装配面）
-    # 平台册同步（ADR-021）：manifest 事实落 acc_platform，DB 为真相源；
+    # 平台册同步（ADR-021/022）：manifest 事实落 plat_platform，DB 为真相源；
     # 退役连接器不进 facts（自动落 deprecated 不删行，审计可溯），名册改读 DB。
     from butler_core.platforms.domain import PlatformEntry
     from butler_core.shared.time import now_utc

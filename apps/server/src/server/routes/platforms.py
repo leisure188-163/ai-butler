@@ -1,4 +1,4 @@
-"""应用与导入域 API（连接器能力名册 + 停靠接入）。"""
+"""平台与导入域 API（plat_platform 名册投影 + 导入分发）。"""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class ImportOut(BaseModel):
 
 
 def _import_one(registry, kit, target: str) -> ImportOut:
-    """单家停靠 + 顺带采集（dock 内部扫描异常已被注册表转成 issues，编排层不重复设防）。"""
+    """单家导入 + 顺带采集（dock 内部扫描异常已被注册表转成 issues，编排层不重复设防）。"""
     from butler_connectors.registry import DockContext
 
     [outcome] = registry.dock(
@@ -49,7 +49,7 @@ def _import_one(registry, kit, target: str) -> ImportOut:
 
 @router.get("/platforms", response_model=list[PlatformOut])
 def list_platforms(request: Request) -> list[PlatformOut]:
-    """平台名册（ADR-021）：读 acc_platform 名册表（DB 为真相源）+ 台账并账。
+    """平台名册（ADR-021/022）：读 plat_platform 名册表（DB 为真相源）+ 台账并账。
 
     启动时组合根已把 manifest 事实同步进名册（退役自动落 deprecated）；
     这里只做 DB 投影 + 账户并账，不再穿连接器包拼装（端零映射）。
@@ -79,10 +79,10 @@ def list_platforms(request: Request) -> list[PlatformOut]:
 
 @router.post("/platforms/{target}/import", response_model=ImportOut)
 def import_platform(target: str, request: Request) -> ImportOut:
-    """导入（接入扫描）：扫本机客户端 → 注册卡位 → 凭据入库。
+    """导入（接入扫描）：扫本机客户端 → 账户注册 → 凭据入库。
 
     单家失败不拖累全家族：结果如实分列（accounts/issues），不静默。
-    dock 顺带采集（R2-F）：新泊位立即产雷达第一帧；采集失败进 issues，
+    dock 顺带采集（R2-F）：新账户立即产雷达第一帧；采集失败进 issues，
     绝不打断导入本身（CollectUsage 已把端口异常收进 outcome.error）。
     """
     return _import_one(request.app.state.registry, request.app.state.kit, target)
@@ -97,8 +97,11 @@ def import_all_platforms(request: Request) -> list[ImportOut]:
     registry = request.app.state.registry
     kit = request.app.state.kit
     docked = {a.platform_code for a in kit.accounts.list_all()}
-    return [
-        _import_one(registry, kit, platform.manifest.id)
-        for platform in registry.platforms()
-        if platform.manifest.id not in docked and not getattr(platform.manifest, "retired", False)
-    ]
+    # 选谁导入 = 名册表裁决（ADR-021/022）：活跃且未退役、未导入的平台；
+    # retired 连接器启动同步时已落 deprecated，不进名册，天然被排除。
+    targets = sorted(
+        p.platform_code
+        for p in kit.platforms.list_all()
+        if p.is_active and p.deprecated_at is None and p.platform_code not in docked
+    )  # 按 platform_code 排序：批量结果顺序确定，不随名册插入序漂移
+    return [_import_one(registry, kit, target) for target in targets]
