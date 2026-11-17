@@ -28,7 +28,7 @@ def test_trae_loaded_with_shape(registry):
     assert app.display == "Trae CN"
     assert app.manifest.capabilities[ActionKind.PROVISION_RUN.value].kind == "declarative"
     qoder = registry.get("qoder_cn")  # ADR-006：声明式扩展接入，零 per-app 代码
-    assert qoder.display == "Qoder CN"
+    assert qoder.display == "Qoder"  # CN/Global 双账户同一 provider
     assert qoder.manifest.credential.kinds == ["dpapi_gcm_v10", "umid_cosy"]
     workbuddy = registry.get("workbuddy_cn")  # ADR-008：端口实现接入（加密凭据解密链）
     assert workbuddy.display == "WorkBuddy CN"

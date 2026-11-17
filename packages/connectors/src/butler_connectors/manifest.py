@@ -42,6 +42,9 @@ class AuthSpec(_Strict):
 
     kind: str
     storage: list[str] = Field(default_factory=list)  # 本机凭据存储候选路径（平台宏）
+    #: 按账户切 API 基址：key = account_key（精确优先）或 ``-`` 前缀（如 global-<hash>）。
+    #: 只对有多个产品域的连接器有意义；未声明时保持 RequestSpec.url 原样。
+    base_urls: dict[str, str] = Field(default_factory=dict)
     token_header: HeaderPair | None = None
     static_headers: dict[str, str] = Field(default_factory=dict)
     dynamic_headers: dict[str, str] = Field(default_factory=dict)  # "{field}" 模板

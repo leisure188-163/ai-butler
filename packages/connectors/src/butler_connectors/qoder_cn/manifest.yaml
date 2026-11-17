@@ -1,8 +1,9 @@
-# Qoder CN 连接器（A2-02 §2 + ADR-004）：能力矩阵 + 凭据 + 调度缺省值
-# 协议结论见同目录 PROTOCOL.md（来源旧仓库 NOTE-02 + 2026-11-11 真机取证）；
+# Qoder CN/Global 双账户连接器（A2-02 §2 + ADR-004）：能力矩阵 + 凭据 + 调度缺省值
+# 协议结论见同目录 PROTOCOL.md（来源旧仓库 NOTE-02 + 2026-11-11 真机取证；
+# 2026-11-17 增补 CN/Global 双数据目录与 per-account host）；
 # 行为对照 oracle = 旧仓库 qoder 域（A0-01 §2.2）
 id: qoder_cn
-display: Qoder CN
+display: Qoder
 capabilities:
   provision.run:                # 每日补给（活动积分逐项领取）
     kind: declarative

@@ -62,7 +62,9 @@ def apps() -> None:
     """应用名册：已接入连接器 × 导入状态（与 server GET /apps 同源投影）。"""
     kit = _kit()
     try:
-        imported = {a.provider: a.id for a in kit.accounts.list_all()}
+        imported: dict[str, list[str]] = {}
+        for account in kit.accounts.list_all():
+            imported.setdefault(account.provider, []).append(account.id)
         table = Table("应用", "能力", "凭据", "时间表", "卡")
         for app_obj in _registry().apps():
             m = app_obj.manifest
@@ -72,7 +74,7 @@ def apps() -> None:
                 ", ".join(sorted(m.capabilities)),
                 ", ".join(m.credential.kinds) if m.credential else "—",
                 " ".join(schedule.times) if schedule else "—",
-                imported.get(m.id) or "[yellow]未导入[/yellow]",
+                ", ".join(imported.get(m.id, [])) or "[yellow]未导入[/yellow]",
             )
         console.print(table)
     finally:

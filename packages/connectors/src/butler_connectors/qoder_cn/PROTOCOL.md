@@ -186,14 +186,44 @@ account/usage 旁证一致）。
 
 客户端不落逐调用 tokens，服务端只给聚合 percentage + 额度快照。
 
-## 8. 多 profile 目录形状（2026-11-14，mac 真机取证）
+## 8. 多 profile 目录形状（2026-11-14 mac + 2026-11-17 Windows 双账户）
+
+### 8.1 mac 单目录（2026-11-14）
 
 - 声明 glob `~/Library/Application Support/com.qoder.app*` 本机仅命中
   `com.qoder.app.stable` 一个数据目录；`auth.v1.dat` + `auth.machine-id`
   在目录根（mac 信封只带 dat，钥匙在 Keychain「Qoder App Safe Storage」）
-- 结论：**单数据目录 = 单账号实证**；多账号形状（如按渠道/实例分目录）本机
-  未出现，未取证不推断——glob 扩展点已在（多目录命中时逐目录扫，dock 现取首个）
-- 多开/多实例的凭据隔离未验证：保持 A2-02 §9 挂账口径
+- mac 的 `com.qoder.app` 是 CN 客户端目录名，不能仅凭目录名判定产品域；
+  区域优先读会话 `user.avatarUrl`（`qoder.com.cn` = CN，`qoder.com` = Global），
+  mac + `com.qoder.app` 无 avatar 时回落 CN。
+
+### 8.2 Windows 双目录（2026-11-17 真机取证，Qoder CN + Qoder Global）
+
+| profile | 数据目录 | auth.v1.dat | user id | name | avatar 域 | 产品域/API host |
+|---|---|---|---|---|---|---|
+| Qoder CN | `%APPDATA%\com.qodercn.app.stable` | 431 B | `019ffa59-7821-7f3b-a430-94af21a7150f` | `xiaoyaojiugui520@sina.com` | `qoder.com.cn` | `openapi.qoder.com.cn` |
+| Qoder Global | `%APPDATA%\com.qoder.app.stable` | 553 B | `01a1cae7-3b32-70bb-8efc-bffb61f0db1f` | `hiclaw168-163`（`hiclaw168@163.com`） | `qoder.com` | `openapi.qoder.sh` |
+
+- 两个目录各自有 `auth.v1.dat` + `Local State`；解锁后 user id 不同，Global 会话
+  另有 `authenticationContext` 字段。
+- **host 严格隔离**：CN token → `.com.cn` 200 / `.sh` 401 `TOKEN_EXPIRE`；
+  Global token → `.sh` 200 / `.com.cn` 401 `TOKEN_EXPIRE`。同一 token 不能跨域。
+- 2026-11-16 只读探测两账户 campaigns 均 200、当前无待领；2026-11-17 真机
+  Global status 出现 1 项待领，按本连接器声明式逐项 claim + status 复查
+  返回 `CLAIMED`（CN 同期 `ALREADY`）——**双账户 claim 写入路径已实测**。
+- `auth-profile-overlays.v1.dat`（两个目录各 159 B，`v10` 前缀）仍**未读取**；
+  同一目录内多 profile 的语义未取证，不推断。当前双账户以数据目录为单位。
+
+### 8.3 dock 多账户结论
+
+- 逐候选 glob、逐数据目录扫描，不再首目录命中即返回。
+- 同一 `user.id` 只保留首份登录态；重复目录如实记 issue，不重复注册。
+- CN 首账户沿用 `account_key=main` 兼容存量 `qoder_cn:main`；Global 与额外 CN
+  profile 用稳定 key：`global-<sha1(user.id)[:8]>` / `cn-<sha1(user.id)[:8]>`。
+- `auth.base_urls` 按 account_key 选产品域：`main`/`cn-*` → CN，`global-*` →
+  Global；provision 与 usage 共用 `account_base_url()` 单源。
+- 调度层 `CheckinSchedule` 原本已按 `accounts.list_by_provider(target)` 遍历；
+  dock 产出两张独立凭据卡后即逐账户触发，无需改调度。
 
 ## 9. 推理通道取证（2026-11-14，mac 资源串侧 · R4 G0）
 

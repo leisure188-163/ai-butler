@@ -3,6 +3,8 @@
 - 鉴权复用 provision 声明式主链：Bearer dt- token + Cosy-ClientType "10" +
   机器身份 8 头组（fill_auth_headers 单源；缺机器头 → 静默空列表的老坑在
   此端点同样成立）
+- 基址按账户切：main/cn-* 走 openapi.qoder.com.cn，global-* 走
+  openapi.qoder.sh（跨 host 会 401 TOKEN_EXPIRE，PROTOCOL §8.2）
 - userQuota（套餐）/ addOnQuota（加量包）各自成包：total ≤ 0 = 无此配额，
   不造空包（真机实况：套餐全 0、加量包 2300/1786/514）
 - expiresAt/refreshAt = 9999 占位（真机取证）→ cycle_end=None（当前形态
@@ -22,7 +24,7 @@ from butler_core.shared.ids import new_id
 from butler_core.usage.domain import PackageQuota, UsageAggregate, UsageSnapshot
 from butler_core.accounts.domain import Secret
 
-from butler_connectors.decl import fill_auth_headers
+from butler_connectors.decl import account_base_url, fill_auth_headers
 from butler_connectors.transport import (
     HttpRequest,
     Transport,
@@ -31,7 +33,8 @@ from butler_connectors.transport import (
 )
 from butler_connectors.unlock import unlock_all
 
-_USAGE_URL = "https://openapi.qoder.com.cn/sash/api/v2/me/usage"
+_DEFAULT_USAGE_BASE = "https://openapi.qoder.com.cn"
+_USAGE_PATH = "/sash/api/v2/me/usage"
 _FAR_FUTURE_MS = 253402185600000  # ≈9999-12 占位阈值（真机实测 253402214400000）
 
 
@@ -72,8 +75,9 @@ class QoderUsagePort:
             secrets[kind] = self._vault.load(req.account_id, [kind])[0]  # 缺失显式上抛
         fields = unlock_all(self.kinds, secrets)
         headers = fill_auth_headers(self.auth, fields)
+        base = account_base_url(self.auth, req.account_id) or _DEFAULT_USAGE_BASE
         response = self.transport(
-            HttpRequest(method="GET", url=_USAGE_URL, headers=headers),
+            HttpRequest(method="GET", url=base + _USAGE_PATH, headers=headers),
             deadline=req.deadline,
         )
         if not response.ok:

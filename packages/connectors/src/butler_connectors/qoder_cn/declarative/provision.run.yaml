@@ -5,7 +5,12 @@ auth:
   reauth_status_codes: [401, 403]  # 登录态失效归 NO_AUTH（进待办 + 重登修复，A2-02 §4）
   storage:                       # 数据目录候选（glob；每目录含 auth.v1.dat + Local State）
     - ~/Library/Application Support/com.qoder.app*
-    - "%APPDATA%/com.qodercn.app*"
+    - "%APPDATA%/com.qodercn.app*"   # Qoder CN（Windows）
+    - "%APPDATA%/com.qoder.app*"     # Qoder Global（Windows，PROTOCOL §8.2）
+  base_urls:                     # 按账户切产品域：main/cn-* → CN，global-* → Global
+    main: https://openapi.qoder.com.cn
+    cn: https://openapi.qoder.com.cn
+    global: https://openapi.qoder.sh
   token_header:
     name: Authorization
     prefix: "Bearer "
@@ -26,7 +31,7 @@ auth:
 status:
   request:
     method: GET
-    url: https://openapi.qoder.com.cn/sash/api/v1/me/campaigns
+    url: "{base_url}/sash/api/v1/me/campaigns"
   code_path: ""                  # 真机取证 2026-11-11：响应无外壳业务码（顶层即
                                  # uid/showCampaign/claimable/campaigns），HTTP 200 即 ok
   expect_ok: "0"
@@ -39,7 +44,7 @@ status:
 claim:
   request:
     method: POST
-    url: https://openapi.qoder.com.cn/sash/api/v1/me/campaigns/{campaignId}/claim
+    url: "{base_url}/sash/api/v1/me/campaigns/{campaignId}/claim"
     # 逐项领取：{campaignId} 引用列表项主键（真机取证 2026-11-11，字段名实证）；无请求体
   each: campaigns                # 逐项模式：项 = status 筛选结果（幂等，HTTP ok 即受理）
   confirm_by_status: true        # 以 status 复查定论（待领清空 → CLAIMED）

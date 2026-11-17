@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import time as _time
-from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
 from typing import Any
@@ -26,13 +25,15 @@ from butler_core.shared.results import Status, UnknownEngineCode, from_engine
 from butler_core.execution.domain import Evidence, RepairHint, RunResult
 from butler_core.accounts.domain import Secret
 
+from butler_connectors.decl_auth import (
+    TemplateFieldMissing,
+    _FieldMap,
+    account_base_url,
+    fill_auth_headers,
+)
 from butler_connectors.manifest import AuthSpec, DeclarativeSpec, ProbeSpec, RequestSpec
 from butler_connectors.transport import HttpRequest, Transport, TransportError
 from butler_connectors.unlock import unlock_all
-
-
-class TemplateFieldMissing(DomainError):
-    """dynamic header 模板引用的字段在解锁产物里不存在——显式报错（红线 5）。"""
 
 
 class _Verdict(Exception):
@@ -71,36 +72,9 @@ def _path_get(payload: Any, dotted: str) -> tuple[bool, Any]:
     return True, node
 
 
-class _FieldMap(dict):
-    """模板字段查找：缺字段 = 声明与解锁产物不一致，显式爆。"""
-
-    def __missing__(self, key: str) -> str:
-        raise TemplateFieldMissing(f"header 模板引用的字段 {key!r} 不在解锁产物里")
-
-
 def _matches(item: dict, filter_: dict[str, str]) -> bool:
     """列表项等值筛选：声明的键值对全部命中才算（值经 str 归一，显式声明驱动）。"""
     return all(str(item.get(key)) == value for key, value in filter_.items())
-
-
-def fill_auth_headers(auth: AuthSpec, fields: Mapping[str, str]) -> dict[str, str]:
-    """解锁字段 → 鉴权头组（token 头 + 静态头 + 动态模板）。
-
-    声明式 provision、用量适配（R2）与探针（R3）共用的拼装单源：缺字段显式爆
-    （红线 5）。browser_cookie kind 的字段 cookie 整体进 Cookie 头（A2-03 §1）。
-    """
-    merged = dict(auth.static_headers)
-    if auth.kind == "browser_cookie":
-        if "cookie" not in fields:
-            raise TemplateFieldMissing("cookie（browser_cookie 解锁产物缺失，凭据事故）")
-        merged["Cookie"] = fields["cookie"]
-    elif auth.token_header is not None:
-        if "token" not in fields:
-            raise TemplateFieldMissing("token（解锁产物无 token，凭据事故）")
-        merged[auth.token_header.name] = auth.token_header.prefix + fields["token"]
-    for name, template in auth.dynamic_headers.items():
-        merged[name] = template.format_map(_FieldMap(fields))
-    return merged
 
 
 #: 主凭据缺失 / 凭据被拒时的修复文案（按通道分流；kind 形态扩展，非 per-app）
@@ -195,7 +169,7 @@ class DeclarativeProvisionPort(ProvisionPort):
             raise
 
         try:
-            ok = self._status(headers, req.deadline)
+            ok = self._status(headers, req.deadline, req.account_id)
             if ok.checked_in:
                 summary = (
                     "status 复查：本期活动均已领取（无待领项）"
@@ -246,9 +220,11 @@ class DeclarativeProvisionPort(ProvisionPort):
 
     # --- 请求与判定 ---
 
-    def _status(self, headers: dict[str, str], deadline: datetime) -> _StatusOk:
+    def _status(
+        self, headers: dict[str, str], deadline: datetime, account_id: str
+    ) -> _StatusOk:
         spec = self._spec.status
-        resp = self._send(spec.request, headers, deadline)
+        resp = self._send(spec.request, headers, deadline, account_id=account_id)
         if not resp.ok:
             raise TransportError(
                 f"status HTTP {resp.status_code}", status_code=resp.status_code
@@ -302,7 +278,9 @@ class DeclarativeProvisionPort(ProvisionPort):
         backoff = list(spec.retry.backoff_seconds)
         attempt = 0
         while True:
-            resp = self._send(spec.request, headers, req.deadline)
+            resp = self._send(
+                spec.request, headers, req.deadline, account_id=req.account_id
+            )
             if not resp.ok:
                 raise TransportError(
                     f"claim HTTP {resp.status_code}", status_code=resp.status_code
@@ -316,7 +294,7 @@ class DeclarativeProvisionPort(ProvisionPort):
                         status=Status.CLAIMED,
                         evidence=(Evidence(summary="claim 受理（按响应为准）"),),
                     )
-                return self._confirm(headers, req.deadline)
+                return self._confirm(headers, req.deadline, req.account_id)
             verdict = _Verdict(
                 from_engine(str(code), dialect=self._id), str(code)
             )
@@ -339,11 +317,21 @@ class DeclarativeProvisionPort(ProvisionPort):
         spec = self._spec.claim
         backoff = list(spec.retry.backoff_seconds)
         total = len(pending)
+        base = account_base_url(self._spec.auth, req.account_id)
         for idx, item in enumerate(pending, 1):
-            url = spec.request.url.format_map(_FieldMap(item))
+            url = spec.request.url
+            if base:
+                url = url.replace("{base_url}", base)
+            url = url.format_map(_FieldMap(item))
             attempt = 0
             while True:
-                resp = self._send(spec.request, headers, req.deadline, url_override=url)
+                resp = self._send(
+                    spec.request,
+                    headers,
+                    req.deadline,
+                    url_override=url,
+                    account_id=req.account_id,
+                )
                 if resp.ok:
                     break
                 if attempt >= len(backoff):
@@ -359,7 +347,7 @@ class DeclarativeProvisionPort(ProvisionPort):
                 evidence=(Evidence(summary=f"逐项领取 {total} 项受理（按响应为准）"),),
             )
         try:
-            recheck = self._status(headers, req.deadline)
+            recheck = self._status(headers, req.deadline, req.account_id)
         except _Verdict as verdict:
             return self._verdict_result(verdict)
         if recheck.checked_in:
@@ -380,10 +368,10 @@ class DeclarativeProvisionPort(ProvisionPort):
         )
 
     def _confirm(
-        self, headers: dict[str, str], deadline: datetime
+        self, headers: dict[str, str], deadline: datetime, account_id: str
     ) -> RunResult:
         try:
-            ok = self._status(headers, deadline)
+            ok = self._status(headers, deadline, account_id)
         except _Verdict as verdict:
             return self._verdict_result(verdict)
         if ok.checked_in:
@@ -406,13 +394,18 @@ class DeclarativeProvisionPort(ProvisionPort):
         headers: dict[str, str],
         deadline: datetime,
         *,
+        account_id: str,
         url_override: str | None = None,
     ):
+        url = url_override or request_spec.url
+        base = account_base_url(self._spec.auth, account_id)
+        if base and "{base_url}" in url:
+            url = url.replace("{base_url}", base)
         merged = {**headers, **request_spec.headers}
         return self._call(
             HttpRequest(
                 method=request_spec.method,
-                url=url_override or request_spec.url,
+                url=url,
                 headers=merged,
                 body=dict(request_spec.body) if request_spec.body else None,
             ),
@@ -527,7 +520,9 @@ class DeclarativeHealthPort:
             )
 
         try:
-            resp = self._send(self._spec.probe.request, headers, req.deadline)
+            resp = self._send(
+                self._spec.probe.request, headers, req.deadline, req.account_id
+            )
         except TransportError as exc:
             return RunResult(
                 status=Status.FAILED,
@@ -546,13 +541,21 @@ class DeclarativeHealthPort:
         return self._verdict_result(verdict)
 
     def _send(
-        self, request_spec: RequestSpec, headers: dict[str, str], deadline: datetime
+        self,
+        request_spec: RequestSpec,
+        headers: dict[str, str],
+        deadline: datetime,
+        account_id: str,
     ):
+        url = request_spec.url
+        base = account_base_url(self._spec.auth, account_id)
+        if base and "{base_url}" in url:
+            url = url.replace("{base_url}", base)
         merged = {**headers, **request_spec.headers}
         return self._call(
             HttpRequest(
                 method=request_spec.method,
-                url=request_spec.url,
+                url=url,
                 headers=merged,
                 body=dict(request_spec.body) if request_spec.body else None,
             ),

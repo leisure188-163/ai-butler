@@ -3,6 +3,25 @@
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
 > 最后更新：2026-11-17
 
+**Qoder 双账户（CN + Global）补全（2026-11-17）**：真机确认 Windows 有两个真实
+Qoder 账户来源——`%APPDATA%\com.qodercn.app.stable`（CN，user
+`019ffa59-7821-7f3b-a430-94af21a7150f`，host `openapi.qoder.com.cn`）与
+`%APPDATA%\com.qoder.app.stable`（Global，user
+`01a1cae7-3b32-70bb-8efc-bffb61f0db1f`，host `openapi.qoder.sh`）；同一 token
+跨 host 均 401 `TOKEN_EXPIRE`，只能各用各的 host。原 `qoder_cn` 只扫首个
+`auth.v1.dat`、固定 `qoder_cn:main`，Global 从未进卡。改造：①`dockio` 逐目录
+枚举 profile，同一 user id 去重，CN 首账户保留 `main`，Global 用
+`global-<sha1(user.id)[:8]>`；②`AuthSpec.base_urls` + `account_base_url()` 按
+账户切 CN/Global 基址，provision 与 usage 共用；③声明式 YAML 增加
+`%APPDATA%/com.qoder.app*` 与 `{base_url}` 模板。**真机验证**：dock 产出
+`qoder_cn:main` + `qoder_cn:global-020dbc5a` 两张卡；2026-11-17 CN status
+`ALREADY`，Global status 发现 1 项待领 → 逐项 claim → status 复查 `CLAIMED`
+（双账户 claim 写入路径首次跑通）；server `POST /api/v1/apps/qoder_cn/import`
+返回两张卡、`POST /api/v1/runs` 两账户均 `ALREADY`。新增 dock 双 profile/去重、
+decl 基址切换、usage Global host 测试；`pytest -q` 717 passed / 2 skipped，
+`verify_project.py --project . --test` 九项 PASS。`auth-profile-overlays.v1.dat`
+仍未解析，同一目录内多 CN profile 未取证，不推断。
+
 **豆包双账户登记补齐与切号复测（2026-11-17）**：Windows 真机发现两个真实缺口并修复：
 ①`save_identity_registry` 在单会话采集只返回当前账户时会把 `others` 重写空，用户切过号后
 第二张卡会消失——改为合并保留既有登记；②`adapter.dock` 只登记当前活跃身份，登记簿里的

@@ -5,6 +5,7 @@
 """
 
 import base64
+import hashlib
 import json
 import sys
 from datetime import UTC, datetime
@@ -51,12 +52,13 @@ class MemAccounts(AccountRepository):
         return list(self.rows.values())
 
 
-def make_qoder_spec(storage_glob: str) -> DeclarativeSpec:
+def make_qoder_spec(storage_glob: str | list[str]) -> DeclarativeSpec:
+    storage = [storage_glob] if isinstance(storage_glob, str) else list(storage_glob)
     return DeclarativeSpec.model_validate(
         {
             "auth": {
                 "kind": "dpapi_gcm_v10",
-                "storage": [storage_glob],
+                "storage": storage,
                 "token_header": {"name": "Authorization", "prefix": "Bearer "},
                 "dynamic_headers": {"Cosy-MachineId": "{cosy_machine_id}"},
             },
@@ -119,6 +121,59 @@ def mac_data_dir(tmp_path, monkeypatch):
     return root
 
 
+def _write_win_profile(root: Path, session: dict) -> None:
+    """Windows 同形 profile：auth.v1.dat + Local State + auth.machine-id。"""
+    root.mkdir()
+    envelope = seal_envelope(session)
+    dat = base64.b64decode(json.loads(base64.b64decode(envelope))["dat"])
+    (root / "auth.v1.dat").write_bytes(dat)
+    (root / "Local State").write_text(
+        json.dumps(
+            {
+                "os_crypt": {
+                    "encrypted_key": base64.b64encode(b"DPAPI" + b"wrapped").decode()
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / "auth.machine-id").write_text(MACHINE_ID, encoding="utf-8")
+
+
+@pytest.fixture
+def dual_data_dirs(tmp_path, monkeypatch):
+    """Windows 双数据目录：Qoder CN + Qoder Global（真实 user id / avatar 域形状）。"""
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(unlock, "dpapi_unprotect", lambda blob: TEST_KEY)
+    _write_win_profile(
+        tmp_path / "com.qodercn.app.stable",
+        {
+            "token": "T-CN",
+            "expiresAt": "2026-12-04T09:54:14Z",
+            "user": {
+                "id": "cn-user-id",
+                "name": "cn-user",
+                "avatarUrl": "https://qoder.com.cn/users/cn-user-id/default/avatars",
+            },
+        },
+    )
+    _write_win_profile(
+        tmp_path / "com.qoder.app.stable",
+        {
+            "token": "T-GLOBAL",
+            "expiresAt": "2026-12-12T09:03:10Z",
+            "authenticationContext": "ctx",
+            "user": {
+                "id": "global-user-id",
+                "name": "global-user",
+                "email": "global@example.com",
+                "avatarUrl": "https://qoder.com/users/global-user-id/default/avatars",
+            },
+        },
+    )
+    return tmp_path
+
+
 @pytest.fixture
 def umid_ready(monkeypatch):
     """runtime-info 定位/运行全替身（输出形状 = 2026-11-11 真机取证）。"""
@@ -159,6 +214,43 @@ def test_dock_qoder_full_chain(data_dir, umid_ready):
         assert os_str.endswith("_windows")  # SDK 口径（取证 risk.py）
     else:
         assert os_str.endswith("_darwin")  # _machine_os 按当前平台派生（组装形状回归）
+
+
+def test_dock_qoder_two_profiles_same_provider(dual_data_dirs, umid_ready):
+    """CN + Global 两数据目录 → 两个独立账户凭据， CN 首账户保留 main。"""
+    vault = MemVault()
+    spec = make_qoder_spec(
+        [
+            str(dual_data_dirs / "com.qodercn.app*"),
+            str(dual_data_dirs / "com.qoder.app*"),
+        ]
+    )
+    outcome = _dock(spec, vault)
+    assert outcome.issues == [], outcome.issues
+    global_key = "global-" + hashlib.sha1(b"global-user-id").hexdigest()[:8]
+    assert outcome.accounts == ["qoder_cn:main", f"qoder_cn:{global_key}"]
+
+    assert vault.items[("qoder_cn:main", "dpapi_gcm_v10")][1] is not None
+    assert vault.items[(f"qoder_cn:{global_key}", "dpapi_gcm_v10")][1] is not None
+    assert ("qoder_cn:main", "umid_cosy") in vault.items
+    assert (f"qoder_cn:{global_key}", "umid_cosy") in vault.items
+
+
+def test_dock_qoder_duplicate_user_id_skipped(dual_data_dirs, umid_ready):
+    """同一 user id 出现在两个目录 → 只留首份，第二份如实记 issue（不重复注册）。"""
+    dup = dual_data_dirs / "com.qoder.app.stable"
+    (dup / "auth.v1.dat").write_bytes(
+        (dual_data_dirs / "com.qodercn.app.stable" / "auth.v1.dat").read_bytes()
+    )
+    spec = make_qoder_spec(
+        [
+            str(dual_data_dirs / "com.qodercn.app*"),
+            str(dual_data_dirs / "com.qoder.app*"),
+        ]
+    )
+    outcome = _dock(spec, MemVault())
+    assert outcome.accounts == ["qoder_cn:main"]
+    assert outcome.issues and "同一 user id" in outcome.issues[0]
 
 
 def test_dock_qoder_missing_umid_component(data_dir, monkeypatch):

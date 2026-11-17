@@ -25,6 +25,14 @@ _AUTH = AuthSpec(
     dynamic_headers={"Cosy-MachineId": "{cosy_machine_id}"},
 )
 
+_AUTH_GLOBAL = AuthSpec(
+    kind="dpapi_gcm_v10",
+    base_urls={"global": "https://openapi.qoder.sh"},
+    token_header=HeaderPair(name="Authorization", prefix="Bearer "),
+    static_headers={"Cosy-ClientType": "10"},
+    dynamic_headers={"Cosy-MachineId": "{cosy_machine_id}"},
+)
+
 _FIELDS = {"token": "dt-token", "cosy_machine_id": "cosy-id-1"}
 
 #: 取证响应形状（2026-11-12 真机骨架；数值换测试值）
@@ -104,6 +112,20 @@ def test_request_shape_bearer_and_cosy_headers(fake_unlock):
     assert req.headers["Cosy-ClientType"] == "10"  # 缺此头静默空列表的老坑（PROTOCOL §2）
     assert req.headers["Cosy-MachineId"] == "cosy-id-1"
     assert req.body is None
+
+
+def test_global_account_uses_qoder_sh_usage_host(fake_unlock):
+    """Qoder Global 账户不能复用 CN host（交叉调用 401 TOKEN_EXPIRE）。"""
+    transport = FakeTransport(_PAYLOAD)
+    port = QoderUsagePort(
+        vault=FakeVault(),
+        transport=transport,
+        auth=_AUTH_GLOBAL,
+        kinds=("dpapi_gcm_v10", "umid_cosy"),
+        clock=lambda: _T0,
+    )
+    port.collect(UsageRequest(target="qoder_cn", account_id="qoder_cn:global-abc", deadline=_DEADLINE))
+    assert transport.requests[0].url == "https://openapi.qoder.sh/sash/api/v2/me/usage"
 
 
 def test_add_on_quota_becomes_package_plan_quota_skipped(fake_unlock):

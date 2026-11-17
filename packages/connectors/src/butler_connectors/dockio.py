@@ -14,9 +14,16 @@ from pathlib import Path
 
 from butler_core.accounts.domain import Secret
 
+from butler_connectors.dock_storage import dpapi_envelope, glob_dirs, mac_envelope
 from butler_connectors.manifest import AuthSpec, DeclarativeSpec, ManifestInvalid
 from butler_connectors.paths import expand_storage_path
+from butler_connectors.qoder_identity import qoder_display, qoder_region
 from butler_connectors.registry import ConnectorApp, DockContext, DockOutcome
+
+#: 兼容旧模块内调用名（本文件只用别名，不复制实现）。
+_glob_dirs = glob_dirs
+_dpapi_envelope = dpapi_envelope
+_mac_envelope = mac_envelope
 
 
 def scan_storage(
@@ -31,23 +38,31 @@ def scan_storage(
             issues=[f"{app.manifest.id}: 没有候选扫描路径（声明里 auth.storage 为空）"],
         )
     try:
-        facts = _scan_kind(auth, app.manifest.id, candidates, kinds)
+        facts_list = _scan_kind(auth, app.manifest.id, candidates, kinds)
     except StorageNotFound as exc:
         return DockOutcome(target=app.manifest.id, issues=[str(exc)])
     except ManifestInvalid as exc:  # 采集器/扫描器的显式事故 → 如实出账
         return DockOutcome(target=app.manifest.id, issues=[str(exc)])
 
-    if "_issue" in facts:
-        # 主扫描出的账在这里如实落榜：不注册账号（免孤儿）、不走异常路径
-        # （store 期 raise 曾逃出本函数，靠 registry 兜底成「停靠扫描异常」）
-        return DockOutcome(target=app.manifest.id, issues=[facts["_issue"]])
-
-    account = ctx.register.execute(app.manifest.id, app.display)
-    _store_credentials(
-        ctx, account.id, facts, kinds, auth.kind,
-        main_cookie_names=tuple(auth.cookies),
-    )
-    return DockOutcome(target=app.manifest.id, accounts=[account.id])
+    accounts: list[str] = []
+    issues: list[str] = []
+    for facts in facts_list:
+        if "_issue" in facts:
+            # 主扫描出的账在这里如实落榜：不注册账号（免孤儿）、不走异常路径
+            # （store 期 raise 曾逃出本函数，靠 registry 兜底成「停靠扫描异常」）
+            issues.append(facts["_issue"])
+            continue
+        account = ctx.register.execute(
+            app.manifest.id,
+            facts.get("_display") or app.display,
+            account_key=facts.get("_account_key", "main"),
+        )
+        _store_credentials(
+            ctx, account.id, facts, kinds, auth.kind,
+            main_cookie_names=tuple(auth.cookies),
+        )
+        accounts.append(account.id)
+    return DockOutcome(target=app.manifest.id, accounts=accounts, issues=issues)
 
 
 class StorageNotFound(Exception):
@@ -56,39 +71,61 @@ class StorageNotFound(Exception):
 
 def _scan_kind(
     auth: AuthSpec, conn_id: str, candidates: list[str], kinds: tuple[str, ...]
-) -> dict[str, str]:
-    """kind 分发扫认证事实。返回 kind → Secret 源值（还没进 vault 的明文）。"""
+) -> list[dict[str, str]]:
+    """kind 分发扫认证事实。返回每个 profile 的 kind → Secret 源值（还没进 vault）。
+
+    多 profile 只在 dpapi_gcm_v10 落地（Qoder CN/Global 双数据目录）；其余
+    storage kind 仍返回单元素列表，保持既有单账号语义。
+    """
     if auth.kind == "ss_aes":
-        return _scan_ss_aes(auth, conn_id, candidates)
+        return [_scan_ss_aes(auth, conn_id, candidates)]
     if auth.kind == "dpapi_gcm_v10":
-        facts = _scan_dpapi_gcm_v10(conn_id, candidates)
-        if "_issue" not in facts:  # 主扫描已如实出账就不再附加采集——否则采集器的
-            # 定位失败会顶掉真因（真机 mac 抓过：DPAPI 解锁失败被 umid 定位失败掩盖）
-            _collect_extra_kinds(facts, conn_id, candidates, kinds)
-        return facts
+        profiles = _scan_dpapi_gcm_v10(conn_id, candidates)
+        good = [facts for facts in profiles if "_issue" not in facts]
+        if good:
+            # 机器身份是同一台机器的共享头组：只采集一次，再复制给其余 profile。
+            _collect_extra_kinds(good[0], conn_id, candidates, kinds)
+            for facts in good[1:]:
+                for kind in kinds:
+                    if kind in good[0] and kind not in facts:
+                        facts[kind] = good[0][kind]
+        return profiles
     raise ManifestInvalid(f"{conn_id}: dock 扫描器不支持凭据 kind {auth.kind!r}")
 
 
 # --- dpapi_gcm_v10（qoder_cn）：glob 数据目录 → 自包含信封（ADR-006）---
 
 
-def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> dict[str, str]:
-    """Qoder 数据目录（glob）：auth.v1.dat（Windows 另需 Local State）→ 自包含信封。
+def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> list[dict[str, str]]:
+    """Qoder 数据目录（glob）：逐目录扫描 auth.v1.dat，返回每账户一份 facts。
 
     Windows 信封自包含（dat + key_b64，unlock.session_from_dpapi_gcm_v10 解链），
     运行时解锁不再依赖本机文件布局；mac 信封只带 dat——钥匙在 Keychain
     （"Qoder App Safe Storage"），解锁时现取（ADR-008 决策 3：现用现取，密钥不入 vault）。
-    解码一次只为验形 + 取 expiresAt 元数据，明文即刻丢弃，入库的是信封原文。
+    解码一次只为验形 + 取 expiresAt/user 元数据，明文即刻丢弃，入库的是信封原文。
+
+    多账户身份锚点：同一 user id 只保留首份登录态；Qoder CN 首账户沿用
+    account_key=main 兼容存量卡，Qoder Global 与额外 CN profile 用稳定 hash key。
+    同一产品域内多个 CN profile 仍以数据目录为单位，不解析 auth-profile-overlays。
     """
+    import hashlib
     import sys
 
     from butler_connectors.unlock import session_from_dpapi_gcm_v10
 
+    profiles: list[dict[str, str]] = []
+    seen_dirs: set[Path] = set()
+    seen_users: dict[str, Path] = {}
+    used_main = False
     for pattern in candidates:
         base = expand_storage_path(pattern)
         if base is None:
             continue  # 平台不适用：换下一个候选
         for data_dir in _glob_dirs(base):
+            resolved = data_dir.resolve()
+            if resolved in seen_dirs:
+                continue  # 候选 glob 重叠（com.qoder.app* 会覆盖同一目录）
+            seen_dirs.add(resolved)
             dat = data_dir / "auth.v1.dat"
             if not dat.is_file():
                 continue
@@ -109,55 +146,55 @@ def _scan_dpapi_gcm_v10(conn_id: str, candidates: list[str]) -> dict[str, str]:
                     if sys.platform == "darwin"
                     else "请在桌面端重新登录后重扫"
                 )
-                return {"_issue": f"{data_dir}: 登录态解不开（{exc}）——{tail}"}
-            facts = {"dpapi_gcm_v10": envelope, "_auth_dir": str(data_dir)}
+                profiles.append(
+                    {"_issue": f"{data_dir}: 登录态解不开（{exc}）——{tail}"}
+                )
+                continue
+
+            user = session.get("user") if isinstance(session.get("user"), dict) else {}
+            identity = str(user.get("id") or "")
+            if identity:
+                previous = seen_users.get(identity)
+                if previous is not None:
+                    profiles.append(
+                        {
+                            "_issue": (
+                                f"{data_dir}: 与 {previous} 是同一 user id（{identity}），"
+                                "跳过重复登录态"
+                            )
+                        }
+                    )
+                    continue
+                seen_users[identity] = data_dir
+
+            region = qoder_region(session, data_dir, sys.platform)
+            if region == "cn" and not used_main:
+                account_key = "main"  # 兼容存量 qoder_cn:main
+                used_main = True
+            else:
+                suffix = hashlib.sha1(
+                    (identity or str(resolved)).encode("utf-8")
+                ).hexdigest()[:8]
+                account_key = f"{region}-{suffix}"
+
+            facts = {
+                "dpapi_gcm_v10": envelope,
+                "_auth_dir": str(data_dir),
+                "_account_key": account_key,
+                "_display": qoder_display(region, user),
+                "_region": region,
+            }
             expires = session.get("expiresAt")
             if isinstance(expires, str) and expires:
                 facts["_expires"] = expires
-            return facts
-    raise StorageNotFound(
-        f"{conn_id}: 未发现可解锁登录态（候选: {candidates}）——"
-        "安装桌面端并登录一次后重扫"
-    )
+            profiles.append(facts)
 
-
-def _glob_dirs(base: Path) -> list[Path]:
-    """候选末段含通配 = 目录 glob（按名排序稳定）；否则视为目录本身。"""
-    if "*" in str(base) or "?" in str(base):
-        return sorted(p for p in base.parent.glob(base.name) if p.is_dir())
-    return [base] if base.is_dir() else []
-
-
-def _dpapi_envelope(dat: Path, state: Path) -> str:
-    """组自包含信封：base64(JSON{dat: b64(文件字节), key_b64: Local State 原文})。"""
-    import base64
-    import json
-
-    try:
-        state_data = json.loads(state.read_text(encoding="utf-8"))
-        key_b64 = state_data["os_crypt"]["encrypted_key"]
-    except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise ValueError(f"Local State 形状不符: {exc}") from exc
-    if not isinstance(key_b64, str) or not key_b64:
-        raise ValueError("Local State 缺 os_crypt.encrypted_key")
-    payload = {
-        "dat": base64.b64encode(dat.read_bytes()).decode("ascii"),
-        "key_b64": key_b64,
-    }
-    return base64.b64encode(
-        json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    ).decode("ascii")
-
-
-def _mac_envelope(dat: Path) -> str:
-    """mac 信封：base64(JSON{dat})——钥匙不进信封（Keychain 现取，密钥绝不入 vault）。"""
-    import base64
-    import json
-
-    payload = {"dat": base64.b64encode(dat.read_bytes()).decode("ascii")}
-    return base64.b64encode(
-        json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    ).decode("ascii")
+    if not profiles:
+        raise StorageNotFound(
+            f"{conn_id}: 未发现可解锁登录态（候选: {candidates}）——"
+            "安装桌面端并登录一次后重扫"
+        )
+    return profiles
 
 
 # --- 附加 kind 采集器（kind 驱动注册表，A2-02 §3：特殊以 kind 形态扩展）---

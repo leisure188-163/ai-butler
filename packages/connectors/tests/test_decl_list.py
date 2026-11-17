@@ -18,11 +18,11 @@ from butler_connectors.transport import HttpResponse
 CONN = "qoder_cn"  # business_codes 空 —— 列表模式不解析业务码，方言登记留空
 
 
-def request(dry_run: bool = False) -> ProvisionRequest:
+def request(dry_run: bool = False, account_id: str = f"{CONN}:main") -> ProvisionRequest:
     return ProvisionRequest(
         kind=ActionKind.PROVISION_RUN,
         target=CONN,
-        account_id=f"{CONN}:main",
+        account_id=account_id,
         params={},
         deadline=datetime.now(UTC) + timedelta(seconds=240),
         dry_run=dry_run,
@@ -139,6 +139,79 @@ def test_list_already_when_only_done():
     result = make_port(transport).run(request())
     assert result.status is Status.ALREADY
     assert len(transport.calls) == 1  # 不发无谓 claim
+
+
+def test_base_url_selected_by_account_key_prefix():
+    """同一连接器双产品域：global-* 账户走 global 基址，main/cn-* 走 CN。"""
+    spec = DeclarativeSpec.model_validate(
+        {
+            "auth": {
+                "kind": "dpapi_gcm_v10",
+                "base_urls": {
+                    "main": "https://cn.q.test",
+                    "cn": "https://cn.q.test",
+                    "global": "https://global.q.test",
+                },
+                "token_header": {"name": "Authorization", "prefix": "Bearer "},
+                "dynamic_headers": {"Cosy-MachineId": "{cosy_machine_id}"},
+            },
+            "status": {
+                "request": {"method": "GET", "url": "{base_url}/campaigns"},
+                "code_path": "",
+                "list_path": "campaigns",
+                "item_filter": {"claimStatus": "CLAIMABLE"},
+                "done_filter": {"claimStatus": "CLAIMED"},
+            },
+            "claim": {
+                "request": {
+                    "method": "POST",
+                    "url": "{base_url}/campaigns/{campaignId}/claim",
+                },
+                "each": "campaigns",
+                "retry": {"on_codes": [], "backoff_seconds": [5]},
+            },
+            "business_codes": {},
+        }
+    )
+    from butler_connectors.decl import DeclarativeProvisionPort
+
+    transport = FakeTransport(
+        [
+            ok({"campaigns": [{"campaignId": "g1", "claimStatus": "CLAIMABLE"}]}),
+            ok({}),
+            ok({"campaigns": [{"campaignId": "g1", "claimStatus": "CLAIMED"}]}),
+        ]
+    )
+    port = DeclarativeProvisionPort(
+        conn_id=CONN,
+        display="Qoder",
+        spec=spec,
+        vault=FakeVault(),
+        transport=transport,
+        kinds=("dpapi_gcm_v10",),
+        sleep=lambda s: None,
+        now=lambda: datetime.now(UTC),
+    )
+    result = port.run(request(account_id="qoder_cn:global-abc12345"))
+    assert result.status is Status.CLAIMED
+    assert transport.calls[0][1] == "https://global.q.test/campaigns"
+    assert transport.calls[1][1] == "https://global.q.test/campaigns/g1/claim"
+    assert transport.calls[2][1] == "https://global.q.test/campaigns"
+
+    # CN 首账户仍走 CN 基址
+    transport2 = FakeTransport([ok({"campaigns": [item("a1", "CLAIMED")]})])
+    port2 = DeclarativeProvisionPort(
+        conn_id=CONN,
+        display="Qoder",
+        spec=spec,
+        vault=FakeVault(),
+        transport=transport2,
+        kinds=("dpapi_gcm_v10",),
+        sleep=lambda s: None,
+        now=lambda: datetime.now(UTC),
+    )
+    port2.run(request())
+    assert transport2.calls[0][1] == "https://cn.q.test/campaigns"
 
 
 def test_list_empty_is_pending():
