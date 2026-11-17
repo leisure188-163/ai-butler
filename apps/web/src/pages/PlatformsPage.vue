@@ -127,6 +127,8 @@ function toggleDetail(id: string) {
           <tr>
             <th>平台编码</th>
             <th>平台名称</th>
+            <th>平台类型</th>
+            <th>版本号</th>
             <th>能力</th>
             <th>调度执行时间</th>
             <th>账户数</th>
@@ -140,9 +142,12 @@ function toggleDetail(id: string) {
               <td class="code-cell"><code class="mono">{{ platform.id }}</code></td>
               <td>
                 <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
-                <span class="kind-tag tag tag--quiet">{{ kindText(platform.kind) }}</span>
-                <span v-if="platform.client_version" class="faint version-text">v{{ platform.client_version }}</span>
               </td>
+              <td>
+                <span v-if="platform.kind" class="tag tag--quiet">{{ kindText(platform.kind) }}</span>
+                <span v-else class="faint">—</span>
+              </td>
+              <td class="num">{{ platform.client_version ? `v${platform.client_version}` : "—" }}</td>
               <td>
                 <span v-for="cap in platform.capabilities" :key="cap" class="tag tag--quiet cap-tag">
                   {{ capabilityText(cap) }}
@@ -185,7 +190,7 @@ function toggleDetail(id: string) {
               </td>
             </tr>
             <tr v-if="expandedId === platform.id" class="detail-row">
-              <td colspan="7" @click.stop>
+              <td colspan="9" @click.stop>
                 <ul class="rows">
                   <li class="row">
                     <span class="row-main">
@@ -241,8 +246,6 @@ function toggleDetail(id: string) {
 </template>
 
 <style scoped>
-.kind-tag { margin-left: var(--space-2); }
-.version-text { margin-left: var(--space-1); font-size: var(--text-xs); }
 .head { padding-top: var(--space-2); }
 .head-row {
   display: flex;
@@ -257,7 +260,7 @@ function toggleDetail(id: string) {
   flex-wrap: wrap;
 }
 .platform-wrap { overflow-x: auto; }
-.platform-wrap .matrix { min-width: 880px; }
+.platform-wrap .matrix { min-width: 1020px; }
 .code-cell code { font-size: var(--text-xs); color: var(--color-text-muted); }
 .pager {
   display: flex;
