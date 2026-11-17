@@ -64,9 +64,19 @@ Base：`https://www.doubao.com`
 
 - 公共查询参数**缺一不可**：`version_code=<派生>&language=zh&device_platform=web&doubao_device_platform=web&aid=497858&real_aid=497858&pkg_type=release_version`；`version_code` 写死会在客户端升级后回 710010702（旧系统 NOTE-04 §4.5 复盘）
 - 头：`Cookie`（CDP 现取，按 name 去重）、`Content-Type: application/json`、`Origin`、`Referer: https://www.doubao.com/pc/agent-explore`、`User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) … Chrome/147.0.0.0 Safari/537.36 SamanthaDoubao/<version>`（spike 实证串）
-- 业务码：`0`=ok；`2`=campaign not found（**活动换季**——更新声明的 campaign 常量）；`710012001`=登录过期 → NO_AUTH（旧系统按 `710012*` 前缀判过期）；`710010702`=system error（**三义**：请求不合法/会话被降权/服务端故障——界面通道下签名合法仍 702 = 后两者，不猜，指引手工点一次判定）。**2026-11-17 真机补证**：客户端自己右侧「立即签到」发出的 XHR 也返回 `710010702`（`version_code=20800`、`aid=582478`，带完整 `msToken/a_bogus`），说明 702 不是本连接器页面通道/参数导致；遇到 702 停止连续点击，等平台恢复或重启客户端后再试。
+- 业务码：`0`=ok；`2`=campaign not found（**活动换季**——更新声明的 campaign 常量）；`710012001`=登录过期 → NO_AUTH（旧系统按 `710012*` 前缀判过期）；`710010702`=system error（**三义**：请求不合法/会话被降权/服务端故障——界面通道下签名合法仍 702 = 后两者，不猜，指引手工点一次判定）。**2026-11-17 真机抓包（页面 XHR 旁路）**：客户端自己右侧「立即签到」发出的 `/landing/checkin` 请求为 `version_code=20800&language=zh&device_platform=web&doubao_device_platform=web&aid=497858&real_aid=497858&pkg_type=release_version&pc_version=2.36.8&doubao_pc_version=5.74.99&web_id=<redacted>&tea_uuid=<redacted>&runtime=web…`，body `{"scene":"pc_incentive_task_mvp_v3"}`，响应 HTTP 200 + `710010702`；同页 `/v3/detail/` 用同一会话仍 `code=0`。该 XHR 的 JS 可见 URL/请求头里未出现 `msToken/a_bogus`（可能在 Cookie 中；快照已脱敏），所以“702 是我们拼的 detail 字段缺项”不成立；成功样本（`Leisure520` 2026-11-17 08:46 +200）当时未抓包，不能据此断缺项。遇到 702 停止连续点击，等平台恢复/重启客户端，或换另一账户验证。
 - **detail 判定字段路径**：`data.tasks[]` 里 `campaign_code=="daily_signin"` 的项 → `.daily_checkin` 子结构：`checked_in_today`（布尔权威）/`reward.reward_amount`/`continuous_days`/`last_checkin_date`（2026-11-11 旧仓库 oracle 提炼 + spike 实证）
 - 本机 127.0.0.1 的 CDP HTTP 探测必须**绕系统代理**（旧系统实测：系统代理开着时 urllib 会把调试端口请求发给代理，直连失败）
+
+## 2.1 请求快照（2026-11-17，只读旁路）
+
+目的：区分「连接器拼的 detail」与「客户端页面自己发的 checkin」，并为成功/失败样本留档；不改变任何请求。
+
+- 位置：`~/.butler/doubao_requests/doubao_requests-YYYY-MM-DD.jsonl`；`DOUBAO_REQUEST_DIR` 可覆盖，`DOUBAO_REQUEST_CAPTURE=0` 可关闭（默认开启）。
+- `detail`：记录连接器裸 HTTP 的 method/URL/query/body/headers + 业务码/`daily_checkin`；每次 detail（含点击后 3 次复查）都落一条。
+- `checkin_trace`：只在点击前安装页面 `fetch`/XHR 只读包装器，点击后读取 `/alice/ug/campaign/...` 请求的 URL/query/headers/body/response；不阻断原请求。
+- 脱敏：`Cookie`、`Authorization`、`msToken`、`a_bogus`、`web_id`、`tea_uuid` 等只存 `sha256` 前缀 + 长度；快照失败不阻断签到（best-effort）。
+- 2026-11-17 05:01 UTC 真机样本：`main` 的 checkin 请求体完整（`scene=pc_incentive_task_mvp_v3`），响应 702；同一时刻 detail 为 `code=0`、`checked_in_today=false`——这是“点击已送达、服务端/账号侧拒绝”的现场证据，不是找不到按钮。
 
 ## 3. 结果判定（detail 权威，不信签到接口返回）
 
@@ -113,13 +123,14 @@ Base：`https://www.doubao.com`
   `Page.bringToFront` 聚焦窗口（失焦点击不开，11-16 实证）；「添加账号」仍
   直通独立登录页 target（`doubao://doubao-login/login?device_flow=enabled`，
   手机号/飞书/抖音/扫码四种方式），「退出登录」绝不触碰
-- **激活路径 = 键盘导航（2026-11-17 真机四路径实证）**：Radix menuitem 对
+- **激活路径 = 键盘导航（2026-11-17 初测；同日复测未闭环）**：Radix menuitem 对
   **完整信任指针三连不响应**——点在 item 精确中心（hit-test 命中链正常、
   pointer-events 全通）仍不触发 select，JS PointerEvent 序列同样无效；
-  **ArrowDown 焦点移动 + Enter 激活可靠**（Input.dispatchKeyEvent 信任按键，
-  焦点从菜单容器起逐项移动，菜单打开即 `document.activeElement` 落在弹层内）
-  ——故 switch.py 只用键盘路径：**每步核对 activeElement 文本精确等于昵称才
-  按 Enter**，「添加账号」/「退出登录」零误触（比坐标点击更安全的激活方式）
+  **ArrowDown 焦点移动可达每一项**（Input.dispatchKeyEvent 信任按键，焦点从菜单
+  容器起逐项移动），但 2026-11-17 Windows 2.36.8 复测中 **Enter/Space 只关闭
+  菜单，账户不翻转**；账户行的 `onSelect` 为空、`onClick` 仅收起弹层。故
+  “键盘 Enter 可靠”尚未成立，switch.py 保留键盘路径但真机 E2E 仍 PENDING；
+  不能把“焦点到位”当作“切换成功”
 - **单会话存活语义（2026-11-17 用户确认）**：切换后旧 chat target 消亡、新
   target 承载新会话——激活切换项后旧连接即失效，翻转验证必须重枚举 targets
   重读身份；11-16 观测的「双 chat target 并存」属过渡态，非常驻
@@ -134,16 +145,20 @@ Base：`https://www.doubao.com`
 - **身份登记簿**：dock 采集后持久化 `~/.butler/doubao_identity.json`
   （`DOUBAO_IDENTITY_PATH` 可覆盖）：`main_sec_uid`/`main_nickname` +
   `others[{sec_uid, nickname, account_key}]`——非 main 账户的切号定位依据
-  （account_key = SHA256 前 8 位前缀 `u`，单向不可逆）；采集为空不覆盖旧簿。
-  本项目 main = 逍遥酒鬼（2026-11-16 用户确认），B = Leisure520
-  （`doubao_cn:u66b1e22d`）
+  （account_key = SHA256 前 8 位前缀 `u`，单向不可逆）；采集为空不覆盖旧簿，
+  **单会话采集只返回当前账户时也合并保留既有 others**（2026-11-17 修：原实现
+  会把 others 重写空，导致切过号的第二张卡消失）；dock 还会把登记簿里的
+  非活跃账户补登成卡。本项目 main = 逍遥酒鬼（2026-11-16 用户确认），
+  B = Leisure520（`doubao_cn:u66b1e22d`）
 - **守卫语义（2026-11-17 修订）**：run 目标非活跃 → 自动切号 → 复核 → 通过
   才编排；切号失败/复核不符/旧活动页关不动 → PENDING（修复提示分语境：
   身份不符 ≠ 端口不可达），**绝不盲签**（A2-02 §6 红线）。main 基线命中任一
   chat target 即视为活跃（cookie 会话实证口径，不变）。dock/usage 维持
   只监控不切号
 - **硬边界（不自动化，ADR-007 决策 8）**：登录态过期重登（扫码/手机号）与
-  「添加账号」——人工参与；ADR-015 失效可见可修 + 停止自动重试语义不变
+  「添加账号」——人工参与；ADR-015 失效可见可修 + 停止自动重试语义不变。
+  **2026-11-17 复测补充**：当前客户端账户菜单的切换行未观察到可用回调；
+  自动切号不成立时，人工在客户端切换后重新 dock/retry 是唯一可靠路径
 
 > oracle = 旧仓库 `auto-signin-kit doubao status/auto`（mac 上已验证可正常领取）。
 

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import replace
 from datetime import datetime
@@ -27,13 +28,16 @@ from butler_connectors.cdp import (
     pick_activity_target,
 )
 from butler_connectors.doubao_cn.identity import (
+    ActiveIdentity,
     derive_key,
+    load_identity_registry,
     load_main_baseline,
     read_all_identities,
     resolve_account_key,
     save_identity_registry,
 )
 from butler_connectors.doubao_cn.localenv import LocalEnv, real_env, version_code
+from butler_connectors.doubao_cn import snapshot as request_snapshot
 from butler_connectors.doubao_cn.switch import (
     SwitchError,
     resolve_target_identity,
@@ -97,6 +101,123 @@ _FIND_CLICK_JS = """
 #: 找不到按钮时的页面诊断摘要（脱敏：纯文本，且只取前段）。
 _PAGE_TEXT_JS = "document.body.innerText.slice(0, 300)"
 
+#: 只读旁路：在活动页记录客户端自己发的 campaign 请求（fetch/XHR 均覆盖）。
+#: 只在 capture=True 时安装；包装器始终调用原函数，不改写请求。
+#: 同一活动页复用时只重置 entries，避免把上一次（甚至另一账户）的请求混进本次样本。
+_TRACE_INSTALL_JS = """
+(() => {
+  if (window.__butlerTrace && window.__butlerTrace.__installed) {
+    window.__butlerTrace.entries.length = 0;
+    window.__butlerTrace.installedAt = Date.now();
+    return {reset: true};
+  }
+  const state = window.__butlerTrace = {__installed: true, entries: [], installedAt: Date.now()};
+  const MAX = 20;
+  const match = (url) => /\\/alice\\/ug\\/campaign\\/(?:landing\\/checkin|item\\/reward\\/claim|v3\\/detail)(?:\\/)?(?:\\?|$)/.test(String(url || ''));
+  const record = (entry) => {
+    if (entry && match(entry.url) && state.entries.length < MAX) state.entries.push(entry);
+  };
+  const headersToObject = (headers) => {
+    const out = {};
+    try {
+      if (!headers) return out;
+      if (typeof headers.forEach === 'function') {
+        headers.forEach((value, key) => { out[String(key)] = String(value); });
+        return out;
+      }
+      if (Array.isArray(headers)) {
+        for (const pair of headers) out[String(pair[0])] = String(pair[1]);
+        return out;
+      }
+      for (const key of Object.keys(headers)) out[key] = String(headers[key]);
+    } catch (e) {}
+    return out;
+  };
+  const origFetch = window.fetch;
+  if (typeof origFetch === 'function' && !state.fetchWrapped) {
+    state.fetchWrapped = true;
+    window.fetch = function(input, init) {
+      let request = null;
+      try {
+        request = (typeof Request !== 'undefined' && input instanceof Request)
+          ? input : new Request(input, init);
+      } catch (e) {}
+      const entry = request ? {
+        transport: 'fetch', method: request.method, url: request.url,
+        headers: headersToObject(request.headers), body: null, response: null,
+      } : null;
+      if (entry) {
+        record(entry);
+        try {
+          request.clone().text().then((text) => { entry.body = text.slice(0, 4000); }).catch(() => {});
+        } catch (e) {}
+      }
+      const promise = origFetch.apply(this, arguments);
+      if (entry) {
+        try {
+          const tracked = promise && typeof promise.then === 'function'
+            ? promise : Promise.resolve(promise);
+          tracked.then((response) => {
+            try {
+              response.clone().text().then((text) => {
+                entry.response = {status: response.status, body: text.slice(0, 4000)};
+              }).catch(() => {});
+            } catch (e) {}
+          }).catch(() => {});
+        } catch (e) {}
+      }
+      return promise;
+    };
+  }
+  const XHR = window.XMLHttpRequest;
+  if (XHR && XHR.prototype && !state.xhrWrapped) {
+    state.xhrWrapped = true;
+    const origOpen = XHR.prototype.open;
+    const origSend = XHR.prototype.send;
+    const origSetHeader = XHR.prototype.setRequestHeader;
+    XHR.prototype.open = function(method, url) {
+      let absolute = String(url || '');
+      try { absolute = new URL(absolute, location.href).href; } catch (e) {}
+      this.__butlerReq = {
+        transport: 'xhr', method: String(method || ''), url: absolute,
+        headers: {}, body: null, response: null,
+      };
+      return origOpen.apply(this, arguments);
+    };
+    XHR.prototype.setRequestHeader = function(key, value) {
+      try {
+        if (this.__butlerReq) this.__butlerReq.headers[String(key)] = String(value);
+      } catch (e) {}
+      return origSetHeader.apply(this, arguments);
+    };
+    XHR.prototype.send = function(body) {
+      const entry = this.__butlerReq;
+      if (entry) {
+        entry.body = body == null ? null : String(body).slice(0, 4000);
+        try {
+          this.addEventListener('load', () => {
+            let text = '';
+            try { text = String(this.responseText || '').slice(0, 4000); } catch (e) {}
+            entry.response = {status: this.status, body: text};
+          });
+        } catch (e) {}
+        record(entry);
+      }
+      return origSend.apply(this, arguments);
+    };
+  }
+  return {installed: true};
+})()
+"""
+
+_TRACE_READ_JS = """
+(() => {
+  const state = window.__butlerTrace;
+  if (!state) return {installed: false, entries: []};
+  return {installed: true, installedAt: state.installedAt, entries: state.entries || []};
+})()
+"""
+
 _SETTLE_SECONDS = 3.0  # 点击后等客户端 SDK 发完请求（PROTOCOL §6 ⑤）
 _FIND_RETRIES = 3  # 活动页可能还在加载（PROTOCOL §6 ⑥）
 #: 点击后复查退避序列（2026-11-16 真机取证：点击生效但状态翻转有延迟，
@@ -143,13 +264,14 @@ class DoubaoCdpProvisionPort(ProvisionPort):
 
     def __init__(
         self, *, transport, env: LocalEnv, channel: CdpChannel, sleep=time.sleep,
-        monotonic=time.monotonic,
+        monotonic=time.monotonic, capture: bool = False,
     ) -> None:
         self.transport = transport
         self.env = env
         self.channel = channel
         self.sleep = sleep
         self.monotonic = monotonic  # 切号翻转轮询的时钟（可注入，离线测试不真等）
+        self.capture = capture  # 请求快照（脱敏 JSONL）；失败不阻断签到
         self._switch_note: str | None = None
 
     def capabilities(self) -> Capabilities:
@@ -287,7 +409,9 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         except CdpError as exc:
             return _failed(f"CDP 取 Cookie 失败（{exc}）")
         try:
-            payload = self._detail(cookie_header, vcode, version, req.deadline)
+            payload = self._detail(
+                cookie_header, vcode, version, req.deadline, req.account_id
+            )
         except TransportError as exc:
             return _failed(f"detail 查询失败（只读接口）: {exc}")
         code = str((payload or {}).get("code"))
@@ -314,7 +438,7 @@ class DoubaoCdpProvisionPort(ProvisionPort):
                 evidence=(Evidence("今日未签；dry_run 只查不点（不发界面点击）", raw_code=code),),
             )
         return self._click_and_confirm(
-            conn, cookie_header, vcode, version, req.deadline, code
+            conn, cookie_header, vcode, version, req.deadline, code, req.account_id
         )
 
     def _activity_conn(self) -> CdpConnection:
@@ -335,29 +459,62 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         return "; ".join(f"{name}={value}" for name, value in pairs.items())
 
     def _detail(
-        self, cookie_header: str, vcode: int, version: str, deadline: datetime
+        self,
+        cookie_header: str,
+        vcode: int,
+        version: str,
+        deadline: datetime,
+        account_id: str,
     ) -> dict:
-        """detail 只读查询（M1 唯一裸 HTTP 接口，PROTOCOL §2 契约形状）。"""
+        """detail 只读查询（M1 唯一裸 HTTP 接口，PROTOCOL §2 契约形状）。
+
+        每次请求都写一份脱敏快照（成功/失败/复查），用于对比「我们发的
+        detail」与「客户端页面自己发的 checkin」——快照失败不影响签到。
+        """
         query = "&".join((f"version_code={vcode}", *_COMMON_QUERY))
-        response = self.transport(
-            HttpRequest(
-                method="POST",
-                url=f"{_BASE}{_DETAIL_PATH}?{query}",
-                headers={
-                    "Cookie": cookie_header,
-                    "Content-Type": "application/json",
-                    "Origin": _BASE,
-                    "Referer": _ACTIVITY_URL,
-                    "User-Agent": _UA_TEMPLATE.format(version=version),
-                },
-                body={"campaign_group_code": CAMPAIGN_GROUP_CODE},
-            ),
-            deadline=deadline,
+        request = HttpRequest(
+            method="POST",
+            url=f"{_BASE}{_DETAIL_PATH}?{query}",
+            headers={
+                "Cookie": cookie_header,
+                "Content-Type": "application/json",
+                "Origin": _BASE,
+                "Referer": _ACTIVITY_URL,
+                "User-Agent": _UA_TEMPLATE.format(version=version),
+            },
+            body={"campaign_group_code": CAMPAIGN_GROUP_CODE},
+        )
+        try:
+            response = self.transport(request, deadline=deadline)
+        except TransportError as exc:
+            self._snapshot_detail(
+                account_id=account_id,
+                version=version,
+                vcode=vcode,
+                request=request,
+                error=str(exc),
+            )
+            raise
+        self._snapshot_detail(
+            account_id=account_id,
+            version=version,
+            vcode=vcode,
+            request=request,
+            response=response,
         )
         if not response.ok:
             raise TransportError(f"HTTP {response.status_code}")
         payload = response.payload
         return payload if isinstance(payload, dict) else {}
+
+    def _snapshot_detail(self, **kwargs) -> None:
+        """best-effort 写 detail 快照；任何 IO/序列化故障都不得阻断签到。"""
+        if not self.capture:
+            return
+        try:
+            request_snapshot.record_detail(**kwargs)
+        except Exception:
+            return
 
     def _business_code(self, code: str, payload: dict) -> RunResult:
         if code == "710012001":  # 登录过期（方言 NO_AUTH 语义 + 修复指引）
@@ -382,6 +539,7 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         version: str,
         deadline: datetime,
         raw_code: str,
+        account_id: str,
     ) -> RunResult:
         box = None
         for _ in range(_FIND_RETRIES):
@@ -401,46 +559,88 @@ class DoubaoCdpProvisionPort(ProvisionPort):
                 f"页面上找不到签到按钮（可能界面改版；页面文本摘要: {page_text[:120]!r}）",
                 raw_code=raw_code,
             )
+        self._install_trace(conn)
         try:
             self.channel.click(conn, int(box["x"]), int(box["y"]))
         except CdpError as exc:
             return _failed(f"界面点击失败: {exc}", raw_code=raw_code)
         self.sleep(_SETTLE_SECONDS)
         text = str(box.get("text") or "")
+        trace = self._read_trace(conn)
         # 复查退避重试（PROTOCOL §3）：点击送达≠状态即时翻转——任一次
         # checked_in_today=true 即 CLAIMED，全部 false 才判 FAILED
         last_transport_error: TransportError | None = None
-        for attempt, extra in enumerate(_RECHECK_DELAYS, start=1):
-            if attempt > 1:
-                self.sleep(extra)
-            try:
-                payload = self._detail(cookie_header, vcode, version, deadline)
-            except TransportError as exc:
-                last_transport_error = exc
-                continue
-            checkin = _daily_checkin(payload)
-            if checkin is not None and checkin.get("checked_in_today"):
-                amount = (checkin.get("reward") or {}).get("reward_amount")
-                return RunResult(
-                    Status.CLAIMED,
-                    evidence=(
-                        Evidence(
-                            f"界面点击「{text}」后复查已签：+{amount} 额度"
-                            f"（连签 {checkin.get('continuous_days')} 天，"
-                            f"复查第 {attempt} 次）",
-                            raw_code=raw_code,
+        try:
+            for attempt, extra in enumerate(_RECHECK_DELAYS, start=1):
+                if attempt > 1:
+                    self.sleep(extra)
+                try:
+                    payload = self._detail(
+                        cookie_header, vcode, version, deadline, account_id
+                    )
+                except TransportError as exc:
+                    last_transport_error = exc
+                    continue
+                checkin = _daily_checkin(payload)
+                if checkin is not None and checkin.get("checked_in_today"):
+                    amount = (checkin.get("reward") or {}).get("reward_amount")
+                    return RunResult(
+                        Status.CLAIMED,
+                        evidence=(
+                            Evidence(
+                                f"界面点击「{text}」后复查已签：+{amount} 额度"
+                                f"（连签 {checkin.get('continuous_days')} 天，"
+                                f"复查第 {attempt} 次）",
+                                raw_code=raw_code,
+                            ),
                         ),
-                    ),
+                    )
+            if last_transport_error is not None:
+                return _failed(
+                    f"点击后复查 detail 失败: {last_transport_error}", raw_code=raw_code
                 )
-        if last_transport_error is not None:
             return _failed(
-                f"点击后复查 detail 失败: {last_transport_error}", raw_code=raw_code
+                f"已在客户端界面点击「{text}」但复查 {len(_RECHECK_DELAYS)} 次仍未签"
+                "——服务端/账号侧异常，可手工点一次确认",
+                raw_code=raw_code,
             )
-        return _failed(
-            f"已在客户端界面点击「{text}」但复查 {len(_RECHECK_DELAYS)} 次仍未签"
-            "——服务端/账号侧异常，可手工点一次确认",
-            raw_code=raw_code,
-        )
+        finally:
+            latest = self._read_trace(conn)
+            if isinstance(latest, dict):
+                trace = latest
+            self._snapshot_trace(account_id, text, box, trace)
+
+    def _install_trace(self, conn: CdpConnection) -> None:
+        """安装只读页面旁路；capture=False 时不产生任何额外 CDP 调用。"""
+        if not self.capture:
+            return
+        try:
+            self.channel.evaluate(conn, _TRACE_INSTALL_JS)
+        except CdpError:
+            return
+
+    def _read_trace(self, conn: CdpConnection):
+        if not self.capture:
+            return None
+        try:
+            value = self.channel.evaluate(conn, _TRACE_READ_JS)
+        except CdpError:
+            return None
+        return value if isinstance(value, dict) else None
+
+    def _snapshot_trace(self, account_id: str, text: str, box: dict, trace) -> None:
+        if not self.capture:
+            return
+        entries = trace.get("entries") if isinstance(trace, dict) else []
+        try:
+            request_snapshot.record_checkin_trace(
+                account_id=account_id,
+                click_text=text,
+                click_xy=(int(box["x"]), int(box["y"])),
+                entries=entries,
+            )
+        except Exception:
+            return
 
 
 # --- registry adapter 钩子面与停靠 ---
@@ -498,6 +698,8 @@ class _Butler:
             channel=channel if channel is not None else CdpChannel(env.resolve_port()),
             sleep=env.sleep,  # 重试/落定间隔走环境束：测试假束离线、真机 time.sleep
             monotonic=monotonic if monotonic is not None else time.monotonic,
+            capture=os.environ.get("DOUBAO_REQUEST_CAPTURE", "1").lower()
+            not in {"0", "false", "off", "no"},
         )
 
     def dock(
@@ -526,7 +728,16 @@ class _Butler:
             identities = []
         if identities:
             save_identity_registry(identities)
-        for identity in identities:
+        # 当前客户端可能只有一条活跃 chat target（会话级单活跃），但登记簿里
+        # 仍保留已见过的其它账户；dock 要把这些账户也登记成卡，否则用户在
+        # 菜单里切过号后，卡包里会看不到第二张卡（ADR-003/ADR-007 决策 8）。
+        candidates = list(identities)
+        registry = load_identity_registry()
+        candidates.extend(
+            ActiveIdentity(sec_uid=item.sec_uid, nickname=item.nickname)
+            for item in registry.others
+        )
+        for identity in candidates:
             if not identity.sec_uid:
                 continue
             baseline = load_main_baseline()

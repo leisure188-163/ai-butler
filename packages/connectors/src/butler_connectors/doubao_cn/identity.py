@@ -178,14 +178,24 @@ def save_identity_registry(identities: list[ActiveIdentity]) -> None:
         return
     baseline = load_main_baseline()
     main = baseline if baseline is not None else identities[0]
+    # 采集到的当前会话通常只有一条（豆包会话级单活跃），不能因此丢掉
+    # 已登记的其它账户：切号目标必须留在登记簿里（ADR-007 决策 8）。
+    existing = {item.sec_uid: item for item in load_identity_registry().others}
+    for identity in identities:
+        if not identity.sec_uid or identity.sec_uid == main.sec_uid:
+            continue
+        existing[identity.sec_uid] = OtherIdentity(
+            sec_uid=identity.sec_uid,
+            nickname=identity.nickname,
+            account_key=derive_key(identity.sec_uid),
+        )
     others = [
         {
-            "sec_uid": i.sec_uid,
-            "nickname": i.nickname,
-            "account_key": derive_key(i.sec_uid),
+            "sec_uid": item.sec_uid,
+            "nickname": item.nickname,
+            "account_key": item.account_key,
         }
-        for i in identities
-        if i.sec_uid and i.sec_uid != main.sec_uid
+        for item in existing.values()
     ]
     path = identity_path()
     path.parent.mkdir(parents=True, exist_ok=True)

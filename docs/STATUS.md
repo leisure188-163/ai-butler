@@ -1,7 +1,22 @@
 # STATUS · 进度卡（每次会话开始先读我）
 
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
-> 最后更新：2026-11-16
+> 最后更新：2026-11-17
+
+**豆包双账户登记补齐与切号复测（2026-11-17）**：Windows 真机发现两个真实缺口并修复：
+①`save_identity_registry` 在单会话采集只返回当前账户时会把 `others` 重写空，用户切过号后
+第二张卡会消失——改为合并保留既有登记；②`adapter.dock` 只登记当前活跃身份，登记簿里的
+非活跃账户不会进卡包——改为把 `others` 一并补登。当前 Windows 已导入
+`doubao_cn:main`（逍遥酒鬼）+ `doubao_cn:u66b1e22d`（Leisure520），身份簿
+`~/.butler/doubao_identity.json` 已合并（备份 `.bak-20261117`），`data/doubao_identity.json`
+保持仓库既有双账户记录。验证：`test_doubao_switch.py` 17 + `test_doubao_adapter.py` 27 +
+`test_doubao_snapshot.py` 3 = **47 passed**（新增请求快照 3 项）。**切号真机仍不成立**：当前客户端（2.36.8）账户仍是逍遥酒鬼（重载 chat 页后
+localStorage 与左下 chip 都未变）；ArrowDown 能把焦点走到 Leisure520，但
+Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSelect` 为空、
+`onClick` 只收起弹层，疑似客户端未接切号回调。`claim main` 仍
+`FAILED`（702）；`claim u66b1e22d` 为 `PENDING`（自动切号失败，提示人工切换后重试）。
+**不把 702 误报登录过期**：702 仍按平台/会话侧 `FAILED`，登录过期走 `710012001` →
+`NO_AUTH` + relogin；桌面客户端“退出登录/重登”维持人工边界（ADR-015/016）。
 
 ## 一句话现状
 
@@ -117,10 +132,20 @@ revoked——本机 hoisted 拷贝纪律（见 11-16 沉淀），gen 产物已�
 （switch 编排逐场景 + adapter 接线 + 登记簿 + 两 bug 回归）。
 
 **豆包签到 710010702 平台错误补证（2026-11-17）**：用户反馈「签到失败，请稍后重试」；
-真机复现：CDP 页面点击与**客户端自己的「立即签到」XHR** 都返回 `code=710010702 系统错误`
-（客户端请求 `version_code=20800&aid=582478`，带完整 `msToken/a_bogus`）。**结论：非本连接器
-参数/页面通道回归，是豆包平台/会话侧错误**；已停止连续点击，保留下一自动班次 09:15 重试。
-PROTOCOL §2 已记录该证据与「702 停止连点」处置。
+真机复现：CDP 页面点击与**客户端自己的「立即签到」XHR** 都返回 `code=710010702 系统错误`。
+快照实测该 XHR 为 `version_code=20800&aid=497858&pc_version=2.36.8&doubao_pc_version=5.74.99…`，
+body `{"scene":"pc_incentive_task_mvp_v3"}`；JS 可见 URL/请求头未出现 `msToken/a_bogus`（可能在
+Cookie 中，已脱敏）。同一时刻 detail 用同一会话仍 `code=0`、`checked_in_today=false`。**结论：
+702 不是本连接器 detail 参数缺项/页面通道回归，而是账号/会话/平台侧错误**；已停止连续点击，
+保留自动班次重试。PROTOCOL §2 已更新现场证据与「702 停止连点」处置。
+
+**请求快照（2026-11-17）**：新增 `doubao_cn/snapshot.py`，每次 detail（含复查）落脱敏 JSONL，
+点击前安装页面 fetch/XHR 只读旁路，抓客户端自己的 `/alice/ug/campaign/...` checkin 请求
+（URL/query/headers/body/response）。位置 `~/.butler/doubao_requests/doubao_requests-YYYY-MM-DD.jsonl`
+（`DOUBAO_REQUEST_DIR` 可覆盖；`DOUBAO_REQUEST_CAPTURE=0` 关闭）。Cookie/Authorization/
+`msToken`/`a_bogus`/`web_id`/`tea_uuid` 只存 hash，不落明文；快照失败不阻断签到。本次 `main`
+失败样本已落盘；`Leisure520` 2026-11-17 08:46 +200 为台账成功记录，当时未开捕获，下一次成功
+会自动生成成功样本供对照。`test_doubao_snapshot.py` 3 项通过。
 
 **豆包签到误判根因修复 + 页内 fetch 取证（2026-11-16）**：用户反馈豆包每次
 签到弹窗且常判失败需人工补签 → CDP Network spike 取证两项定案：①当日两次

@@ -144,6 +144,7 @@ def _main_identity_baseline(tmp_path, monkeypatch):
     """每个测试独立身份基线文件：main 基线预置 MAIN_SEC_UID（run 匹配的前提）。"""
     path = tmp_path / "doubao_identity.json"
     monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(path))
+    monkeypatch.setenv("DOUBAO_REQUEST_CAPTURE", "0")  # 默认测试不落请求快照
     doubao_identity.save_main_baseline(
         doubao_identity.ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname="逍遥酒鬼")
     )
@@ -493,6 +494,39 @@ def test_dock_registers_b_account_when_active(tmp_path, monkeypatch):
         register: RegisterSpy
 
     channel = FakeChannel(identity={"sec_uid": B_SEC_UID, "nickname": "小号"})
+    spy = RegisterSpy()
+    outcome = adapter.butler.dock(Ctx(register=spy), env=FakeEnv(), channel=channel)
+    assert outcome.accounts == [
+        "doubao_cn:main",
+        f"doubao_cn:{doubao_identity.derive_key(B_SEC_UID)}",
+    ]
+    assert spy.calls[1] == ("doubao_cn", "小号", doubao_identity.derive_key(B_SEC_UID))
+
+
+def test_dock_registers_registered_other_when_channel_only_has_main(tmp_path, monkeypatch):
+    """dock：客户端只有 main 活跃，但登记簿已有 B → B 也要登记成卡。"""
+    monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(tmp_path / "dock-registry.json"))
+    doubao_identity.save_identity_registry(
+        [
+            doubao_identity.ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname="逍遥酒鬼"),
+            doubao_identity.ActiveIdentity(sec_uid=B_SEC_UID, nickname="小号"),
+        ]
+    )
+
+    @dataclass
+    class RegisterSpy:
+        calls: list = field(default_factory=list)
+
+        def execute(self, provider, display_name, *, account_key="main", account_id=None):
+            self.calls.append((provider, display_name, account_key))
+            from types import SimpleNamespace
+            return SimpleNamespace(id=f"{provider}:{account_key}")
+
+    @dataclass
+    class Ctx:
+        register: RegisterSpy
+
+    channel = FakeChannel(identity={"sec_uid": MAIN_SEC_UID, "nickname": "逍遥酒鬼"})
     spy = RegisterSpy()
     outcome = adapter.butler.dock(Ctx(register=spy), env=FakeEnv(), channel=channel)
     assert outcome.accounts == [

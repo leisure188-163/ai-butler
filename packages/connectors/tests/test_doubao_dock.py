@@ -5,8 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
+import pytest
+
 from butler_connectors.cdp import CdpError
 from butler_connectors.doubao_cn import adapter
+
+
+@pytest.fixture(autouse=True)
+def _isolate_identity_registry(tmp_path, monkeypatch):
+    """dock 测试不读本机身份簿：否则其它账户会被补登，单账户断言失真。"""
+    monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(tmp_path / "doubao_identity.json"))
 
 
 @dataclass

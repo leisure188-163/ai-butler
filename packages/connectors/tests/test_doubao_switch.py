@@ -242,6 +242,7 @@ def _identity_registry(tmp_path, monkeypatch):
     """每测试独立身份文件：main 基线预置（run 匹配前提）。"""
     path = tmp_path / "doubao_identity.json"
     monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(path))
+    monkeypatch.setenv("DOUBAO_REQUEST_CAPTURE", "0")  # 默认测试不落请求快照
     doubao_identity.save_main_baseline(
         ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname=MAIN_NICK)
     )
@@ -512,3 +513,25 @@ def test_registry_empty_read_keeps_existing_entries():
     doubao_identity.save_identity_registry([])
     reg = doubao_identity.load_identity_registry()
     assert len(reg.others) == 1  # 旧登记仍在
+
+
+def test_registry_single_current_identity_keeps_registered_others():
+    """单会话采集只拿到 main 时，已登记的其它账户不能被覆盖空。
+
+    真机形态：豆包同一时刻只有一个活跃 chat target，dock 采集通常只返回
+    当前账户；若此时把 others 重写为空，接下来的自动切号就失去目标。
+    """
+    doubao_identity.save_identity_registry(
+        [
+            ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname=MAIN_NICK),
+            ActiveIdentity(sec_uid=B_SEC_UID, nickname=B_NICK),
+        ]
+    )
+    doubao_identity.save_identity_registry(
+        [ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname=MAIN_NICK)]
+    )
+    reg = doubao_identity.load_identity_registry()
+    assert reg.main is not None and reg.main.sec_uid == MAIN_SEC_UID
+    assert len(reg.others) == 1
+    assert reg.others[0].sec_uid == B_SEC_UID
+    assert reg.others[0].nickname == B_NICK
