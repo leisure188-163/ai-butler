@@ -32,8 +32,8 @@ UsageSample：tokens_in / tokens_out / model / ts / source(client|gateway|api)
 ## 3. 端口（usage/ports.py）
 
 - `UsageCollectorPort`：连接器侧采集（如实申报支持度；不支持 → 通道 SKIPPED）
-- `UsageRepoPort`：用量持久化（SQLite 四表：usage_snapshots / usage_aggregates /
-  quota_ledger / **usage_samples**（R4 逐调用时序事实，ADR-012 裁决 7），
+- `UsageRepoPort`：用量持久化（SQLite 四表：usage_snapshot / usage_aggregate /
+  usage_quota_ledger / **usage_sample**（R4 逐调用时序事实，ADR-012 裁决 7），
   DDL 视图 `db/schema.sql`；SQL 只在 engine 适配器）
 
 ## 4. 用例

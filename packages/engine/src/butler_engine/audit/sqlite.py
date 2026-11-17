@@ -22,7 +22,7 @@ from butler_core.execution.domain import now_utc
 from butler_engine.db.conn import connect
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS audit (
+CREATE TABLE IF NOT EXISTS audit_log (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
     actor TEXT NOT NULL,
@@ -40,6 +40,11 @@ class SqliteAuditLog:
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = str(db_path)
         with closing(self._connect()) as conn, conn:
+            # 表名迁移（ADR-021 域前缀纪律）：老表 RENAME 幂等，旧索引随行清理
+            if conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit'"
+            ).fetchone():
+                conn.execute("ALTER TABLE audit RENAME TO audit_log")
             conn.executescript(_SCHEMA)
 
     def record(
@@ -60,7 +65,7 @@ class SqliteAuditLog:
         )
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT INTO audit (ts, actor, account_id, credential_ref, action, outcome)"
+                "INSERT INTO audit_log (ts, actor, account_id, credential_ref, action, outcome)"
                 " VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     (ts if ts is not None else now_utc()).isoformat(),
@@ -75,7 +80,7 @@ class SqliteAuditLog:
     def export_json(self) -> str:
         """排障导出（JSON）。只读，不脱敏结构——credential_ref 本就是哈希。"""
         with closing(self._connect()) as conn, conn:
-            rows = conn.execute(f"SELECT {_COLUMNS} FROM audit ORDER BY seq").fetchall()
+            rows = conn.execute(f"SELECT {_COLUMNS} FROM audit_log ORDER BY seq").fetchall()
         return json.dumps(
             [
                 {
@@ -97,7 +102,7 @@ class SqliteAuditLog:
         """保留策略：默认 90 天。返回清除行数。"""
         cutoff = (now_utc() - timedelta(days=retention_days)).isoformat()
         with closing(self._connect()) as conn, conn:
-            cursor = conn.execute("DELETE FROM audit WHERE ts < ?", (cutoff,))
+            cursor = conn.execute("DELETE FROM audit_log WHERE ts < ?", (cutoff,))
             return cursor.rowcount
 
     # --- 内部 ---

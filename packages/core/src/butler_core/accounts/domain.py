@@ -246,6 +246,30 @@ class CachePolicy:
 
 
 @dataclass(frozen=True)
+class PlatformEntry:
+    """平台册行（A2-04 §2.2，ADR-021）：连接器 manifest 事实的落库投影。
+
+    DB 为真相源：启动时由组合根从 manifest upsert（SyncPlatforms），manifest
+    里消失的平台落 deprecated 标记不删行（审计可溯）；is_active 是用户侧
+    开关（停用平台不再出现在名册与一键导入）。"""
+
+    platform_code: str
+    display_name: str
+    created_at: datetime
+    capabilities: tuple[str, ...] = ()  # ActionKind.value 列表（core 词表）
+    credential_kinds: tuple[str, ...] = ()
+    schedule_times: tuple[str, ...] = ()  # HH:MM 触发时间并集
+    is_active: bool = True
+    deprecated_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        if not self.platform_code.strip():
+            raise AccountInvalid("PlatformEntry 需要非空 platform_code")
+        if not self.display_name.strip():
+            raise AccountInvalid("PlatformEntry 需要非空 display_name")
+
+
+@dataclass(frozen=True)
 class AccountDraft:
     """注册用例的入参形状（避免在用例签名里堆参数）。"""
 

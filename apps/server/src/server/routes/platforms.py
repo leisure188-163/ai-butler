@@ -49,27 +49,27 @@ def _import_one(registry, kit, target: str) -> ImportOut:
 
 @router.get("/platforms", response_model=list[PlatformOut])
 def list_platforms(request: Request) -> list[PlatformOut]:
-    """应用名册：连接器能力矩阵（manifest 投影，端零映射）。"""
-    registry = request.app.state.registry
+    """平台名册（ADR-021）：读 acc_platform 名册表（DB 为真相源）+ 台账并账。
+
+    启动时组合根已把 manifest 事实同步进名册（退役自动落 deprecated）；
+    这里只做 DB 投影 + 账户并账，不再穿连接器包拼装（端零映射）。
+    """
     kit = request.app.state.kit
     docked: dict[str, list[str]] = {}
     for account in kit.accounts.list_all():
         docked.setdefault(account.platform_code, []).append(account.id)
     out: list[PlatformOut] = []
-    for platform in registry.platforms():
-        if getattr(platform.manifest, "retired", False):
+    for platform in kit.platforms.list_all():
+        if platform.deprecated_at is not None or not platform.is_active:
             continue
-        schedule = platform.manifest.schedule.get("provision.run")
-        ids = sorted(docked.get(platform.manifest.id, []))
+        ids = sorted(docked.get(platform.platform_code, []))
         out.append(
             PlatformOut(
-                id=platform.manifest.id,
-                display=platform.display,
-                capabilities=sorted(platform.manifest.capabilities),
-                credential_kinds=list(platform.manifest.credential.kinds)
-                if platform.manifest.credential
-                else [],
-                schedule_times=list(schedule.times) if schedule else [],
+                id=platform.platform_code,
+                display=platform.display_name,
+                capabilities=sorted(platform.capabilities),
+                credential_kinds=list(platform.credential_kinds),
+                schedule_times=list(platform.schedule_times),
                 account_id=ids[0] if ids else None,
                 account_ids=ids,
             )

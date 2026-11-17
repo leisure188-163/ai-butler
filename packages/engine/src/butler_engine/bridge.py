@@ -30,6 +30,7 @@ from butler_core.execution.usecases.manage_gateway_routes import ManageGatewayRo
 from butler_core.scheduling.usecases.list_pending import ListPending
 from butler_core.accounts.usecases.register_account import RegisterAccount
 from butler_core.accounts.usecases.scan_sessions import ScanSessions
+from butler_core.accounts.usecases.sync_platforms import SyncPlatforms
 from butler_core.bootstrap import execute_action as _assemble_execute_action
 from butler_core.bootstrap import list_pending as _assemble_list_pending
 from butler_core.bootstrap import register_account as _assemble_register_account
@@ -37,6 +38,7 @@ from butler_core.accounts.domain import CachePolicy
 from butler_core.execution.domain import Action, ActionKind
 
 from butler_engine.accounts.sqlite import SqliteAccountRepository
+from butler_engine.accounts.platform_sqlite import SqlitePlatformRepository
 from butler_engine.audit.sqlite import AuditSubscriber, SqliteAuditLog
 from butler_engine.db.migrate import migrate_legacy_db, migrate_legacy_vault
 from butler_engine.gateway.routes_file import FileGatewayRoutesStore, ROUTES_FILE_NAME
@@ -102,6 +104,8 @@ class EngineKit:
     audit: SqliteAuditLog
     notify: InAppChannel
     accounts: SqliteAccountRepository
+    platforms: SqlitePlatformRepository
+    sync_platforms: SyncPlatforms
     execute_action: ExecuteAction
     register_account: RegisterAccount
     list_pending: ListPending
@@ -384,6 +388,7 @@ def build_engine(
     )
     health_state = SqliteHealthStateStore(db_path)
     accounts = SqliteAccountRepository(db_path)
+    platforms = SqlitePlatformRepository(db_path)
     credential_pool = VaultCredentialPool(vault, audit, policies=pool_policies)
 
     expiry = ScanCredentialExpiry(vault=vault, sink=bus, states=health_state)
@@ -406,6 +411,8 @@ def build_engine(
         audit=audit,
         notify=in_app,
         accounts=accounts,
+        platforms=platforms,
+        sync_platforms=SyncPlatforms(platforms=platforms),
         execute_action=_assemble_execute_action(ledger=ledger, sink=bus),
         register_account=_assemble_register_account(accounts),
         list_pending=_assemble_list_pending(ledger=ledger),

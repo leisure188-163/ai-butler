@@ -32,12 +32,13 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 3. `(platform_code, account_code)` 缺省落位规则：存量单账号数据迁移时
    account_code = "main"，零信息丢失（迁移测试钉死，A1-05 §5 P4）
 
-### 2.1 accounts 表 v3（2026-11-17，ADR-018/019/020）
+### 2.1 acc_account 表 v3（2026-11-17，ADR-018/019/020/021）
 
 统一审计字段 `id / created_at / updated_at` 所有表必备（本表先行立范式，
 其余域分批跟进）；每表代理键 `id INTEGER PRIMARY KEY AUTOINCREMENT`（DDL
 约定见 A4-01 §5）。DDL 权威单源 = `butler_engine/accounts/sqlite.py`
-`_SCHEMA`，生成视图 `data/sql/accounts.sql`（勿手改）。
+`_SCHEMA`，生成视图 `data/sql/accounts.sql`（勿手改）。表名带域前缀
+`acc_account`（ADR-021 表名纪律）。
 
 | 列 | 类型 | 语义 |
 |---|---|---|
@@ -59,6 +60,17 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 save = `INSERT … ON CONFLICT (account_id) DO UPDATE`（UPSERT 保代理键不漂移）。
 老库自迁移幂等：v1/v2 形状（TEXT 主键 + provider/app 列）走重建式迁移（Python 回填
 account_code/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形状缺列 ALTER 纯增量。
+
+### 2.2 acc_platform 平台册（2026-11-17，ADR-021）
+
+连接器平台事实落库，**DB 为真相源**：启动时组合根从 manifest 抽纯数据 facts →
+`SyncPlatforms` 用例 → UPSERT 全量平台 + manifest 里消失的平台落
+`deprecated_at`（不删行，审计可溯）。web `/platforms` 名册改读本表 +
+台账并账，不再每次穿连接器包拼装。`is_active` = 用户侧开关（停用平台不出
+现在名册与一键导入）。列：`id`（代理键）/ `platform_code` UNIQUE /
+`display_name` / `capabilities` / `credential_kinds` / `schedule_times` /
+`is_active` / `deprecated_at` / `created_at` / `updated_at`。DDL 单源 =
+`butler_engine/accounts/platform_sqlite.py`。
 
 ## 3. 端口（accounts/ports.py）
 
@@ -84,7 +96,7 @@ account_code/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形�
 
 - `Session`：account_id / location / kind（`SessionKind`: workspace \| conversation，
   ADR-013 裁决 1 首批只 workspace）/ level（`SessionLevel`: local \| inject \| server）
-- 持久化：accounts 表 `sessions` JSON 列（随聚合整体替换；老库 ALTER 自迁移）
+- 持久化：acc_account 表 `sessions` JSON 列（随聚合整体替换；老库 ALTER 自迁移）
 - 绑定键约定：扫描器 device_ref = 供应商侧账户标识；trae = state.vscdb key
   账户数字前缀（PROTOCOL §10）。**device_dn ≠ 账户 id**——trae 绑定数据面
   待 dock 增捕 `aha_account_id`（S1.5，storage.json `icube_gtm`/`checkin1024.*`

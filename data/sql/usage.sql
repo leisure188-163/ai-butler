@@ -4,25 +4,25 @@
 -- 表按域分置）；本文件由 scripts/dump_db_schema.py 生成，**勿手改**。
 -- 重新生成：uv run python scripts/dump_db_schema.py
 -- 运行库落项目内 data/database/butler.db（BUTLER_DB 可覆盖）。
-CREATE TABLE usage_snapshots (
+CREATE TABLE usage_snapshot (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL,
     target TEXT NOT NULL,
     collected_at TEXT NOT NULL,
     packages_json TEXT NOT NULL
 );
-CREATE INDEX idx_usage_snapshots_account
-    ON usage_snapshots(account_id, collected_at);
-CREATE TABLE usage_aggregates (
+CREATE INDEX idx_usage_snapshot_account
+    ON usage_snapshot(account_id, collected_at);
+CREATE TABLE usage_aggregate (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL,
     target TEXT NOT NULL,
     collected_at TEXT NOT NULL,
     summary_json TEXT NOT NULL
 );
-CREATE INDEX idx_usage_aggregates_account
-    ON usage_aggregates(account_id, collected_at);
-CREATE TABLE quota_ledger (
+CREATE INDEX idx_usage_aggregate_account
+    ON usage_aggregate(account_id, collected_at);
+CREATE TABLE usage_quota_ledger (
     account_id TEXT NOT NULL,
     record_id TEXT NOT NULL,
     target TEXT NOT NULL,
@@ -33,9 +33,9 @@ CREATE TABLE quota_ledger (
     raw_json TEXT,
     PRIMARY KEY (account_id, record_id)
 );
-CREATE INDEX idx_quota_ledger_account
-    ON quota_ledger(account_id, occurred_at);
-CREATE TABLE usage_samples (
+CREATE INDEX idx_usage_quota_ledger_account
+    ON usage_quota_ledger(account_id, occurred_at);
+CREATE TABLE usage_sample (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL,
     tokens_in INTEGER NOT NULL,
@@ -45,5 +45,5 @@ CREATE TABLE usage_samples (
     source TEXT NOT NULL,
     duration_ms REAL
 );
-CREATE INDEX idx_usage_samples_account
-    ON usage_samples(account_id, ts);
+CREATE INDEX idx_usage_sample_account
+    ON usage_sample(account_id, ts);

@@ -29,7 +29,7 @@ from butler_engine.vault.errors import (
 )
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS vault_items (
+CREATE TABLE IF NOT EXISTS vault_item (
     account_id TEXT NOT NULL,
     kind       TEXT NOT NULL,
     backend    TEXT NOT NULL,
@@ -77,6 +77,11 @@ class LayeredVault(VaultPort):
         self._db_path = str(db_path)
         self._audit = audit
         with closing(self._connect()) as conn, conn:
+            # 表名迁移（ADR-021 域前缀纪律）：老表 RENAME 幂等，旧索引随行清理
+            if conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='vault_items'"
+            ).fetchone():
+                conn.execute("ALTER TABLE vault_items RENAME TO vault_item")
             conn.executescript(_SCHEMA)
             _ensure_columns(conn)
 
@@ -97,7 +102,7 @@ class LayeredVault(VaultPort):
         self._backend(backend_name).put(ref, secret.expose())
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT INTO vault_items"
+                "INSERT INTO vault_item"
                 " (account_id, kind, backend, expires_at, created_at, rotated_at, revoked_at, revoked_reason)"
                 " VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), NULL, '')"
                 " ON CONFLICT(account_id, kind) DO UPDATE SET"
@@ -187,7 +192,7 @@ class LayeredVault(VaultPort):
                 (account_id, kind, archived_ref),
             )
             conn.execute(
-                "UPDATE vault_items SET expires_at = ?, rotated_at = datetime('now')"
+                "UPDATE vault_item SET expires_at = ?, rotated_at = datetime('now')"
                 " WHERE account_id = ? AND kind = ?",
                 (_iso(expires_at), account_id, kind),
             )
@@ -228,7 +233,7 @@ class LayeredVault(VaultPort):
                     (account_id, kind, archived_ref),
                 )
                 conn.execute(
-                    "UPDATE vault_items SET revoked_at = ?, revoked_reason = ?"
+                    "UPDATE vault_item SET revoked_at = ?, revoked_reason = ?"
                     " WHERE account_id = ? AND kind = ?",
                     (now_iso, reason, account_id, kind),
                 )
@@ -243,7 +248,7 @@ class LayeredVault(VaultPort):
     def health(self) -> list[CredentialHealth]:
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM vault_items ORDER BY account_id, kind"
+                f"SELECT {_COLUMNS} FROM vault_item ORDER BY account_id, kind"
             ).fetchall()
         return [
             CredentialHealth.build(
@@ -282,7 +287,7 @@ class LayeredVault(VaultPort):
     def _row(self, account_id: str, kind: str) -> tuple[str, datetime | None, str | None] | None:
         with closing(self._connect()) as conn, conn:
             row = conn.execute(
-                "SELECT backend, expires_at, revoked_at FROM vault_items"
+                "SELECT backend, expires_at, revoked_at FROM vault_item"
                 " WHERE account_id = ? AND kind = ?",
                 (account_id, kind),
             ).fetchone()
@@ -295,7 +300,7 @@ class LayeredVault(VaultPort):
         """账户下全部条目：(kind, backend, revoked_at)，新→旧按 kind 稳定排序。"""
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
-                "SELECT kind, backend, revoked_at FROM vault_items"
+                "SELECT kind, backend, revoked_at FROM vault_item"
                 " WHERE account_id = ? ORDER BY kind",
                 (account_id,),
             ).fetchall()
@@ -306,13 +311,13 @@ class LayeredVault(VaultPort):
 
 
 def _ensure_columns(conn: sqlite3.Connection) -> None:
-    """老库自迁移：vault_items 缺撤销列则补（纯增量，默认未撤销）。"""
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(vault_items)")}
+    """老库自迁移：vault_item 缺撤销列则补（纯增量，默认未撤销）。"""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(vault_item)")}
     if "revoked_at" not in cols:
-        conn.execute("ALTER TABLE vault_items ADD COLUMN revoked_at TEXT")
+        conn.execute("ALTER TABLE vault_item ADD COLUMN revoked_at TEXT")
     if "revoked_reason" not in cols:
         conn.execute(
-            "ALTER TABLE vault_items ADD COLUMN revoked_reason TEXT NOT NULL DEFAULT ''"
+            "ALTER TABLE vault_item ADD COLUMN revoked_reason TEXT NOT NULL DEFAULT ''"
         )
 
 

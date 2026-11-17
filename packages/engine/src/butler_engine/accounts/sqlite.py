@@ -29,7 +29,7 @@ from butler_core.accounts.domain import Account, Entitlement, Session, SessionKi
 from butler_engine.db.conn import connect
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS accounts (
+CREATE TABLE IF NOT EXISTS acc_account (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     account_id       TEXT NOT NULL UNIQUE,
     platform_code    TEXT NOT NULL,
@@ -44,9 +44,9 @@ CREATE TABLE IF NOT EXISTS accounts (
     updated_at       TEXT NOT NULL,
     deleted_at       TEXT
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_platform_code_key
-    ON accounts (platform_code, account_code);
-CREATE INDEX IF NOT EXISTS idx_accounts_platform_code ON accounts (platform_code);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_code_key
+    ON acc_account (platform_code, account_code);
+CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platform_code);
 """
 
 _COLS = (
@@ -76,12 +76,19 @@ _MISSING_COLS: dict[str, str] = {
 _LEGACY_INDEXES = (
     "idx_accounts_provider", "idx_accounts_app", "uq_accounts_app_key",
     "uq_accounts_platform_key", "idx_accounts_platform",
+    "uq_accounts_platform_code_key", "idx_accounts_platform_code",
 )
 
 
 def _ensure_columns(conn) -> None:
     """老库自迁移（幂等）：v1/v2 重建、v3 早期列名 RENAME、现行只补缺列/索引。"""
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(accounts)")}
+    # 表名迁移（ADR-021）：老表名 accounts → acc_account（RENAME 幂等，索引随表走）
+    has_old = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='accounts'"
+    ).fetchone()
+    if has_old:
+        conn.execute("ALTER TABLE accounts RENAME TO acc_account")
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(acc_account)")}
     if not cols:
         return  # 表由 _SCHEMA 新建，无需迁移
     if "account_id" not in cols:
@@ -89,12 +96,12 @@ def _ensure_columns(conn) -> None:
         return
     for old, new in _RENAME_COLS:
         if old in cols and new not in cols:
-            conn.execute(f"ALTER TABLE accounts RENAME COLUMN {old} TO {new}")
+            conn.execute(f"ALTER TABLE acc_account RENAME COLUMN {old} TO {new}")
             cols.discard(old); cols.add(new)
     for name, ddl in _MISSING_COLS.items():
         if name not in cols:
-            conn.execute(f"ALTER TABLE accounts ADD COLUMN {ddl}")
-    conn.execute("UPDATE accounts SET updated_at = created_at WHERE updated_at = ''")
+            conn.execute(f"ALTER TABLE acc_account ADD COLUMN {ddl}")
+    conn.execute("UPDATE acc_account SET updated_at = created_at WHERE updated_at = ''")
     _recreate_indexes(conn)
 
 
@@ -102,10 +109,10 @@ def _recreate_indexes(conn) -> None:
     for idx in _LEGACY_INDEXES:
         conn.execute(f"DROP INDEX IF EXISTS {idx}")
     conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_platform_code_key"
-        " ON accounts (platform_code, account_code)"
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_code_key"
+        " ON acc_account (platform_code, account_code)"
     )
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_accounts_platform_code ON accounts (platform_code)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platform_code)")
 
 
 def _rebuild_from_legacy(conn, cols: set[str]) -> None:
@@ -115,8 +122,8 @@ def _rebuild_from_legacy(conn, cols: set[str]) -> None:
     select = ["id", platform_col, name_col, "sessions", "created_at"]
     for optional in ("base_url", "device_ref", "entitlement_json", "is_active", "updated_at", "deleted_at"):
         select.append(optional if optional in cols else "NULL")
-    rows = conn.execute(f"SELECT {', '.join(select)} FROM accounts").fetchall()
-    conn.execute("DROP TABLE accounts")
+    rows = conn.execute(f"SELECT {', '.join(select)} FROM acc_account").fetchall()
+    conn.execute("DROP TABLE acc_account")
     conn.executescript(_SCHEMA)
     for row in rows:
         legacy_id, platform_code, account_name, sessions_raw, created_at = row[:5]
@@ -131,7 +138,7 @@ def _rebuild_from_legacy(conn, cols: set[str]) -> None:
         if legacy_id.startswith(prefix) and ":" not in legacy_id[len(prefix):]:
             account_code = legacy_id[len(prefix):]
         conn.execute(
-            f"INSERT OR IGNORE INTO accounts ({_COLS}) "
+            f"INSERT OR IGNORE INTO acc_account ({_COLS}) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 legacy_id, platform_code, account_code, account_name, base_url,
@@ -157,7 +164,7 @@ class SqliteAccountRepository(AccountRepository):
 
         with self._connect() as conn, conn:
             conn.execute(
-                f"INSERT INTO accounts ({_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                f"INSERT INTO acc_account ({_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (account_id) DO UPDATE SET "
                 "platform_code=excluded.platform_code, account_code=excluded.account_code, "
                 "account_name=excluded.account_name, base_url=excluded.base_url, "
@@ -183,7 +190,7 @@ class SqliteAccountRepository(AccountRepository):
     def get(self, account_id: str) -> Account | None:
         with self._connect() as conn:
             row = conn.execute(
-                f"SELECT {_COLS} FROM accounts WHERE account_id = ?",
+                f"SELECT {_COLS} FROM acc_account WHERE account_id = ?",
                 (account_id,),
             ).fetchone()
         return _load(row)
@@ -191,7 +198,7 @@ class SqliteAccountRepository(AccountRepository):
     def list_by_platform(self, platform_code: str) -> list[Account]:
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT {_COLS} FROM accounts WHERE platform_code = ? ORDER BY created_at, account_id",
+                f"SELECT {_COLS} FROM acc_account WHERE platform_code = ? ORDER BY created_at, account_id",
                 (platform_code,),
             ).fetchall()
         return [_load(r) for r in rows]
@@ -199,7 +206,7 @@ class SqliteAccountRepository(AccountRepository):
     def list_all(self) -> list[Account]:
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT {_COLS} FROM accounts ORDER BY created_at, account_id"
+                f"SELECT {_COLS} FROM acc_account ORDER BY created_at, account_id"
             ).fetchall()
         return [_load(r) for r in rows]
 

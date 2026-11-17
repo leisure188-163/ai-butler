@@ -22,7 +22,7 @@ def test_record_hashes_credential_ref(tmp_path):
     )
     with closing(sqlite3.connect(tmp_path / "m.db")) as conn:
         row = conn.execute(
-            "SELECT credential_ref FROM audit WHERE actor = 'trae_cn'"
+            "SELECT credential_ref FROM audit_log WHERE actor = 'trae_cn'"
         ).fetchone()
     assert row[0] != "acc1:ss_aes:secret-part"  # 绝不存明文
     assert len(row[0]) == 64  # sha256 hexdigest

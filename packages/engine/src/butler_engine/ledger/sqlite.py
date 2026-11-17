@@ -23,7 +23,7 @@ from butler_core.execution.domain import Evidence, RepairHint, Run, RunResult
 from butler_engine.db.conn import connect
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS runs (
+CREATE TABLE IF NOT EXISTS exe_run (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
     target TEXT NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS runs (
     status TEXT,
     result_json TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_runs_idempotency ON runs(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_exe_run_idempotency ON exe_run(idempotency_key);
 """
 
 _COLUMNS = (
@@ -49,6 +49,12 @@ class SqliteRunLedger(RunLedger):
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = str(db_path)
         with closing(self._connect()) as conn, conn:
+            # 表名迁移（ADR-021 域前缀纪律）：老表 RENAME 幂等，旧索引随行清理
+            if conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'"
+            ).fetchone():
+                conn.execute("ALTER TABLE runs RENAME TO exe_run")
+            conn.execute("DROP INDEX IF EXISTS idx_runs_idempotency")
             conn.executescript(_SCHEMA)
 
     # --- core RunLedger 端口 ---
@@ -61,7 +67,7 @@ class SqliteRunLedger(RunLedger):
         )
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT OR REPLACE INTO runs (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT OR REPLACE INTO exe_run (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 % _COLUMNS,
                 (
                     run.id,
@@ -83,7 +89,7 @@ class SqliteRunLedger(RunLedger):
             return None  # 空键 = 只读动作，无幂等语义
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM runs WHERE idempotency_key = ? "
+                f"SELECT {_COLUMNS} FROM exe_run WHERE idempotency_key = ? "
                 "ORDER BY started_at DESC, id DESC",
                 (key,),
             ).fetchall()
@@ -101,7 +107,7 @@ class SqliteRunLedger(RunLedger):
             return []
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM runs WHERE account_id = ? "
+                f"SELECT {_COLUMNS} FROM exe_run WHERE account_id = ? "
                 "ORDER BY started_at DESC, id DESC LIMIT ?",
                 (account_id, limit),
             ).fetchall()
@@ -113,7 +119,7 @@ class SqliteRunLedger(RunLedger):
             return []
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM runs ORDER BY started_at DESC, id DESC LIMIT ?",
+                f"SELECT {_COLUMNS} FROM exe_run ORDER BY started_at DESC, id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
         return [_load_run(row) for row in rows]

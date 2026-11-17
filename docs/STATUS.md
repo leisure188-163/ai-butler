@@ -67,6 +67,16 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**表名域前缀统一 + 平台落册（2026-11-17，ADR-021）**：全库 11 张表改
+「域缩写前缀 + 单数实体」——acc_account / acc_platform / exe_run /
+usage_snapshot / usage_aggregate / usage_quota_ledger / usage_sample /
+health_state / vault_item / vault_history / audit_log（索引随名，老表
+RENAME 幂等自迁移零丢失）。平台不再只活在内存 Registry：新增 acc_platform
+表（账户域托管），启动时 manifest 事实经 SyncPlatforms 用例 UPSERT 落册、
+缺失平台落 deprecated 不删行、is_active 用户开关；`/platforms` 名册改读
+名册表 + 台账并账，删除穿连接器包拼装逻辑；`/platforms` 契约形状不变
+（SDK/web 零改动）。测试 **715 passed + 10 skipped**。
+
 **accounts 列名 code 化（2026-11-17，ADR-020）**：账户域三列再改名
 `account_key`→`account_code`、`platform`→`platform_code`、`display_name`→
 `account_name`（概念术语「平台/Platform」不变，仅列/字段/契约同步）；索引改

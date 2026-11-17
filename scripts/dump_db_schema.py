@@ -23,34 +23,36 @@ OUT_DIR = ROOT / "data" / "sql"
 
 # 库对象 → 业务域 key（新表/索引必须先登记所属域，否则脚本报错退出）
 _SECTIONS: dict[str, str] = {
-    # 账户域（accounts/sqlite.py）
-    "accounts": "accounts",
-    "uq_accounts_platform_code_key": "accounts",
-    "idx_accounts_platform_code": "accounts",
+    # 账户域（accounts/sqlite.py + accounts/platform_sqlite.py；ADR-021 域前缀表名）
+    "acc_account": "accounts",
+    "acc_platform": "accounts",
+    "uq_acc_account_platform_code_key": "accounts",
+    "idx_acc_account_platform_code": "accounts",
+    "idx_acc_platform_active": "accounts",
     # 执行域（ledger/sqlite.py）
-    "runs": "execution",
-    "idx_runs_idempotency": "execution",
+    "exe_run": "execution",
+    "idx_exe_run_idempotency": "execution",
     # 用量域（usage/sqlite.py）
-    "usage_snapshots": "usage",
-    "usage_aggregates": "usage",
-    "quota_ledger": "usage",
-    "usage_samples": "usage",
-    "idx_usage_snapshots_account": "usage",
-    "idx_usage_aggregates_account": "usage",
-    "idx_quota_ledger_account": "usage",
-    "idx_usage_samples_account": "usage",
+    "usage_snapshot": "usage",
+    "usage_aggregate": "usage",
+    "usage_quota_ledger": "usage",
+    "usage_sample": "usage",
+    "idx_usage_snapshot_account": "usage",
+    "idx_usage_aggregate_account": "usage",
+    "idx_usage_quota_ledger_account": "usage",
+    "idx_usage_sample_account": "usage",
     # 健康域（health/state.py）
     "health_state": "health",
     # 保管层（vault/layered.py；A4-01 §4 凭据元数据）
-    "vault_items": "vault",
+    "vault_item": "vault",
     "vault_history": "vault",
     # shared 内核（audit/sqlite.py；A4-01 §4 审计）
-    "audit": "audit",
+    "audit_log": "audit",
 }
 
 # 域 key →（生成文件名，域标签）；登记顺序即各文件内输出顺序
 _DOMAIN_FILES: dict[str, tuple[str, str]] = {
-    "accounts": ("accounts.sql", "账户域 · accounts/sqlite.py"),
+    "accounts": ("accounts.sql", "账户域 · accounts/sqlite.py + accounts/platform_sqlite.py"),
     "execution": ("execution.sql", "执行域 · ledger/sqlite.py"),
     "usage": ("usage.sql", "用量域 · usage/sqlite.py"),
     "health": ("health.sql", "健康域 · health/state.py"),
@@ -71,6 +73,7 @@ _FILE_HEADER = """\
 def _build_temp_db(tmp: Path) -> None:
     """用与运行时相同的适配器把全部表建齐（避开 keychain：vault 只挂 memory 层）。"""
     from butler_engine.accounts.sqlite import SqliteAccountRepository
+    from butler_engine.accounts.platform_sqlite import SqlitePlatformRepository
     from butler_engine.audit.sqlite import SqliteAuditLog
     from butler_engine.health.state import SqliteHealthStateStore
     from butler_engine.ledger.sqlite import SqliteRunLedger
@@ -80,6 +83,7 @@ def _build_temp_db(tmp: Path) -> None:
 
     db = str(tmp / "butler.db")
     SqliteAccountRepository(db)
+    SqlitePlatformRepository(db)
     SqliteRunLedger(db)
     SqliteUsageStore(db)
     SqliteHealthStateStore(db)

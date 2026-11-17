@@ -4,7 +4,7 @@
 -- 表按域分置）；本文件由 scripts/dump_db_schema.py 生成，**勿手改**。
 -- 重新生成：uv run python scripts/dump_db_schema.py
 -- 运行库落项目内 data/database/butler.db（BUTLER_DB 可覆盖）。
-CREATE TABLE vault_items (
+CREATE TABLE vault_item (
     account_id TEXT NOT NULL,
     kind       TEXT NOT NULL,
     backend    TEXT NOT NULL,

@@ -7,7 +7,13 @@ from collections.abc import Iterable
 from datetime import datetime
 from typing import Protocol
 
-from butler_core.accounts.domain import Account, CredentialHealth, Secret, SessionSighting
+from butler_core.accounts.domain import (
+    Account,
+    CredentialHealth,
+    PlatformEntry,
+    Secret,
+    SessionSighting,
+)
 from butler_core.shared.errors import DomainError
 
 
@@ -33,6 +39,25 @@ class AccountRepository(ABC):
 
     @abstractmethod
     def list_all(self) -> list[Account]: ...
+
+
+class PlatformRepository(ABC):
+    """平台册端口（ADR-021）：连接器平台事实的持久化（DB 为真相源）。
+
+    sync = manifest 事实 upsert + 缺失平台落 deprecated（不删行，审计可溯）。"""
+
+    @abstractmethod
+    def upsert(self, entry: PlatformEntry) -> None: ...
+
+    @abstractmethod
+    def deprecate_missing(self, platform_codes: frozenset[str]) -> list[str]:
+        """把不在 platform_codes 里的平台落 deprecated_at（幂等）；返回本次新标记的 code。"""
+
+    @abstractmethod
+    def get(self, platform_code: str) -> PlatformEntry | None: ...
+
+    @abstractmethod
+    def list_all(self) -> list[PlatformEntry]: ...
 
 
 class VaultPort(ABC):

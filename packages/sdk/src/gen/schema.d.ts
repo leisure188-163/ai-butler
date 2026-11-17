@@ -53,7 +53,10 @@ export interface paths {
         };
         /**
          * List Platforms
-         * @description 应用名册：连接器能力矩阵（manifest 投影，端零映射）。
+         * @description 平台名册（ADR-021）：读 acc_platform 名册表（DB 为真相源）+ 台账并账。
+         *
+         *     启动时组合根已把 manifest 事实同步进名册（退役自动落 deprecated）；
+         *     这里只做 DB 投影 + 账户并账，不再穿连接器包拼装（端零映射）。
          */
         get: operations["list_platforms_api_v1_platforms_get"];
         put?: never;

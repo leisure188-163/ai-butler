@@ -56,6 +56,28 @@ def _assemble_connectors(kit) -> None:
         for entry in registry.schedule_entries()
     ]
     app.state.registry = registry  # 端读 manifest/导入分发用（server 自持装配面）
+    # 平台册同步（ADR-021）：manifest 事实落 acc_platform，DB 为真相源；
+    # 退役连接器不进 facts（自动落 deprecated 不删行，审计可溯），名册改读 DB。
+    from butler_core.accounts.domain import PlatformEntry
+    from butler_core.shared.time import now_utc
+
+    facts = []
+    for conn in registry.platforms():
+        m = conn.manifest
+        if getattr(m, "retired", False):
+            continue
+        sched = m.schedule.get("provision.run")
+        facts.append(
+            PlatformEntry(
+                platform_code=m.id,
+                display_name=m.display,
+                created_at=now_utc(),
+                capabilities=tuple(sorted(m.capabilities)),
+                credential_kinds=tuple(m.credential.kinds) if m.credential else (),
+                schedule_times=tuple(sched.times) if sched else (),
+            )
+        )
+    kit.sync_platforms.execute(tuple(facts))
     if os.environ.get("BUTLER_SCHEDULE", "1") != "0" and entries:
         kit.start_checkin_schedule(entries)
     if os.environ.get("BUTLER_SCHEDULE", "1") != "0":
