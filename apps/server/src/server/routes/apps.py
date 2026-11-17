@@ -33,10 +33,17 @@ def _import_one(registry, kit, target: str) -> ImportOut:
     [outcome] = registry.dock(
         DockContext(vault=kit.vault, register=kit.register_account), target=target
     )
-    for account_id in outcome.accounts:
-        collected = kit.collect_usage.execute(target, account_id)
-        if collected.error:
-            outcome.issues.append(f"用量采集：{collected.error}")
+    # 纯签到连接器（manifest.usage=false，如 agentrouter）没有额度可采；
+    # 不能把“没有 usage 通道”当成 import 失败噪声。
+    usage_enabled = True
+    lookup = getattr(registry, "get", None)
+    if callable(lookup):
+        usage_enabled = bool(getattr(lookup(target).manifest, "usage", True))
+    if usage_enabled:
+        for account_id in outcome.accounts:
+            collected = kit.collect_usage.execute(target, account_id)
+            if collected.error:
+                outcome.issues.append(f"用量采集：{collected.error}")
     return ImportOut(target=outcome.target, accounts=outcome.accounts, issues=outcome.issues)
 
 

@@ -31,6 +31,7 @@ from butler_connectors.web_ui import (
     click_selector,
     click_text,
     find_page,
+    open_page,
     read_page,
     rewrite_host,
     state_digest,
@@ -55,7 +56,26 @@ class ReloginError(RuntimeError):
     """自动退出/重登链路未完成；调用方转成可修复的 NO_AUTH/PENDING。"""
 
 
+def _page() -> dict:
+    """取目标页；关掉时经 CDP 自动开控制台，不再把“页面没开”当登录失败。
+
+    控制台优先：若该 Chromium 已保存站点会话，打开后直接是 /console；
+    没有会话时由站点自己落到 /login，后续仍走 _relogin 的 GitHub 链路。
+    """
+    channel = CdpChannel(DEBUG_PORT, http_get=http_json, ws_factory=ws_connect)
+    page = find_page(DEBUG_PORT, DOMAIN, channel=channel)
+    if page is not None:
+        return page
+    return open_page(
+        DEBUG_PORT,
+        DOMAIN,
+        f"https://{DOMAIN}{CONSOLE_PATH}",
+        channel=channel,
+    )
+
+
 def _state() -> WebPageState:
+    _page()
     return read_page(DEBUG_PORT, DOMAIN)
 
 
@@ -72,9 +92,10 @@ def _relogin(*, force_login: bool = False) -> WebPageState:
     提示，绝不假装签到成功。
     """
     channel = CdpChannel(DEBUG_PORT, http_get=http_json, ws_factory=ws_connect)
-    page = find_page(DEBUG_PORT, DOMAIN, channel=channel)
-    if page is None:
-        raise ReloginError(f"浏览器未打开 {DOMAIN} 页面")
+    try:
+        page = _page()
+    except WebPageUnavailable as exc:
+        raise ReloginError(str(exc)) from exc
     path = urlsplit(page.get("url") or "").path
 
     with channel.attach(page) as conn:
@@ -250,7 +271,7 @@ def build_port(*, vault: Any, transport: Any) -> AgentRouterPort:
 
 
 def dock(ctx: DockContext) -> DockOutcome:
-    """session.import：页面已登录即登记账户；不新开标签、不碰 cookie。"""
+    """session.import：页面已登录即登记账户；页面关闭自动开控制台，不碰 cookie。"""
     try:
         state = _state()
     except WebPageUnavailable as exc:

@@ -36,8 +36,9 @@ https://ps.air-outer.com/oauth/github?code=<one-time-code>&iss=https%3A%2F%2Fgit
 
 ## 4. 本连接器
 
-- `session.import`：经本机 Chromium 调试端口 9222，找 `ps.air-outer.com` 页面，
-  读 `localStorage.user`；有 `id` 才登记账户，否则如实报「未登录」。
+- `session.import`：经本机 Chromium 调试端口 9222 找 `ps.air-outer.com` 页面；
+  页面关闭时自动打开 `/console`（无会话则落到 `/login`）；读 `localStorage.user`，
+  有 `id` 才登记账户，否则如实报「未登录」。
 - `provision.run`：每日 `00:00` 站点重置 `checked_in`，调度 `00:05` 主触发、`09:05` 兜底。
   `checked_in=true` → `ALREADY`；false → 自动执行
   「用户菜单退出 → 登录页点 GitHub → 等待 `agentrouter.org/oauth/github` 回调 →
@@ -52,8 +53,10 @@ https://ps.air-outer.com/oauth/github?code=<one-time-code>&iss=https%3A%2F%2Fgit
 
 ## 5. 已知边界
 
-- 需要本机 Chromium（Doubao Browser）调试端口 9222 有 AgentRouter 页面；页面关闭时
-  不自动开新标签，返回 `NO_AUTH` / 未登录。
+- 需要本机 Chromium（Doubao Browser）调试端口 9222；页面关闭时连接器会自动打开
+  `https://ps.air-outer.com/console`（没有站点会话则落到 `/login`），再由 `run()`
+  走退出/GitHub 重登链路；页面已登录时直接读 `localStorage.user`。
+- 自动打开页面不会读取/保存 cookie 或 token；页面保持打开，便于用户接管 GitHub 登录。
 - Chrome v20 应用绑定加密 cookie 不可解（A2-03 §7），因此不走 `browser_cookie` 捕获。
 - 站点未来若开放独立 checkin API，可把 adapter 的 `PENDING` 分支替换为 API claim；
   `checked_in` 仍作为权威复查字段。

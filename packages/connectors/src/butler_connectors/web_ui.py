@@ -82,6 +82,24 @@ def find_page(port: int, domain: str, *, channel: CdpChannel | None = None) -> d
     return _find_target(port, domain, channel=channel)
 
 
+def open_page(
+    port: int,
+    domain: str,
+    url: str,
+    *,
+    wait: float = 15.0,
+    channel: CdpChannel | None = None,
+) -> dict:
+    """页面未打开时自动建页；返回挂上调试端点的 target，不读 cookie/token。"""
+    ch = channel or CdpChannel(port, http_get=http_json, ws_factory=ws_connect)
+    try:
+        return ch.open_target(url, wait=wait, domain=domain)
+    except CdpError as exc:
+        raise WebPageUnavailable(
+            f"浏览器未打开 {domain} 页面，自动打开失败：{exc}"
+        ) from exc
+
+
 def wait_for_page(
     port: int,
     domain: str,

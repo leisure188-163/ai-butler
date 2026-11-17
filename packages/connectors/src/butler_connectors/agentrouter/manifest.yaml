@@ -7,13 +7,14 @@ capabilities:
     kind: adapter
     entry: adapter.butler
     budget_seconds: 120
-  session.import:               # 从已登录的浏览器页面登记账户（不新开标签）
+  session.import:               # 页面已登录时登记账户；页面关闭自动开控制台（2026-11-17）
     kind: adapter
     entry: adapter.butler
     budget_seconds: 60
 credential:
   kinds: [browser_session]      # 非密定位凭据：domain/port/user_id
   unlock: local-browser
+usage: false                    # 纯签到：没有额度采集通道，import 不报 usage issue
 schedule:
   provision.run:
     times: ["00:05", "09:05"]

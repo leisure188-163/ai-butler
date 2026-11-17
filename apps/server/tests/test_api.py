@@ -384,6 +384,14 @@ class _StubRegistry:
     def __init__(self, accounts):
         self._accounts = accounts
 
+    def get(self, target):
+        from types import SimpleNamespace
+
+        # 测试替身保留 manifest.usage 语义：agentrouter 是纯签到连接器。
+        return SimpleNamespace(
+            manifest=SimpleNamespace(id=target, usage=target != "agentrouter")
+        )
+
     def dock(self, ctx, *, target):
         from butler_connectors.registry import DockOutcome
 
@@ -418,6 +426,18 @@ def test_apps_hidden_retired_web_connectors(tmp_path):
         assert "chatgpt_web" not in ids
         assert "claude_web" not in ids
         assert "agentrouter" in ids
+
+
+def test_import_skips_usage_error_for_checkin_only_connector(tmp_path):
+    """纯签到连接器没有 usage 端口：import 不把“无额度可采”报成 issue。"""
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        client.app.state.registry = _StubRegistry(["agentrouter:main"])
+        kit.collect_usage.ports = {}
+
+        out = client.post("/api/v1/apps/agentrouter/import").json()
+        assert out["accounts"] == ["agentrouter:main"]
+        assert out["issues"] == []
 
 
 def test_import_triggers_usage_collect_and_reports_errors(tmp_path):

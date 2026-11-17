@@ -143,11 +143,18 @@ class CdpChannel:
     def attach(self, target: dict) -> CdpConnection:
         return self._ws_factory(target["webSocketDebuggerUrl"], 10.0)
 
-    def open_activity(self, url: str, *, wait: float = 15.0) -> CdpConnection:
-        """活动页没开时经浏览器级 ws Target.createTarget 打开并轮询就绪。
+    def open_target(
+        self,
+        url: str,
+        *,
+        wait: float = 15.0,
+        domain: str | None = None,
+        pick: Callable[[list[dict]], dict | None] | None = None,
+    ) -> dict:
+        """经浏览器级 ws 打开页面，并轮询到该页挂上调试端点。
 
-        HTTP /json/new 建的 about:blank 会被客户端吞掉（PROTOCOL §1.1 实证）；
-        页面挂上 WS 调试端点需要几秒，轮询 /json/list 直到可选。
+        ``open_activity`` 保留原有的活动页优先选择；网页连接器（例如 AgentRouter）
+        需要按自己的域名打开控制台，因此这里把“建页 + 轮询 + 选择”拆成通用原语。
         """
         version = self.probe()
         browser_url = version.get("webSocketDebuggerUrl")
@@ -158,10 +165,32 @@ class CdpChannel:
         deadline = time.monotonic() + wait
         while time.monotonic() < deadline:
             self.sleep(2.0)
-            target = pick_activity_target(self.targets())
+            targets = self.targets()
+            if pick is not None:
+                target = pick(targets)
+            else:
+                target = next(
+                    (
+                        t
+                        for t in targets
+                        if t.get("type") in ("page", "webview")
+                        and t.get("webSocketDebuggerUrl")
+                        and (domain is None or domain in (t.get("url") or ""))
+                    ),
+                    None,
+                )
             if target is not None:
-                return self.attach(target)
-        raise CdpError(f"活动页打开超时（{wait}s）：{url}")
+                return target
+        raise CdpError(f"页面打开超时（{wait}s）：{url}")
+
+    def open_activity(self, url: str, *, wait: float = 15.0) -> CdpConnection:
+        """活动页没开时经浏览器级 ws Target.createTarget 打开并轮询就绪。
+
+        HTTP /json/new 建的 about:blank 会被客户端吞掉（PROTOCOL §1.1 实证）；
+        页面挂上 WS 调试端点需要几秒，轮询 /json/list 直到可选。
+        """
+        target = self.open_target(url, wait=wait, pick=pick_activity_target)
+        return self.attach(target)
 
     def close_target(self, target_id: str) -> None:
         """浏览器级关闭 target（Target.closeTarget）。用途：账户切换后旧活动页

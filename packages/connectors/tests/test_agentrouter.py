@@ -89,6 +89,31 @@ def test_not_checked_in_dry_run_is_skipped(port, monkeypatch):
     assert result.status is Status.SKIPPED
 
 
+def test_state_opens_console_when_page_missing(monkeypatch):
+    """页面关掉时自动开控制台，而不是直接把“未打开”判成登录失败。"""
+    calls: list[str] = []
+    page = {
+        "url": "https://ps.air-outer.com/console",
+        "webSocketDebuggerUrl": "ws://page",
+    }
+
+    monkeypatch.setattr(adapter, "find_page", lambda *args, **kwargs: None)
+
+    def _open(port: int, domain: str, url: str, **kwargs) -> dict:
+        calls.append(url)
+        return page
+
+    monkeypatch.setattr(adapter, "open_page", _open)
+    monkeypatch.setattr(
+        adapter,
+        "read_page",
+        lambda port, domain: _state(checked_in=True),
+    )
+    state = adapter._state()
+    assert state.checked_in
+    assert calls == [f"https://{adapter.DOMAIN}{adapter.CONSOLE_PATH}"]
+
+
 def test_rewrite_host_keeps_oauth_query():
     from butler_connectors.web_ui import rewrite_host
 
