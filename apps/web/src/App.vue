@@ -61,6 +61,7 @@ const {
   busyTarget,
   actionMsg,
   importApp,
+  syncAllApps,
   claimApp,
   healthApp,
   repairAccount,
@@ -133,6 +134,7 @@ onBeforeUnmount(() => {
         :loading="loading"
         :load-error="loadError"
         @import="importApp"
+        @sync-all="syncAllApps"
         @import-all="importAllApps"
         @jump="navigate"
       />

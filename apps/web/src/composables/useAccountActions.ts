@@ -166,6 +166,42 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
+  /* 同步全部（2026-11-17）：已导入应用也要重扫，捕获客户端当前登录态，
+   * 新账户按稳定 key 追加；单家失败只入 issues，不阻断其余应用。 */
+  async function syncAllApps(targets: string[]) {
+    if (!targets.length) return;
+    busyTarget.value = "batch";
+    actionMsg.value = { text: "正在同步本机账户…", tone: "ok" };
+    const imported: string[] = [];
+    const issues: string[] = [];
+    try {
+      for (const target of targets) {
+        try {
+          const body = await api.importApp(target);
+          imported.push(...(body.accounts ?? []));
+          issues.push(...(body.issues ?? []).map((issue) => `${target}：${issue}`));
+        } catch (e) {
+          if (e instanceof api.ApiError) {
+            issues.push(`${target}：${e.detail ?? `HTTP ${e.status}`}`);
+          } else {
+            throw e;
+          }
+        }
+      }
+      actionMsg.value = {
+        text: imported.length
+          ? `已同步：${imported.join("、")}` + (issues.length ? ` · ${issues.join("；")}` : "")
+          : issues.length
+            ? issues.join("；")
+            : "当前没有可同步的账户。",
+        tone: issues.length ? "warn" : "ok",
+      };
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
   async function claimAllApps() {
     busyTarget.value = "batch";
     actionMsg.value = { text: "正在逐个领取…", tone: "ok" };
@@ -261,6 +297,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     busyTarget,
     actionMsg,
     importApp,
+    syncAllApps,
     claimApp,
     healthApp,
     repairAccount,

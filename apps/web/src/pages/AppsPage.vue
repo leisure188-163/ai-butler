@@ -21,6 +21,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   import: [target: string];
   importAll: [];
+  syncAll: [targets: string[]];
   jump: [page: PageName];
 }>();
 
@@ -67,11 +68,18 @@ function toggleDetail(id: string) {
         <h1 class="page-title">应用</h1>
         <p class="page-sub">本机接入的各家 AI 助手与其能力、时间表。</p>
       </div>
-      <button
-        class="btn btn--primary"
-        :disabled="busyTarget !== null || !importableCount"
-        @click="emit('importAll')"
-      >一键导入{{ importableCount ? `（${importableCount}）` : "" }}</button>
+      <div class="head-actions">
+        <button
+          class="btn btn--ghost"
+          :disabled="busyTarget !== null || !apps.length"
+          @click="emit('syncAll', apps.map((app) => app.id))"
+        >同步全部</button>
+        <button
+          class="btn btn--primary"
+          :disabled="busyTarget !== null || !importableCount"
+          @click="emit('importAll')"
+        >一键导入{{ importableCount ? `（${importableCount}）` : "" }}</button>
+      </div>
     </div>
   </header>
 
@@ -129,7 +137,13 @@ function toggleDetail(id: string) {
                     :disabled="busyTarget !== null"
                     @click="emit('import', app.id)"
                   >导入</button>
-                  <button v-else class="btn btn--ghost" @click="emit('jump', '账户')">去账户</button>
+                  <button
+                    v-else
+                    class="btn btn--ghost"
+                    :disabled="busyTarget !== null"
+                    @click="emit('import', app.id)"
+                  >同步</button>
+                  <button v-if="app.account_id" class="btn btn--ghost" @click="emit('jump', '账户')">去账户</button>
                   <button class="btn btn--ghost" @click="toggleDetail(app.id)">
                     {{ expandedId === app.id ? "收起" : "详情" }}
                   </button>
@@ -191,6 +205,11 @@ function toggleDetail(id: string) {
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.head-actions {
+  display: flex;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 .app-wrap { overflow-x: auto; }
