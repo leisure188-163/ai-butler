@@ -381,7 +381,10 @@ function toggleDetail(id: string) {
       </ul>
     </div>
 
-    <p v-if="!platforms.length" class="quietline">
+    <p v-if="!platforms.length && loadError" class="quietline quietline--warn">
+      平台列表读取失败：{{ loadError }}——请确认后端服务在运行（默认 127.0.0.1:8000）。
+    </p>
+    <p v-else-if="!platforms.length" class="quietline">
       还没有平台——「接入全部」把本机客户端接进来。
     </p>
   </section>
@@ -426,6 +429,7 @@ function toggleDetail(id: string) {
 .fold-body { padding: var(--space-2) 0 var(--space-3); }
 .fold-note { color: var(--color-text-muted); font-size: var(--text-xs); }
 .fold-value { font-family: var(--font-mono); font-size: var(--text-sm); }
+.quietline--warn { color: var(--color-attention); }
 .slots-fold { margin-top: var(--space-4); }
 .fold-head--page { border-top: 1px solid var(--color-border); }
 
