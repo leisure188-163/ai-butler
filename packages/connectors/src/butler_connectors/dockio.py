@@ -61,7 +61,7 @@ def scan_storage(
         account = ctx.register.execute(
             platform.manifest.id,
             facts.get("_display") or platform.display,
-            account_key=facts.get("_account_key", "main"),
+            account_code=facts.get("_account_key", "main"),
         )
         _store_credentials(
             ctx, account.id, facts, kinds, auth.kind,
@@ -123,7 +123,7 @@ def _scan_dpapi_gcm_v10(
     解码一次只为验形 + 取 expiresAt/user 元数据，明文即刻丢弃，入库的是信封原文。
 
     多账户身份锚点：同一 user id 只保留首份登录态；Qoder CN 首账户沿用
-    account_key=main 兼容存量卡。已有 :main 卡时，只有同一 user id 才能继续
+    account_code=main 兼容存量卡。已有 :main 卡时，只有同一 user id 才能继续
     使用 main；切换后的新 CN 账户用 cn-<hash> 新增，绝不覆盖旧主卡。Qoder
     Global 与额外 CN profile 用稳定 hash key。同一产品域内多个 CN profile 仍
     以数据目录为单位，不解析 auth-profile-overlays。
@@ -192,18 +192,18 @@ def _scan_dpapi_gcm_v10(
                 (identity and identity == existing_main_identity)
                 or (existing_main_identity is None and not used_main)
             ):
-                account_key = "main"  # 兼容存量 qoder_cn:main
+                account_code = "main"  # 兼容存量 qoder_cn:main
                 used_main = True
             else:
                 suffix = hashlib.sha1(
                     (identity or str(resolved)).encode("utf-8")
                 ).hexdigest()[:8]
-                account_key = f"{region}-{suffix}"
+                account_code = f"{region}-{suffix}"
 
             facts = {
                 "dpapi_gcm_v10": envelope,
                 "_auth_dir": str(data_dir),
-                "_account_key": account_key,
+                "_account_key": account_code,
                 "_display": qoder_display(region, user),
                 "_region": region,
             }

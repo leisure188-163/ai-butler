@@ -31,7 +31,7 @@ class MemAccounts(AccountRepository):
         return self.rows.get(account_id)
 
     def list_by_platform(self, platform: str) -> list[Account]:
-        return [a for a in self.rows.values() if a.platform == platform]
+        return [a for a in self.rows.values() if a.platform_code == platform]
 
     def list_all(self) -> list[Account]:
         return list(self.rows.values())
@@ -61,8 +61,8 @@ class RecordingUseCase:
 def account(platform: str = "trae_cn", name: str = "main") -> Account:
     return Account(
         id=f"{platform}:{name}",
-        platform=platform,
-        display_name=f"{platform} {name}",
+        platform_code=platform,
+        account_name=f"{platform} {name}",
         created_at=datetime.now(UTC),
     )
 

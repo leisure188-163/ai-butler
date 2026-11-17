@@ -36,7 +36,7 @@ class MemAccounts(AccountRepository):
         return self.rows.get(account_id)
 
     def list_by_platform(self, platform):
-        return [a for a in self.rows.values() if a.platform == platform]
+        return [a for a in self.rows.values() if a.platform_code == platform]
 
     def list_all(self):
         return list(self.rows.values())
@@ -68,7 +68,7 @@ def test_dock_registers_account_and_stores_credentials(ctx):
     assert outcome.issues == []
 
     account = ctx.register.accounts.get("trae_cn:main")
-    assert account.display_name == "Trae CN"
+    assert account.account_name == "Trae CN"
 
     import sys
 

@@ -33,7 +33,7 @@ const statusFilter = ref<"all" | "issues" | "ok">("all");
  * 不能拿它判断同一平台的第 2、第 3 个账户（否则会误显示“未关联”）。 */
 function appOf(account: AccountItem): PlatformItem | null {
   return (
-    props.platforms.find((x) => x.id === account.platform) ??
+    props.platforms.find((x) => x.id === account.platform_code) ??
     props.platforms.find((x) => x.account_ids?.includes(account.account_id)) ??
     null
   );
@@ -225,7 +225,7 @@ function lastRunAtOf(accountId: string): string | null {
               </td>
               <td>
                 <AppBadge
-                  :name="appOf(account)?.display ?? account.platform"
+                  :name="appOf(account)?.display ?? account.platform_code"
                   :color-index="faceOf(account.account_id)"
                 />
               </td>

@@ -37,7 +37,7 @@ class UsageRequest:
     target: str
     account_id: str
     deadline: datetime
-    account_key: str = "main"
+    account_code: str = "main"
 
     def __post_init__(self) -> None:
         if not self.target.strip() or not self.account_id.strip():

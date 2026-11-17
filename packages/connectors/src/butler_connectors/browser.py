@@ -44,7 +44,7 @@ class CapturedProfile:
     """一个凑齐名单的 profile 账户槽：编键 + 展示名事实 + 信封。"""
 
     profile_dir: str  # 库所在 profile 目录名（展示名与编键的事实来源）
-    account_key: str  # 首个 = main（存量兼容）；后续 = 目录名 slug（去重后缀）
+    account_code: str  # 首个 = main（存量兼容）；后续 = 目录名 slug（去重后缀）
     envelope: str  # browser_cookie 信封 JSON
 
 
@@ -86,10 +86,10 @@ def capture_cookies(
     for item in captured:
         display = (
             platform.display
-            if item.account_key == "main"
+            if item.account_code == "main"
             else f"{platform.display}（{item.profile_dir}）"
         )
-        account = ctx.register.execute(platform.manifest.id, display, account_key=item.account_key)
+        account = ctx.register.execute(platform.manifest.id, display, account_code=item.account_code)
         _store_credentials(
             ctx, account.id, {"browser_cookie": item.envelope}, kinds, auth.kind,
             main_cookie_names=tuple(auth.cookies),
@@ -153,18 +153,18 @@ def _capture_kind(
         if envelope is None:
             continue  # 名单不齐 = 该 profile 无登录态：非事故，静候下一个
         if not main_taken:
-            account_key = "main"  # 首个凑齐者保存量卡位（重导幂等回放）
+            account_code = "main"  # 首个凑齐者保存量卡位（重导幂等回放）
             main_taken = True
         else:
             slug = _profile_slug(profile)
-            account_key = slug
+            account_code = slug
             ordinal = 2
-            while account_key in used_keys or account_key == "main":
-                account_key = f"{slug}-{ordinal}"
+            while account_code in used_keys or account_code == "main":
+                account_code = f"{slug}-{ordinal}"
                 ordinal += 1
-        used_keys.add(account_key)
+        used_keys.add(account_code)
         captured.append(
-            CapturedProfile(profile_dir=profile, account_key=account_key, envelope=envelope)
+            CapturedProfile(profile_dir=profile, account_code=account_code, envelope=envelope)
         )
     return captured, issues
 

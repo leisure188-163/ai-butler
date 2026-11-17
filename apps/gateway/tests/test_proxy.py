@@ -43,8 +43,8 @@ class FakeAccounts:
     def __init__(self) -> None:
         self._a = Account(
             id=account_identity("trae_cn", "main"),
-            platform="trae_cn",
-            display_name="trae main",
+            platform_code="trae_cn",
+            account_name="trae main",
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         )
 

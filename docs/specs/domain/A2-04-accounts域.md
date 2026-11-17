@@ -17,8 +17,8 @@
 ```
 App：Connector 的产品级身份（id + display + capabilities 申报源）
 Account（聚合根）：
-  identity = (app, account_key)；account_key 缺省 "main"
-  同一 App 下 account_key 唯一；删除账户 = 软删除（deleted_at 落库，
+  identity = (platform_code, account_code)；account_code 缺省 "main"
+  同一平台下 account_code 唯一；删除账户 = 软删除（deleted_at 落库，
   台账/审计保留 account_id）
 Credential：kind(ss_aes/cookie/oauth/api-key) / 密文 / 有效期 / 轮换历史
   ——凭据必须绑定 account，禁止按应用共享（ADR-003 §5）
@@ -29,10 +29,10 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 不变量：
 1. account_id 是全系统外键——Run/Event/Sample 一律挂它
 2. 凭据明文永不离开 vault 端口背后（core 只见句柄与元数据）
-3. `(app, account_key)` 缺省落位规则：存量单账号数据迁移时
-   account_key = "main"，零信息丢失（迁移测试钉死，A1-05 §5 P4）
+3. `(platform_code, account_code)` 缺省落位规则：存量单账号数据迁移时
+   account_code = "main"，零信息丢失（迁移测试钉死，A1-05 §5 P4）
 
-### 2.1 accounts 表 v3（2026-11-17，ADR-018/ADR-019）
+### 2.1 accounts 表 v3（2026-11-17，ADR-018/019/020）
 
 统一审计字段 `id / created_at / updated_at` 所有表必备（本表先行立范式，
 其余域分批跟进）；每表代理键 `id INTEGER PRIMARY KEY AUTOINCREMENT`（DDL
@@ -42,9 +42,9 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 | 列 | 类型 | 语义 |
 |---|---|---|
 | `id` | INTEGER PK AUTOINCREMENT | 全库统一代理键（ADR-019） |
-| `account_id` | TEXT NOT NULL UNIQUE | 规范 id `{platform}:{account_key}`（原表主键，降级为业务键；编址不变） |
-| `platform` | TEXT NOT NULL | 连接器/平台 id（provider→app→platform，ADR-018/019） |
-| `account_key` | TEXT NOT NULL DEFAULT 'main' | 平台内账号序；`UNIQUE(platform, account_key)` 数据库级兜底不变量 |
+| `account_id` | TEXT NOT NULL UNIQUE | 规范 id `{platform}:{account_code}`（原表主键，降级为业务键；编址不变） |
+| `platform_code` | TEXT NOT NULL | 连接器/平台 id（provider→app→platform→platform_code，ADR-018/019/020） |
+| `account_code` | TEXT NOT NULL DEFAULT 'main' | 平台内账号序（原 account_key，ADR-020）；`UNIQUE(platform_code, account_code)` 数据库级兜底不变量 |
 | `display_name` | TEXT NOT NULL | 应用名（账号册出产） |
 | `base_url` | TEXT | 账户级 API 基址（Qoder CN/Global 双 host 事实落库；空 = 用连接器缺省） |
 | `device_ref` | TEXT | 供应商侧账户标识绑定；unbound 如实 NULL（§4.1） |
@@ -55,10 +55,10 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 | `updated_at` | TEXT NOT NULL | 统一审计列；save 时写当前时刻，老库回填 created_at |
 | `deleted_at` | TEXT | 软删除标记（不变量 3 落库） |
 
-索引：`uq_accounts_platform_key (platform, account_key)` 唯一 + `idx_accounts_platform (platform)`。
+索引：`uq_accounts_platform_code_key (platform_code, account_code)` 唯一 + `idx_accounts_platform_code (platform_code)`。
 save = `INSERT … ON CONFLICT (account_id) DO UPDATE`（UPSERT 保代理键不漂移）。
 老库自迁移幂等：v1/v2 形状（TEXT 主键 + provider/app 列）走重建式迁移（Python 回填
-account_key/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形状缺列 ALTER 纯增量。
+account_code/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形状缺列 ALTER 纯增量。
 
 ## 3. 端口（accounts/ports.py）
 
@@ -76,7 +76,7 @@ account_key/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形状
 
 | 用例 | 语义 |
 |---|---|
-| `register_account` | 建立 App 下账户并落库；`(app, account_key)` 冲突 → 显式拒绝 |
+| `register_account` | 建立平台下账户并落库；`(platform_code, account_code)` 冲突 → 显式拒绝 |
 | 导入多账号 | SessionSourcePort 枚举本机多 profile/多开，逐账号入库（ADR-003 §3；连接器侧逐家取证随 P5 落地，见 A2-02 §5 沙箱） |
 | `scan_sessions`（R5-S1，ADR-013） | 只读枚举 → device_ref 绑定（vault device 类凭据匹配）→ 组 Session 追加聚合（(location,kind,level) 去重幂等）→ repo 回写；绑定不可得 = 如实 unbound 分列不入库 |
 

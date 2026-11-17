@@ -165,7 +165,7 @@ class MemAccounts(AccountRepository):
         return self.rows.get(account_id)
 
     def list_by_platform(self, platform):
-        return [a for a in self.rows.values() if a.platform == platform]
+        return [a for a in self.rows.values() if a.platform_code == platform]
 
     def list_all(self):
         return list(self.rows.values())

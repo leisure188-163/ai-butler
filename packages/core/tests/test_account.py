@@ -23,7 +23,7 @@ class MemAccounts(AccountRepository):
         return self._rows.get(account_id)
 
     def list_by_platform(self, platform: str) -> list[Account]:
-        return [a for a in self._rows.values() if a.platform == platform]
+        return [a for a in self._rows.values() if a.platform_code == platform]
 
     def list_all(self) -> list[Account]:
         return list(self._rows.values())
@@ -41,7 +41,7 @@ def test_register_is_idempotent_same_id():
     first = uc.execute("trae_cn", "Trae CN")
     again = uc.execute("trae_cn", "Trae CN 改名也不应覆盖")
     assert first is again  # 同名册位已存在 → 既有账号原样返回（display 冻结）
-    assert repo.get("trae_cn:main").display_name == "Trae CN"
+    assert repo.get("trae_cn:main").account_name == "Trae CN"
 
 
 def test_register_invalid_display():
@@ -53,10 +53,10 @@ def test_register_invalid_display():
 def test_account_fields_shape():
     account = Account(
         id="trae_cn:main",
-        platform="trae_cn",
-        display_name="Trae CN",
+        platform_code="trae_cn",
+        account_name="Trae CN",
         created_at=datetime(2026, 11, 11, tzinfo=UTC),
     )
-    assert account.platform == "trae_cn"
+    assert account.platform_code == "trae_cn"
     with pytest.raises(DomainError):
-        Account(id="", platform="trae_cn", display_name="x", created_at=now_utc())
+        Account(id="", platform_code="trae_cn", account_name="x", created_at=now_utc())

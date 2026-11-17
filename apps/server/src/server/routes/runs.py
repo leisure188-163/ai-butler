@@ -38,8 +38,8 @@ class RunIn(BaseModel):
 
     target: str
     kind: str = "provision.run"
-    account_id: str | None = None  # 显式账号规范 id（优先于 account_key）
-    account_key: str = "main"  # ADR-003：target = 应用 + 账号；裸应用 id 兼容首账号
+    account_id: str | None = None  # 显式账号规范 id（优先于 account_code）
+    account_code: str = "main"  # ADR-003：target = 应用 + 账号；裸应用 id 兼容首账号
     dry_run: bool = False
 
 
@@ -53,7 +53,7 @@ class RunOut(BaseModel):
     kind: str  # ActionKind.value
     target: str
     account_id: str
-    account_key: str  # 幂等键按账号粒度（ADR-003 §4）
+    account_code: str  # 幂等键按账号粒度（ADR-003 §4）
     started_at: datetime
     finished_at: datetime | None
     status: str | None  # Status.value（oracle 方言字面量，端零映射）
@@ -70,7 +70,7 @@ def _run_out(run: Run) -> RunOut:
         kind=run.action.kind.value,
         target=run.action.target,
         account_id=run.account_id,
-        account_key=run.account_id.split(":", 1)[-1],
+        account_code=run.account_id.split(":", 1)[-1],
         started_at=run.started_at,
         finished_at=run.finished_at,
         status=result.status.value if result else None,
@@ -101,7 +101,7 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
     from butler_core.scheduling.domain import claim_window
 
     resolved_account = payload.account_id or account_identity(
-        payload.target, payload.account_key
+        payload.target, payload.account_code
     )
     registry = request.app.state.registry
     kit = request.app.state.kit
@@ -167,7 +167,7 @@ def claim_all_runs(request: Request) -> list[RunOut]:
     # 多账号（ADR-003）：同一应用下每个账户各自发起，幂等键按账号粒度
     docked: dict[str, list[str]] = {}
     for account in kit.accounts.list_all():
-        docked.setdefault(account.platform, []).append(account.id)
+        docked.setdefault(account.platform_code, []).append(account.id)
     refresh = {e["target"]: e["refresh_at"] for e in registry.schedule_entries()}
     out: list[RunOut] = []
     for platform in registry.platforms():

@@ -38,7 +38,7 @@ def test_two_profiles_two_slots(tmp_path, mac_env):
         capture_spec().auth, "chatgpt_web", [str(tmp_path / "Chrome/*/Cookies")]
     )
     assert issues == [], issues
-    assert [(c.account_key, c.profile_dir) for c in captured] == [
+    assert [(c.account_code, c.profile_dir) for c in captured] == [
         ("main", "Default"),
         ("profile-1", "Profile 1"),
     ]
@@ -71,8 +71,8 @@ def test_two_slots_full_chain_via_registry(tmp_path, mac_env, registry):
     )
     assert outcome.issues == [], outcome.issues
     assert outcome.accounts == ["chatgpt_web:main", "chatgpt_web:profile-1"]
-    assert accounts.rows["chatgpt_web:main"].display_name == "ChatGPT"
-    assert accounts.rows["chatgpt_web:profile-1"].display_name == "ChatGPT（Profile 1）"
+    assert accounts.rows["chatgpt_web:main"].account_name == "ChatGPT"
+    assert accounts.rows["chatgpt_web:profile-1"].account_name == "ChatGPT（Profile 1）"
     assert (
         json.loads(vault.items[("chatgpt_web:main", "browser_cookie")][0].expose())["cookies"][0]["value"]
         == "v-d-0"
@@ -131,7 +131,7 @@ def test_same_profile_dual_layout_dedup(tmp_path, mac_env):
     )
     assert issues == [], issues
     assert len(captured) == 1
-    assert captured[0].account_key == "main" and captured[0].profile_dir == "Default"
+    assert captured[0].account_code == "main" and captured[0].profile_dir == "Default"
     assert [c["value"] for c in json.loads(captured[0].envelope)["cookies"]] == ["v-old-0", "v-old-1"]
 
 
@@ -149,7 +149,7 @@ def test_incomplete_profile_falls_through(tmp_path, mac_env):
         capture_spec().auth, "chatgpt_web", [str(tmp_path / "Chrome/*/Cookies")]
     )
     assert issues == [], issues
-    assert captured[0].account_key == "main"  # 缺名单不是事故：Profile 1 首个凑齐保存量卡位
+    assert captured[0].account_code == "main"  # 缺名单不是事故：Profile 1 首个凑齐保存量卡位
     envelope = json.loads(captured[0].envelope)
     assert [c["value"] for c in envelope["cookies"]] == ["v-p-0", "v-p-1"]
 

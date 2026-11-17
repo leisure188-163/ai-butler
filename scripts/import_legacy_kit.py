@@ -154,7 +154,7 @@ def _plan(runs: list[dict], accounts: list[dict], tz: float, tag: str) -> dict:
     warnings: list[str] = []
     accounts_by_domain: dict[str, list[dict]] = {}
     acct_plan: dict[tuple[str, str], str] = {}  # (domain, name) → butler 账户 id
-    new_accounts: list[dict] = []  # {id, provider, display_name, created_at}
+    new_accounts: list[dict] = []  # {id, provider, account_name, created_at}
 
     for a in accounts:
         domain = (a["domain"] or "").strip()
@@ -170,7 +170,7 @@ def _plan(runs: list[dict], accounts: list[dict], tz: float, tag: str) -> dict:
         new_accounts.append({
             "id": acct_id,
             "provider": provider,
-            "display_name": name,
+            "account_name": name,
             "created_at": _to_utc_iso(a["created_at"], tz),
         })
 
@@ -206,7 +206,7 @@ def _plan(runs: list[dict], accounts: list[dict], tz: float, tag: str) -> dict:
             if not _slug(acct_name):
                 raise SystemExit(f"run id={r['id']} 账户名 {acct_name!r} 无法折 id——人工裁决")
             new_accounts.append({"id": acct_id, "provider": provider,
-                                 "display_name": acct_name, "created_at": None})
+                                 "account_name": acct_name, "created_at": None})
             warnings.append(f"run id={r['id']} 账户 {acct_name!r} 无登记户 → 隐式新建 {acct_id}")
         run_plan.append({
             "id": f"legacy-kit:{tag}:{r['id']}",
@@ -287,9 +287,9 @@ def _commit(target: Path, plan: dict, tag: str) -> None:
         conn.execute("BEGIN")
         for a in plan["new_accounts"]:
             conn.execute(
-                "INSERT OR IGNORE INTO accounts (id, provider, display_name, created_at) "
+                "INSERT OR IGNORE INTO accounts (id, provider, account_name, created_at) "
                 "VALUES (?, ?, ?, ?)",
-                (a["id"], a["provider"], a["display_name"],
+                (a["id"], a["provider"], a["account_name"],
                  a["created_at"] or datetime.now(timezone.utc).isoformat()),
             )
         for row in plan["run_plan"]:

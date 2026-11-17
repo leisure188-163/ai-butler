@@ -71,7 +71,7 @@ def _filter_app(rows: list[dict], platform: str | None) -> list[dict]:
         r
         for r in rows
         if needle in str(r.get("platform", "")).casefold()
-        or needle in str(r.get("display_name", "")).casefold()
+        or needle in str(r.get("account_name", "")).casefold()
     ]
 
 
@@ -79,7 +79,7 @@ def _quota_view(row: dict) -> dict:
     return {
         "account_id": row.get("account_id"),
         "platform": row.get("platform"),
-        "display_name": row.get("display_name"),
+        "account_name": row.get("account_name"),
         "collected_at": row.get("collected_at"),
         "packages": [
             {
@@ -103,7 +103,7 @@ def _usage_view(row: dict) -> dict:
     return {
         "account_id": row.get("account_id"),
         "platform": row.get("platform"),
-        "display_name": row.get("display_name"),
+        "account_name": row.get("account_name"),
         "aggregate_collected_at": row.get("aggregate_collected_at"),
         "aggregate_summary": row.get("aggregate_summary"),
         "recent_ledger": [

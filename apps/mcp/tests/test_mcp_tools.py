@@ -19,7 +19,7 @@ def _radar_row(platform: str = "trae_cn", display: str = "Trae CN") -> dict:
     return {
         "account_id": f"{platform}:main",
         "platform": platform,
-        "display_name": display,
+        "account_name": display,
         "collected_at": "2026-11-12T09:00:00",
         "packages": [
             {

@@ -61,8 +61,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     with TestClient(app) as tc:
         account = Account(
             id=account_identity("trae_cn", "main"),
-            platform="trae_cn",
-            display_name="trae",
+            platform_code="trae_cn",
+            account_name="trae",
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         )
         tc.app.state.kit.accounts.save(account)

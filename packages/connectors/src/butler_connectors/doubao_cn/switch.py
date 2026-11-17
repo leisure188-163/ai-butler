@@ -71,14 +71,14 @@ _ACTIVE_ITEM_JS = """(() => {
 
 
 def resolve_target_identity(key: str) -> ActiveIdentity | None:
-    """account_key → 已登记身份（main = 基线；其他 = 登记簿 others）。
+    """account_code → 已登记身份（main = 基线；其他 = 登记簿 others）。
 
     未登记 → None（自动切号无定位依据，调用方显式 PENDING 指引先 dock 登记）。
     """
     if key == "main":
         return load_main_baseline()
     for other in load_identity_registry().others:
-        if other.account_key == key:
+        if other.account_code == key:
             return ActiveIdentity(sec_uid=other.sec_uid, nickname=other.nickname)
     return None
 

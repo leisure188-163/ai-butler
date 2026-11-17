@@ -93,7 +93,7 @@ class SessionSourcePort(Protocol):
     """本机会话/凭据扫描：多 profile 枚举（ADR-003 §3）+ 会话观测（R5-S1）。"""
 
     def enumerate_accounts(self, platform: str) -> Iterable[tuple[str, str]]:
-        """产出 (account_key, display_name)；不可得通道如实返回空。"""
+        """产出 (account_code, account_name)；不可得通道如实返回空。"""
         ...
 
     def scan_sessions(self, platform: str) -> Iterable[SessionSighting]:

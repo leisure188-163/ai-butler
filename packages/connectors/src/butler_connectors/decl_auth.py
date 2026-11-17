@@ -1,6 +1,6 @@
 """声明式鉴权头模板与按账户基址（A2-02 §4；从 decl.py 拆出控制行数）。
 
-单一职责：解锁字段 → header 模板 / account_key → 产品域基址。provision、
+单一职责：解锁字段 → header 模板 / account_code → 产品域基址。provision、
 health 与 usage 适配器共用；缺字段显式爆，不静默少发头（红线 5）。
 """
 
@@ -45,7 +45,7 @@ def fill_auth_headers(auth: AuthSpec, fields: Mapping[str, str]) -> dict[str, st
 
 
 def account_base_url(auth: AuthSpec, account_id: str) -> str:
-    """按 account_key 选择产品域基址；精确键优先，其次 ``-`` 前缀，最后 main。
+    """按 account_code 选择产品域基址；精确键优先，其次 ``-`` 前缀，最后 main。
 
     未声明 base_urls 的连接器返回空串——调用方据此保留 RequestSpec.url 原样。
     """

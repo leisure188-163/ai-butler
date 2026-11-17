@@ -154,7 +154,7 @@ CI 只在 ubuntu 跑——平台特有调用（Windows DPAPI / macOS Keychain）
 
 ## 9. 多账号 dock/import 取证结论（ADR-003 §3，2026-11-14 重写 P5）
 
-core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_key`、
+core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_code`、
 `PlatformOut.account_ids`、一键领取逐账户发起）。连接器侧取证结论如实登记如下，
 **不虚报未验证能力**（红线 5）：
 
@@ -168,7 +168,7 @@ core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_key`、
 | claude_web | **多账户（同 ADR-011 通道）** | 本机无登录态（双 profile 均无 claude.ai cookie）——通道语义已就绪，名单补证维持挂账 |
 
 **扩展点已落地**：`butler_core.accounts.ports.SessionSourcePort.enumerate_accounts()`
-产出 `(account_key, display_name)`，`RegisterAccount.import_from_source()` 逐账号
+产出 `(account_code, account_name)`，`RegisterAccount.import_from_source()` 逐账号
 入库，无需改 core/server 契约；browser_cookie 通道经 `CapturedProfile`
 （browser.py）逐槽注册入库。桌面客户端连接器按各自 PROTOCOL.md"多 profile
 目录形状"小节取证后接 dock；本机 Qoder 已有双账户数据源，其余桌面连接器

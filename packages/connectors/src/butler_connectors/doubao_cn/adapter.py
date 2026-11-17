@@ -516,7 +516,7 @@ class _Butler:
             if identity.sec_uid != baseline.sec_uid:
                 key = derive_key(identity.sec_uid)
                 extra = ctx.register.execute(
-                    CONN_ID, identity.nickname or DISPLAY, account_key=key
+                    CONN_ID, identity.nickname or DISPLAY, account_code=key
                 )
                 if extra.id not in accounts:
                     accounts.append(extra.id)

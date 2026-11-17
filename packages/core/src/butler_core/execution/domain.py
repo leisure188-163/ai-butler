@@ -66,7 +66,7 @@ class Action:
     kind: ActionKind
     target: str
     params: Mapping[str, str] = field(default_factory=dict)
-    account_key: str = "main"
+    account_code: str = "main"
 
     def __post_init__(self) -> None:
         if not self.target.strip():

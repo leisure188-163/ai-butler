@@ -48,7 +48,7 @@ export function useUsageActions({
     return outcomes
       .map((o) => {
         const name =
-          radarRows.value.find((r) => r.account_id === o.account_id)?.display_name ?? o.account_id;
+          radarRows.value.find((r) => r.account_id === o.account_id)?.account_name ?? o.account_id;
         if (o.error) return `${name}：${o.error}`;
         const saved = [
           o.snapshot_saved ? "余额" : "",

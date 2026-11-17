@@ -1,6 +1,6 @@
 """账户域（A2-04）：Platform / Account 集合 / 凭据事实。
 
-多账号（ADR-003）：一 Platform 挂 N 个 Account，身份 = (platform, account_key)；
+多账号（ADR-003）：一 Platform 挂 N 个 Account，身份 = (platform, account_code)；
 凭据/权益/会话全部挂 account_id。凭据明文载体 Secret 与保险库引用也在本域
 ——健康分级枚举来自 shared 内核，域之间不互依（A1-05 §2 依赖恒等式）。
 """
@@ -16,7 +16,7 @@ from butler_core.shared.errors import DomainError
 from butler_core.shared.health_level import HealthLevel, credential_level
 from butler_core.shared.time import now_utc
 
-DEFAULT_ACCOUNT_KEY = "main"
+DEFAULT_ACCOUNT_CODE = "main"
 EXPIRING_WINDOW_DAYS = 3  # CREDENTIAL_EXPIRING 预警窗（旧值不变，A2-07 §2）
 
 
@@ -25,27 +25,27 @@ class AccountInvalid(DomainError):
 
 
 class AccountAlreadyExists(AccountInvalid):
-    """(platform, account_key) 已存在且事实冲突——不静默改号。"""
+    """(platform, account_code) 已存在且事实冲突——不静默改号。"""
 
 
 class EmptySecret(DomainError):
     """空明文入库 = 拒绝执行（红线 5）。"""
 
 
-def account_identity(platform: str, account_key: str = DEFAULT_ACCOUNT_KEY) -> str:
-    """账户规范 id：``{platform}:{account_key}``——全库唯一锚点单源。"""
+def account_identity(platform: str, account_code: str = DEFAULT_ACCOUNT_CODE) -> str:
+    """账户规范 id：``{platform}:{account_code}``——全库唯一锚点单源。"""
 
     if not platform.strip():
         raise AccountInvalid("platform（connector id）不能为空")
-    if not account_key.strip() or ":" in account_key:
-        raise AccountInvalid("account_key 非空且不含冒号")
-    return f"{platform.strip()}:{account_key.strip()}"
+    if not account_code.strip() or ":" in account_code:
+        raise AccountInvalid("account_code 非空且不含冒号")
+    return f"{platform.strip()}:{account_code.strip()}"
 
 
 def main_account_id(platform: str) -> str:
     """兼容名：首账号（main）的规范 id——与存量 `:main` 编址零迁移兼容。"""
 
-    return account_identity(platform, DEFAULT_ACCOUNT_KEY)
+    return account_identity(platform, DEFAULT_ACCOUNT_CODE)
 
 
 @dataclass(frozen=True)
@@ -128,10 +128,10 @@ class Account:
     """账户聚合根（集合语义）：Run / Event / Sample / 凭据全挂 account_id。"""
 
     id: str
-    platform: str
-    display_name: str
+    platform_code: str
+    account_name: str
     created_at: datetime
-    account_key: str = DEFAULT_ACCOUNT_KEY
+    account_code: str = DEFAULT_ACCOUNT_CODE
     credentials: tuple[Credential, ...] = ()
     entitlement: Entitlement | None = None
     sessions: tuple[Session, ...] = ()
@@ -141,27 +141,27 @@ class Account:
     is_active: bool = True  # 用户管理开关（不用 enabled——数据库关键字风险；停用是运营动作，健康熔断仍归 health 域，A2-04 §6）
 
     def __post_init__(self) -> None:
-        if not self.id.strip() or not self.platform.strip():
+        if not self.id.strip() or not self.platform_code.strip():
             raise AccountInvalid("Account 需要非空 id 与 platform")
-        if not self.display_name.strip():
-            raise AccountInvalid("Account 需要非空 display_name")
-        if self.id != account_identity(self.platform, self.account_key):
-            # 存量行/适配器只带 id 时，从规范 id 反推 account_key（多账号兼容）：
+        if not self.account_name.strip():
+            raise AccountInvalid("Account 需要非空 account_name")
+        if self.id != account_identity(self.platform_code, self.account_code):
+            # 存量行/适配器只带 id 时，从规范 id 反推 account_code（多账号兼容）：
             # 形状不对就显式拒绝，绝不静默改号。
-            prefix = f"{self.platform.strip()}:"
+            prefix = f"{self.platform_code.strip()}:"
             suffix = self.id[len(prefix):] if self.id.startswith(prefix) else ""
             if not suffix or ":" in suffix:
                 raise AccountInvalid(
-                    f"Account id {self.id!r} 与 (platform, account_key) 编址不一致"
+                    f"Account id {self.id!r} 与 (platform, account_code) 编址不一致"
                 )
-            object.__setattr__(self, "account_key", suffix)
+            object.__setattr__(self, "account_code", suffix)
         for cred in self.credentials:
             if cred.account_id != self.id:
                 raise AccountInvalid("凭据必须绑定本账户，禁止按应用共享")
 
     @property
     def identity(self) -> tuple[str, str]:
-        return (self.platform, self.account_key)
+        return (self.platform_code, self.account_code)
 
 
 @dataclass(frozen=True)
@@ -250,6 +250,6 @@ class AccountDraft:
     """注册用例的入参形状（避免在用例签名里堆参数）。"""
 
     platform: str
-    display_name: str
-    account_key: str = DEFAULT_ACCOUNT_KEY
+    account_name: str
+    account_code: str = DEFAULT_ACCOUNT_CODE
     credentials: tuple[Credential, ...] = field(default_factory=tuple)

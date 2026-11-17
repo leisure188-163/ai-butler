@@ -81,12 +81,12 @@ function aggText(s: { [key: string]: unknown }): string {
   <div v-if="rows.length" class="wall">
     <article v-for="row in rows" :key="row.account_id" class="acct sheet">
       <header class="acct-head">
-        <AppBadge :name="row.display_name" :color-index="faceOf(row.account_id)" />
+        <AppBadge :name="row.account_name" :color-index="faceOf(row.account_id)" />
         <span class="acct-id mono">{{ row.account_id }}</span>
       </header>
       <div class="acct-body">
         <p class="row-sub">
-          {{ row.platform || "vault-only" }}
+          {{ row.platform_code || "vault-only" }}
           <template v-if="row.collected_at"> · 采集于 {{ fmtTime(row.collected_at) }}</template>
           <template v-else> · 尚未采集</template>
         </p>

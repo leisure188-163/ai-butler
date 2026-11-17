@@ -54,7 +54,7 @@ def list_platforms(request: Request) -> list[PlatformOut]:
     kit = request.app.state.kit
     docked: dict[str, list[str]] = {}
     for account in kit.accounts.list_all():
-        docked.setdefault(account.platform, []).append(account.id)
+        docked.setdefault(account.platform_code, []).append(account.id)
     out: list[PlatformOut] = []
     for platform in registry.platforms():
         if getattr(platform.manifest, "retired", False):
@@ -96,7 +96,7 @@ def import_all_platforms(request: Request) -> list[ImportOut]:
     """
     registry = request.app.state.registry
     kit = request.app.state.kit
-    docked = {a.platform for a in kit.accounts.list_all()}
+    docked = {a.platform_code for a in kit.accounts.list_all()}
     return [
         _import_one(registry, kit, platform.manifest.id)
         for platform in registry.platforms()

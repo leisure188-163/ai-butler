@@ -64,7 +64,7 @@ def platforms() -> None:
     try:
         imported: dict[str, list[str]] = {}
         for account in kit.accounts.list_all():
-            imported.setdefault(account.platform, []).append(account.id)
+            imported.setdefault(account.platform_code, []).append(account.id)
         table = Table("平台", "能力", "凭据", "时间表", "卡")
         for platform_obj in _registry().platforms():
             m = platform_obj.manifest

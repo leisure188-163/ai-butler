@@ -268,12 +268,12 @@ export interface components {
         AccountOut: {
             /** Account Id */
             account_id: string;
-            /** Account Key */
-            account_key: string;
-            /** Platform */
-            platform: string;
-            /** Display Name */
-            display_name: string;
+            /** Account Code */
+            account_code: string;
+            /** Platform Code */
+            platform_code: string;
+            /** Account Name */
+            account_name: string;
             /** Level */
             level: string;
             /** Signal */
@@ -441,10 +441,10 @@ export interface components {
         RadarAccountOut: {
             /** Account Id */
             account_id: string;
-            /** Platform */
-            platform: string;
-            /** Display Name */
-            display_name: string;
+            /** Platform Code */
+            platform_code: string;
+            /** Account Name */
+            account_name: string;
             /** Collected At */
             collected_at: string | null;
             /** Packages */
@@ -495,10 +495,10 @@ export interface components {
             /** Account Id */
             account_id?: string | null;
             /**
-             * Account Key
+             * Account Code
              * @default main
              */
-            account_key: string;
+            account_code: string;
             /**
              * Dry Run
              * @default false
@@ -515,8 +515,8 @@ export interface components {
             target: string;
             /** Account Id */
             account_id: string;
-            /** Account Key */
-            account_key: string;
+            /** Account Code */
+            account_code: string;
             /**
              * Started At
              * Format: date-time

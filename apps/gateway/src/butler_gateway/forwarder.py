@@ -139,11 +139,11 @@ class Forwarder:
         account = await asyncio.to_thread(self.accounts.get, account_id)
         if account is None:
             return self._skipped(account_id, "skipped:account_missing", started)
-        adapter = upstream_for(account.platform)
+        adapter = upstream_for(account.platform_code)
         if adapter is None:
             return self._skipped(
                 account_id,
-                f"skipped:upstream_not_ready:{account.platform}",
+                f"skipped:upstream_not_ready:{account.platform_code}",
                 started,
                 detail="推理通道取证未回收，该 platform 未开工（plans/02 §3）",
             )

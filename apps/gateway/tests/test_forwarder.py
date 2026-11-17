@@ -32,8 +32,8 @@ from butler_gateway.upstream import (
 def _account(account_id: str, platform: str) -> Account:
     return Account(
         id=account_identity(platform, account_id.split(":", 1)[1]),
-        platform=platform,
-        display_name=account_id,
+        platform_code=platform,
+        account_name=account_id,
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
 
@@ -212,8 +212,8 @@ def test_未注册app_如实记skipped_转下一候选() -> None:
             [
                 Account(
                     id=account_identity("qoder_cn", "main"),
-                    platform="qoder_cn",
-                    display_name="q",
+                    platform_code="qoder_cn",
+                    account_name="q",
                     created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
                 ),
                 _account("trae_cn:second", "trae_cn"),

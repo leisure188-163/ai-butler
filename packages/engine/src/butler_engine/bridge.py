@@ -270,9 +270,9 @@ class EngineKit:
         落 WARNING 日志留痕——不静默（红线 5）。
         """
         for account in self.accounts.list_all():
-            if not account.platform or account.platform not in self._usage_ports:
+            if not account.platform_code or account.platform_code not in self._usage_ports:
                 continue
-            outcome = self.collect_usage.execute(account.platform, account.id)
+            outcome = self.collect_usage.execute(account.platform_code, account.id)
             if outcome.error:
                 logger.warning("每日用量采集失败 %s: %s", account.id, outcome.error)
 
@@ -296,13 +296,13 @@ class EngineKit:
         落账后原样上抛，这里兜住）——不静默（红线 5）。
         """
         for account in self.accounts.list_all():
-            if not account.platform or account.platform not in self._health_ports:
+            if not account.platform_code or account.platform_code not in self._health_ports:
                 continue
             try:
                 self.execute_action.execute(
                     RunRequest(
                         action=Action(
-                            kind=ActionKind.HEALTH_CHECK, target=account.platform
+                            kind=ActionKind.HEALTH_CHECK, target=account.platform_code
                         ),
                         account_id=account.id,
                     )

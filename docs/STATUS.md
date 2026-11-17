@@ -67,12 +67,19 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**accounts 列名 code 化（2026-11-17，ADR-020）**：账户域三列再改名
+`account_key`→`account_code`、`platform`→`platform_code`、`display_name`→
+`account_name`（概念术语「平台/Platform」不变，仅列/字段/契约同步）；索引改
+`uq_accounts_platform_code_key` + `idx_accounts_platform_code`；v3 早期形状走
+RENAME COLUMN 自迁移；AccountOut/usage 契约字段与 SDK、web 同步重生成。
+测试 **711 passed + 10 skipped**。
+
 **术语 platform 统一 + accounts 表 v3（2026-11-17，ADR-019）**：全库 app→platform
 （连接器家族 ConnectorPlatform、accounts.platform 列、server 路由 `/platforms`、
 PlatformOut 契约、SDK 重生成、web 页名「平台」；保留 FastAPI 实例变量 `app`、
 AppBadge、`AppsPage.vue` 文件名、scheduling `Trigger.enabled`、第三方 LLM provider）。
 accounts 表 v3：每表 `id INTEGER PRIMARY KEY AUTOINCREMENT` 代理键，规范 id
-`{platform}:{account_key}` 降级为 `account_id` UNIQUE 业务键（编址不变），`enabled`→
+`{platform}:{account_code}` 降级为 `account_id` UNIQUE 业务键（编址不变），`enabled`→
 `is_active`（数据库关键字规避），save 用 UPSERT 保代理键不漂移；v1/v2 老库重建式
 迁移零丢失。全库 DDL 约定（代理键 + created_at/updated_at 必备 + 禁用关键字列名）
 收编 A4-01 §5；A2-04 §2.1 升 v3、A1-03 词表、A3-01 页名同步。测试 **711 passed +

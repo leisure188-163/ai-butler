@@ -7,9 +7,9 @@
 CREATE TABLE accounts (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     account_id       TEXT NOT NULL UNIQUE,
-    platform         TEXT NOT NULL,
-    account_key      TEXT NOT NULL DEFAULT 'main',
-    display_name     TEXT NOT NULL,
+    platform_code    TEXT NOT NULL,
+    account_code     TEXT NOT NULL DEFAULT 'main',
+    account_name     TEXT NOT NULL,
     base_url         TEXT,
     device_ref       TEXT,
     sessions         TEXT NOT NULL DEFAULT '[]',
@@ -19,6 +19,6 @@ CREATE TABLE accounts (
     updated_at       TEXT NOT NULL,
     deleted_at       TEXT
 );
-CREATE UNIQUE INDEX uq_accounts_platform_key
-    ON accounts (platform, account_key);
-CREATE INDEX idx_accounts_platform ON accounts (platform);
+CREATE UNIQUE INDEX uq_accounts_platform_code_key
+    ON accounts (platform_code, account_code);
+CREATE INDEX idx_accounts_platform_code ON accounts (platform_code);

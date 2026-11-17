@@ -32,7 +32,7 @@ class MemoryAccounts(AccountRepository):
         return self.rows.get(account_id)
 
     def list_by_platform(self, platform):
-        return [a for a in self.rows.values() if a.platform == platform]
+        return [a for a in self.rows.values() if a.platform_code == platform]
 
     def list_all(self):
         return list(self.rows.values())
@@ -43,32 +43,32 @@ def test_identity_default_key_and_collection():
     assert main_account_id("trae_cn") == account_identity("trae_cn")
     a = Account(
         id=account_identity("trae_cn", "work"),
-        platform="trae_cn",
-        display_name="工作号",
+        platform_code="trae_cn",
+        account_name="工作号",
         created_at=datetime.now(timezone.utc),
-        account_key="work",
+        account_code="work",
     )
     b = Account(
         id=account_identity("trae_cn", "personal"),
-        platform="trae_cn",
-        display_name="个人号",
+        platform_code="trae_cn",
+        account_name="个人号",
         created_at=datetime.now(timezone.utc),
-        account_key="personal",
+        account_code="personal",
     )
     assert a.identity != b.identity
-    assert a.account_key == "work"
+    assert a.account_code == "work"
 
 
 def test_account_id_must_match_identity():
     with pytest.raises(AccountInvalid):
-        Account(id="wrong", platform="trae_cn", display_name="x",
+        Account(id="wrong", platform_code="trae_cn", account_name="x",
                 created_at=datetime.now(timezone.utc))
 
 
 def test_credential_must_belong_to_account():
     with pytest.raises(AccountInvalid):
         Account(
-            id=account_identity("trae_cn"), platform="trae_cn", display_name="x",
+            id=account_identity("trae_cn"), platform_code="trae_cn", account_name="x",
             created_at=datetime.now(timezone.utc),
             credentials=(Credential(account_id="other", kind="cookie"),),
         )
@@ -77,14 +77,14 @@ def test_credential_must_belong_to_account():
 def test_register_multi_account_and_conflict():
     repo = MemoryAccounts()
     uc = RegisterAccount(accounts=repo)
-    a = uc.execute("trae_cn", "工作号", account_key="work")
-    b = uc.execute("trae_cn", "个人号", account_key="personal")
+    a = uc.execute("trae_cn", "工作号", account_code="work")
+    b = uc.execute("trae_cn", "个人号", account_code="personal")
     assert len(repo.list_by_platform("trae_cn")) == 2
     assert a.id != b.id
-    assert uc.execute("trae_cn", "工作号", account_key="work").id == a.id  # 幂等
-    assert uc.execute("trae_cn", "改名了", account_key="work").id == a.id  # 不覆盖
+    assert uc.execute("trae_cn", "工作号", account_code="work").id == a.id  # 幂等
+    assert uc.execute("trae_cn", "改名了", account_code="work").id == a.id  # 不覆盖
     with pytest.raises(AccountAlreadyExists):
-        uc.execute("trae_cn", "x", account_key="work", account_id="trae_cn:other")
+        uc.execute("trae_cn", "x", account_code="work", account_id="trae_cn:other")
 
 
 def test_secret_redaction_and_empty_rejected():

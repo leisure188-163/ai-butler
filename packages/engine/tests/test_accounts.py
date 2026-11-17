@@ -8,7 +8,7 @@ from butler_engine.accounts.sqlite import SqliteAccountRepository
 
 def acct(aid: str, platform: str, display: str) -> Account:
     return Account(
-        id=aid, platform=platform, display_name=display,
+        id=aid, platform_code=platform, account_name=display,
         created_at=datetime(2026, 11, 11, 8, 0, tzinfo=UTC),
     )
 
@@ -19,7 +19,7 @@ def test_save_get_list_roundtrip(tmp_path):
     repo.save(acct("qoder:main", "qoder", "Qoder"))
 
     loaded = repo.get("trae_cn:main")
-    assert loaded is not None and loaded.platform == "trae_cn"
+    assert loaded is not None and loaded.platform_code == "trae_cn"
     assert len(repo.list_all()) == 2
     assert [a.id for a in repo.list_by_platform("trae_cn")] == ["trae_cn:main"]
     assert repo.get("ghost") is None

@@ -279,7 +279,7 @@ def dock(ctx: DockContext) -> DockOutcome:
     except Exception as exc:
         return DockOutcome(target=CONN_ID, issues=[f"{CONN_ID}: 页面读取失败：{exc}"])
 
-    account = ctx.register.execute(CONN_ID, _display_for(state), account_key="main")
+    account = ctx.register.execute(CONN_ID, _display_for(state), account_code="main")
     if ctx.vault is not None:
         marker = json.dumps(
             {"domain": DOMAIN, "port": DEBUG_PORT, "user_id": state.user_id},

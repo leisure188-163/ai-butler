@@ -23,8 +23,8 @@ def _account(account_id: str) -> Account:
     platform, key = account_id.split(":", 1)
     return Account(
         id=account_identity(platform, key),
-        platform=platform,
-        display_name=account_id,
+        platform_code=platform,
+        account_name=account_id,
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
 
@@ -42,7 +42,7 @@ class FakeRepo:
         return self._by_id.get(account_id)
 
     def list_by_platform(self, platform: str) -> list[Account]:
-        return [a for a in self._by_id.values() if a.platform == platform]
+        return [a for a in self._by_id.values() if a.platform_code == platform]
 
     def list_all(self) -> list[Account]:
         return list(self._by_id.values())

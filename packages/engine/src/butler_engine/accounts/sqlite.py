@@ -1,18 +1,20 @@
 """账号名册适配器（A2-01 §1）：SQLite 单库、与台账/审计同库不同表。
 
-accounts v3（2026-11-17 用户裁决，ADR-019）：
+accounts v3（2026-11-17 用户裁决，ADR-019/ADR-020）：
 - 每表统一代理键 `id INTEGER PRIMARY KEY AUTOINCREMENT`（DDL 约定见 A4-01 §5）；
-  账户规范 id `{platform}:{account_key}` 降级为业务键 `account_id`（UNIQUE）。
+  账户规范 id `{platform}:{account_code}` 降级为业务键 `account_id`（UNIQUE）。
 - 统一审计列 `created_at / updated_at` 必备；save 用 UPSERT（ON CONFLICT
   account_id）保住代理键不漂移。
-- `platform` 列（原 provider→app→platform，ADR-018/ADR-019 两轮术语裁决）；
-  `is_active` 用户管理开关（不用 enabled——数据库关键字风险，用户裁决）。
+- 列名 code 化（ADR-020）：`platform_code`（原 provider→app→platform）/
+  `account_code`（原 account_key）/ `account_name`（原 display_name）；
+  `is_active` 用户管理开关（不用 enabled——数据库关键字风险）。
 - 聚合事实落全：base_url / device_ref / entitlement_json / deleted_at。
 
 老库自迁移（幂等，纯增量不破坏）：
 - v1/v2 形状（id TEXT 主键 + provider/app 列）→ 重建式迁移：Python 侧回填
-  （account_key 按规范 id 反推、updated_at=created_at 兜底）→ 旧表让位换 v3。
-- v3 形状只补缺列/索引。
+  （account_code 按规范 id 反推、updated_at=created_at 兜底）→ 旧表让位换 v3。
+- v3 早期形状（列名 platform/account_key/display_name）→ RENAME COLUMN 一轮改齐。
+- v3 现行形状只补缺列/索引。
 """
 
 from __future__ import annotations
@@ -30,9 +32,9 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     account_id       TEXT NOT NULL UNIQUE,
-    platform         TEXT NOT NULL,
-    account_key      TEXT NOT NULL DEFAULT 'main',
-    display_name     TEXT NOT NULL,
+    platform_code    TEXT NOT NULL,
+    account_code     TEXT NOT NULL DEFAULT 'main',
+    account_name     TEXT NOT NULL,
     base_url         TEXT,
     device_ref       TEXT,
     sessions         TEXT NOT NULL DEFAULT '[]',
@@ -42,19 +44,26 @@ CREATE TABLE IF NOT EXISTS accounts (
     updated_at       TEXT NOT NULL,
     deleted_at       TEXT
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_platform_key
-    ON accounts (platform, account_key);
-CREATE INDEX IF NOT EXISTS idx_accounts_platform ON accounts (platform);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_platform_code_key
+    ON accounts (platform_code, account_code);
+CREATE INDEX IF NOT EXISTS idx_accounts_platform_code ON accounts (platform_code);
 """
 
 _COLS = (
-    "account_id, platform, account_key, display_name, base_url, device_ref, sessions, "
+    "account_id, platform_code, account_code, account_name, base_url, device_ref, sessions, "
     "entitlement_json, is_active, created_at, updated_at, deleted_at"
 )
 
-# v3 缺列补丁（幂等；v1/v2 走重建不走这里）
+# v3 早期列名 → 现行列名（RENAME 一轮改齐；仅认旧名存在且新名缺失时执行）
+_RENAME_COLS: tuple[tuple[str, str], ...] = (
+    ("platform", "platform_code"),
+    ("account_key", "account_code"),
+    ("display_name", "account_name"),
+)
+
+# 现行形状缺列补丁（幂等；v1/v2 走重建不走这里）
 _MISSING_COLS: dict[str, str] = {
-    "account_key": "account_key TEXT NOT NULL DEFAULT 'main'",
+    "account_code": "account_code TEXT NOT NULL DEFAULT 'main'",
     "base_url": "base_url TEXT",
     "device_ref": "device_ref TEXT",
     "entitlement_json": "entitlement_json TEXT",
@@ -63,18 +72,25 @@ _MISSING_COLS: dict[str, str] = {
     "deleted_at": "deleted_at TEXT",
 }
 
-# v1/v2 旧索引名（重建/补索引时一律 DROP）
-_LEGACY_INDEXES = ("idx_accounts_provider", "idx_accounts_app", "uq_accounts_app_key")
+# 历史/旧索引名（重建/补索引时一律 DROP）
+_LEGACY_INDEXES = (
+    "idx_accounts_provider", "idx_accounts_app", "uq_accounts_app_key",
+    "uq_accounts_platform_key", "idx_accounts_platform",
+)
 
 
 def _ensure_columns(conn) -> None:
-    """老库自迁移（幂等）：v1/v2 → v3 重建；v3 只补缺列/索引。"""
+    """老库自迁移（幂等）：v1/v2 重建、v3 早期列名 RENAME、现行只补缺列/索引。"""
     cols = {row[1] for row in conn.execute("PRAGMA table_info(accounts)")}
     if not cols:
         return  # 表由 _SCHEMA 新建，无需迁移
     if "account_id" not in cols:
         _rebuild_from_legacy(conn, cols)
         return
+    for old, new in _RENAME_COLS:
+        if old in cols and new not in cols:
+            conn.execute(f"ALTER TABLE accounts RENAME COLUMN {old} TO {new}")
+            cols.discard(old); cols.add(new)
     for name, ddl in _MISSING_COLS.items():
         if name not in cols:
             conn.execute(f"ALTER TABLE accounts ADD COLUMN {ddl}")
@@ -86,38 +102,39 @@ def _recreate_indexes(conn) -> None:
     for idx in _LEGACY_INDEXES:
         conn.execute(f"DROP INDEX IF EXISTS {idx}")
     conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_platform_key"
-        " ON accounts (platform, account_key)"
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_platform_code_key"
+        " ON accounts (platform_code, account_code)"
     )
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_accounts_platform ON accounts (platform)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_accounts_platform_code ON accounts (platform_code)")
 
 
 def _rebuild_from_legacy(conn, cols: set[str]) -> None:
     """v1/v2（id TEXT 主键 + provider/app 列）→ v3 重建：行数据零丢失。"""
     platform_col = "app" if "app" in cols else "provider"
-    select = ["id", platform_col, "display_name", "sessions", "created_at"]
+    name_col = "account_name" if "account_name" in cols else "display_name"
+    select = ["id", platform_col, name_col, "sessions", "created_at"]
     for optional in ("base_url", "device_ref", "entitlement_json", "is_active", "updated_at", "deleted_at"):
         select.append(optional if optional in cols else "NULL")
     rows = conn.execute(f"SELECT {', '.join(select)} FROM accounts").fetchall()
     conn.execute("DROP TABLE accounts")
     conn.executescript(_SCHEMA)
     for row in rows:
-        legacy_id, platform, display_name, sessions_raw, created_at = row[:5]
+        legacy_id, platform_code, account_name, sessions_raw, created_at = row[:5]
         base_url = row[5] if row[5] is not None else ""
         device_ref = row[6]
         entitlement_json = row[7]
         is_active = 1 if row[8] is None else int(row[8])
         updated_at = row[9] if row[9] else created_at
         deleted_at = row[10]
-        account_key = "main"
-        prefix = f"{platform}:"
+        account_code = "main"
+        prefix = f"{platform_code}:"
         if legacy_id.startswith(prefix) and ":" not in legacy_id[len(prefix):]:
-            account_key = legacy_id[len(prefix):]
+            account_code = legacy_id[len(prefix):]
         conn.execute(
             f"INSERT OR IGNORE INTO accounts ({_COLS}) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                legacy_id, platform, account_key, display_name, base_url,
+                legacy_id, platform_code, account_code, account_name, base_url,
                 device_ref, sessions_raw, entitlement_json, is_active,
                 created_at, updated_at, deleted_at,
             ),
@@ -142,16 +159,16 @@ class SqliteAccountRepository(AccountRepository):
             conn.execute(
                 f"INSERT INTO accounts ({_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (account_id) DO UPDATE SET "
-                "platform=excluded.platform, account_key=excluded.account_key, "
-                "display_name=excluded.display_name, base_url=excluded.base_url, "
+                "platform_code=excluded.platform_code, account_code=excluded.account_code, "
+                "account_name=excluded.account_name, base_url=excluded.base_url, "
                 "device_ref=excluded.device_ref, sessions=excluded.sessions, "
                 "entitlement_json=excluded.entitlement_json, is_active=excluded.is_active, "
                 "updated_at=excluded.updated_at, deleted_at=excluded.deleted_at",
                 (
                     account.id,
-                    account.platform,
-                    account.account_key,
-                    account.display_name,
+                    account.platform_code,
+                    account.account_code,
+                    account.account_name,
                     account.base_url,
                     account.device_ref,
                     _dump_sessions(account.sessions),
@@ -171,11 +188,11 @@ class SqliteAccountRepository(AccountRepository):
             ).fetchone()
         return _load(row)
 
-    def list_by_platform(self, platform: str) -> list[Account]:
+    def list_by_platform(self, platform_code: str) -> list[Account]:
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT {_COLS} FROM accounts WHERE platform = ? ORDER BY created_at, account_id",
-                (platform,),
+                f"SELECT {_COLS} FROM accounts WHERE platform_code = ? ORDER BY created_at, account_id",
+                (platform_code,),
             ).fetchall()
         return [_load(r) for r in rows]
 
@@ -240,10 +257,10 @@ def _load(row) -> Account | None:
     if row is None:
         return None
     return Account(
-        id=row[0],  # account_id：规范 id {platform}:{account_key}
-        platform=row[1],
-        account_key=row[2],
-        display_name=row[3],
+        id=row[0],  # account_id：规范 id {platform}:{account_code}
+        platform_code=row[1],
+        account_code=row[2],
+        account_name=row[3],
         base_url=row[4] or "",
         device_ref=row[5],
         sessions=_load_sessions(row[6], row[0]),

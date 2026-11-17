@@ -76,9 +76,9 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
         assert rows == [
             {
                 "account_id": "acc1",
-                "account_key": "acc1",  # 多账号维度（ADR-003）
-                "platform": "",  # vault-only 账号：号册无记录，如实空串
-                "display_name": "acc1",  # 缺省回落 account_id
+                "account_code": "acc1",  # 多账号维度（ADR-003）
+                "platform_code": "",  # vault-only 账号：号册无记录，如实空串
+                "account_name": "acc1",  # 缺省回落 account_id
                 "level": "healthy",  # core 出产字面量，server 原样传递
                 "signal": "ok",  # core 出产视觉分类（端零映射）
                 "evidence": [],
@@ -294,7 +294,7 @@ def test_usage_collect_then_radar_roundtrip(tmp_path):
         assert len(radar) == 1
         row = radar[0]
         assert row["account_id"] == account.id
-        assert row["platform"] == "trae_cn"
+        assert row["platform_code"] == "trae_cn"
         assert row["packages"] == [
             {
                 "package_id": "add_on_quota", "name": "加量包",

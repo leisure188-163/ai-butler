@@ -494,7 +494,7 @@ def test_baseline_missing_is_pending_with_dock_hint():
 
 
 def test_dock_registers_b_account_when_active(tmp_path, monkeypatch):
-    """dock：基线已建且活跃=B → 幂等登记 B（account_key 派生）。"""
+    """dock：基线已建且活跃=B → 幂等登记 B（account_code 派生）。"""
     monkeypatch.setenv("DOUBAO_IDENTITY_PATH", str(tmp_path / "dock-id.json"))
     doubao_identity.save_main_baseline(
         doubao_identity.ActiveIdentity(sec_uid=MAIN_SEC_UID, nickname="逍遥酒鬼")
@@ -504,10 +504,10 @@ def test_dock_registers_b_account_when_active(tmp_path, monkeypatch):
     class RegisterSpy:
         calls: list = field(default_factory=list)
 
-        def execute(self, platform, display_name, *, account_key="main", account_id=None):
-            self.calls.append((platform, display_name, account_key))
+        def execute(self, platform, account_name, *, account_code="main", account_id=None):
+            self.calls.append((platform, account_name, account_code))
             from types import SimpleNamespace
-            return SimpleNamespace(id=f"{platform}:{account_key}")
+            return SimpleNamespace(id=f"{platform}:{account_code}")
 
     @dataclass
     class Ctx:
@@ -537,10 +537,10 @@ def test_dock_registers_registered_other_when_channel_only_has_main(tmp_path, mo
     class RegisterSpy:
         calls: list = field(default_factory=list)
 
-        def execute(self, platform, display_name, *, account_key="main", account_id=None):
-            self.calls.append((platform, display_name, account_key))
+        def execute(self, platform, account_name, *, account_code="main", account_id=None):
+            self.calls.append((platform, account_name, account_code))
             from types import SimpleNamespace
-            return SimpleNamespace(id=f"{platform}:{account_key}")
+            return SimpleNamespace(id=f"{platform}:{account_code}")
 
     @dataclass
     class Ctx:
@@ -562,9 +562,9 @@ def test_dock_first_visit_saves_main_baseline(tmp_path, monkeypatch, request_ctx
 
     @dataclass
     class RegisterOk:
-        def execute(self, platform, display_name, *, account_key="main", account_id=None):
+        def execute(self, platform, account_name, *, account_code="main", account_id=None):
             from types import SimpleNamespace
-            return SimpleNamespace(id=f"{platform}:{account_key}")
+            return SimpleNamespace(id=f"{platform}:{account_code}")
 
     @dataclass
     class Ctx:

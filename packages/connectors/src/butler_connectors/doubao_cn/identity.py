@@ -1,7 +1,7 @@
 """豆包活跃账户身份与登记簿（多账户 ADR-003 落地；ADR-007 决策 8）。
 
 身份信号（真机取证，Windows / 豆包 2.36.8）：
-- ``localStorage.for_ban_appeal_sec_user_id``：稳定加密用户 ID（account_key 派生源）
+- ``localStorage.for_ban_appeal_sec_user_id``：稳定加密用户 ID（account_code 派生源）
 - 左下角账户 chip 按钮文本：账户昵称（display / 切号列表行匹配用）
 
 本模块职责：**只读身份判定**（每次编排前核实客户端活跃账户，与目标
@@ -82,7 +82,7 @@ def read_active_identity(channel: CdpChannel) -> ActiveIdentity | None:
 
 
 def derive_key(sec_uid: str) -> str:
-    """非 main 账户的 account_key：sec_uid 派生（稳定唯一）。"""
+    """非 main 账户的 account_code：sec_uid 派生（稳定唯一）。"""
     digest = hashlib.sha256(sec_uid.encode("utf-8")).hexdigest()[:8]
     return f"u{digest}"
 
@@ -125,7 +125,7 @@ class OtherIdentity:
 
     sec_uid: str
     nickname: str
-    account_key: str
+    account_code: str
 
 
 @dataclass(frozen=True)
@@ -162,7 +162,7 @@ def load_identity_registry() -> IdentityRegistry:
             OtherIdentity(
                 sec_uid=sec,
                 nickname=str(item.get("nickname") or ""),
-                account_key=str(item.get("account_key") or derive_key(sec)),
+                account_code=str(item.get("account_code") or derive_key(sec)),
             )
         )
     return IdentityRegistry(main=main, others=tuple(others))
@@ -187,13 +187,13 @@ def save_identity_registry(identities: list[ActiveIdentity]) -> None:
         existing[identity.sec_uid] = OtherIdentity(
             sec_uid=identity.sec_uid,
             nickname=identity.nickname,
-            account_key=derive_key(identity.sec_uid),
+            account_code=derive_key(identity.sec_uid),
         )
     others = [
         {
             "sec_uid": item.sec_uid,
             "nickname": item.nickname,
-            "account_key": item.account_key,
+            "account_code": item.account_code,
         }
         for item in existing.values()
     ]
@@ -213,7 +213,7 @@ def save_identity_registry(identities: list[ActiveIdentity]) -> None:
 
 
 def resolve_account_key(identity: ActiveIdentity) -> str:
-    """当前活跃身份对应的 account_key：main 基线命中 → "main"，否则派生 key。"""
+    """当前活跃身份对应的 account_code：main 基线命中 → "main"，否则派生 key。"""
     baseline = load_main_baseline()
     if baseline is not None and identity.sec_uid == baseline.sec_uid:
         return "main"
