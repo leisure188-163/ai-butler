@@ -43,15 +43,17 @@
   active"}`（`expiresAt` 在未来也拦不住：服务端主动失效优先）。**处置**：401
   TOKEN_EXPIRE = 重启 Qoder 客户端（启动时重写凭据文件）后重扫；不是解锁链缺陷，
   Windows 侧未撞上只因取证时客户端刚登录过。全 8 头组齐发亦 401（排除了头组嫌疑）
-- **2026-11-15 mac 复现升级（重登后新 token 仍 401）**：用户 20:57 重登
-  （auth.v1.dat 重写）→ 重扫入库 → 解锁链全绿（`dt-` token 27 字符 +
-  refreshToken/user，Keychain→CBC 链验证过）→ 直连 campaigns 仍
-  `401 TOKEN_EXPIRE "token is not active"`。**「重启客户端重扫」处置口径
-  失效**——刚登录的新 token 即被拒，判定升级为服务端行为变化：接口族收紧
-  会话校验（疑似绑定客户端运行态心跳/设备指纹）或直连通道被识别。
-  **待 Windows oracle 对照**（auto-signin-kit `qoder status`）：Windows 也
-  401 = 服务端收紧，链路转观察项不硬绕（ToS 边界）；Windows 正常 = mac
-  请求形状差异，对照 Windows 成功头组再定位。
+- **2026-11-15 mac 复现升级（重登后新 token 仍 401）→ 2026-11-17 真相反转**：
+  11/15 误判为「服务端收紧」。11/17 差分诊断定论：用户 11/16 21:49 重登后
+  **账户类型切换**——客户端 v0.4.9 登录为 **global 类型**（新卡
+  `global-699e39eb`），旧 `main` 卡（cn 类型）token 按 §1 既有「轮换滞后」
+  失效；global token 对 `.com.cn` 域 401 TOKEN_EXPIRE = **§8.2 既有取证
+  （跨 host 必 401）**，非新行为。两个已知机制叠加，无服务端变更。
+  **闭环验证（11/17）**：global-699e39eb 走 `.sh` → campaigns **HTTP 200**
+  → `butler claim` → **ALREADY（本期均已领取）**，链路全绿。附注：httpx 对
+  `.sh` 曾一次 SSL UNEXPECTED_EOF = 瞬时抖动（curl/python 复测均正常）。
+  mac 号册旧 `main` 卡（cn 类型、token 失效）随 §8 多账户改造口径重扫对齐，
+  无需人工停用。
 - Keychain 服务名实测定稿：`Qoder App Safe Storage`（genp 条目；按
   `Qoder/Qoder CN/com.qodercn.app + Safe Storage` 组合穷举均 miss，
   dump-keychain 元数据过滤命中）——`security find-generic-password -w -s` 即读，
