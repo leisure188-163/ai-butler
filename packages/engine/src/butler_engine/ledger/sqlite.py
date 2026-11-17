@@ -1,4 +1,8 @@
-"""SQLite Run 台账（A4-01 §5：runs 表；Repository 接口隔离，SQL 不出本模块）。
+"""SQLite 领取记录台账（A4-01 §5：exe_claim 表；Repository 接口隔离，SQL 不出本模块）。
+
+表语义（2026-11-17 用户裁决）：动作叫法随平台而异——有的领积分、有的领 token，
+统一归「领取记录」（exe_claim），不再用泛化的 run 命名表；代码层 Run 术语
+（core 领域模型）保留，端侧 /runs 契约不变。
 
 - SQLite 单库（连接口径单源 butler_engine.db.conn）；每操作一连接
   （线程安全，M0 量级足够；性能要求出现时再池化）
@@ -23,8 +27,9 @@ from butler_core.execution.domain import Evidence, RepairHint, Run, RunResult
 from butler_engine.db.conn import connect
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS exe_run (
-    id TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS exe_claim (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL UNIQUE,
     kind TEXT NOT NULL,
     target TEXT NOT NULL,
     params_json TEXT NOT NULL,
@@ -34,13 +39,15 @@ CREATE TABLE IF NOT EXISTS exe_run (
     budget_seconds REAL NOT NULL,
     finished_at TEXT,
     status TEXT,
-    result_json TEXT
+    result_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_exe_run_idempotency ON exe_run(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_exe_claim_idempotency ON exe_claim(idempotency_key);
 """
 
 _COLUMNS = (
-    "id, kind, target, params_json, account_id, idempotency_key, "
+    "run_id, kind, target, params_json, account_id, idempotency_key, "
     "started_at, budget_seconds, finished_at, status, result_json"
 )
 
@@ -49,13 +56,35 @@ class SqliteRunLedger(RunLedger):
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = str(db_path)
         with closing(self._connect()) as conn, conn:
-            # 表名迁移（ADR-021 域前缀纪律）：老表 RENAME 幂等，旧索引随行清理
+            # 迁移链（ADR-021/024，幂等）：runs → exe_run（域前缀）→ exe_claim（领取记录）
             if conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'"
             ).fetchone():
                 conn.execute("ALTER TABLE runs RENAME TO exe_run")
             conn.execute("DROP INDEX IF EXISTS idx_runs_idempotency")
-            conn.executescript(_SCHEMA)
+            conn.execute("DROP INDEX IF EXISTS idx_exe_run_idempotency")
+            conn.executescript(_SCHEMA)  # 先建 exe_claim（幂等）
+            if conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='exe_run'"
+            ).fetchone():
+                # 领取记录改名 + 补审计三件（ADR-024）：旧行原样搬入，零数据丢失；
+                # WHERE 防中断重入重复插入
+                conn.execute(
+                    """
+                    INSERT INTO exe_claim (
+                        run_id, kind, target, params_json, account_id,
+                        idempotency_key, started_at, budget_seconds,
+                        finished_at, status, result_json, created_at, updated_at
+                    )
+                    SELECT id, kind, target, params_json, account_id,
+                           idempotency_key, started_at, budget_seconds,
+                           finished_at, status, result_json,
+                           started_at, COALESCE(finished_at, started_at)
+                    FROM exe_run
+                    WHERE id NOT IN (SELECT run_id FROM exe_claim)
+                    """
+                )
+                conn.execute("DROP TABLE exe_run")
 
     # --- core RunLedger 端口 ---
 
@@ -66,9 +95,24 @@ class SqliteRunLedger(RunLedger):
             else None
         )
         with closing(self._connect()) as conn, conn:
+            # 审计列纪律（ADR-024）：首插落 created_at；幂等回放更新只刷 updated_at
             conn.execute(
-                "INSERT OR REPLACE INTO exe_run (%s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                % _COLUMNS,
+                f"""
+                INSERT INTO exe_claim ({_COLUMNS}, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(run_id) DO UPDATE SET
+                    kind = excluded.kind,
+                    target = excluded.target,
+                    params_json = excluded.params_json,
+                    account_id = excluded.account_id,
+                    idempotency_key = excluded.idempotency_key,
+                    started_at = excluded.started_at,
+                    budget_seconds = excluded.budget_seconds,
+                    finished_at = excluded.finished_at,
+                    status = excluded.status,
+                    result_json = excluded.result_json,
+                    updated_at = excluded.updated_at
+                """,
                 (
                     run.id,
                     run.action.kind.value,
@@ -81,6 +125,8 @@ class SqliteRunLedger(RunLedger):
                     run.finished_at.isoformat() if run.finished_at else None,
                     run.result.status.value if run.result else None,
                     result_json,
+                    run.started_at.isoformat(),
+                    (run.finished_at or run.started_at).isoformat(),
                 ),
             )
 
@@ -89,7 +135,7 @@ class SqliteRunLedger(RunLedger):
             return None  # 空键 = 只读动作，无幂等语义
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM exe_run WHERE idempotency_key = ? "
+                f"SELECT {_COLUMNS} FROM exe_claim WHERE idempotency_key = ? "
                 "ORDER BY started_at DESC, id DESC",
                 (key,),
             ).fetchall()
@@ -107,7 +153,7 @@ class SqliteRunLedger(RunLedger):
             return []
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM exe_run WHERE account_id = ? "
+                f"SELECT {_COLUMNS} FROM exe_claim WHERE account_id = ? "
                 "ORDER BY started_at DESC, id DESC LIMIT ?",
                 (account_id, limit),
             ).fetchall()
@@ -119,7 +165,7 @@ class SqliteRunLedger(RunLedger):
             return []
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM exe_run ORDER BY started_at DESC, id DESC LIMIT ?",
+                f"SELECT {_COLUMNS} FROM exe_claim ORDER BY started_at DESC, id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
         return [_load_run(row) for row in rows]

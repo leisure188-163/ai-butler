@@ -4,8 +4,9 @@
 -- 表按域分置）；本文件由 scripts/dump_db_schema.py 生成，**勿手改**。
 -- 重新生成：uv run python scripts/dump_db_schema.py
 -- 运行库落项目内 data/database/butler.db（BUTLER_DB 可覆盖）。
-CREATE TABLE exe_run (
-    id TEXT PRIMARY KEY,
+CREATE TABLE exe_claim (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL UNIQUE,
     kind TEXT NOT NULL,
     target TEXT NOT NULL,
     params_json TEXT NOT NULL,
@@ -15,6 +16,8 @@ CREATE TABLE exe_run (
     budget_seconds REAL NOT NULL,
     finished_at TEXT,
     status TEXT,
-    result_json TEXT
+    result_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
-CREATE INDEX idx_exe_run_idempotency ON exe_run(idempotency_key);
+CREATE INDEX idx_exe_claim_idempotency ON exe_claim(idempotency_key);

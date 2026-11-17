@@ -17,7 +17,7 @@ level: must
    `id INTEGER PRIMARY KEY AUTOINCREMENT`（全库统一自增**代理键**）
    + `created_at TEXT NOT NULL` + `updated_at TEXT NOT NULL`。
    ❌ 禁止用业务键（如 platform_code）当主键；❌ 禁止漏审计列。
-2. **表名 = 域缩写前缀 + 单数实体**：`acc_account` / `plat_platform` / `exe_run` /
+2. **表名 = 域缩写前缀 + 单数实体**：`acc_account` / `plat_platform` / `exe_claim` /
    `usage_snapshot` / `usage_aggregate` / `usage_quota_ledger` / `usage_sample` /
    `health_state` / `vault_item` / `vault_history` / `audit_log`。
    ❌ 禁止裸实体名（`accounts`/`runs`/`audit` 这种）——业务扩展后难辨域。
@@ -53,11 +53,12 @@ level: must
 
 | 废弃 | 现行 | 裁决 |
 |------|------|------|
-| 裸表名 accounts/runs/usage_snapshots/… | acc_account / exe_run / usage_snapshot / … | ADR-021 |
+| 裸表名 accounts/runs/usage_snapshots/… | acc_account / exe_claim / usage_snapshot / … | ADR-021 |
 | `provider` 列 | `app` → `platform_code` | ADR-018/019 |
 | `account_key` / `display_name` | `account_code` / `account_name` | ADR-020/023 |
 | `enabled` 列 | `is_active` | ADR-019 |
 | 平台册 acc_platform（寄居账户域） | plat_platform（platforms 域，第六业务域） | ADR-022 |
+| exe_run（泛化 run 命名 + TEXT 主键无审计列） | exe_claim（领取记录，代理键 + run_id 业务键 + 审计三件） | ADR-024 |
 
 ## 4. 检查清单（建表/改表 PR 自查）
 

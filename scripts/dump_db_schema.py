@@ -31,8 +31,8 @@ _SECTIONS: dict[str, str] = {
     "plat_platform": "plat",
     "idx_plat_platform_active": "plat",
     # 执行域（ledger/sqlite.py）
-    "exe_run": "exe",
-    "idx_exe_run_idempotency": "exe",
+    "exe_claim": "exe",
+    "idx_exe_claim_idempotency": "exe",
     # 用量域（usage/sqlite.py）
     "usage_snapshot": "usage",
     "usage_aggregate": "usage",

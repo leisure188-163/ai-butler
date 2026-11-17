@@ -67,6 +67,12 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**exe_run 改领取记录 exe_claim（2026-11-17，ADR-024）**：领积分/领 token
+语义统一为「领取」，表 exe_claim（代理键 + run_id 业务键 UNIQUE + 审计三件，
+幂等回放 ON CONFLICT(run_id) 只刷 updated_at）；老库迁移链 runs → exe_run →
+exe_claim 幂等零丢失；端侧 /runs 契约与 core Run 术语保留，SDK/前端零改动。
+测试 **715 passed + 10 skipped**。
+
 **分域产物文件名对齐表名前缀（2026-11-17）**：data/sql/ 下文件名
 = 表名域前缀——accounts.sql→acc.sql、platforms.sql→plat.sql、
 execution.sql→exe.sql（usage/health/vault/audit 本就同名）；

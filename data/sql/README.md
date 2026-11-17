@@ -11,7 +11,7 @@
 |---|---|
 | `acc.sql` | 账户域：acc_account + 2 索引（accounts/sqlite.py） |
 | `plat.sql` | 平台域：plat_platform + 1 索引（platforms/sqlite.py，ADR-022） |
-| `exe.sql` | 执行域：exe_run + 1 索引（ledger/sqlite.py） |
+| `exe.sql` | 执行域：exe_claim 领取记录 + 1 索引（ledger/sqlite.py，ADR-024） |
 | `usage.sql` | 用量域：usage_snapshot / usage_aggregate / usage_quota_ledger / usage_sample + 4 索引（usage/sqlite.py） |
 | `health.sql` | 健康域：health_state（health/state.py） |
 | `vault.sql` | 保管层：vault_item / vault_history（vault/layered.py） |
