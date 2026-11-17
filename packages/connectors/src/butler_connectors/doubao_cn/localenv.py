@@ -23,12 +23,20 @@ from pathlib import Path
 _DEFAULT_PORT = 9222
 _PROCESS_NAME = "Doubao.exe"
 _VERSION_RE = re.compile(r"^(\d{1,2})\.(\d{1,2})(?:\.(\d{1,2}))?$")
-#: mac .platform 查找根（~ 兜用户级安装）；2026-11-12 本机取证：/Applications/Doubao.platform
+#: mac 查找根（~ 兜用户级安装）；安装形态两种并存（2026-11-12 取证 .platform、
+#: 2026-11-18 真机 Doubao.app 2.36.8）——逐形态探测，不写死单一 bundle 名
 _MAC_APP_BASES = ("/Applications", "~/Applications")
-_MAC_MAIN_REL = ("Doubao.platform", "Contents", "MacOS", "Doubao")
-_MAC_PLIST_REL = ("Doubao.platform", "Contents", "Info.plist")
+_MAC_BUNDLES = ("Doubao.platform", "Doubao.app")
+_MAC_MAIN_RELS = tuple(
+    (bundle, "Contents", "MacOS", "Doubao") for bundle in _MAC_BUNDLES
+)
+_MAC_PLIST_RELS = tuple(
+    (bundle, "Contents", "Info.plist") for bundle in _MAC_BUNDLES
+)
 #: mac 主进程匹配串——helper 进程路径形如 `Doubao Browser.platform/...`，不含本串不误中
-_MAC_PROC_PATTERN = "Doubao.platform/Contents/MacOS/Doubao"
+_MAC_PROC_PATTERN = re.compile(
+    r"Doubao\.(?:platform|app)/Contents/MacOS/Doubao"
+)
 
 
 def version_code(version: str) -> int | None:
@@ -89,15 +97,16 @@ def _mac_bundle_version() -> str:
     import plistlib
 
     for base in _MAC_APP_BASES:
-        plist = Path(os.path.expanduser(base)).joinpath(*_MAC_PLIST_REL)
-        try:
-            with open(plist, "rb") as fh:
-                data = plistlib.load(fh)
-        except (OSError, plistlib.InvalidFileException):
-            continue  # 未安装/非 plist：换下一个根（全落空返回空串，调用方显式爆）
-        version = data.get("CFBundleShortVersionString") if isinstance(data, dict) else None
-        if version:
-            return str(version)
+        for rel in _MAC_PLIST_RELS:
+            plist = Path(os.path.expanduser(base)).joinpath(*rel)
+            try:
+                with open(plist, "rb") as fh:
+                    data = plistlib.load(fh)
+            except (OSError, plistlib.InvalidFileException):
+                continue  # 未安装/非 plist：换下一个根 × 形态（全落空显式爆）
+            version = data.get("CFBundleShortVersionString") if isinstance(data, dict) else None
+            if version:
+                return str(version)
     return ""
 
 
@@ -165,9 +174,10 @@ def _locate_exe() -> Path | None:
         return path if path.is_file() else None
     if sys.platform == "darwin":
         for base in _MAC_APP_BASES:
-            candidate = Path(os.path.expanduser(base)).joinpath(*_MAC_MAIN_REL)
-            if candidate.is_file():
-                return candidate
+            for rel in _MAC_MAIN_RELS:
+                candidate = Path(os.path.expanduser(base)).joinpath(*rel)
+                if candidate.is_file():
+                    return candidate
         return None
     if sys.platform != "win32":
         return None
@@ -197,7 +207,7 @@ def _process_pids() -> list[int]:
     """主进程 PID：win = tasklist CSV；mac = pgrep 主程序路径（helper 路径不同形不误中）。"""
     if sys.platform == "darwin":
         proc = subprocess.run(
-            ["pgrep", "-f", _MAC_PROC_PATTERN], capture_output=True, timeout=15
+            ["pgrep", "-f", _MAC_PROC_PATTERN.pattern], capture_output=True, timeout=15
         )
         pids: list[int] = []
         for token in proc.stdout.decode("utf-8", "replace").split():

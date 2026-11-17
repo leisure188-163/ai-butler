@@ -67,6 +67,15 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**真库首启修复 + 豆包 .app 形态（2026-11-18）**：两处真机才暴露的问题——
+① accounts 适配器 __init__ 建表先于迁移，老库（有 accounts 表）首启
+RENAME 撞名（顺序反了，空测试库测不出），改为迁移先行；② 豆包安装形态
+写死 Doubao.platform，真机是 Doubao.app（2.36.8），版本/主程序/进程匹配
+改双形态探测。另发现默认库路径分叉（平台根 vs 项目内 data/database，
+BUTLER_DB 指定项目内为主库）与旧库半迁移损伤（已修复保留，备份
+butler-db-fix-backup-20261118.db）。真机验证：豆包双账户导入 issues=[]，
+签到链路 ALREADY（detail 权威判定）。门禁九项 PASS。
+
 **exe_run 改领取记录 exe_claim（2026-11-17，ADR-024）**：领积分/领 token
 语义统一为「领取」，表 exe_claim（代理键 + run_id 业务键 UNIQUE + 审计三件，
 幂等回放 ON CONFLICT(run_id) 只刷 updated_at）；老库迁移链 runs → exe_run →

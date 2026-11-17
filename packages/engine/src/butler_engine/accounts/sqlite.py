@@ -153,8 +153,10 @@ class SqliteAccountRepository(AccountRepository):
     def __init__(self, db_path: str | Path) -> None:
         self._db = str(db_path)
         with self._connect() as conn, conn:
-            conn.executescript(_SCHEMA)
+            # 迁移先行、建表在后：老库先 RENAME accounts → acc_account，
+            # 再 executescript(_SCHEMA)——顺序反了会先建空 acc_account 撞名（真库首启修复）
             _ensure_columns(conn)
+            conn.executescript(_SCHEMA)
 
     def _connect(self):
         return connect(self._db)
