@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /**
- * 应用页（ADR-010 六页 IA）：本机接入的各家 AI 助手名册。
+ * 平台页（ADR-010 六页 IA）：本机接入的各家 AI 助手名册。
  * 六列表 + 虚线邀请行 + 行展开；数据全部来自契约既有 AppOut/AccountOut，
  * 零新端点、零语义加工（能力标签只做协议 kind 的直译，signal 只消费分类）。
  */
 import { computed, ref } from "vue";
-import AppBadge from "../components/AppBadge.vue";
+import PlatformBadge from "../components/PlatformBadge.vue";
 import type { AccountItem, PlatformItem, PageName, Signal } from "../types";
 import { faceOf, signalText } from "../utils";
 
@@ -25,8 +25,8 @@ const emit = defineEmits<{
   jump: [page: PageName];
 }>();
 
-const emptyApps = computed(() => props.platforms.filter((a) => !a.account_id));
-const importableCount = computed(() => emptyApps.value.length);
+const emptyPlatforms = computed(() => props.platforms.filter((a) => !a.account_id));
+const importableCount = computed(() => emptyPlatforms.value.length);
 
 function capabilityText(kind: string): string {
   if (kind === "provision.run") return "领取";
@@ -65,7 +65,7 @@ function toggleDetail(id: string) {
   <header class="head">
     <div class="head-row">
       <div>
-        <h1 class="page-title">应用</h1>
+        <h1 class="page-title">平台</h1>
         <p class="page-sub">本机接入的各家 AI 助手与其能力、时间表。</p>
       </div>
       <div class="head-actions">
@@ -90,12 +90,12 @@ function toggleDetail(id: string) {
     role="status"
   >{{ msg.text }}</p>
 
-  <section class="section" aria-label="应用名册">
+  <section class="section" aria-label="平台名册">
     <div v-if="platforms.length" class="platform-wrap sheet">
       <table class="matrix">
         <thead>
           <tr>
-            <th>应用</th>
+            <th>平台</th>
             <th>能力</th>
             <th>时间表</th>
             <th>账户数</th>
@@ -107,7 +107,7 @@ function toggleDetail(id: string) {
           <template v-for="platform in platforms" :key="platform.id">
             <tr :class="{ 'is-selected': expandedId === platform.id }" @click="toggleDetail(platform.id)">
               <td>
-                <AppBadge :name="platform.display" :color-index="faceOf(platform.id)" />
+                <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
               </td>
               <td>
                 <span v-for="cap in platform.capabilities" :key="cap" class="tag tag--quiet cap-tag">
@@ -167,7 +167,7 @@ function toggleDetail(id: string) {
                   </li>
                   <li class="row">
                     <span class="row-main">
-                      <p class="row-title">该应用账户（{{ accountCount(platform) }}）</p>
+                      <p class="row-title">该平台账户（{{ accountCount(platform) }}）</p>
                       <p class="row-sub mono">
                         {{ accountsOf(platform).map((a) => a.account_id).join("、") || "—" }}
                       </p>
@@ -182,9 +182,9 @@ function toggleDetail(id: string) {
       </table>
     </div>
 
-    <!-- 未接入应用的虚位邀请行（从账户页迁入，ADR-010 §3） -->
-    <ul v-if="emptyApps.length" class="slots" aria-label="可导入应用">
-      <li v-for="platform in emptyApps" :key="platform.id">
+    <!-- 未接入平台的虚位邀请行（从账户页迁入，ADR-010 §3） -->
+    <ul v-if="emptyPlatforms.length" class="slots" aria-label="可导入平台">
+      <li v-for="platform in emptyPlatforms" :key="platform.id">
         <button class="slot-row" :disabled="busyTarget !== null" @click="emit('import', platform.id)">
           <span class="slot-plus" aria-hidden="true">＋</span>
           导入 {{ platform.display }}
@@ -193,7 +193,7 @@ function toggleDetail(id: string) {
     </ul>
 
     <p v-if="!platforms.length" class="quietline">
-      还没有应用——一键导入把本机客户端接进来。
+      还没有平台——一键导入把本机客户端接进来。
     </p>
   </section>
 </template>

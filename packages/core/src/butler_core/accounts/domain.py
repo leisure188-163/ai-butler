@@ -158,7 +158,7 @@ class Account:
             object.__setattr__(self, "account_code", suffix)
         for cred in self.credentials:
             if cred.account_id != self.id:
-                raise AccountInvalid("凭据必须绑定本账户，禁止按应用共享")
+                raise AccountInvalid("凭据必须绑定本平台账户，禁止跨平台共享")
 
     @property
     def identity(self) -> tuple[str, str]:

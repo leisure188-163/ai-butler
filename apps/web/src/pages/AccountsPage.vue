@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * 账户页（ADR-010 六页 IA）：9 列矩阵工作台 + 一键领取（n）。
- * headline / 待办栏 / 导入入口已分别迁往仪表盘与应用页；
+ * headline / 待办栏 / 导入入口已分别迁往仪表盘与平台页；
  * 矩阵交互由 components/MatrixTable.vue 承载，本页只做页头与动作下发。
  */
 import { computed } from "vue";
@@ -27,7 +27,7 @@ const emit = defineEmits<{
   scanSessions: [accountId: string];
 }>();
 
-/* 一键领取计数：申报了 provision.run 且已导入的应用才计数（不虚报） */
+/* 一键领取计数：申报了 provision.run 且已导入的平台才计数（不虚报） */
 const claimableCount = computed(
   () => props.platforms.filter((a) => a.account_id && a.capabilities.includes("provision.run")).length,
 );
@@ -38,7 +38,7 @@ const claimableCount = computed(
     <div class="head-row">
       <div>
         <h1 class="page-title">账户</h1>
-        <p class="page-sub">全部应用 × 账户一屏管理。</p>
+        <p class="page-sub">全部平台 × 账户一屏管理。</p>
       </div>
       <button
         class="btn btn--primary"

@@ -8,7 +8,7 @@
 import { computed } from "vue";
 import type { AccountItem, PlatformItem } from "../types";
 import { earliestExpiry, faceOf, fmtTime, signalText } from "../utils";
-import AppBadge from "./AppBadge.vue";
+import PlatformBadge from "./PlatformBadge.vue";
 
 /** 会话 location 是绝对路径：卡片里只显示末段（目录名/文件名），全名 title 提示 */
 function sessionLabel(location: string): string {
@@ -36,7 +36,7 @@ const hasHealth = computed(() => props.platform?.capabilities.includes("health.c
 <template>
   <div v-if="account && platform" class="detail">
     <div class="detail-head">
-      <AppBadge :name="platform.display" :color-index="faceOf(account.account_id)" />
+      <PlatformBadge :name="platform.display" :color-index="faceOf(account.account_id)" />
       <span class="detail-id mono">{{ account.account_id }}</span>
       <button class="detail-close" aria-label="收起详情" @click="emit('close')">✕</button>
     </div>

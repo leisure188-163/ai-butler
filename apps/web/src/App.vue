@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Butler 管理台 · 应用壳（ADR-010 六页 IA，仪表盘默认）
+ * Butler 管理台 · 平台壳（ADR-010 六页 IA，仪表盘默认）
  *
  * 壳 = 装配器（conventions/4 §2.4，业务子域分包 2026-11-14；对齐 api.py 纯聚合器纪律）：
  * 只组装各域 composable 与轮询 wiring，不持业务逻辑——
@@ -14,7 +14,7 @@
 import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import SideNav from "./components/SideNav.vue";
 import DashboardPage from "./pages/DashboardPage.vue";
-import AppsPage from "./pages/AppsPage.vue";
+import PlatformsPage from "./pages/PlatformsPage.vue";
 import AccountsPage from "./pages/AccountsPage.vue";
 import TrafficPage from "./pages/TrafficPage.vue";
 import LogPage from "./pages/LogPage.vue";
@@ -60,12 +60,12 @@ const {
 const {
   busyTarget,
   actionMsg,
-  importApp,
+  importPlatform,
   syncAllApps,
   claimApp,
   healthApp,
   repairAccount,
-  importAllApps,
+  importAllPlatforms,
   claimAllApps,
   claimMany,
   scanSessions,
@@ -125,7 +125,7 @@ onBeforeUnmount(() => {
     <main class="content">
       <p v-if="loadError" class="errorline" role="alert">{{ loadError }}</p>
 
-      <AppsPage
+      <PlatformsPage
         v-if="active === '平台'"
         :platforms="platforms"
         :accounts="accounts"
@@ -133,9 +133,9 @@ onBeforeUnmount(() => {
         :msg="actionMsg"
         :loading="loading"
         :load-error="loadError"
-        @import="importApp"
+        @import="importPlatform"
         @sync-all="syncAllApps"
-        @import-all="importAllApps"
+        @import-all="importAllPlatforms"
         @jump="navigate"
       />
       <AccountsPage

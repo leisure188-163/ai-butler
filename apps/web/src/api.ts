@@ -57,17 +57,17 @@ export function getAccounts(): Promise<AccountItem[]> {
 
 /* ---- 平台域 ---- */
 
-export function getApps(): Promise<PlatformItem[]> {
+export function getPlatforms(): Promise<PlatformItem[]> {
   return request<PlatformItem[]>(`${apiBase}/platforms`);
 }
 
-export function importApp(
+export function importPlatform(
   target: string,
 ): Promise<{ accounts?: string[]; issues?: string[] }> {
   return request(`${apiBase}/platforms/${target}/import`, post());
 }
 
-export function importAllApps(): Promise<ImportResult[]> {
+export function importAllPlatforms(): Promise<ImportResult[]> {
   return request<ImportResult[]>(`${apiBase}/platforms/import-all`, post());
 }
 

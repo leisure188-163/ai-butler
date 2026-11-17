@@ -419,7 +419,7 @@ export interface components {
         };
         /**
          * PlatformOut
-         * @description 应用名册行：连接器能力矩阵 + 调度缺省（A2-02 §2 的端侧投影）。
+         * @description 平台名册行：连接器能力矩阵 + 调度缺省（A2-02 §2 的端侧投影）。
          */
         PlatformOut: {
             /** Id */

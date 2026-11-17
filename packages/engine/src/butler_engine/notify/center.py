@@ -1,7 +1,7 @@
 """通知中心（A4-01 §3）：Event 的唯一消费者出口——其他订阅者不许直接通知。
 
 - 渠道可插拔，按 min_severity 阈值投递：silent < badge < push
-- 默认渠道：应用内（badge 起）；系统通知（push 起，桌面托盘后续接入）、
+- 默认渠道：平台内（badge 起）；系统通知（push 起，桌面托盘后续接入）、
   Webhook / 邮件按 A4-01 §3 默认关闭，需要时实现对应渠道类挂进来即可
 - 用户按事件类型覆盖级别的设置项在 M0 之后引入（severity map 注入点预留）
 """
@@ -38,7 +38,7 @@ class NotificationChannel(ABC):
 
 
 class InAppChannel(NotificationChannel):
-    """应用内：待处理列表 + 托盘角标。M0 内存收集；server API / 桌面托盘后续接。"""
+    """平台内：待处理列表 + 托盘角标。M0 内存收集；server API / 桌面托盘后续接。"""
 
     name = "in-platform"
     min_severity = Severity.BADGE

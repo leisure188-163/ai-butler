@@ -11,7 +11,7 @@
  */
 import type { PackageRow, RadarRow } from "../types";
 import { faceOf, fmtTime } from "../utils";
-import AppBadge from "../components/AppBadge.vue";
+import PlatformBadge from "../components/PlatformBadge.vue";
 
 defineProps<{
   rows: RadarRow[];
@@ -81,7 +81,7 @@ function aggText(s: { [key: string]: unknown }): string {
   <div v-if="rows.length" class="wall">
     <article v-for="row in rows" :key="row.account_id" class="acct sheet">
       <header class="acct-head">
-        <AppBadge :name="row.account_name" :color-index="faceOf(row.account_id)" />
+        <PlatformBadge :name="row.account_name" :color-index="faceOf(row.account_id)" />
         <span class="acct-id mono">{{ row.account_id }}</span>
       </header>
       <div class="acct-body">
@@ -172,7 +172,7 @@ function aggText(s: { [key: string]: unknown }): string {
     </article>
   </div>
   <p v-else-if="!loading" class="quietline">
-    还没有可观测的账户——先到「应用」页导入。
+    还没有可观测的账户——先到「平台」页导入。
   </p>
 </template>
 

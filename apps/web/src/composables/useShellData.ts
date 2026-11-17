@@ -30,7 +30,7 @@ export function useShellData() {
         api.getAccounts(),
         api.getRuns(),
         api.getPending(),
-        api.getApps(),
+        api.getPlatforms(),
         api.getRadar(),
       ]);
       accounts.value = acc;

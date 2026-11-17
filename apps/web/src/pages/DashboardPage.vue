@@ -47,7 +47,7 @@ const headline = computed(() => {
   if (props.pending.length > 0)
     return { strong: `${props.pending.length} 项待处理`, tail: "处理完即可清静" };
   if (props.accounts.length === 0)
-    return { strong: "还没有接入任何应用", tail: "到「应用」页一键导入，把本机客户端接进来" };
+    return { strong: "还没有接入任何平台", tail: "到「平台」页一键导入，把本机客户端接进来" };
   const unwell = props.accounts.filter((a) => a.signal !== "ok").length;
   if (unwell > 0)
     return {
@@ -78,7 +78,7 @@ const todayActions = computed(() => {
   };
 });
 
-/* ---- 下次班次（v6.2 ③）：全应用班次时刻并集中取下一个未来时刻——
+/* ---- 下次班次（v6.2 ③）：全平台班次时刻并集中取下一个未来时刻——
    时刻来自 platforms 真实排班（schedule_times），不到点不编造状态 ---- */
 const shiftTimes = computed(() =>
   [...new Set(props.platforms.flatMap((a) => a.schedule_times))]
@@ -320,7 +320,7 @@ const trafficSub = computed(() => {
         <p class="kpi-value mono" v-if="nextShift">{{ nextShift.time }}</p>
         <p class="kpi-value kpi-value--sm" v-else>未排班</p>
         <p class="kpi-sub">
-          {{ nextShift ? nextShift.sub : "到「应用」页为应用排班" }}
+          {{ nextShift ? nextShift.sub : "到「平台」页为平台排班" }}
         </p>
       </div>
     </div>

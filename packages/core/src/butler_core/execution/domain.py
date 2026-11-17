@@ -61,7 +61,7 @@ class ActionInvalid(DomainError):
 
 @dataclass(frozen=True)
 class Action:
-    """Action = (kind, target, params)；target = 应用 + 账号编址（ADR-003 §2）。"""
+    """Action = (kind, target, params)；target = 平台 + 账号编址（ADR-003 §2）。"""
 
     kind: ActionKind
     target: str

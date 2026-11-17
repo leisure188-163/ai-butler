@@ -67,6 +67,13 @@ Enter/Space/受信任点击都只关闭菜单、45s 内身份不翻转；`onSele
 
 ## 一句话现状
 
+**前端应用→平台同步（2026-11-18）**：导航/PageName 早前已改「平台」，但页面
+标题、表头、空态、QuickPanel/Dashboard/Traffic/Log 文案、组件与页面文件名
+（AppsPage→PlatformsPage、AppBadge→PlatformBadge）、api 函数
+（getApps/importApp/importAllApps→getPlatforms/importPlatform/importAllPlatforms）
+仍留「应用」旧称，已全量同步；server 路由注释、CLI 表头、A1-03 词表与 A3-01
+六页 IA 同批收编（词表口径：app→platform 为退役禁用词，ADR-019）。
+
 **平台册 client_version（2026-11-18）**：plat_platform 增 client_version
 （列序在 capabilities 之前），组合根同步名册时经 provision 端口
 `read_client_version()` 只读探测（豆包=Info.plist 2.36.8；探不到/网页平台

@@ -9,15 +9,15 @@ router = APIRouter(tags=["butler"])
 
 
 class PlatformOut(BaseModel):
-    """应用名册行：连接器能力矩阵 + 调度缺省（A2-02 §2 的端侧投影）。"""
+    """平台名册行：连接器能力矩阵 + 调度缺省（A2-02 §2 的端侧投影）。"""
 
     id: str
     display: str
     capabilities: list[str]  # ActionKind.value 列表（core 词表）
     credential_kinds: list[str]
     schedule_times: list[str]  # HH:MM 触发时间
-    account_id: str | None  # 首账号规范 id（兼容裸应用 id 调用），未导入 = None
-    account_ids: list[str]  # 该应用下全部账户（ADR-003 多账号）
+    account_id: str | None  # 首账号规范 id（兼容裸平台 id 调用），未导入 = None
+    account_ids: list[str]  # 该平台下全部账户（ADR-003 多账号）
 
 
 class ImportOut(BaseModel):

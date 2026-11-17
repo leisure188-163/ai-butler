@@ -15,7 +15,7 @@ defineProps<{ runs: RunItem[] }>();
     <div v-if="runs.length" class="log-wrap sheet">
       <table class="log">
         <thead>
-          <tr><th>时间</th><th>动作</th><th>应用</th><th>账户</th><th>结果</th></tr>
+          <tr><th>时间</th><th>动作</th><th>平台</th><th>账户</th><th>结果</th></tr>
         </thead>
         <tbody>
           <tr v-for="run in runs" :key="run.id">

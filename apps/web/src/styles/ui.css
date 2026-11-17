@@ -318,7 +318,7 @@
 
 /* ---- 矩阵工作台新增件（2026-11-13 矩阵改版，六页 IA 沿用）----
    结果徽 .tag 接替印章形态（更轻：无边框浅底）；.matrix 矩阵表格件；
-   .rail 待办栏容器；.badge-dot 应用小徽身份色点；.checkbox 批量选择。 */
+   .rail 待办栏容器；.badge-dot 平台小徽身份色点；.checkbox 批量选择。 */
 
 /* ---- 结果徽（色相由 signal 决定，端零映射；浅底 + ink 文字）---- */
 .tag {
@@ -337,7 +337,7 @@
 .tag--danger { background: var(--color-danger-weak); color: var(--color-danger-ink); }
 .tag--quiet { background: var(--color-quiet-weak); color: var(--color-quiet-ink); }
 
-/* ---- 应用小徽身份色点（色值由组件按 --card-face-N 单值动态内联提供）---- */
+/* ---- 平台小徽身份色点（色值由组件按 --card-face-N 单值动态内联提供）---- */
 .badge-dot {
   width: 8px;
   height: 8px;

@@ -39,7 +39,7 @@ class RunIn(BaseModel):
     target: str
     kind: str = "provision.run"
     account_id: str | None = None  # 显式账号规范 id（优先于 account_code）
-    account_code: str = "main"  # ADR-003：target = 应用 + 账号；裸应用 id 兼容首账号
+    account_code: str = "main"  # ADR-003：target = 平台 + 账号；裸平台 id 兼容首账号
     dry_run: bool = False
 
 
@@ -164,7 +164,7 @@ def claim_all_runs(request: Request) -> list[RunOut]:
 
     registry = request.app.state.registry
     kit = request.app.state.kit
-    # 多账号（ADR-003）：同一应用下每个账户各自发起，幂等键按账号粒度
+    # 多账号（ADR-003）：同一平台下每个账户各自发起，幂等键按账号粒度
     docked: dict[str, list[str]] = {}
     for account in kit.accounts.list_all():
         docked.setdefault(account.platform_code, []).append(account.id)

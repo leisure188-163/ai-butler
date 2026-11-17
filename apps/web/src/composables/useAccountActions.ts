@@ -14,12 +14,12 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
   const busyTarget = ref<string | null>(null);
   const actionMsg = ref<{ text: string; tone: "ok" | "warn" } | null>(null);
 
-  /* 应用动作：导入（本机接入扫描）/ 领取（手动领取）。结果如实展示，不造结论。 */
-  async function importApp(target: string) {
+  /* 平台动作：导入（本机接入扫描）/ 领取（手动领取）。结果如实展示，不造结论。 */
+  async function importPlatform(target: string) {
     busyTarget.value = target;
     actionMsg.value = null;
     try {
-      const body = await api.importApp(target);
+      const body = await api.importPlatform(target);
       const issues = body.issues ?? [];
       const imported = body.accounts ?? [];
       actionMsg.value = {
@@ -99,7 +99,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     busyTarget.value = accountId;
     actionMsg.value = null;
     try {
-      const imported = await api.importApp(target);
+      const imported = await api.importPlatform(target);
       if (!(imported.accounts ?? []).includes(accountId)) {
         actionMsg.value = {
           text:
@@ -132,11 +132,11 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
   }
 
   /* 一键批量（R2 补）：导入全部未接入 / 领取全部已接入——筛选语义在 server，端只发起与转述 */
-  async function importAllApps() {
+  async function importAllPlatforms() {
     busyTarget.value = "batch";
     actionMsg.value = { text: "正在扫描本机客户端…", tone: "ok" };
     try {
-      const results = await api.importAllApps();
+      const results = await api.importAllPlatforms();
       const imported = results.flatMap((r) => r.accounts);
       const issues = results.flatMap((r) => r.issues.map((i) => `${r.target}：${i}`));
       const empty = results
@@ -177,7 +177,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     try {
       for (const target of targets) {
         try {
-          const body = await api.importApp(target);
+          const body = await api.importPlatform(target);
           imported.push(...(body.accounts ?? []));
           issues.push(...(body.issues ?? []).map((issue) => `${target}：${issue}`));
         } catch (e) {
@@ -296,12 +296,12 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
   return {
     busyTarget,
     actionMsg,
-    importApp,
+    importPlatform,
     syncAllApps,
     claimApp,
     healthApp,
     repairAccount,
-    importAllApps,
+    importAllPlatforms,
     claimAllApps,
     claimMany,
     scanSessions,

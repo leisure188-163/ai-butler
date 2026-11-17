@@ -1,7 +1,7 @@
 /* 设计 token 唯一来源（红线 6）——「纸墨 Cardstock & Ink」(design-decisions D2 v5)
    2026-11-13 矩阵改版 v5：去拟物装饰，中性工作台基底——
    真比例拟物/压印编号/金箔芯片/墨印章/扇面动画退役；身份色降级为
-   AppBadge 小徽单色（--card-face-1..6 保留单值，渐变对待退役）；语义五色不变。
+   PlatformBadge 小徽单色（--card-face-1..6 保留单值，渐变对待退役）；语义五色不变。
    语义五色只消费 core 出产的 signal 分类（红线 2），填充用 base、正文用 ink 档（白底 ≥4.5:1）。
    多主题（D2 v5）：:root = 纸墨（浅，默认），[data-theme="dark"] = 墨夜，[data-theme="warm"] = 暖纸；
    覆盖块只覆写颜色类令牌，字体/字号/尺寸/动效天然继承。主题偏好由 App.vue 挂 <html data-theme>。 */
@@ -38,7 +38,7 @@
   --color-quiet-ink: #64737c;
   --color-quiet-weak: rgba(132, 147, 155, 0.16);
 
-  /* 应用身份色（按应用分配，白字对比全部 ≥6:1）；单值 = AppBadge 小徽用（矩阵改版 v5） */
+  /* 平台身份色（按平台分配，白字对比全部 ≥6:1）；单值 = PlatformBadge 小徽用（矩阵改版 v5） */
   --card-face-1: #24466b;
   --card-face-2: #1f4a3d;
   --card-face-3: #3e3a5c;
@@ -139,7 +139,7 @@ body {
   --color-quiet-ink: #95a8b2;
   --color-quiet-weak: rgba(127, 147, 158, 0.2);
 
-  /* 应用身份色：夜色下微提亮（白字对比仍 ≥6:1；AppBadge 小徽用） */
+  /* 平台身份色：夜色下微提亮（白字对比仍 ≥6:1；PlatformBadge 小徽用） */
   --card-face-1: #2f5580;
   --card-face-2: #28584a;
   --card-face-3: #4a4670;
@@ -187,7 +187,7 @@ body {
   --color-quiet-ink: #54705f;
   --color-quiet-weak: rgba(110, 138, 122, 0.16);
 
-  /* 应用身份色：跨主题保持一致（AppBadge 小徽用） */
+  /* 平台身份色：跨主题保持一致（PlatformBadge 小徽用） */
   --card-face-1: #24466b;
   --card-face-2: #1f4a3d;
   --card-face-3: #3e3a5c;

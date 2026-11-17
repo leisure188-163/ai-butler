@@ -65,7 +65,7 @@ function toMinutes(t: string): number {
     <h2 class="section-title">班次时刻</h2>
     <div class="sheet shift-sheet">
       <p v-if="!shiftTimes.length" class="shift-empty">
-        还没有应用排班——到「应用」页为应用排班
+        还没有平台排班——到「平台」页为平台排班
       </p>
       <template v-else>
         <p

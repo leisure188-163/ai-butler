@@ -1,6 +1,6 @@
 """Butler CLI（执行器/排障用，非主入口——决策见 STATUS）。
 
-卡包命令词表（A1-03 §4）：cards（卡=账号）/ apps（应用）/ import（导入）/
+卡包命令词表（A1-03 §4）：cards（卡=账户）/ apps（平台）/ import（导入）/
 claim（领取）/ check（体检）/ records（领取记录）。全部经 bridge 触达引擎
 （规约 R4），短命令即开即关。
 """
@@ -129,7 +129,7 @@ def claim(
             known = [a.id for a in kit.accounts.list_by_platform(target)]
             console.print(
                 f"[red]卡不存在: {account_id}[/red]"
-                f"（该应用已有: {', '.join(known) or '未导入——先跑 import'}）"
+                f"（该平台已有: {', '.join(known) or '未导入——先跑 import'}）"
             )
             raise typer.Exit(code=2)
         _mount_ports(kit)
@@ -188,7 +188,7 @@ def records(limit: int = typer.Option(30, help="最多展示条数")) -> None:
     """领取记录：最近 Run。"""
     kit = _kit()
     try:
-        table = Table("时间", "动作", "应用", "卡", "结果码")
+        table = Table("时间", "动作", "平台", "卡", "结果码")
         for run in kit.ledger.list_recent(limit=max(1, min(limit, 200))):
             result = run.result
             table.add_row(

@@ -41,9 +41,9 @@ class SessionOut(BaseModel):
 
 class AccountOut(BaseModel):
     account_id: str
-    account_code: str  # 应用内账号序（ADR-003：target = 应用 + 账号）
+    account_code: str  # 平台内账号序（ADR-003：target = 平台 + 账号）
     platform_code: str  # 连接器 id（号册归属，A2-01 §1）
-    account_name: str  # 应用名（账号册出产）
+    account_name: str  # 平台名（账号册出产）
     level: str  # AssessAccountHealth 出产的五级字面量
     signal: str  # core 出产视觉分类（ok/notice/attention/danger）
     evidence: list[str]

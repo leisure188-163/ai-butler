@@ -5,7 +5,7 @@
  * 不认识 Status 字面量；repair_reason / evidence 直渲染不加工。
  */
 import { computed, ref } from "vue";
-import AppBadge from "./AppBadge.vue";
+import PlatformBadge from "./PlatformBadge.vue";
 import AccountDetail from "./AccountDetail.vue";
 import type { AccountItem, PlatformItem, RadarRow, RunItem } from "../types";
 import { earliestExpiry, faceOf, fmtTime, isToday, signalText } from "../utils";
@@ -224,7 +224,7 @@ function lastRunAtOf(accountId: string): string | null {
                 />
               </td>
               <td>
-                <AppBadge
+                <PlatformBadge
                   :name="appOf(account)?.display ?? account.platform_code"
                   :color-index="faceOf(account.account_id)"
                 />
