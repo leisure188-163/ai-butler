@@ -298,8 +298,9 @@ class DoubaoCdpProvisionPort(ProvisionPort):
     ) -> dict:
         """detail 只读查询（M1 唯一裸 HTTP 接口，PROTOCOL §2 契约形状）。
 
-        每次请求都写一份脱敏快照（成功/失败/复查），用于对比「我们发的
-        detail」与「客户端页面自己发的 checkin」——快照失败不影响签到。
+        capture 开启时每请求写一份脱敏快照（成功/失败/复查），用于对比
+        「我们发的 detail」与「客户端页面自己发的 checkin」——快照失败不
+        影响签到；默认关闭（取证改走 CDP Network 域旁听，PROTOCOL §2.1）。
         """
         query = "&".join((f"version_code={vcode}", *_COMMON_QUERY))
         request = HttpRequest(
@@ -528,7 +529,10 @@ class _Butler:
             channel=channel if channel is not None else CdpChannel(env.resolve_port()),
             sleep=env.sleep,  # 重试/落定间隔走环境束：测试假束离线、真机 time.sleep
             monotonic=monotonic if monotonic is not None else time.monotonic,
-            capture=os.environ.get("DOUBAO_REQUEST_CAPTURE", "1").lower()
+            # 页面级 fetch/XHR 猴补在字节反爬页上默认禁用（2026-11-17 裁决：
+            # 原生函数被包装存在指纹检测风险，生产 run 必须零注入；取证走
+            # CDP Network 域旁听，页面 JS 不可见）——显式 =1 才装（PROTOCOL §2.1）
+            capture=os.environ.get("DOUBAO_REQUEST_CAPTURE", "0").lower()
             not in {"0", "false", "off", "no"},
         )
 

@@ -64,19 +64,32 @@ Base：`https://www.doubao.com`
 
 - 公共查询参数**缺一不可**：`version_code=<派生>&language=zh&device_platform=web&doubao_device_platform=web&aid=497858&real_aid=497858&pkg_type=release_version`；`version_code` 写死会在客户端升级后回 710010702（旧系统 NOTE-04 §4.5 复盘）
 - 头：`Cookie`（CDP 现取，按 name 去重）、`Content-Type: application/json`、`Origin`、`Referer: https://www.doubao.com/pc/agent-explore`、`User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) … Chrome/147.0.0.0 Safari/537.36 SamanthaDoubao/<version>`（spike 实证串）
-- 业务码：`0`=ok；`2`=campaign not found（**活动换季**——更新声明的 campaign 常量）；`710012001`=登录过期 → NO_AUTH（旧系统按 `710012*` 前缀判过期）；`710010702`=system error（**三义**：请求不合法/会话被降权/服务端故障——界面通道下签名合法仍 702 = 后两者，不猜，指引手工点一次判定）。**2026-11-17 真机抓包（页面 XHR 旁路）**：客户端自己右侧「立即签到」发出的 `/landing/checkin` 请求为 `version_code=20800&language=zh&device_platform=web&doubao_device_platform=web&aid=497858&real_aid=497858&pkg_type=release_version&pc_version=2.36.8&doubao_pc_version=5.74.99&web_id=<redacted>&tea_uuid=<redacted>&runtime=web…`，body `{"scene":"pc_incentive_task_mvp_v3"}`，响应 HTTP 200 + `710010702`；同页 `/v3/detail/` 用同一会话仍 `code=0`。该 XHR 的 JS 可见 URL/请求头里未出现 `msToken/a_bogus`（可能在 Cookie 中；快照已脱敏），所以“702 是我们拼的 detail 字段缺项”不成立；成功样本（`Leisure520` 2026-11-17 08:46 +200）当时未抓包，不能据此断缺项。遇到 702 停止连续点击，等平台恢复/重启客户端，或换另一账户验证。
+- 业务码：`0`=ok；`2`=campaign not found（**活动换季**——更新声明的 campaign 常量）；`710012001`=登录过期 → NO_AUTH（旧系统按 `710012*` 前缀判过期）；`710010702`=system error（**三义**：请求不合法/会话被降权/服务端故障——界面通道下签名合法仍 702 = 后两者，不猜，指引手工点一次判定）。**2026-11-17 真机抓包（页面 XHR 旁路）**：客户端自己右侧「立即签到」发出的 `/landing/checkin` 请求为 `version_code=20800&language=zh&device_platform=web&doubao_device_platform=web&aid=497858&real_aid=497858&pkg_type=release_version&pc_version=2.36.8&doubao_pc_version=5.74.99&web_id=<redacted>&tea_uuid=<redacted>&runtime=web…`，body `{"scene":"pc_incentive_task_mvp_v3"}`，响应 HTTP 200 + `710010702`；同页 `/v3/detail/` 用同一会话仍 `code=0`。该 XHR 的 JS 可见 URL/请求头里未出现 `msToken/a_bogus`（可能在 Cookie 中；快照已脱敏），所以“702 是我们拼的 detail 字段缺项”不成立；成功样本（`Leisure520` 2026-11-17 08:46 +200）当时未抓包，不能据此断缺项。遇到 702 停止连续点击，等平台恢复/重启客户端，或换另一账户验证。**勘误（同日 20:36 CDP Network 域零污染旁听）**：`msToken/a_bogus` 实际就在该 XHR 的 URL query 中（早前页面旁路快照未记录到是包装器记录面局限，非请求本身缺失）；「702 非 detail 缺项」在零注入条件下复证成立——现场样本见 §2.1。
 - **detail 判定字段路径**：`data.tasks[]` 里 `campaign_code=="daily_signin"` 的项 → `.daily_checkin` 子结构：`checked_in_today`（布尔权威）/`reward.reward_amount`/`continuous_days`/`last_checkin_date`（2026-11-11 旧仓库 oracle 提炼 + spike 实证）
 - 本机 127.0.0.1 的 CDP HTTP 探测必须**绕系统代理**（旧系统实测：系统代理开着时 urllib 会把调试端口请求发给代理，直连失败）
 
-## 2.1 请求快照（2026-11-17，只读旁路）
+## 2.1 请求快照与取证（2026-11-17 修订：页面旁路默认关闭，旁听改 CDP Network 域）
 
-目的：区分「连接器拼的 detail」与「客户端页面自己发的 checkin」，并为成功/失败样本留档；不改变任何请求。
+目的：区分「连接器拼的 detail」与「客户端页面自己发的 checkin」，并为成功/失败样本留档。
 
-- 位置：`~/.butler/doubao_requests/doubao_requests-YYYY-MM-DD.jsonl`；`DOUBAO_REQUEST_DIR` 可覆盖，`DOUBAO_REQUEST_CAPTURE=0` 可关闭（默认开启）。
-- `detail`：记录连接器裸 HTTP 的 method/URL/query/body/headers + 业务码/`daily_checkin`；每次 detail（含点击后 3 次复查）都落一条。
-- `checkin_trace`：只在点击前安装页面 `fetch`/XHR 只读包装器，点击后读取 `/alice/ug/campaign/...` 请求的 URL/query/headers/body/response；不阻断原请求。
-- 脱敏：`Cookie`、`Authorization`、`msToken`、`a_bogus`、`web_id`、`tea_uuid` 等只存 `sha256` 前缀 + 长度；快照失败不阻断签到（best-effort）。
-- 2026-11-17 05:01 UTC 真机样本：`main` 的 checkin 请求体完整（`scene=pc_incentive_task_mvp_v3`），响应 702；同一时刻 detail 为 `code=0`、`checked_in_today=false`——这是“点击已送达、服务端/账号侧拒绝”的现场证据，不是找不到按钮。
+- **页面 `fetch`/XHR 猴补默认不装**（`DOUBAO_REQUEST_CAPTURE` 默认 `0`，显式 `=1` 才开）：
+  字节反爬对原生函数被包装存在指纹检测风险，生产 run 必须零注入；显式开启时落
+  `~/.butler/doubao_requests/doubao_requests-YYYY-MM-DD.jsonl`（`DOUBAO_REQUEST_DIR` 可覆盖），
+  detail 每请求一条 + checkin_trace（点击前装、点击后读），不阻断原请求。
+- **取证首选 CDP Network 域旁听（页面 JS 完全不可见、零污染）**：浏览器级 ws +
+  `Target.attachToTarget(flatten)` + `Network.enable`，与真实 claim（capture=OFF）并行，
+  收 `requestWillBeSent/responseReceived/loadingFinished` 后于会话存活期内 `getResponseBody`；
+  2026-11-17 晚现场取证即此法，单次点击纪律不变。
+- 脱敏：`Cookie`、`Authorization`、`msToken`、`a_bogus`、`web_id`、`tea_uuid` 等只存长度/哈希前缀；快照失败不阻断签到（best-effort）。
+
+零污染现场样本（mac 豆包 2.36.8，2026-11-17 20:36，`main`=逍遥酒鬼）：
+
+- 客户端自发 `POST /alice/ug/campaign/landing/checkin`：query `version_code=20800&…&device_id=<空>&pc_version=2.36.8&doubao_pc_version=5.74.99&web_id=<19位>&tea_uuid=<16位>&runtime=web&msToken=<168>&a_bogus=<188>`，body `{"scene":"pc_incentive_task_mvp_v3"}` → HTTP 200 `{"code":710010702,"msg":"系统错误"}`。
+- 同会话同分钟页面自身 `POST /v3/detail/`（同样 `device_id=<空>`）→ HTTP 200 满数据。
+- 判读：**702 非参数缺项、非签名失效**——msToken/a_bogus 在 URL 且同参数 detail 被受理；「系统错误」是服务端内部错误文案，指向账号/设备绑定的服务侧状态。佐证：另一账户（Leisure520）同机同栈 08:46 +200 成功；Windows 同账号同 702 → 账号级。`device_id` 空值非异常信号（detail 照常受理）。
+- 「卸载重装恢复」假说（待复验）：重装重置本机设备身份（web_id/tea_uuid/device_id）与登录态 → 服务端为账号重建设备绑定，绕开坏记录。
+- version_code 保真缺口：客户端自发 `20800`，我们派生 `23608`；detail 两者皆受理，checkin 由客户端自发不受影响——记缺口非肇因。
+- 历史样本（页面旁路，已零污染法取代）：2026-11-17 05:01 UTC `main` checkin 请求体完整（`scene=pc_incentive_task_mvp_v3`）响应 702，同刻 detail `code=0`——「点击已送达、服务端/账号侧拒绝」的最早现场证据。
 
 ## 3. 结果判定（detail 权威，不信签到接口返回）
 

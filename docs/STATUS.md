@@ -3,6 +3,8 @@
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
 > 最后更新：2026-11-17
 
+**豆包 702 定性收官 + 页面旁路默认关闭（2026-11-17 晚）**：用户报「签到失败，请稍后重试」疑我们改坏请求参数。CDP Network 域零污染取证（浏览器级 ws + flatten attach + `Network.enable`，页面 JS 不可见；旁听与真实 claim 并行，capture=OFF）抓到客户端自发 checkin 全量现场：query 带 `msToken(168)/a_bogus(188)/web_id/tea_uuid`（`device_id` 空值——detail 同空照常受理），响应 HTTP 200 `{"code":710010702,"msg":"系统错误"}`；同会话页面自身 `v3/detail` 200 满数据。结论：**702 非参数缺项、非签名失效**——同参数 detail 受理 + 另一账户同机 08:46 成功 + Windows 同账号同败 → 账号级服务侧状态；「卸载重装恢复」= 重装重置设备身份与登录态（假说，待复验）。我们唯一自组的 detail（派生 version_code=23608 vs 客户端自发 20800）只读且 code=0——非肇因，记保真缺口。修复：`DOUBAO_REQUEST_CAPTURE` 默认 "1"→"0"（页面 fetch/XHR 猴补在字节反爬页禁用于生产 run；取证改 CDP Network 域旁听）；PROTOCOL §2.1 收编现场样本与方法。下一步：用户卸载重装豆包 → capture=OFF 干净复验一次（702 纪律：勿连点）。
+
 **Qoder 多账户（CN + Global）补全（2026-11-17）**：真机确认 Windows 有两个真实
 Qoder 账户来源——`%APPDATA%\com.qodercn.app.stable`（CN，user
 `019ffa59-7821-7f3b-a430-94af21a7150f`，host `openapi.qoder.com.cn`）与
