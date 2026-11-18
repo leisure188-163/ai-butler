@@ -32,6 +32,13 @@ export type AccountItem = Omit<Contract["AccountOut"], "signal" | "credentials">
 };
 export type PlatformItem = Contract["PlatformOut"];
 export type ImportResult = Contract["ImportOut"];
+/** 行操作项（2026-11-18）：操作列直连 ≤2 个，其余进「更多」下拉 */
+export type RowAction = {
+  key: string;
+  label: string;
+  danger?: boolean;
+  disabled?: boolean;
+};
 /** 自定义平台（2026-11-18）：草稿 = 用户填的表单形状；目录行 = 已登记的自定义平台 */
 export type CustomPlatformDraft = Contract["CustomPlatformIn"];
 export type CustomPlatformRow = Contract["CustomPlatformOut"];

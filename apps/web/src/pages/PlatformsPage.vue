@@ -9,12 +9,14 @@ import PlatformBadge from "../components/PlatformBadge.vue";
 import PlatformDetail from "../components/PlatformDetail.vue";
 import PlatformFilters from "../components/PlatformFilters.vue";
 import CustomPlatformForm from "../components/CustomPlatformForm.vue";
+import RowActionMenu from "../components/RowActionMenu.vue";
 import type {
   AccountItem,
   CustomPlatformDraft,
   PageName,
   PlatformItem,
   PlatformQuery,
+  RowAction,
   Signal,
 } from "../types";
 import { faceOf, signalText } from "../utils";
@@ -48,6 +50,43 @@ const showCustomForm = ref(false);
 
 function isCustom(id: string): boolean {
   return props.customCodes.includes(id);
+}
+
+/** 操作列拆分（2026-11-18）：直连最多 2 个高频动作，其余进「更多」下拉，
+ * 否则列宽被 6 个按钮撑爆。 */
+function primaryActions(platform: PlatformItem): RowAction[] {
+  const out: RowAction[] = [
+    { key: "import", label: platform.account_id ? "刷新" : "接入" },
+  ];
+  if (platform.account_id && platform.capabilities.includes("provision.run")) {
+    out.push({ key: "claim", label: "立即领取" });
+  }
+  return out;
+}
+
+function moreActions(platform: PlatformItem): RowAction[] {
+  const out: RowAction[] = [];
+  if (platform.account_id) out.push({ key: "jump", label: "去账户" });
+  out.push({
+    key: "toggle",
+    label: platform.active ? "停用" : "启用",
+    disabled: props.busyTarget !== null,
+  });
+  out.push({
+    key: "detail",
+    label: expandedId.value === platform.id ? "收起详情" : "详情",
+  });
+  if (isCustom(platform.id)) out.push({ key: "remove", label: "删除", danger: true });
+  return out;
+}
+
+function runRowAction(platform: PlatformItem, key: string): void {
+  if (key === "import") emit("import", platform.id);
+  else if (key === "claim") emit("claim", platform.id);
+  else if (key === "jump") emit("jump", "账户管理");
+  else if (key === "toggle") toggleActive(platform);
+  else if (key === "detail") toggleDetail(platform.id);
+  else if (key === "remove") confirmRemove(platform.id);
 }
 
 function confirmRemove(id: string): void {
@@ -268,42 +307,13 @@ function toggleDetail(id: string) {
                 >{{ signalText(g.signal) }} {{ g.count }}</span>
                 <span v-if="!statusGroups(platform).length" class="faint">—</span>
               </td>
-              <td @click.stop>
-                <span class="row-actions">
-                  <button
-                    v-if="!platform.account_id"
-                    class="btn btn--ghost"
-                    :disabled="busyTarget !== null"
-                    @click="emit('import', platform.id)"
-                  >接入</button>
-                  <button
-                    v-else
-                    class="btn btn--ghost"
-                    :disabled="busyTarget !== null"
-                    @click="emit('import', platform.id)"
-                  >刷新</button>
-                  <button
-                    v-if="platform.account_id && platform.capabilities.includes('provision.run')"
-                    class="btn btn--ghost"
-                    :disabled="busyTarget !== null"
-                    @click="emit('claim', platform.id)"
-                  >立即领取</button>
-                  <button v-if="platform.account_id" class="btn btn--ghost" @click="emit('jump', '账户管理')">去账户</button>
-                  <button
-                    class="btn btn--ghost"
-                    :disabled="busyTarget !== null"
-                    @click="toggleActive(platform)"
-                  >{{ platform.active ? "停用" : "启用" }}</button>
-                  <button class="btn btn--ghost" @click="toggleDetail(platform.id)">
-                    {{ expandedId === platform.id ? "收起" : "详情" }}
-                  </button>
-                  <button
-                    v-if="isCustom(platform.id)"
-                    class="btn btn--ghost"
-                    :disabled="busyTarget !== null"
-                    @click="confirmRemove(platform.id)"
-                  >删除</button>
-                </span>
+              <td class="col-actions" @click.stop>
+                <RowActionMenu
+                  :inline="primaryActions(platform)"
+                  :more="moreActions(platform)"
+                  :busy="busyTarget !== null"
+                  @run="(key) => runRowAction(platform, key)"
+                />
               </td>
             </tr>
             <tr v-if="expandedId === platform.id" class="detail-row">
@@ -384,10 +394,10 @@ function toggleDetail(id: string) {
   flex-wrap: wrap;
 }
 .platform-wrap { overflow-x: auto; }
-.platform-wrap .matrix { min-width: 1120px; }
+.platform-wrap .matrix { min-width: 1030px; }  /* 操作列收成下拉后（2026-11-18）不再需要 1120 */
 /* 自适应断点（2026-11-18）：窗口变窄逐级收起次要列，避免整表靠横向滚动才可读 */
 @media (max-width: 1180px) {
-  .platform-wrap .matrix { min-width: 860px; }
+  .platform-wrap .matrix { min-width: 820px; }
   .col-caps { display: none; }
 }
 @media (max-width: 980px) {
