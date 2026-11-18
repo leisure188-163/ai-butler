@@ -6,6 +6,7 @@
  */
 import { ref, watch } from "vue";
 import type { GatewayRouteRule, Settings, ThemeName } from "../types";
+import { docsUrl } from "../utils";
 
 const props = defineProps<{
   settings: Settings;
@@ -22,6 +23,10 @@ const emit = defineEmits<{
   saveRoutes: [rows: { model: string; accounts: string[] }[]];
   reloadRoutes: [];
 }>();
+
+/** 接口文档：同源派生（不写死端口——dev 走 vite 代理，生产/sidecar 同源伺服） */
+const docsHref = docsUrl();
+const docsLabel = docsHref.replace(/^https?:\/\//, "");
 
 function onIntervalChange(event: Event) {
   emit("update", { intervalSec: Number((event.target as HTMLSelectElement).value) });
@@ -233,10 +238,10 @@ function saveRoutes() {
         <span class="field-label">接口文档</span>
         <a
           class="field-link"
-          href="http://127.0.0.1:8000/docs"
+          :href="docsHref"
           target="_blank"
           rel="noreferrer"
-        >127.0.0.1:8000/docs</a>
+        >{{ docsLabel }}</a>
       </div>
     </div>
   </section>

@@ -1,11 +1,34 @@
 // Electron 桌面壳：在线模式（WEB_URL）直接加载；离线模式拉起 Python sidecar
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const http = require("node:http");
 const path = require("node:path");
 
 let win = null;
 let sidecar = null;
+
+/**
+ * 外链一律交给系统默认浏览器（`target="_blank"` 与壳内整页跳转都走这里）。
+ * 只放行 http(s)：其他 scheme（file://、自定义协议）不猜、不外抛，显式记一条错误。
+ * 返回是否已交出（调用方据此决定拦不拦）。
+ */
+function openInDefaultBrowser(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    console.error("无法解析的链接，已拦截：", url);
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    console.error("非 http(s) 链接，已拦截：", url);
+    return false;
+  }
+  shell.openExternal(url).catch((err) => {
+    console.error("交给系统默认浏览器失败：", url, err);
+  });
+  return true;
+}
 
 async function waitForHealth(port, timeoutMs = 15000) {
   const started = Date.now();
@@ -56,6 +79,25 @@ app.whenReady().then(async () => {
       width: 1100,
       height: 760,
       webPreferences: { contextIsolation: true, nodeIntegration: false },
+    });
+    // 点击链接不该在壳内开新窗口/把应用页顶掉：新窗口一律拒绝并转系统默认浏览器
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      openInDefaultBrowser(url);
+      return { action: "deny" };
+    });
+    // 整页跳转同理：同源页面（hash 路由、/docs）留在壳内，跨源一律交系统浏览器
+    const appOrigin = new URL(base).origin;
+    win.webContents.on("will-navigate", (event, url) => {
+      let target;
+      try {
+        target = new URL(url);
+      } catch {
+        event.preventDefault();
+        return;
+      }
+      if (target.origin === appOrigin) return;
+      event.preventDefault();
+      openInDefaultBrowser(url);
     });
     await win.loadURL(base);
   } catch (err) {

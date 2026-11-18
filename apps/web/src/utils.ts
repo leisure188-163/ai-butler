@@ -20,6 +20,14 @@ export function signalText(signal: Signal): string {
   return "—";
 }
 
+/**
+ * 接口文档地址：同源派生（端口/主机随当前页面走，不写死）。
+ * 依据：server 在生产与桌面 sidecar 模式都由同一进程伺服 `/docs`；dev 由 vite 代理转发。
+ */
+export function docsUrl(): string {
+  return `${window.location.origin}/docs`;
+}
+
 export function faceOf(id: string): number {
   let h = 0;
   for (const ch of id) h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
