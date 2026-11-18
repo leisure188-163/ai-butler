@@ -175,8 +175,8 @@ function toggleDetail(id: string) {
         </p>
       </div>
       <div class="head-actions">
-        <button class="btn" :disabled="busyTarget !== null" @click="showCustomForm = !showCustomForm">
-          {{ showCustomForm ? "收起表单" : "＋ 自定义平台" }}
+        <button class="btn" :disabled="busyTarget !== null" @click="showCustomForm = true">
+          ＋ 自定义平台
         </button>
         <button
           class="btn btn--primary"

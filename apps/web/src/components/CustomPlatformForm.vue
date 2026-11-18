@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /**
  * 自定义平台表单（2026-11-18）：内置清单之外的平台由用户自建。
+ * 2026-11-18 改版：从页面内联展开改为**弹出界面**（ModalShell）——新增/修改统一走弹层。
  *
  * 为什么不给 YAML 编辑器：新手看不懂五段式声明，所以这里只问 4 件人话的事
  * （是哪个网站 / 状态怎么问 / 领取怎么发 / 什么时候跑），由 server 渲染成
@@ -8,6 +9,7 @@
  * 凭据固定走「本机 Chrome 登录态」（browser_cookie）——与内置网页连接器同一条链路。
  */
 import { computed, reactive, ref } from "vue";
+import ModalShell from "./ModalShell.vue";
 import type { CustomPlatformDraft } from "../types";
 
 const props = defineProps<{ saving: boolean }>();
@@ -109,18 +111,12 @@ function submit(): void {
 </script>
 
 <template>
-  <div class="custom-form sheet" role="dialog" aria-label="自定义平台">
-    <header class="form-head">
-      <div>
-        <h2 class="form-title">自定义平台</h2>
-        <p class="form-sub">
-          给内置清单之外的网站建一个能真跑的每日领取：登录态从本机 Chrome 抓，
-          状态查询与领取请求由你填，服务端渲染成声明式连接器。
-        </p>
-      </div>
-      <button class="btn btn--ghost" :disabled="saving" @click="emit('close')">关闭</button>
-    </header>
-
+  <ModalShell
+    title="自定义平台"
+    subtitle="给内置清单之外的网站建一个能真跑的每日领取：登录态从本机 Chrome 抓，状态查询与领取请求由你填，服务端渲染成声明式连接器。"
+    :busy="props.saving"
+    @close="emit('close')"
+  >
     <div class="grid">
       <label class="field">
         <span class="label">平台编码</span>
@@ -207,52 +203,35 @@ function submit(): void {
 
     <p v-if="error" class="err" role="alert">{{ error }}</p>
 
-    <footer class="form-actions">
+    <template #footer>
       <span class="hint">
         保存后自动热加载；到名册里点「接入」，会从本机 Chrome 抓登录态并登记账户。
       </span>
-      <button class="btn btn--primary" :disabled="saving || !canSave" @click="submit">
-        {{ saving ? "保存中…" : "保存并热加载" }}
-      </button>
-    </footer>
-  </div>
+      <span class="foot-actions">
+        <button class="btn btn--ghost" :disabled="props.saving" @click="emit('close')">取消</button>
+        <button class="btn btn--primary" :disabled="props.saving || !canSave" @click="submit">
+          {{ props.saving ? "保存中…" : "保存并热加载" }}
+        </button>
+      </span>
+    </template>
+  </ModalShell>
 </template>
 
 <style scoped>
-.custom-form {
-  padding: 18px 20px 16px;
-  display: grid;
-  gap: 14px;
-}
-.form-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-}
-.form-title {
-  margin: 0;
-  font-size: 16px;
-  color: var(--color-text);
-}
-.form-sub {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--color-text-muted);
-  max-width: 62ch;
-}
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px 16px;
+  margin-bottom: 14px;
 }
 .grid--two {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 .field {
   display: grid;
   gap: 5px;
   min-width: 0;
+  margin-bottom: 12px;
 }
 .label {
   font-size: 12px;
@@ -290,21 +269,14 @@ function submit(): void {
   font-size: 12px;
   color: var(--color-danger);
 }
-.form-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+.foot-actions {
+  display: inline-flex;
+  gap: 8px;
 }
 @media (max-width: 640px) {
   .grid,
   .grid--two {
     grid-template-columns: 1fr;
-  }
-  .form-actions {
-    flex-direction: column;
-    align-items: stretch;
   }
 }
 </style>

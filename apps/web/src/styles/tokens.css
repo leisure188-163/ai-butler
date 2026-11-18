@@ -8,6 +8,7 @@
 :root {
   /* 纸与墨 */
   --color-bg: #f1f3f4;            /* 案面：冷纸灰 */
+  --color-scrim: rgba(23, 38, 48, 0.36);  /* 弹层遮罩（2026-11-18） */
   --color-surface: #ffffff;       /* 纸白 */
   --color-surface-2: #e8ebed;     /* 凹槽层 */
   --color-border: #d9dee1;        /* 纸绳线 */
@@ -110,6 +111,7 @@ body {
 /* ---- 墨夜（深色）：墨青夜底 + 纸白文字 + 金箔提亮；语义五色整体提亮一档保深底对比 ---- */
 [data-theme="dark"] {
   --color-bg: #10181e;            /* 墨青夜底 */
+  --color-scrim: rgba(0, 0, 0, 0.58);    /* 弹层遮罩（2026-11-18） */
   --color-surface: #17222a;       /* 夜里底色 */
   --color-surface-2: #1d2b34;     /* 凹槽层 */
   --color-border: #2b3b46;        /* 纸绳线 */
@@ -159,6 +161,7 @@ body {
    语义五色沿用白卡档；阴影转冷蓝调。 ---- */
 [data-theme="mist"] {
   --color-bg: #f5f7fb;            /* 案面：冷雾蓝灰 */
+  --color-scrim: rgba(22, 32, 46, 0.34); /* 弹层遮罩（2026-11-18） */
   --color-surface: #ffffff;       /* 白卡 */
   --color-surface-2: #edf1f7;     /* 凹槽层 */
   --color-border: #dfe5ee;        /* 细描边 */
