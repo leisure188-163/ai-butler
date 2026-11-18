@@ -13,8 +13,6 @@ const props = defineProps<{
   status: PlatformQuery["status"];
   kind: PlatformQuery["kind"];
   sort: PlatformQuery["sort"];
-  total: number;
-  matched: number;
 }>();
 
 const emit = defineEmits<{
@@ -72,9 +70,6 @@ function reset(): void {
       <option value="name">按平台名称</option>
       <option value="accounts">按账户数</option>
     </select>
-    <span class="filters__count">
-      {{ matched }} / {{ total }} 个平台
-    </span>
     <button v-if="dirty" class="btn btn--ghost" @click="reset">清除筛选</button>
   </div>
 </template>
@@ -89,5 +84,4 @@ function reset(): void {
 }
 .filters__search { flex: 1 1 12rem; min-width: 8rem; }
 .filters__select { flex: 0 0 auto; }
-.filters__count { color: var(--color-text-muted); font-size: var(--text-sm); }
 </style>

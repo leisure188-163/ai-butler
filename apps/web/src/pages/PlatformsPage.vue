@@ -210,7 +210,7 @@ function toggleDetail(id: string) {
       <div>
         <h1 class="page-title">平台管理</h1>
         <p class="page-sub">
-          平台来自内置连接器（共 {{ platforms.length }} 家）——本机装好并登录对应客户端后即可接入。
+          平台来自内置连接器——本机装好并登录对应客户端后即可接入。
         </p>
       </div>
       <div class="head-actions">
@@ -247,8 +247,6 @@ function toggleDetail(id: string) {
       v-model:status="query.status"
       v-model:kind="query.kind"
       v-model:sort="query.sort"
-      :total="platforms.length"
-      :matched="filteredPlatforms.length"
     />
 
     <div v-if="pagedPlatforms.length" class="platform-wrap sheet">
