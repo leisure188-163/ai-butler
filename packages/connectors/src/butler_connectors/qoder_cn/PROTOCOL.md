@@ -57,7 +57,16 @@
 - Keychain 服务名实测定稿：`Qoder App Safe Storage`（genp 条目；按
   `Qoder/Qoder CN/com.qodercn.app + Safe Storage` 组合穷举均 miss，
   dump-keychain 元数据过滤命中）——`security find-generic-password -w -s` 即读，
-  首读无弹窗
+  首读无弹窗。**2026-11-18 mac Global 复核**：本机 Keychain 仅此一条
+  （acct `Qoder App Key`，2026-11-02 创建）；`Qoder Platform Safe Storage`
+  不存在（旧代码常量错名，已改候选序 `Qoder App → Qoder Platform`，见
+  unlock.py）；Global `com.qoder.app.stable/auth.v1.dat`（547B v10/CBC）
+  用该钥匙端到端解通（token + refreshToken/expiresAt 全键），
+  首读有一次 Keychain 授权弹窗
+- runtime-info 束形态（2026-11-18 mac Global 实测）：客户端装在
+  `/Applications/Qoder.app`（非旧记录的 `.platform`），
+  `Contents/Resources/umid/runtime-info`（arm64 Mach-O）实跑通过——
+  dockio 候选序 `.app` 与 `.platform` 双兼容
 
 ## 2. 端点族
 

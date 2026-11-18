@@ -58,7 +58,7 @@ def test_registry_fallback(tmp_path, monkeypatch):
     monkeypatch.delenv("WORKBUDDY_EXE", raising=False)
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
     monkeypatch.delenv("ProgramFiles", raising=False)
-    # darwin：默认 .platform 束路径指到空目录（真机装了客户端时默认分支会命中，前提必须显式钉死）
+    # darwin：默认 .app 束路径指到空目录（真机装了客户端时默认分支会命中，前提必须显式钉死）
     monkeypatch.setattr(localenv, "_MAC_APP_BASES", (str(tmp_path / "no-such-apps"),))
     exe = tmp_path / "WorkBuddyAI.exe"
     exe.write_bytes(b"MZ")
@@ -194,7 +194,8 @@ def test_fake_winreg_prefix_match_and_hive_tolerance(tmp_path, monkeypatch):
     assert localenv._registry_runtime_candidates() == [exe]  # "WorkBuddy AI" variant matched (old repo regex couldn't)
 
 
-# --- mac .platform bundle branch (2026-11-12 verified live: probe electron 37.10.3 + decrypt full chain passes) ---
+# --- mac .app bundle branch (2026-11-12 verified live on /Applications/WorkBuddy.app: probe electron 37.10.3 +
+# decrypt full chain passes) ---
 
 
 def _write_mac_bundle(root: Path, name: str) -> Path:
@@ -211,13 +212,13 @@ def _mac_platform(monkeypatch, *bases: str) -> None:
 
 
 def test_mac_candidates_from_bundle(tmp_path, monkeypatch):
-    exe = _write_mac_bundle(tmp_path, "WorkBuddy.platform")
+    exe = _write_mac_bundle(tmp_path, "WorkBuddy.app")
     _mac_platform(monkeypatch, str(tmp_path))
     assert _locate_runtime_candidates() == [exe]
 
 
 def test_mac_ai_variant_bundle(tmp_path, monkeypatch):
-    exe = _write_mac_bundle(tmp_path, "WorkBuddyAI.platform")
+    exe = _write_mac_bundle(tmp_path, "WorkBuddyAI.app")
     _mac_platform(monkeypatch, str(tmp_path))
     assert _locate_runtime_candidates() == [exe]
 
@@ -230,13 +231,13 @@ def test_mac_no_bundle_empty_candidates(tmp_path, monkeypatch):
 def test_mac_apps_root_before_home(tmp_path, monkeypatch):
     home = tmp_path / "home"
     apps = tmp_path / "apps"
-    exe = _write_mac_bundle(apps, "WorkBuddy.platform")
+    exe = _write_mac_bundle(apps, "WorkBuddy.app")
     _mac_platform(monkeypatch, str(apps), str(home))
     assert _locate_runtime_candidates() == [exe]
 
 
 def test_mac_override_wins_over_bundle(tmp_path, monkeypatch):
-    _write_mac_bundle(tmp_path, "WorkBuddy.platform")
+    _write_mac_bundle(tmp_path, "WorkBuddy.app")
     override = tmp_path / "other" / "Electron"
     override.parent.mkdir(parents=True)
     override.write_bytes(b"MZ")

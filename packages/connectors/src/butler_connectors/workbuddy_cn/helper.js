@@ -35,7 +35,7 @@ function nativeStorage() {
     return storage;
   } catch (_) { failure('RUNTIME_UNAVAILABLE'); }
 }
-function decrypt(envelope) {
+function decrypt(envelope, tokenShape) {
   let payload;
   try { payload = JSON.parse(nativeStorage().loggerGet()); }
   catch (_) { failure('RUNTIME_UNAVAILABLE'); }
@@ -66,8 +66,8 @@ function decrypt(envelope) {
       plaintext = Buffer.concat([cipher.update(envelope.ciphertext), cipher.final()]);
     } catch (_) { failure('DECRYPT_FAILED'); }
     const token = utf8(plaintext);
-    if (!token.length || token.length > 32768 || !/^[A-Za-z0-9._~+\/-]+=*$/.test(token))
-      failure('INVALID_FORMAT');
+    if (!token.length || token.length > 32768) failure('INVALID_FORMAT');
+    if (tokenShape && !/^[A-Za-z0-9._~+\/-]+=*$/.test(token)) failure('INVALID_FORMAT');
     return token;
   } finally {
     if (key) key.fill(0);
@@ -93,7 +93,9 @@ process.stdin.on('end', () => {
       if (!crypto.getCiphers().includes('aes-256-gcm')) failure('RUNTIME_UNAVAILABLE');
       reply({ok: true, electron: process.versions.electron || 'unknown'});
     } else if (request.operation === 'decrypt') {
-      reply({ok: true, accessToken: decrypt(decode(request.value))});
+      // expect=field（可选）跳过 token 字符集校验，用于解任意信封字段（如 account.nickname，
+      // ADR-025 扩展）；缺省仍按 token 契约校验，reply 形状不变。
+      reply({ok: true, accessToken: decrypt(decode(request.value), request.expect !== 'field')});
     } else failure('HELPER_PROTOCOL');
   } catch (e) {
     const reasons = ['INVALID_FORMAT','UNSUPPORTED_ENVELOPE','RUNTIME_UNAVAILABLE',

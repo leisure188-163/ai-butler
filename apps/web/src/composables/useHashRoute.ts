@@ -7,7 +7,7 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageName } from "../types";
 
 const hashByPage: Record<PageName, string> = {
-  仪表盘: "dashboard",
+  签到概览: "dashboard",  /* 显示名 2026-11-19 改为「签到概览」，hash 仍 dashboard 保收藏夹兼容 */
   平台管理: "platforms",
   账户管理: "accounts",
   用量管理: "traffic",
@@ -16,8 +16,8 @@ const hashByPage: Record<PageName, string> = {
 };
 /* 旧直链兼容：四页时代规范链与新六页同在本表，命中即静默重写 */
 const legacyHashByPage: Record<string, PageName> = {
-  home: "仪表盘",
-  alerts: "仪表盘",
+  home: "签到概览",
+  alerts: "签到概览",
   wallet: "账户管理",
   card: "账户管理",
   radar: "用量管理",
@@ -31,7 +31,7 @@ const pageByHash = {
 
 function resolveActive(): PageName {
   const hash = location.hash.slice(2);
-  const page = pageByHash[hash] ?? "仪表盘";
+  const page = pageByHash[hash] ?? "签到概览";
   if (pageByHash[hash] && hash !== hashByPage[page]) {
     history.replaceState(null, "", `#/${hashByPage[page]}`);
   }

@@ -7,7 +7,7 @@
 import { onBeforeUnmount, ref, watch } from "vue";
 import type { Settings, ThemeName } from "../types";
 
-const THEME_NAMES: ReadonlySet<string> = new Set(["system", "paper", "dark", "mist"]);
+const THEME_NAMES: ReadonlySet<string> = new Set(["system", "qinglan", "paper", "dark", "mist"]);
 
 export function useSettings() {
   const settings = ref<Settings>(loadSettings());
@@ -27,10 +27,10 @@ export function useSettings() {
            存档是用户浏览器里的任意字符串，故按 string 读（不能按 ThemeName 比较）。 */
         const saved = parsed.theme as string | undefined;
         const theme = saved === "warm"
-          ? "mist"
+          ? "qinglan"
           : saved && THEME_NAMES.has(saved)
             ? (saved as ThemeName)
-            : "mist";
+            : "qinglan";
         return {
           autoRefresh: parsed.autoRefresh ?? true,
           intervalSec: parsed.intervalSec ?? 60,
@@ -40,7 +40,7 @@ export function useSettings() {
     } catch {
       /* 存档损坏即回默认 */
     }
-    return { autoRefresh: true, intervalSec: 60, theme: "mist" };
+    return { autoRefresh: true, intervalSec: 60, theme: "qinglan" };
   }
 
   function updateSettings(patch: Partial<Settings>) {
@@ -48,13 +48,14 @@ export function useSettings() {
     localStorage.setItem("butler.settings.v1", JSON.stringify(settings.value));
   }
 
-  /* 主题：跟随系统（prefers-color-scheme 实时跟随）或指定主题；<html data-theme> 上屏 */
+  /* 主题：跟随系统（prefers-color-scheme 实时跟随）或指定主题；<html data-theme> 上屏。
+     2026-11-19：跟随系统浅色分支从「纸墨东方」改为「精工浅色」（用户指定）；深色仍为深空控制台。 */
   const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 
   function applyTheme() {
     const pref = settings.value.theme;
     const resolved: Exclude<ThemeName, "system"> =
-      pref === "system" ? (systemDark.matches ? "dark" : "paper") : pref;
+      pref === "system" ? (systemDark.matches ? "dark" : "mist") : pref;
     if (resolved === "paper") {
       delete document.documentElement.dataset.theme; /* :root 即纸墨 */
     } else {

@@ -41,7 +41,7 @@ function onRepair(target: string, accountId: string) {
 
 /* ---- 今日一句话结论（逐字沿用原账户页谓词，按词表 v2 换词）---- */
 const headline = computed(() => {
-  if (props.loading) return { strong: "正在打开仪表盘", tail: "正在拉取最新状态" };
+  if (props.loading) return { strong: "正在打开签到概览", tail: "正在拉取最新状态" };
   if (props.loadError)
     return { strong: "暂时够不到服务", tail: "确认 server 已启动后点刷新" };
   if (props.pending.length > 0)

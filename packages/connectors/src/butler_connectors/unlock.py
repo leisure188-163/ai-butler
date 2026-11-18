@@ -52,7 +52,12 @@ _CBC_IV = b" " * 16
 _PBKDF2_SALT = b"saltysalt"
 _PBKDF2_ITERS = 1003
 _CBC_KEY_LEN = 16
-_MACOS_KEYCHAIN_SERVICE = "Qoder Platform Safe Storage"  # 实测名（dump-keychain 元数据取证）
+#: Keychain 服务名候选（顺序尝试，第一个命中即用）：2026-11-18 mac Global 真机
+#: 取证（dump-keychain 元数据）只有 `Qoder App Safe Storage`（acct "Qoder App Key"，
+#: 2026-11-02 创建）——Global 客户端 auth.v1.dat（v10/CBC，547B）用它端到端解通
+#: （token 27 字符 + refreshToken/expiresAt 全键）。`Qoder Platform Safe Storage`
+#: 系旧记录残留，本机不存在，保留为候选兼容其他发行形态（qoder PROTOCOL §1）。
+_MACOS_KEYCHAIN_SERVICES = ("Qoder App Safe Storage", "Qoder Platform Safe Storage")
 
 
 def dpapi_unprotect(blob: bytes) -> bytes:
@@ -85,24 +90,29 @@ def dpapi_unprotect(blob: bytes) -> bytes:
     return out
 
 
-def macos_safe_storage_password(service: str = _MACOS_KEYCHAIN_SERVICE) -> bytes:
-    """mac Keychain safeStorage 口令（security CLI 读；口令只进内存，不落盘不进日志）。"""
+def macos_safe_storage_password(service: str | None = None) -> bytes:
+    """mac Keychain safeStorage 口令（security CLI 读；口令只进内存，不落盘不进日志）。
+
+    service 缺省 = 候选名顺序尝试（第一个命中即用，qoder PROTOCOL §1 实测链）。
+    """
     import subprocess
     import sys
 
     if sys.platform != "darwin":
         raise RuntimeError("safeStorage Keychain 读取仅 macOS 可用")
-    proc = subprocess.run(
-        ["security", "find-generic-password", "-w", "-s", service],
-        capture_output=True,
-        timeout=30,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"Keychain 未取到 {service!r}——确认 Qoder 客户端在本机登录过一次、"
-            "未拒绝 Keychain 访问"
+    services = (service,) if service is not None else _MACOS_KEYCHAIN_SERVICES
+    for name in services:
+        proc = subprocess.run(
+            ["security", "find-generic-password", "-w", "-s", name],
+            capture_output=True,
+            timeout=30,
         )
-    return proc.stdout.rstrip(b"\n")
+        if proc.returncode == 0:
+            return proc.stdout.rstrip(b"\n")
+    raise RuntimeError(
+        f"Keychain 未取到 safeStorage 口令（已试: {', '.join(services)}）——"
+        "确认 Qoder 客户端在本机登录过一次、未拒绝 Keychain 访问"
+    )
 
 
 def session_from_dpapi_gcm_v10(

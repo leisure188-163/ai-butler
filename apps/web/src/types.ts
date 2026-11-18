@@ -14,7 +14,7 @@ type Contract = components["schemas"];
 export type Signal = "ok" | "notice" | "attention" | "danger" | "quiet";
 
 export type PageName =
-  | "仪表盘"
+  | "签到概览"
   | "平台管理"
   | "账户管理"
   | "用量管理"
@@ -32,6 +32,12 @@ export type AccountItem = Omit<Contract["AccountOut"], "signal" | "credentials">
 };
 export type PlatformItem = Contract["PlatformOut"];
 export type ImportResult = Contract["ImportOut"];
+/** 平台编辑载荷（UI 只提交三项契约字段；端不做业务判定） */
+export type PlatformPatch = {
+  platform_name?: string | null;
+  active?: boolean;
+  times?: string[] | null;
+};
 /** 行操作项（2026-11-18）：操作列直连 ≤2 个，其余进「更多」下拉 */
 export type RowAction = {
   key: string;
@@ -62,7 +68,7 @@ export type GatewayRoutes = Contract["GatewayRoutesOut"];
 export type SessionItem = Contract["SessionOut"];
 export type SessionsScan = Contract["SessionsScanOut"];
 
-export type ThemeName = "system" | "paper" | "dark" | "mist";
+export type ThemeName = "system" | "qinglan" | "paper" | "dark" | "mist";
 
 export interface Settings {
   autoRefresh: boolean;

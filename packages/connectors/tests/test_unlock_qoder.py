@@ -178,16 +178,40 @@ def test_mac_short_dat_rejected():
 
 
 def test_keychain_failure_is_explicit(monkeypatch):
+    """候选名全 miss 时显式爆（2026-11-18 mac Global 取证：候选序见 unlock._MACOS_KEYCHAIN_SERVICES）。"""
     import subprocess
     import types
 
+    seen: list[str] = []
+
     def fake_run(cmd, **kwargs):
-        assert "Qoder Platform Safe Storage" in cmd  # 服务名来自常量（取证口径）
+        seen.append(cmd[cmd.index("-s") + 1])
         return types.SimpleNamespace(returncode=44, stdout=b"", stderr=b"denied")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     with pytest.raises(RuntimeError, match="Keychain"):
         unlock.macos_safe_storage_password()
+    assert "Qoder App Safe Storage" in seen  # 真机实测量产名（Global 客户端）
+    assert "Qoder Platform Safe Storage" in seen  # 旧记录名保留为候选
+
+
+def test_keychain_first_hit_wins(monkeypatch):
+    """第一个命中的候选名即用——不再读后续候选（一次授权弹窗原则）。"""
+    import subprocess
+    import types
+
+    reads: list[str] = []
+
+    def fake_run(cmd, **kwargs):
+        name = cmd[cmd.index("-s") + 1]
+        reads.append(name)
+        if name == "Qoder App Safe Storage":
+            return types.SimpleNamespace(returncode=0, stdout=b"secret-24-bytes!!\n")
+        return types.SimpleNamespace(returncode=44, stdout=b"", stderr=b"not found")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert unlock.macos_safe_storage_password() == b"secret-24-bytes!!"
+    assert reads == ["Qoder App Safe Storage"]
 
 
 def test_keychain_read_darwin_only(monkeypatch):

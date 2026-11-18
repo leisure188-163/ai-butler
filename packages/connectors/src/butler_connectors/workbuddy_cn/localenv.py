@@ -2,7 +2,7 @@
 
 The decryption chain needs the client's bundled Electron runtime (ADR-008 decisions 2/6): candidates are tried in
 order, switching to the next on KEY_MISMATCH. Location order: WORKBUDDY_EXE explicit override (invalid path =
-explicit error, not "not installed") > common install directories (Windows) / .platform bundles (mac) > uninstall
+explicit error, not "not installed") > common install directories (Windows) / .app bundles (mac) > uninstall
 registry (Windows only; HKCU/HKLM/WOW6432Node).
 Entry match = DisplayName "WorkBuddy" prefix (case-insensitive, compatible with the "WorkBuddy AI" variant —
 the old repo's regex can't match the AI variant; do not reuse); exe is taken from DisplayIcon
@@ -39,10 +39,11 @@ def real_env() -> WorkbuddyEnv:
 #: Runtime exe name × install directory name variants (the two versions on this machine are WorkBuddy AI / WorkBuddy).
 _RUNTIME_EXES = ("WorkBuddyAI.exe", "WorkBuddy.exe")
 _INSTALL_DIRS = ("WorkBuddy", "WorkBuddyAI")
-#: mac .platform bundle names × main-binary path inside the bundle (2026-11-12 verified live: CFBundleExecutable is
-#: the stock "Electron" — the fork's native binding lives in that binary; helper probe + decrypt both pass).
+#: mac bundle names × main-binary path inside the bundle (2026-11-12 verified live on
+#: /Applications/WorkBuddy.app: CFBundleExecutable is the stock "Electron" — the fork's native binding lives in
+#: that binary; helper probe + decrypt both pass).
 _MAC_APP_BASES = ("/Applications", "~/Applications")
-_MAC_APP_NAMES = ("WorkBuddy.platform", "WorkBuddyAI.platform")
+_MAC_APP_NAMES = ("WorkBuddy.app", "WorkBuddyAI.app")
 _MAC_MAIN_REL = ("Contents", "MacOS", "Electron")
 
 

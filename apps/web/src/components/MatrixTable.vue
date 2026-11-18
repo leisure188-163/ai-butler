@@ -4,11 +4,12 @@
  * 9 列矩阵 + 筛选 + 批量条 + 行展开；状态染色只消费 core 出产的 signal 五分类，
  * 不认识 Status 字面量；repair_reason / evidence 直渲染不加工。
  */
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import PlatformBadge from "./PlatformBadge.vue";
 import AccountDetail from "./AccountDetail.vue";
+import { useAccountRows } from "../composables/useAccountRows";
 import type { AccountItem, PlatformItem, RadarRow, RunItem } from "../types";
-import { earliestExpiry, faceOf, fmtTime, isToday, signalText } from "../utils";
+import { faceOf, fmtTime, signalText } from "../utils";
 
 const props = defineProps<{
   accounts: AccountItem[];
@@ -16,6 +17,8 @@ const props = defineProps<{
   radar: RadarRow[];
   runs: RunItem[];
   busyTarget: string | null;
+  /** 平台页「查看账户」下钻预置的平台编码 */
+  initialPlatform?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -25,19 +28,24 @@ const emit = defineEmits<{
   scanSessions: [accountId: string];
 }>();
 
-/* ---- 筛选（只影响表格行与全选范围，不影响计数按钮）---- */
-const appFilter = ref("");
-const statusFilter = ref<"all" | "issues" | "ok">("all");
+/* 派生逻辑单源：与 AccountGrouped 共用 useAccountRows（红线 2：端零映射） */
+const { appOf, accountLabel, todayAction, quotaOf, earliestExpiry, credNoticeOf, lastRunAtOf } =
+  useAccountRows({
+    accounts: computed(() => props.accounts),
+    platforms: computed(() => props.platforms),
+    radar: computed(() => props.radar),
+    runs: computed(() => props.runs),
+  });
 
-/* 关联以账户的 platform 为准；AppOut.account_id 只是排序后的首个账户，
- * 不能拿它判断同一平台的第 2、第 3 个账户（否则会误显示“未关联”）。 */
-function appOf(account: AccountItem): PlatformItem | null {
-  return (
-    props.platforms.find((x) => x.id === account.platform_code) ??
-    props.platforms.find((x) => x.account_ids?.includes(account.account_id)) ??
-    null
-  );
-}
+/* ---- 筛选（只影响表格行与全选范围，不影响计数按钮）---- */
+const appFilter = ref(props.initialPlatform ?? "");
+const statusFilter = ref<"all" | "issues" | "ok">("all");
+watch(
+  () => props.initialPlatform,
+  (code) => {
+    if (code) appFilter.value = code;
+  },
+);
 
 const filteredAccounts = computed(() =>
   props.accounts.filter((a) => {
@@ -92,70 +100,6 @@ function toggleDetail(accountId: string) {
   expandedId.value = expandedId.value === accountId ? null : accountId;
 }
 
-/* ---- 今日动作列（本地自然日；判定只看 signal，不做 Status 映射）---- */
-const todayRunsByAccount = computed(() => {
-  const map = new Map<string, RunItem[]>();
-  for (const r of props.runs) {
-    if (!isToday(r.started_at)) continue;
-    const list = map.get(r.account_id) ?? [];
-    list.push(r);
-    map.set(r.account_id, list);
-  }
-  return map;
-});
-
-const todayAction = computed(() => {
-  const result = new Map<string, { label: string; cls: "ok" | "attention" | "quiet"; reason: string | null }>();
-  for (const a of props.accounts) {
-    const runs = todayRunsByAccount.value.get(a.account_id) ?? [];
-    if (!runs.length) {
-      result.set(a.account_id, { label: "未做", cls: "quiet", reason: null });
-    } else if (runs.some((r) => r.signal === "ok")) {
-      result.set(a.account_id, { label: "✓ 已完成", cls: "ok", reason: null });
-    } else if (runs.some((r) => r.signal !== "quiet")) {
-      const bad = runs.find((r) => r.signal !== "quiet");
-      result.set(a.account_id, {
-        label: "✗ 未完成",
-        cls: "attention",
-        reason: bad?.repair_reason ?? null,
-      });
-    } else {
-      result.set(a.account_id, { label: "进行中", cls: "quiet", reason: null });
-    }
-  }
-  return result;
-});
-
-/* ---- 额度列（radar 数据面：最紧的活跃包一行 + 低额标记；无数据如实「—」）---- */
-function ratioOf(remaining: number, total: number): number {
-  return total > 0 ? remaining / total : 1;
-}
-
-function quotaOf(accountId: string): { text: string; low: boolean } | null {
-  const row = props.radar.find((r) => r.account_id === accountId);
-  if (!row) return null;
-  const active = row.packages.filter((p) => p.remaining > 0);
-  if (!active.length) {
-    return row.packages.length ? { text: "已耗尽", low: false } : null;
-  }
-  const tightest = active.reduce((min, p) =>
-    ratioOf(p.remaining, p.total) < ratioOf(min.remaining, min.total) ? p : min,
-  );
-  const more = active.length > 1 ? ` +${active.length - 1}` : "";
-  return {
-    text: `${tightest.remaining}/${tightest.total} ${tightest.unit}${more}`,
-    low: row.quota_low.includes(tightest.name),
-  };
-}
-
-/* ---- 凭据列 / 最近操作列 ---- */
-function credNoticeOf(account: AccountItem): boolean {
-  return account.credentials.some((c) => c.signal === "notice");
-}
-
-function lastRunAtOf(accountId: string): string | null {
-  return props.runs.find((r) => r.account_id === accountId)?.started_at ?? null;
-}
 </script>
 
 <template>
@@ -229,7 +173,10 @@ function lastRunAtOf(accountId: string): string | null {
                   :color-index="faceOf(account.account_id)"
                 />
               </td>
-              <td class="mono code">{{ account.account_id }}</td>
+              <td>
+                <div class="acct-name">{{ accountLabel(account) }}</div>
+                <div class="mono acct-id">{{ account.account_id }}</div>
+              </td>
               <td>
                 <span class="tag" :class="`tag--${account.signal}`">
                   {{ signalText(account.signal) }}
@@ -243,10 +190,16 @@ function lastRunAtOf(accountId: string): string | null {
                   {{ todayAction.get(account.account_id)?.reason }}
                 </p>
               </td>
-              <td class="col-extra num">
+              <td class="col-extra">
                 <template v-if="quotaOf(account.account_id)">
-                  {{ quotaOf(account.account_id)!.text }}
-                  <span v-if="quotaOf(account.account_id)!.low" class="tag tag--attention">低额</span>
+                  <div class="num quota-text">{{ quotaOf(account.account_id)!.text }}</div>
+                  <div class="meter">
+                    <span
+                      class="meter-fill"
+                      :class="{ 'meter-fill--low': quotaOf(account.account_id)!.low }"
+                      :style="{ width: `${(quotaOf(account.account_id)!.ratio ?? 0) * 100}%` }"
+                    ></span>
+                  </div>
                 </template>
                 <span v-else class="faint">—</span>
               </td>
@@ -317,8 +270,11 @@ function lastRunAtOf(accountId: string): string | null {
   margin: 0 0 var(--space-3);
 }
 .matrix-wrap { overflow-x: auto; }
-.matrix-wrap .matrix { min-width: 560px; }
-.code { font-size: var(--text-xs); }
+.matrix-wrap .matrix { min-width: 620px; }
+.acct-name { font-size: var(--text-sm); font-weight: 600; }
+.acct-id { font-size: var(--text-xs); color: var(--color-text-muted); }
+.quota-text { font-size: var(--text-xs); }
+.quota-text + .meter { max-width: 8rem; margin-top: 4px; }
 .faint { color: var(--color-text-faint); }
 .detail-row td {
   background: var(--color-surface-2);

@@ -31,6 +31,7 @@ from butler_connectors.workbuddy_cn.session import (
     AuthError,
     build_headers,
     decrypt_envelope,
+    decrypt_field,
     resolve_session,
     token_format,
     validate_session,
@@ -329,13 +330,44 @@ class _Butler:
         )
 
     def dock(self, ctx: DockContext, *, env: WorkbuddyEnv | None = None) -> DockOutcome:
-        """Pure health check + guidance (ADR-008 decision 4): four read-only items, zero network zero decryption, no auto-launch."""
+        """Pure health check + identity (ADR-008 decision 4 + ADR-025 extension): read-only local
+        (identity decrypt included), zero network zero write, no auto-launch."""
         env = env if env is not None else real_env()
         issues = self._checkup(env)
         if issues:
             return DockOutcome(target=CONN_ID, issues=issues)
-        account = ctx.register.execute(CONN_ID, DISPLAY)
-        return DockOutcome(target=CONN_ID, accounts=[account.id])
+        code, name, note = self._identity(env)
+        if note:
+            issues.append(note)
+        account = (
+            ctx.register.execute(CONN_ID, name, account_code=code)
+            if code
+            else ctx.register.execute(CONN_ID, name)
+        )
+        return DockOutcome(target=CONN_ID, issues=issues, accounts=[account.id])
+
+    def _identity(self, env: WorkbuddyEnv) -> tuple[str | None, str, str | None]:
+        """ADR-025 extension: account_code = actual nickname (account.nickname, plaintext or envelope).
+        Returns (code, account_name, non-blocking note); nickname unavailability never blocks dock —
+        the card registers under the default main code and the reason is reported honestly."""
+        try:
+            path, _ = find_auth_file()
+            if path is None:
+                return None, DISPLAY, None
+            data = load_session_retry(path)
+        except (OSError, ValueError):
+            return None, DISPLAY, None  # checkup already reports file problems; identity is auxiliary
+        raw = data.get("account", {}).get("nickname")
+        if isinstance(raw, str) and raw.strip():
+            nickname = raw.strip()
+            return nickname, f"{DISPLAY} · {nickname}", None
+        if not (isinstance(raw, dict) and raw.get("$wbEncrypted") == 1):
+            return None, DISPLAY, None
+        try:
+            nickname = decrypt_field(raw, candidates=env.locate_runtime_candidates())
+        except (AuthError, InvalidOverride) as exc:
+            return None, DISPLAY, f"{CONN_ID}: 昵称信封解密失败（{exc}）——卡仍以 main 编址登记"
+        return nickname, f"{DISPLAY} · {nickname}", None
 
     def _checkup(self, env: WorkbuddyEnv) -> list[str]:
         """Four health-check items (PROTOCOL §5 scenario 1): file → JSON → session shape → runtime (envelope form only)."""

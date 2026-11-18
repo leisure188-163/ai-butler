@@ -104,9 +104,10 @@ function saveRoutes() {
         <label class="field-label" for="set-theme">主题</label>
         <select id="set-theme" class="input" :value="settings.theme" @change="onThemeChange">
           <option value="system">跟随系统</option>
-          <option value="paper">纸墨（浅）</option>
-          <option value="dark">墨夜（深）</option>
-          <option value="mist">晨雾（浅）</option>
+          <option value="qinglan">青岚山水</option>
+          <option value="paper">纸墨东方</option>
+          <option value="dark">深空控制台</option>
+          <option value="mist">精工浅色</option>
         </select>
       </div>
       <div class="field">

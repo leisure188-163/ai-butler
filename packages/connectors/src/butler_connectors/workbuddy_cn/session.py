@@ -209,18 +209,19 @@ def helper_env(base: dict[str, str]) -> dict[str, str]:
 
 
 def helper_js() -> str:
-    """Helper JS content (same-directory helper.js, imported verbatim, no modifications — protocol contract)."""
+    """Helper JS content (same-directory helper.js; old-repo artifact imported verbatim until the
+    ADR-025 extension added the optional expect=field decrypt branch — default token contract unchanged)."""
     return Path(__file__).with_name("helper.js").read_text(encoding="utf-8")
 
 
-def decrypt_envelope(
-    envelope: dict[str, Any],
+def _decrypt_via(
+    payload: dict[str, Any],
     *,
     candidates: list[Path],
     timeout: float = AUTH_HELPER_TIMEOUT,
     runner=run_json_stdin_helper,
 ) -> str:
-    """Envelope → plaintext token: try candidate runtimes in order, switch to next on KEY_MISMATCH (ADR-008 decision 6)."""
+    """Shared decryption loop: try candidate runtimes in order, switch to next on KEY_MISMATCH (ADR-008 decision 6)."""
     if not candidates:
         raise AuthError("RUNTIME_NOT_FOUND")
     script = helper_js()
@@ -229,7 +230,7 @@ def decrypt_envelope(
             reply = runner(
                 str(exe),
                 script,
-                {"operation": "decrypt", "value": envelope},
+                payload,
                 timeout=timeout,
                 allowed_reasons=_ALLOWED_HELPER_REASONS,
                 env_filter=helper_env,
@@ -240,12 +241,44 @@ def decrypt_envelope(
             raise AuthError(
                 exc.reason if exc.reason in AUTH_REASONS else "HELPER_PROTOCOL"
             ) from None
-        if set(reply) != {"version", "ok", "accessToken"} or not valid_token(
-            reply.get("accessToken")
-        ):
+        if set(reply) != {"version", "ok", "accessToken"}:
             raise AuthError("HELPER_PROTOCOL")
         return str(reply["accessToken"])
     raise AuthError("KEY_MISMATCH")  # all candidates' keys mismatch
+
+
+def decrypt_envelope(
+    envelope: dict[str, Any],
+    *,
+    candidates: list[Path],
+    timeout: float = AUTH_HELPER_TIMEOUT,
+    runner=run_json_stdin_helper,
+) -> str:
+    """Envelope → plaintext token: shape-checked per token contract."""
+    value = _decrypt_via({"operation": "decrypt", "value": envelope}, candidates=candidates, timeout=timeout, runner=runner)
+    if not valid_token(value):
+        raise AuthError("HELPER_PROTOCOL")
+    return value
+
+
+def decrypt_field(
+    envelope: dict[str, Any],
+    *,
+    candidates: list[Path],
+    timeout: float = AUTH_HELPER_TIMEOUT,
+    runner=run_json_stdin_helper,
+) -> str:
+    """Envelope → arbitrary plaintext field (e.g. account.nickname, ADR-025 extension): helper
+    expect=field skips the token charset check; only non-empty ≤ TOKEN_LIMIT is enforced."""
+    value = _decrypt_via(
+        {"operation": "decrypt", "expect": "field", "value": envelope},
+        candidates=candidates,
+        timeout=timeout,
+        runner=runner,
+    )
+    if not value or len(value) > TOKEN_LIMIT:
+        raise AuthError("HELPER_PROTOCOL")
+    return value
 
 
 def resolve_session(data: dict, *, decrypt: Callable[[dict], str]) -> dict:

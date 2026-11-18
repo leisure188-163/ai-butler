@@ -253,7 +253,8 @@ def _collect_umid_cosy(
         import sys
 
         order = (
-            "QODER_UMID_EXE 环境变量 → /Applications（或 ~/Applications）下的 Qoder.platform"
+            "QODER_UMID_EXE 环境变量 → /Applications（或 ~/Applications）下的 "
+            "Qoder.app / Qoder CN.app（.platform 旧形态亦兼容）"
             if sys.platform == "darwin"
             else "QODER_UMID_EXE 环境变量 → 常见安装目录 → 卸载注册表"
         )
@@ -287,14 +288,16 @@ _COLLECTORS["umid_cosy"] = _collect_umid_cosy
 
 _UMID_REL_WIN = ("resources", "umid", "runtime-info.exe")
 _UMID_REL_MAC = ("Contents", "Resources", "umid", "runtime-info")
-#: mac 应用查找根（~/Applications 兜用户级安装）；2026-11-12 本机取证：
-#/Applications/Qoder.platform/Contents/Resources/umid/runtime-info 存在且可运行
+#: mac 应用查找根（~/Applications 兜用户级安装）；两种束形态并存（与 workbuddy
+#: localenv 同因）：2026-11-12 记录为 /Applications/Qoder.platform/…，2026-11-18
+#: 本机 Global 实测为 /Applications/Qoder.app/…（Contents/Resources/umid/runtime-info
+#: arm64 Mach-O 实跑通过）——候选序尝试，先命中先执行
 _MAC_APP_ROOTS = ("/Applications", "~/Applications")
-_MAC_APP_NAMES = ("Qoder.platform", "Qoder CN.platform")
+_MAC_APP_NAMES = ("Qoder.app", "Qoder CN.app", "Qoder.platform", "Qoder CN.platform")
 
 
 def _locate_umid():
-    """runtime-info 定位：环境覆盖 → 平台默认位置（win: 常见目录+卸载注册表；mac: .platform 束）。"""
+    """runtime-info 定位：环境覆盖 → 平台默认位置（win: 常见目录+卸载注册表；mac: .app/.platform 束候选序）。"""
     import os
     import sys
 

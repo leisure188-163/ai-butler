@@ -11,7 +11,7 @@
  * （ok/notice/attention/danger/quiet），不认识 Status / HealthLevel 字面量本身；
  * repair_hint / evidence 是 core 产文案，直渲染不加工；页面状态走 hash（可直链可后退）。
  */
-import { computed, onBeforeUnmount, onMounted, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import SideNav from "./components/SideNav.vue";
 import DashboardPage from "./pages/DashboardPage.vue";
 import PlatformsPage from "./pages/PlatformsPage.vue";
@@ -82,6 +82,18 @@ onMounted(() => {
   void loadCustomPlatforms().catch(() => undefined);
 });
 
+/* 平台页「查看账户」下钻：记住目标平台，账户页据此预置分组筛选（重设计 v1） */
+const accountFocus = ref<string | null>(null);
+function jumpToPage(page: import("./types").PageName, platformCode?: string) {
+  accountFocus.value = platformCode ?? null;
+  if (platformCode) active.value = "账户管理";
+  navigate(page);
+}
+/* 离开账户页后清掉下钻筛选——下次从侧栏进账户页应看全量，不带上一次的目标平台 */
+watch(active, (page) => {
+  if (page !== "账户管理") accountFocus.value = null;
+});
+
 /* 待办栏可领取 target 集合（纯派生：申报了 provision.run 且已导入的平台） */
 const claimable = computed(
   () =>
@@ -128,11 +140,12 @@ onBeforeUnmount(() => {
       :alert-count="alertCount"
       :loading="loading"
       :loaded-at="loadedAt"
+      :theme="settings.theme"
       @navigate="navigate"
       @refresh="loadAll"
     />
 
-    <main class="content">
+    <main class="content" :class="{ 'content--qinglan': settings.theme === 'qinglan' }">
       <p v-if="loadError" class="errorline" role="alert">{{ loadError }}</p>
 
       <PlatformsPage
@@ -150,7 +163,7 @@ onBeforeUnmount(() => {
         @save-platform="savePlatform"
         @save-custom="createCustomPlatform"
         @remove-custom="removeCustomPlatform"
-        @jump="navigate"
+        @jump="jumpToPage"
       />
       <AccountsPage
         v-else-if="active === '账户管理'"
@@ -159,6 +172,7 @@ onBeforeUnmount(() => {
         :radar="radarRows"
         :runs="runs"
         :busy-target="busyTarget"
+        :initial-platform="accountFocus"
         :msg="actionMsg"
         :loading="loading"
         :load-error="loadError"
@@ -167,6 +181,7 @@ onBeforeUnmount(() => {
         @claim-many="claimMany"
         @claim-all="claimAllApps"
         @scan-sessions="scanSessions"
+        @repair="repairAccount"
       />
       <TrafficPage
         v-else-if="active === '用量管理'"
@@ -232,6 +247,22 @@ onBeforeUnmount(() => {
   padding: var(--space-6) var(--space-6) var(--space-8);
   box-sizing: border-box;
 }
+/* 青岚山水：内容区顶部淡远山底色（纯 CSS 层叠山峦，pointer-events:none 不挡交互） */
+.content--qinglan { position: relative; }
+.content--qinglan::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 130px;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 100% at 18% 100%, rgba(157, 204, 181, 0.32) 0%, transparent 100%),
+    radial-gradient(ellipse 55% 100% at 55% 100%, rgba(122, 184, 154, 0.26) 0%, transparent 100%),
+    radial-gradient(ellipse 65% 100% at 88% 100%, rgba(157, 204, 181, 0.30) 0%, transparent 100%),
+    linear-gradient(180deg, rgba(238, 246, 242, 0) 0%, rgba(238, 246, 242, 0.7) 100%);
+}
+.content--qinglan > * { position: relative; z-index: 1; }
 
 /* 与 SideNav 的 900px 断点配套：侧栏变顶部横条，壳随之转纵向，否则 main 被挤出屏 */
 @media (max-width: 900px) {

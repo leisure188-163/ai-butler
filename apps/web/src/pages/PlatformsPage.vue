@@ -1,154 +1,168 @@
 <script setup lang="ts">
 /**
  * 平台页（ADR-010 六页 IA）：本机接入的各家 AI 助手名册。
- * 六列表 + 虚线邀请行 + 行展开；数据全部来自契约既有 AppOut/AccountOut，
- * 零新端点、零语义加工（能力标签只做协议 kind 的直译，signal 只消费分类）。
+ * 7 列 + 虚线邀请行；点击平台名弹详情，行内「修改」直接开编辑弹层。
+ * 数据全部来自契约既有 Out 模型，零新端点、零语义加工。
  */
 import { computed, ref, watch } from "vue";
 import PlatformBadge from "../components/PlatformBadge.vue";
 import PlatformDetail from "../components/PlatformDetail.vue";
+import PlatformEditor from "../components/PlatformEditor.vue";
 import PlatformFilters from "../components/PlatformFilters.vue";
-import CustomPlatformForm from "../components/CustomPlatformForm.vue";
 import RowActionMenu from "../components/RowActionMenu.vue";
 import type {
   AccountItem,
   CustomPlatformDraft,
   PageName,
   PlatformItem,
+  PlatformPatch,
   PlatformQuery,
   RowAction,
   Signal,
 } from "../types";
 import { faceOf, signalText } from "../utils";
-
 const props = defineProps<{
   platforms: PlatformItem[];
   accounts: AccountItem[];
-  /** 自定义平台编码集合（2026-11-18）：名册里的「自定义」徽章与删除入口据此判定 */
   customCodes: string[];
   busyTarget: string | null;
   msg: { text: string; tone: "ok" | "warn" } | null;
   loading: boolean;
   loadError: string;
 }>();
-
 const emit = defineEmits<{
   claim: [target: string];
   import: [target: string];
   importAll: [];
-  savePlatform: [
-    target: string,
-    patch: { platform_name?: string | null; active?: boolean; times?: string[] | null },
-  ];
+  savePlatform: [target: string, patch: PlatformPatch];
   saveCustom: [draft: CustomPlatformDraft];
   removeCustom: [code: string];
-  jump: [page: PageName];
+  jump: [page: PageName, platformCode?: string];
 }>();
-
-/* 自定义平台（2026-11-18）：内置清单之外的平台由用户自建；表单折叠在页头下方 */
-const showCustomForm = ref(false);
-
+/** 弹层状态：详情 / 创建 / 修改，三者互斥；不往表格里塞详情行 */
+const detailTarget = ref<PlatformItem | null>(null);
+const editorMode = ref<"create" | "edit" | null>(null);
+const editorTarget = ref<PlatformItem | null>(null);
+const detailPlatform = computed(() =>
+  detailTarget.value
+    ? props.platforms.find((p) => p.id === detailTarget.value!.id) ?? detailTarget.value
+    : null,
+);
+const editorPlatform = computed(() =>
+  editorTarget.value
+    ? props.platforms.find((p) => p.id === editorTarget.value!.id) ?? editorTarget.value
+    : null,
+);
+function openDetail(platform: PlatformItem): void {
+  detailTarget.value = platform;
+}
+function closeDetail(): void {
+  detailTarget.value = null;
+}
+function openCreate(): void {
+  detailTarget.value = null;
+  editorTarget.value = null;
+  editorMode.value = "create";
+}
+function openEdit(platform: PlatformItem): void {
+  detailTarget.value = null;
+  editorTarget.value = platform;
+  editorMode.value = "edit";
+}
+function closeEditor(): void {
+  editorMode.value = null;
+  editorTarget.value = null;
+}
+function onSaveCustom(draft: CustomPlatformDraft): void {
+  emit("saveCustom", draft);
+  closeEditor();
+}
+function onSavePlatform(target: string, patch: PlatformPatch): void {
+  emit("savePlatform", target, patch);
+  closeEditor();
+}
 function isCustom(id: string): boolean {
   return props.customCodes.includes(id);
 }
-
-/** 操作列拆分（2026-11-18）：直连最多 2 个高频动作，其余进「更多」下拉，
- * 否则列宽被 6 个按钮撑爆。 */
+/** 修改外露到操作列；接入/刷新紧随其后，领取与下钻进「更多」 */
 function primaryActions(platform: PlatformItem): RowAction[] {
-  const out: RowAction[] = [
-    { key: "import", label: platform.account_id ? "刷新" : "接入" },
-  ];
-  if (platform.account_id && platform.capabilities.includes("provision.run")) {
-    out.push({ key: "claim", label: "立即领取" });
-  }
+  const out: RowAction[] = [{ key: "edit", label: "修改" }];
+  out.push({ key: "import", label: accountCount(platform) ? "刷新" : "接入" });
   return out;
 }
-
 function moreActions(platform: PlatformItem): RowAction[] {
   const out: RowAction[] = [];
-  if (platform.account_id) out.push({ key: "jump", label: "去账户" });
-  out.push({
-    key: "toggle",
-    label: platform.active ? "停用" : "启用",
-    disabled: props.busyTarget !== null,
-  });
-  out.push({
-    key: "detail",
-    label: expandedId.value === platform.id ? "收起详情" : "详情",
-  });
+  if (platform.capabilities.includes("provision.run")) out.push({ key: "claim", label: "立即领取" });
+  if (accountCount(platform)) out.push({ key: "jump", label: "去账户" });
   if (isCustom(platform.id)) out.push({ key: "remove", label: "删除", danger: true });
   return out;
 }
-
 function runRowAction(platform: PlatformItem, key: string): void {
-  if (key === "import") emit("import", platform.id);
+  if (key === "edit") openEdit(platform);
+  else if (key === "import") emit("import", platform.id);
   else if (key === "claim") emit("claim", platform.id);
-  else if (key === "jump") emit("jump", "账户管理");
-  else if (key === "toggle") toggleActive(platform);
-  else if (key === "detail") toggleDetail(platform.id);
+  else if (key === "jump") emit("jump", "账户管理", platform.id);
   else if (key === "remove") confirmRemove(platform.id);
 }
-
 function confirmRemove(id: string): void {
   if (!window.confirm(`删除自定义平台 ${id}？历史台账保留，但不再排班。`)) return;
   emit("removeCustom", id);
 }
-
-/** 启停一键切换（列表操作列） */
+/** 启停一键切换（列表状态列） */
 function toggleActive(platform: PlatformItem): void {
   emit("savePlatform", platform.id, { active: !platform.active });
 }
-
-
-const emptyPlatforms = computed(() => props.platforms.filter((a) => !a.account_id));
+/* 接入状态是唯一事实来源：有账户的平台进主表格，没账户的只进底部清单，两处互斥。 */
+function isConnected(platform: PlatformItem): boolean {
+  return accountCount(platform) > 0;
+}
+const connectedPlatforms = computed(() => props.platforms.filter(isConnected));
+const emptyPlatforms = computed(() => props.platforms.filter((p) => !isConnected(p)));
 const importableCount = computed(() => emptyPlatforms.value.length);
-
 function capabilityText(kind: string): string {
   if (kind === "provision.run") return "领取";
   if (kind === "health.check") return "体检";
   if (kind.startsWith("usage")) return "用量";
   return kind;
 }
-
+/** 主表只出白话能力；session.import 等协议字样留在详情 */
+function visibleCaps(platform: PlatformItem): string[] {
+  return platform.capabilities.filter(
+    (c) => c === "provision.run" || c === "health.check" || c.startsWith("usage"),
+  );
+}
 /** 平台类型直译（词表 = core PLATFORM_KINDS；空=未申报） */
 function kindText(kind: string): string {
   if (kind === "web") return "网页版";
   if (kind === "client") return "客户端";
   return "—";
 }
-
-/** 接入前提（新手提示）：只按契约字段直译，不在这里判定能不能接 */
+/** 接入前提：只按契约字段直译，不在这里判定能不能接 */
 function accessHint(platform: PlatformItem): string {
   if (platform.kind === "client") return "需本机已安装并登录该客户端";
   if (platform.kind === "web") return "需先在浏览器里登录该平台";
   return "需先登录对应客户端或浏览器";
 }
-
 function accountCount(platform: PlatformItem): number {
   if (platform.account_ids?.length) return platform.account_ids.length;
   return platform.account_id ? 1 : 0;
 }
-
 function accountsOf(platform: PlatformItem): AccountItem[] {
   const ids = new Set(platform.account_ids ?? (platform.account_id ? [platform.account_id] : []));
   return props.accounts.filter((a) => ids.has(a.account_id) || a.platform_code === platform.id);
 }
-
 const signals: Signal[] = ["ok", "notice", "attention", "danger", "quiet"];
-
 function statusGroups(platform: PlatformItem) {
   const list = accountsOf(platform);
   return signals
     .map((signal) => ({ signal, count: list.filter((a) => a.signal === signal).length }))
     .filter((g) => g.count > 0);
 }
-
-/* 检索（2026-11-18）：关键字 + 状态 + 类型 + 排序，纯前端过滤，零新端点 */
+/* 检索：关键字 + 状态 + 类型 + 排序，纯前端过滤，零新端点 */
 const query = ref<PlatformQuery>({ keyword: "", status: "all", kind: "all", sort: "code" });
-
 const filteredPlatforms = computed(() => {
   const keyword = query.value.keyword.trim().toLowerCase();
-  const list = props.platforms.filter((platform) => {
+  const list = connectedPlatforms.value.filter((platform) => {
     if (query.value.status !== "all" && platform.active !== (query.value.status === "active")) {
       return false;
     }
@@ -168,42 +182,29 @@ const filteredPlatforms = computed(() => {
   }
   return sorted;
 });
-
-/* 分页（2026-11-18）：每页 10 条——接入平台变多后一屏放不下 */
+/* 分页：每页 10 条 */
 const PAGE_SIZE = 10;
 const page = ref(1);
-
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(filteredPlatforms.value.length / PAGE_SIZE)),
 );
-
 const pagedPlatforms = computed(() => {
   const start = (page.value - 1) * PAGE_SIZE;
   return filteredPlatforms.value.slice(start, start + PAGE_SIZE);
 });
-
-/* 换筛选条件回第一页；平台增减时把页码收敛回合法区间（不跳页、不空页） */
 watch(query, () => { page.value = 1; }, { deep: true });
 watch(
-  () => props.platforms.length,
+  () => connectedPlatforms.value.length,
   () => {
     if (page.value > totalPages.value) page.value = totalPages.value;
   },
 );
-
 function goPage(next: number) {
   page.value = Math.min(Math.max(1, next), totalPages.value);
 }
-
-const expandedId = ref<string | null>(null);
-/** 未接入平台清单默认收起（页脚平铺太长） */
+/** 未接入平台清单默认收起 */
 const slotsOpen = ref(false);
-
-function toggleDetail(id: string) {
-  expandedId.value = expandedId.value === id ? null : id;
-}
 </script>
-
 <template>
   <header class="head">
     <div class="head-row">
@@ -214,7 +215,7 @@ function toggleDetail(id: string) {
         </p>
       </div>
       <div class="head-actions">
-        <button class="btn" :disabled="busyTarget !== null" @click="showCustomForm = true">
+        <button class="btn" :disabled="busyTarget !== null" @click="openCreate">
           ＋ 自定义平台
         </button>
         <button
@@ -225,119 +226,133 @@ function toggleDetail(id: string) {
       </div>
     </div>
   </header>
-
-  <CustomPlatformForm
-    v-if="showCustomForm"
-    :saving="busyTarget !== null"
-    @save="(draft) => emit('saveCustom', draft)"
-    @close="showCustomForm = false"
+  <PlatformDetail
+    v-if="detailPlatform"
+    :platform="detailPlatform"
+    :accounts="accountsOf(detailPlatform)"
+    :busy="busyTarget !== null"
+    @close="closeDetail"
+    @edit="openEdit(detailPlatform)"
   />
-
+  <PlatformEditor
+    v-if="editorMode !== null"
+    :mode="editorMode"
+    :platform="editorPlatform"
+    :saving="busyTarget !== null"
+    @close="closeEditor"
+    @save-custom="onSaveCustom"
+    @save-platform="onSavePlatform"
+  />
   <p
     v-if="msg"
     class="action-msg"
     :class="msg.tone === 'ok' ? 'action-msg--ok' : 'action-msg--warn'"
     role="status"
   >{{ msg.text }}</p>
-
   <section class="section" aria-label="平台名册">
     <PlatformFilters
-      v-if="platforms.length"
+      v-if="connectedPlatforms.length"
       v-model:keyword="query.keyword"
       v-model:status="query.status"
       v-model:kind="query.kind"
       v-model:sort="query.sort"
     />
-
     <div v-if="pagedPlatforms.length" class="platform-wrap sheet">
       <table class="matrix">
         <thead>
           <tr>
-            <th>平台编码</th>
-            <th>平台名称</th>
-            <th class="col-kind">平台类型</th>
-            <th class="col-version">版本号</th>
-            <th>平台状态</th>
+            <th class="col-identity">平台</th>
+            <th class="col-kindver">类型 · 版本</th>
+            <th class="col-state">状态</th>
             <th class="col-caps">能力</th>
-            <th>调度执行时间</th>
-            <th class="col-accounts">账户数</th>
-            <th class="col-status">账户状态</th>
-            <th>操作</th>
+            <th class="col-sched">调度执行时间</th>
+            <th class="col-anchor">账户</th>
+            <th class="col-actions">操作</th>
           </tr>
         </thead>
         <tbody>
-          <template v-for="platform in pagedPlatforms" :key="platform.id">
-            <tr :class="{ 'is-selected': expandedId === platform.id }">
-              <td class="code-cell">
-                <code class="mono">{{ platform.id }}</code>
-                <span v-if="isCustom(platform.id)" class="tag tag--notice custom-tag">自定义</span>
-              </td>
-              <td>
-                <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
-              </td>
-              <td class="col-kind">
-                <span v-if="platform.kind" class="tag tag--quiet">{{ kindText(platform.kind) }}</span>
-                <span v-else class="faint">—</span>
-              </td>
-              <td class="num col-version">{{ platform.client_version ? `v${platform.client_version}` : "—" }}</td>
-              <td>
-                <span class="tag" :class="platform.active ? 'tag--ok' : 'tag--quiet'">
-                  {{ platform.active ? "启用" : "已停用" }}
+          <tr v-for="platform in pagedPlatforms" :key="platform.id">
+            <!-- 身份锚点：点击名称直接弹详情，不再展开表格行 -->
+            <td class="identity-cell">
+              <button class="platform-open" :aria-label="`查看 ${platform.display} 详情`" @click="openDetail(platform)">
+                <span class="identity-name">
+                  <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
+                  <span v-if="isCustom(platform.id)" class="tag tag--notice">自定义</span>
                 </span>
-              </td>
-              <td class="col-caps">
-                <span v-for="cap in platform.capabilities" :key="cap" class="tag tag--quiet cap-tag">
-                  {{ capabilityText(cap) }}
-                </span>
-                <span v-if="!platform.capabilities.length" class="faint">—</span>
-              </td>
-              <td class="num">{{ platform.schedule_times.length ? platform.schedule_times.join("、") : "—" }}</td>
-              <td class="num col-accounts">
-                <span v-if="accountCount(platform)">{{ accountCount(platform) }}</span>
+                <span class="mono identity-code">{{ platform.id }}</span>
+              </button>
+            </td>
+            <td class="col-kindver">
+              <span class="tag tag--quiet">{{ platform.kind ? kindText(platform.kind) : "—" }}</span>
+              <span class="ver num">{{ platform.client_version ? `v${platform.client_version}` : "—" }}</span>
+            </td>
+            <td class="col-state">
+              <button
+                class="state-switch"
+                :class="platform.active ? 'is-on' : 'is-off'"
+                :disabled="busyTarget !== null"
+                :aria-pressed="platform.active"
+                :aria-label="`${platform.display}：${platform.active ? '已启用，点击停用' : '已停用，点击启用'}`"
+                :title="platform.active ? '点击停用' : '点击启用'"
+                @click="toggleActive(platform)"
+              >
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+                <span class="switch-label">{{ platform.active ? "启用" : "已停用" }}</span>
+              </button>
+            </td>
+            <td class="col-caps">
+              <span v-for="cap in visibleCaps(platform)" :key="cap" class="tag tag--quiet cap-tag">
+                {{ capabilityText(cap) }}
+              </span>
+              <span v-if="!visibleCaps(platform).length" class="faint">—</span>
+            </td>
+            <td class="col-sched">
+              <div class="num sched-times">{{ platform.schedule_times.join(" · ") || "—" }}</div>
+              <div class="sched-count">
+                {{ platform.schedule_times.length ? `每日 ${platform.schedule_times.length} 次` : "未排班" }}
+                <span v-if="platform.schedule_overridden" class="tag tag--quiet">自定义</span>
+              </div>
+            </td>
+            <td class="col-anchor">
+              <div class="anchor-line">
+                <span v-if="accountCount(platform)" class="anchor-count num">{{ accountCount(platform) }}</span>
                 <span v-else class="unimported">未接入</span>
-              </td>
-              <td class="col-status">
-                <span
-                  v-for="g in statusGroups(platform)"
-                  :key="g.signal"
-                  class="tag"
-                  :class="`tag--${g.signal}`"
-                >{{ signalText(g.signal) }} {{ g.count }}</span>
-                <span v-if="!statusGroups(platform).length" class="faint">—</span>
-              </td>
-              <td class="col-actions" @click.stop>
-                <RowActionMenu
-                  :inline="primaryActions(platform)"
-                  :more="moreActions(platform)"
-                  :busy="busyTarget !== null"
-                  @run="(key) => runRowAction(platform, key)"
-                />
-              </td>
-            </tr>
-            <tr v-if="expandedId === platform.id" class="detail-row">
-              <td colspan="10" @click.stop>
-                <PlatformDetail
-                  :platform="platform"
-                  :accounts="accountsOf(platform)"
-                  :busy="busyTarget !== null"
-                  @save="(patch) => emit('savePlatform', platform.id, patch)"
-                />
-              </td>
-            </tr>
-          </template>
+                <span v-if="accountCount(platform)" class="health-dots">
+                  <span
+                    v-for="(g, i) in statusGroups(platform)"
+                    :key="g.signal"
+                    class="health-dot"
+                    :class="`health-dot--${g.signal}`"
+                    :title="`${signalText(g.signal)} ${g.count}`"
+                    :data-i="i"
+                  ></span>
+                </span>
+              </div>
+              <button
+                v-if="accountCount(platform)"
+                class="link-btn"
+                @click.stop="emit('jump', '账户管理', platform.id)"
+              >查看账户 ›</button>
+            </td>
+            <td class="col-actions" @click.stop>
+              <RowActionMenu
+                :inline="primaryActions(platform)"
+                :more="moreActions(platform)"
+                :busy="busyTarget !== null"
+                @run="(key) => runRowAction(platform, key)"
+              />
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
-
-    <nav v-if="platforms.length" class="pager" aria-label="平台分页">
+    <nav v-if="connectedPlatforms.length" class="pager" aria-label="平台分页">
       <button class="btn btn--ghost" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
       <span class="pager-info">
         第 {{ page }} / {{ totalPages }} 页 · 共 {{ filteredPlatforms.length }} 个平台
       </span>
       <button class="btn btn--ghost" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
     </nav>
-
-    <!-- 未接入平台（折叠收起：默认只显示一行标题，点开才平铺） -->
     <div v-if="emptyPlatforms.length" class="slots-fold">
       <button class="fold-head fold-head--page" :aria-expanded="slotsOpen" @click="slotsOpen = !slotsOpen">
         <span class="fold-caret">{{ slotsOpen ? "▾" : "▸" }}</span>
@@ -356,28 +371,106 @@ function toggleDetail(id: string) {
         </li>
       </ul>
     </div>
-
-    <p v-if="platforms.length && !filteredPlatforms.length" class="quietline">
+    <p v-if="connectedPlatforms.length && !filteredPlatforms.length" class="quietline">
       没有匹配的平台——换个关键字，或点「清除筛选」。
     </p>
     <p v-if="!platforms.length && loadError" class="quietline quietline--warn">
       平台列表读取失败：{{ loadError }}——请确认后端服务在运行（默认 127.0.0.1:8000）。
+    </p>
+    <p v-else-if="!connectedPlatforms.length && platforms.length" class="quietline">
+      还没有平台接入——用右上角「接入全部」或下方「尚未接入的平台」把本机客户端接进来。
     </p>
     <p v-else-if="!platforms.length" class="quietline">
       还没有平台——「接入全部」把本机客户端接进来。
     </p>
   </section>
 </template>
-
 <style scoped>
-/* 自定义平台徽章（2026-11-18）：编码列内联，不单开一列 */
-.code-cell {
+.platform-wrap .matrix { min-width: 960px; }
+.identity-cell { min-width: 176px; }
+.col-state { width: 96px; min-width: 96px; max-width: 96px; }
+.platform-open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.platform-open:hover .identity-name { color: var(--color-accent); }
+.platform-open:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.identity-name { display: flex; align-items: center; gap: var(--space-2); font-weight: 600; }
+.identity-code { font-size: var(--text-xs); color: var(--color-text-muted); }
+.col-kindver { white-space: nowrap; }
+.col-kindver .tag { margin-right: var(--space-2); }
+.col-kindver .ver { font-size: var(--text-xs); color: var(--color-text-muted); }
+.state-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
   white-space: nowrap;
 }
-.custom-tag {
-  margin-left: 6px;
+.state-switch:disabled { opacity: 0.45; cursor: not-allowed; }
+.switch-track {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 17px;
+  border-radius: 999px;
+  background: var(--color-quiet);
+  transition: background var(--motion-base);
 }
-
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform var(--motion-base);
+}
+.state-switch.is-on .switch-track { background: var(--color-accent); }
+.state-switch.is-on .switch-thumb { transform: translateX(13px); }
+.switch-label { font-variant-numeric: tabular-nums; }
+.state-switch:hover:not(:disabled) .switch-label { color: var(--color-accent); }
+.state-switch:focus-visible { border-radius: var(--radius-sm); }
+.health-dots { display: inline-flex; gap: 3px; margin-left: var(--space-2); }
+.health-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.health-dot--ok { background: var(--color-ok); }
+.health-dot--notice { background: var(--color-notice); }
+.health-dot--attention { background: var(--color-attention); }
+.health-dot--danger { background: var(--color-danger); }
+.health-dot--quiet { background: var(--color-quiet); }
+.anchor-line { display: flex; align-items: center; }
+.anchor-count { font-weight: 600; }
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  margin-top: 2px;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.link-btn:hover { text-decoration: underline; }
+.sched-times { font-size: var(--text-sm); }
+.sched-count { font-size: var(--text-xs); color: var(--color-text-faint); }
+.sched-count .tag { margin-left: var(--space-1); }
 .head { padding-top: var(--space-2); }
 .head-row {
   display: flex;
@@ -392,31 +485,21 @@ function toggleDetail(id: string) {
   flex-wrap: wrap;
 }
 .platform-wrap { overflow-x: auto; }
-.platform-wrap .matrix { min-width: 1030px; }  /* 操作列收成下拉后（2026-11-18）不再需要 1120 */
-/* 自适应断点（2026-11-18）：窗口变窄逐级收起次要列，避免整表靠横向滚动才可读 */
-@media (max-width: 1180px) {
-  .platform-wrap .matrix { min-width: 820px; }
+@media (max-width: 1100px) {
   .col-caps { display: none; }
 }
-@media (max-width: 980px) {
-  .platform-wrap .matrix { min-width: 660px; }
-  .col-kind, .col-version { display: none; }
+@media (max-width: 900px) {
+  .col-sched { display: none; }
 }
-@media (max-width: 760px) {
+@media (max-width: 720px) {
+  .col-kindver { display: none; }
+}
+@media (max-width: 640px) {
   .platform-wrap { overflow-x: visible; }
   .platform-wrap .matrix { min-width: 0; }
-  .col-accounts, .col-status { display: none; }
-  /* 极窄屏：动作收成 2×2 网格（堆四行会把表格拉得又长又稀） */
-  .row-actions {
-    display: grid;
-    grid-template-columns: repeat(2, auto);
-    justify-content: start;
-    gap: 2px var(--space-2);
-  }
+  .row-actions { display: grid; grid-template-columns: repeat(2, auto); justify-content: start; gap: 2px var(--space-2); }
   .row-actions .btn { padding: 2px var(--space-2); }
 }
-
-/* 页面级折叠（页脚「尚未接入的平台」）；平台详情折叠已迁 PlatformDetail.vue */
 .fold-head {
   display: flex;
   align-items: center;
@@ -437,7 +520,6 @@ function toggleDetail(id: string) {
 .quietline--warn { color: var(--color-attention); }
 .slots-fold { margin-top: var(--space-4); }
 .fold-head--page { border-top: 1px solid var(--color-border); }
-
 .pager {
   display: flex;
   align-items: center;
@@ -451,10 +533,6 @@ function toggleDetail(id: string) {
 .unimported {
   color: var(--color-text-muted);
   border-bottom: 1px dashed var(--color-border);
-}
-.detail-row td {
-  background: var(--color-surface-2);
-  padding: var(--space-3) var(--space-4);
 }
 .slots {
   list-style: none;

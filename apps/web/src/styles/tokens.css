@@ -1,45 +1,50 @@
-/* 设计 token 唯一来源（红线 6）——「纸墨 Cardstock & Ink」(design-decisions D2 v5)
-   2026-11-13 矩阵改版 v5：去拟物装饰，中性工作台基底——
-   真比例拟物/压印编号/金箔芯片/墨印章/扇面动画退役；身份色降级为
-   PlatformBadge 小徽单色（--card-face-1..6 保留单值，渐变对待退役）；语义五色不变。
-   语义五色只消费 core 出产的 signal 分类（红线 2），填充用 base、正文用 ink 档（白底 ≥4.5:1）。
-   多主题（D2 v5）：:root = 纸墨（浅，默认），[data-theme="dark"] = 墨夜，[data-theme="mist"] = 晨雾；
-   覆盖块以颜色类令牌为主，字体/动效天然继承（晨雾额外校准圆角一档，属视觉语言的一部分）。主题偏好由 App.vue 挂 <html data-theme>。 */
+/* 设计 token 唯一来源（红线 6）——主题四套（2026-11-19 起）：
+   [data-theme="qinglan"] = 青岚山水（默认）← 参考图「个人全能工作台」翠绿 + 淡雅山水插画底色 + 白卡柔阴影；
+   :root（key=paper）= 纸墨东方 ← C「Ink 纸墨东方」暖纸 + 朱砂 + 衬线标题 + 近直角发丝线；
+   [data-theme="dark"] = 深空控制台 ← B「Obsidian 深空控制台」近黑 + 天青 + 细边框微发光；
+   [data-theme="mist"] = 精工浅色 ← A「Aurora 精工浅色」冷白 + 靛蓝 + 柔圆角软阴影。
+   显示名用四字定义（青岚山水/纸墨东方/深空控制台/精工浅色），内部 key 用 qinglan/paper/dark/mist
+   （key 不改名，避免已存主题偏好失效）。青岚为新增主题，其余三套各自对齐对比稿 A/B/C。
+   跟随系统（system）浅色分支 → 精工浅色（mist），深色分支 → 深空控制台（dark）。
+   语义五色只消费 core 出产的 signal 分类（红线 2），每套都有 base/ink/weak 三档，
+   正文用 ink 档（各主题底 ≥4.5:1）。平台身份色 --card-face-1..6 跨主题一致。
+   青岚山水底色 SVG 在 SideNav.vue（侧栏湖泊松林）+ App.vue（页头远山），仅 data-theme=qinglan 显示。 */
 :root {
-  /* 纸与墨 */
-  --color-bg: #f1f3f4;            /* 案面：冷纸灰 */
-  --color-scrim: rgba(23, 38, 48, 0.36);  /* 弹层遮罩（2026-11-18） */
-  --color-surface: #ffffff;       /* 纸白 */
-  --color-surface-2: #e8ebed;     /* 凹槽层 */
-  --color-border: #d9dee1;        /* 纸绳线 */
-  --color-ink: #182831;           /* 墨青——主文本与主按钮 */
+  /* ---- C Ink 纸墨东方：暖纸底 + 朱砂强调 + 衬线标题 ---- */
+  --color-bg: #ebe7dc;            /* 暖纸案面 */
+  --color-scrim: rgba(30, 25, 15, 0.42);  /* 弹层遮罩 */
+  --color-surface: #fbfaf6;       /* 纸白卡 */
+  --color-surface-2: #f2eee3;     /* 凹槽层 */
+  --color-sidebar: #f5f1e6;       /* 侧栏：比纸白略深的暖纸 */
+  --color-border: #ded7c6;        /* 发丝线 */
+  --color-ink: #1a1917;           /* 墨黑——主文本与主按钮（白纸 ≈17:1） */
   --color-text: var(--color-ink);
-  --color-text-muted: #54646d;    /* 雾墨（白底 ≥4.5:1） */
-  --color-text-faint: #84939b;    /* 仅装饰/占位，不承载正文 */
-  --color-accent: #8a5d14;        /* 品牌金·文本级（白底 ≈4.9:1）——品牌与激活态唯一彩 */
-  --color-accent-bright: #c89b3c; /* 金箔——仅品牌符等装饰 */
-  --color-accent-weak: rgba(200, 155, 60, 0.14);
-  --color-on-ink: #ffffff;        /* 墨底（主按钮/徽标）上的文字色，随主题翻转 */
-  --color-ink-strong: #223743;    /* 墨底 hover：再压一档 */
+  --color-text-muted: #6e685c;    /* 暖灰墨（纸底 ≈5.4:1） */
+  --color-text-faint: #9c9484;    /* 仅装饰/占位 */
+  --color-accent: #a8371f;        /* 朱砂·文本级（纸底 ≈6.4:1）——激活与链接 */
+  --color-accent-bright: #c9552f; /* 亮朱砂——仅图标/图形/装饰 */
+  --color-accent-weak: rgba(168, 55, 31, 0.10);
+  --color-on-ink: #ffffff;        /* 墨底/朱砂底上的白字 */
+  --color-ink-strong: #332f28;    /* 墨底 hover：再压一档 */
 
-  /* 语义五色（ok/notice/attention/danger/quiet） */
-  --color-ok: #1f8a5d;
-  --color-ok-ink: #177a50;
-  --color-ok-weak: rgba(31, 138, 93, 0.12);
-  --color-notice: #c08a1e;
-  --color-notice-ink: #9a6a10;
-  --color-notice-weak: rgba(192, 138, 30, 0.13);
-  --color-attention: #d96a2b;
-  --color-attention-ink: #b44e17;
-  --color-attention-weak: rgba(217, 106, 43, 0.13);
-  --color-danger: #d94848;
-  --color-danger-ink: #bc3535;
-  --color-danger-weak: rgba(217, 72, 72, 0.12);
-  --color-quiet: #84939b;
-  --color-quiet-ink: #64737c;
-  --color-quiet-weak: rgba(132, 147, 155, 0.16);
+  /* 语义五色（ok/notice/attention/danger/quiet）——暖纸档，base/ink/weak */
+  --color-ok: #3f6b45;
+  --color-ok-ink: #345839;
+  --color-ok-weak: rgba(63, 107, 69, 0.10);
+  --color-notice: #9a6a16;
+  --color-notice-ink: #805612;
+  --color-notice-weak: rgba(154, 106, 22, 0.11);
+  --color-attention: #b4581a;
+  --color-attention-ink: #964614;
+  --color-attention-weak: rgba(180, 88, 26, 0.11);
+  --color-danger: #9e2b25;
+  --color-danger-ink: #83231e;
+  --color-danger-weak: rgba(158, 43, 37, 0.10);
+  --color-quiet: #8a8272;
+  --color-quiet-ink: #6e685c;
+  --color-quiet-weak: rgba(138, 130, 114, 0.12);
 
-  /* 平台身份色（按平台分配，白字对比全部 ≥6:1）；单值 = PlatformBadge 小徽用（矩阵改版 v5） */
+  /* 平台身份色（按平台分配，白字对比全部 ≥6:1）；单值 = PlatformBadge 小徽用 */
   --card-face-1: #24466b;
   --card-face-2: #1f4a3d;
   --card-face-3: #3e3a5c;
@@ -47,9 +52,10 @@
   --card-face-5: #5c4a2f;
   --card-face-6: #14535a;
 
-  /* 字体（D4：系统栈零延迟；标识符/编号 mono，数字一律 tabular） */
+  /* 字体：正文系统栈零延迟；标题 display（纸墨=衬线）；标识符/编号 mono，数字 tabular */
   --font-body: -apple-system, "Segoe UI", Inter, "PingFang SC",
     "Microsoft YaHei", "Source Han Sans SC", sans-serif;
+  --font-display: Georgia, "Songti SC", "STSong", "Noto Serif SC", serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
 
   /* 字号 */
@@ -61,11 +67,11 @@
   --text-2xl: 26px;
   --text-3xl: 32px;
 
-  /* 尺寸 */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-chip: 999px;
+  /* 尺寸：Ink 近直角 */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-chip: 2px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -76,9 +82,9 @@
   --space-10: 48px;
   --sidebar-w: 216px;
 
-  /* 深浅：容器用 soft 一档，--shadow-card 留给浮层 */
-  --shadow-soft: 0 1px 2px rgba(23, 38, 48, 0.04), 0 2px 10px rgba(23, 38, 48, 0.05);
-  --shadow-card: 0 1px 2px rgba(23, 38, 48, 0.06), 0 10px 28px rgba(23, 38, 48, 0.1);
+  /* Ink 发丝线：几乎无阴影，靠描边撑结构 */
+  --shadow-soft: 0 1px 0 rgba(30, 25, 15, 0.05);
+  --shadow-card: 0 1px 0 rgba(30, 25, 15, 0.06), 0 4px 14px rgba(30, 25, 15, 0.06);
 
   /* 动效（按压反馈为主；prefers-reduced-motion 全归零） */
   --motion-fast: 110ms;
@@ -108,40 +114,40 @@ body {
   }
 }
 
-/* ---- 墨夜（深色）：墨青夜底 + 纸白文字 + 金箔提亮；语义五色整体提亮一档保深底对比 ---- */
+/* ---- B Obsidian 深空控制台：近黑底 + 天青强调 + 细边框微发光；语义五色提亮保深底对比 ---- */
 [data-theme="dark"] {
-  --color-bg: #10181e;            /* 墨青夜底 */
-  --color-scrim: rgba(0, 0, 0, 0.58);    /* 弹层遮罩（2026-11-18） */
-  --color-surface: #17222a;       /* 夜里底色 */
-  --color-surface-2: #1d2b34;     /* 凹槽层 */
-  --color-border: #2b3b46;        /* 纸绳线 */
-  --color-ink: #e8edf0;           /* 纸白——主文本与主按钮 */
+  --color-bg: #0b0e13;            /* 近黑（非纯黑，保层次） */
+  --color-scrim: rgba(0, 0, 0, 0.60);
+  --color-surface: #141a23;       /* 抬一档面板 */
+  --color-surface-2: #1b222e;     /* 凹槽层 */
+  --color-sidebar: #0e131b;       /* 侧栏比面板更深 */
+  --color-border: #28303d;        /* 低对比分隔 */
+  --color-ink: #e9eef6;           /* 纸白——主文本与主按钮 */
   --color-text: var(--color-ink);
-  --color-text-muted: #9db0ba;    /* 深底 ≥4.5:1 */
-  --color-text-faint: #6d808b;    /* 仅装饰/占位 */
-  --color-accent: #d6ac52;        /* 金箔·文本级（深底提亮） */
-  --color-accent-bright: #e2c06a;
-  --color-accent-weak: rgba(226, 192, 106, 0.16);
-  --color-on-ink: #10181e;        /* 纸白按钮上的墨字 */
-  --color-ink-strong: #f5f8fa;    /* 墨底 hover：再亮一档 */
+  --color-text-muted: #9aa8bd;    /* 深底 ≈7:1 */
+  --color-text-faint: #647083;    /* 仅装饰/占位 */
+  --color-accent: #38bdf8;        /* 天青·亮色（深底高对比）——激活与链接 */
+  --color-accent-bright: #7dd3fc; /* 更亮天青——图标/装饰 */
+  --color-accent-weak: rgba(56, 189, 248, 0.13);
+  --color-on-ink: #04212e;        /* 天青亮底/纸白墨底上的深字 */
+  --color-ink-strong: #ffffff;    /* hover 再亮一档 */
 
-  --color-ok: #4ec48f;
-  --color-ok-ink: #6bd6a5;
-  --color-ok-weak: rgba(78, 196, 143, 0.16);
-  --color-notice: #d9a844;
-  --color-notice-ink: #e6bc60;
-  --color-notice-weak: rgba(217, 168, 68, 0.16);
-  --color-attention: #e28e55;
-  --color-attention-ink: #eda36c;
-  --color-attention-weak: rgba(226, 142, 85, 0.16);
-  --color-danger: #e26b6b;
-  --color-danger-ink: #ec8585;
-  --color-danger-weak: rgba(226, 107, 107, 0.16);
-  --color-quiet: #7f939e;
-  --color-quiet-ink: #95a8b2;
-  --color-quiet-weak: rgba(127, 147, 158, 0.2);
+  --color-ok: #34d399;
+  --color-ok-ink: #6ee7b7;
+  --color-ok-weak: rgba(52, 211, 153, 0.14);
+  --color-notice: #fbbf24;
+  --color-notice-ink: #fcd34d;
+  --color-notice-weak: rgba(251, 191, 36, 0.14);
+  --color-attention: #fb923c;
+  --color-attention-ink: #fdba74;
+  --color-attention-weak: rgba(251, 146, 60, 0.14);
+  --color-danger: #f87171;
+  --color-danger-ink: #fca5a5;
+  --color-danger-weak: rgba(248, 113, 113, 0.15);
+  --color-quiet: #7c8a9e;
+  --color-quiet-ink: #9aa8bd;
+  --color-quiet-weak: rgba(124, 138, 158, 0.20);
 
-  /* 平台身份色：夜色下微提亮（白字对比仍 ≥6:1；PlatformBadge 小徽用） */
   --card-face-1: #2f5580;
   --card-face-2: #28584a;
   --card-face-3: #4a4670;
@@ -149,49 +155,50 @@ body {
   --card-face-5: #6b5836;
   --card-face-6: #196269;
 
-  /* 深处阴影更重 */
-  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 10px rgba(0, 0, 0, 0.35);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.5);
+  --font-display: -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-chip: 6px;
+
+  --shadow-soft: 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 14px 36px rgba(0, 0, 0, 0.45);
 }
 
-/* ---- 晨雾（浅色 · 2026-11-18 换肤）：冷雾工作台 — 雾蓝灰案面 + 纯白卡 + 亮蓝主色；
-   参考现代 SaaS 工作台（浅底/白卡/细描边/大留白），替换原「暖纸」浅绿纸感 ——
-   绿系在深浅两档都不耐看（案面偏黄、激活态发闷），冷蓝灰更中性、更贴数据台气质。
-   主文本/主按钮走深墨蓝，强调色为文本级蓝（白卡 ≥4.5:1），亮蓝只做图标与装饰。
-   语义五色沿用白卡档；阴影转冷蓝调。 ---- */
+/* ---- A Aurora 精工浅色：冷白案面 + 纯白卡 + 靛蓝强调 + 柔圆角软阴影；语义五色白卡档 ---- */
 [data-theme="mist"] {
-  --color-bg: #f5f7fb;            /* 案面：冷雾蓝灰 */
-  --color-scrim: rgba(22, 32, 46, 0.34); /* 弹层遮罩（2026-11-18） */
-  --color-surface: #ffffff;       /* 白卡 */
-  --color-surface-2: #edf1f7;     /* 凹槽层 */
-  --color-border: #dfe5ee;        /* 细描边 */
-  --color-ink: #16202e;           /* 深墨蓝——主文本与主按钮（白底 ≈15.6:1） */
+  --color-bg: #eef2f7;            /* 冷白案面 */
+  --color-scrim: rgba(22, 32, 46, 0.34);
+  --color-surface: #ffffff;       /* 纯白卡 */
+  --color-surface-2: #f6f8fb;     /* 凹槽层 */
+  --color-sidebar: #ffffff;       /* 侧栏纯白 */
+  --color-border: #e7ecf2;        /* 细描边 */
+  --color-ink: #1b2733;           /* 主文本与主按钮（白底 ≈14:1） */
   --color-text: var(--color-ink);
-  --color-text-muted: #5a6779;    /* 雾灰蓝（白底 ≈6.1:1） */
-  --color-text-faint: #97a3b5;    /* 仅装饰/占位 */
-  --color-accent: #1f6fe0;        /* 湖蓝·文本级（白底 ≈4.9:1）——激活与链接 */
-  --color-accent-bright: #4a90f0; /* 亮蓝——仅图标/图形/装饰 */
-  --color-accent-weak: rgba(74, 144, 240, 0.12);
-  --color-on-ink: #ffffff;        /* 墨蓝底上的白字 */
-  --color-ink-strong: #24324a;    /* 墨底 hover：再压一档 */
+  --color-text-muted: #64748b;    /* 白底 ≈4.8:1 */
+  --color-text-faint: #9aa8b6;    /* 仅装饰/占位 */
+  --color-accent: #4f46e5;        /* 靛蓝·文本级（白底 ≈6.3:1）——激活与链接 */
+  --color-accent-bright: #6d63ee; /* 亮靛——图标/装饰 */
+  --color-accent-weak: rgba(79, 70, 229, 0.12);
+  --color-on-ink: #ffffff;
+  --color-ink-strong: #2a3850;
 
-  --color-ok: #1a8a5f;
-  --color-ok-ink: #157a52;
-  --color-ok-weak: rgba(26, 138, 95, 0.12);
-  --color-notice: #b5791a;
-  --color-notice-ink: #96600f;
-  --color-notice-weak: rgba(181, 121, 26, 0.13);
-  --color-attention: #c45a22;
+  --color-ok: #15803d;
+  --color-ok-ink: #12693a;
+  --color-ok-weak: rgba(21, 128, 61, 0.12);
+  --color-notice: #b45309;
+  --color-notice-ink: #984309;
+  --color-notice-weak: rgba(180, 83, 9, 0.12);
+  --color-attention: #c2551f;
   --color-attention-ink: #a04716;
-  --color-attention-weak: rgba(196, 90, 34, 0.13);
-  --color-danger: #cb3f3f;
-  --color-danger-ink: #ac2c2c;
-  --color-danger-weak: rgba(203, 63, 63, 0.12);
-  --color-quiet: #8794a8;
-  --color-quiet-ink: #657286;
-  --color-quiet-weak: rgba(135, 148, 168, 0.16);
+  --color-attention-weak: rgba(194, 85, 31, 0.13);
+  --color-danger: #dc2626;
+  --color-danger-ink: #bc2020;
+  --color-danger-weak: rgba(220, 38, 38, 0.12);
+  --color-quiet: #84939b;
+  --color-quiet-ink: #64737c;
+  --color-quiet-weak: rgba(132, 147, 155, 0.16);
 
-  /* 平台身份色：跨主题保持一致（PlatformBadge 小徽用） */
   --card-face-1: #24466b;
   --card-face-2: #1f4a3d;
   --card-face-3: #3e3a5c;
@@ -199,12 +206,75 @@ body {
   --card-face-5: #5c4a2f;
   --card-face-6: #14535a;
 
-  /* 圆角上一档：白卡 + 细描边 + 大留白的现代工作台观感（纸墨/墨夜不动） */
+  --font-display: -apple-system, "Segoe UI", "PingFang SC", sans-serif;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --radius-chip: 999px;
 
-  /* 冷蓝调阴影：比纸墨更轻，靠描边撑结构 */
-  --shadow-soft: 0 1px 2px rgba(22, 32, 46, 0.04), 0 2px 10px rgba(22, 32, 46, 0.05);
-  --shadow-card: 0 1px 2px rgba(22, 32, 46, 0.06), 0 10px 28px rgba(22, 32, 46, 0.09);
+  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04), 0 2px 10px rgba(16, 24, 40, 0.05);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.07);
+}
+
+/* ---- 青岚山水（新增主题 · 默认）：翠绿主色 + 淡雅山水插画底色 + 白卡柔阴影 ----
+   参考图「个人全能工作台」的有机自然美学：案面淡青绿、主色翠绿、白卡圆角软影、
+   侧栏下半部湖泊松林 SVG、页头远山。语义五色白卡档（正文 ≥4.5:1，红线 2）。 */
+[data-theme="qinglan"] {
+  --color-bg: #eef6f2;            /* 淡青绿案面 */
+  --color-scrim: rgba(16, 58, 46, 0.34);
+  --color-surface: #ffffff;       /* 纯白卡 */
+  --color-surface-2: #f2f9f5;     /* 淡翠凹槽层 */
+  --color-sidebar: #f4faf6;       /* 侧栏：淡青绿（山水插画叠在下半部） */
+  --color-border: #dcebe2;        /* 淡绿描边 */
+  --color-ink: #173a32;           /* 深墨绿——主文本与主按钮（白底 ≈12:1） */
+  --color-text: var(--color-ink);
+  --color-text-muted: #5a7d71;    /* 白底 ≈4.7:1 */
+  --color-text-faint: #9ab8ad;    /* 仅装饰/占位 */
+  --color-accent: #0f9b78;        /* 翠绿·文本级（白底 ≈3.6:1，链接配 650 粗后可读；按钮白字 ≈3.6:1 偏弱，故主按钮 ink 底） */
+  --color-accent-bright: #12b189; /* 亮翠——图标/装饰/激活条 */
+  --color-accent-weak: rgba(15, 155, 120, 0.12);
+  --color-on-ink: #ffffff;
+  --color-ink-strong: #0e7259;    /* 墨绿 hover */
+
+  /* 语义五色——白卡档，翠绿系协调；正文 ink 档 ≥4.5:1 */
+  --color-ok: #0f9b78;
+  --color-ok-ink: #0a7057;
+  --color-ok-weak: rgba(15, 155, 120, 0.12);
+  --color-notice: #b57a12;
+  --color-notice-ink: #8c5e0c;
+  --color-notice-weak: rgba(181, 122, 18, 0.12);
+  --color-attention: #d9682c;
+  --color-attention-ink: #ad4f1d;
+  --color-attention-weak: rgba(217, 104, 44, 0.12);
+  --color-danger: #d13b3b;
+  --color-danger-ink: #aa2b2b;
+  --color-danger-weak: rgba(209, 59, 59, 0.12);
+  --color-quiet: #7c9a8d;
+  --color-quiet-ink: #5f7d71;
+  --color-quiet-weak: rgba(124, 154, 141, 0.16);
+
+  /* 平台身份色：跨主题保持一致 */
+  --card-face-1: #24466b;
+  --card-face-2: #1f4a3d;
+  --card-face-3: #3e3a5c;
+  --card-face-4: #33424e;
+  --card-face-5: #5c4a2f;
+  --card-face-6: #14535a;
+
+  --font-display: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-chip: 999px;
+
+  --shadow-soft: 0 2px 10px rgba(19, 92, 71, 0.05), 0 4px 14px rgba(19, 92, 71, 0.05);
+  --shadow-card: 0 2px 12px rgba(19, 92, 71, 0.06), 0 10px 28px rgba(19, 92, 71, 0.07);
+
+  /* 山水插画色（SideNav/顶栏 SVG 消费；仅青岚主题定义） */
+  --hill-far: #cfe7db;
+  --hill-mid: #9dccb5;
+  --hill-near: #3d7a63;
+  --lake-top: #bfe0d0;
+  --lake-bottom: #e4f2ea;
+  --quote-ink: #2f6e56;
 }

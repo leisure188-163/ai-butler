@@ -28,11 +28,11 @@ def envelope_token() -> dict:  # same fake envelope as adapter tests (duplicated
 
 @dataclass
 class FakeRegister:
-    calls: list[tuple[str, str]] = field(default_factory=list)
+    calls: list[tuple[str, str, str | None]] = field(default_factory=list)
 
-    def execute(self, platform: str, account_name: str, *, account_id: str | None = None):
-        self.calls.append((platform, account_name))
-        return SimpleNamespace(id=f"{platform}:main")
+    def execute(self, platform: str, account_name: str, *, account_code: str | None = None, account_id: str | None = None):
+        self.calls.append((platform, account_name, account_code))
+        return SimpleNamespace(id=f"{platform}:{account_code or 'main'}")
 
 
 @dataclass
@@ -61,7 +61,7 @@ def test_all_pass_registers_account(tmp_path, monkeypatch):
     outcome = adapter.butler.dock(ctx, env=env_with(list))
     assert outcome.issues == []
     assert outcome.accounts == ["workbuddy_cn:main"]
-    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN")]
+    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN", None)]
 
 
 def test_missing_file_issue_without_register(tmp_path, monkeypatch):
@@ -138,3 +138,74 @@ def test_dock_idempotent_on_registry_side(tmp_path, monkeypatch):
     first = adapter.butler.dock(ctx, env=env_with(list))
     second = adapter.butler.dock(ctx, env=env_with(list))
     assert first.accounts == second.accounts == ["workbuddy_cn:main"]
+
+
+# --- ADR-025 扩展：account_code = account.nickname 实际昵称 ---
+
+
+def test_plaintext_nickname_registers_with_code(tmp_path, monkeypatch):
+    path = tmp_path / "wb.info"
+    path.write_text(
+        json.dumps({"auth": {"accessToken": "plain-tok"}, "account": {"uid": "u-1", "nickname": " 逍遥酒鬼 "}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WORKBUDDY_AUTH_FILE", str(path))
+    ctx = FakeCtx()
+    outcome = adapter.butler.dock(ctx, env=env_with(list))
+    assert outcome.issues == []
+    assert outcome.accounts == ["workbuddy_cn:逍遥酒鬼"]
+    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN · 逍遥酒鬼", "逍遥酒鬼")]
+
+
+def test_envelope_nickname_decrypts_to_code(tmp_path, monkeypatch):
+    path = tmp_path / "wb.info"
+    path.write_text(
+        json.dumps({"auth": {"accessToken": envelope_token()}, "account": {"uid": "u-1", "nickname": envelope_token()}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WORKBUDDY_AUTH_FILE", str(path))
+    seen = {}
+
+    def fake_decrypt_field(raw, *, candidates):
+        seen["raw"] = raw
+        seen["candidates"] = candidates
+        return "Leisure520"
+
+    monkeypatch.setattr(adapter, "decrypt_field", fake_decrypt_field)
+    ctx = FakeCtx()
+    outcome = adapter.butler.dock(ctx, env=env_with(["exe"]))
+    assert outcome.issues == []
+    assert outcome.accounts == ["workbuddy_cn:Leisure520"]
+    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN · Leisure520", "Leisure520")]
+    assert seen["candidates"] == ["exe"]
+
+
+def test_envelope_nickname_decrypt_failure_falls_back_to_main(tmp_path, monkeypatch):
+    """昵称解密失败不阻塞 dock：默认编址登记 + 如实记 note（红线 5，不静默）。"""
+    from butler_connectors.workbuddy_cn.session import AuthError
+
+    path = tmp_path / "wb.info"
+    path.write_text(
+        json.dumps({"auth": {"accessToken": envelope_token()}, "account": {"uid": "u-1", "nickname": envelope_token()}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WORKBUDDY_AUTH_FILE", str(path))
+
+    def boom(raw, *, candidates):
+        raise AuthError("KEY_MISMATCH")
+
+    monkeypatch.setattr(adapter, "decrypt_field", boom)
+    ctx = FakeCtx()
+    outcome = adapter.butler.dock(ctx, env=env_with(["exe"]))
+    assert outcome.accounts == ["workbuddy_cn:main"]
+    assert any("昵称" in issue for issue in outcome.issues)
+    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN", None)]
+
+
+def test_missing_nickname_registers_default(tmp_path, monkeypatch):
+    write_auth(tmp_path, monkeypatch, "plain-tok")  # account 无 nickname 字段
+    ctx = FakeCtx()
+    outcome = adapter.butler.dock(ctx, env=env_with(list))
+    assert outcome.issues == []
+    assert outcome.accounts == ["workbuddy_cn:main"]
+    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN", None)]
