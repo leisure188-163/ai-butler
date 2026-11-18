@@ -127,6 +127,9 @@ export interface paths {
          *     单家失败不拖累全家族：结果如实分列（accounts/issues），不静默。
          *     dock 顺带采集（R2-F）：新账户立即产雷达第一帧；采集失败进 issues，
          *     绝不打断导入本身（CollectUsage 已把端口异常收进 outcome.error）。
+         *
+         *     未知 platform_code（名册里没有连接器实现）显式 422，不再让 KeyError 冒成 500：
+         *     新手点「接入」看到的必须是「为什么接不进」，不是服务器错误。
          */
         post: operations["import_platform_api_v1_platforms__target__import_post"];
         delete?: never;

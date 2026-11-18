@@ -36,6 +36,18 @@ class ImportOut(BaseModel):
     issues: list[str]
 
 
+def _has_connector(registry, target: str) -> bool:
+    """该 platform_code 是否有连接器实现（没实现 = 不可接入，不是服务器错误）。"""
+    getter = getattr(registry, "get", None)
+    if not callable(getter):
+        return True  # 替身/极简注册表：交给 dock 自己判定
+    try:
+        getter(target)
+        return True
+    except KeyError:
+        return False
+
+
 def _import_one(registry, kit, target: str) -> ImportOut:
     """单家导入 + 顺带采集（dock 内部扫描异常已被注册表转成 issues，编排层不重复设防）。"""
     from butler_connectors.registry import DockContext
@@ -249,8 +261,19 @@ def import_platform(target: str, request: Request) -> ImportOut:
     单家失败不拖累全家族：结果如实分列（accounts/issues），不静默。
     dock 顺带采集（R2-F）：新账户立即产雷达第一帧；采集失败进 issues，
     绝不打断导入本身（CollectUsage 已把端口异常收进 outcome.error）。
+
+    未知 platform_code（名册里没有连接器实现）显式 422，不再让 KeyError 冒成 500：
+    新手点「接入」看到的必须是「为什么接不进」，不是服务器错误。
     """
-    return _import_one(request.app.state.registry, request.app.state.kit, target)
+    from fastapi import HTTPException
+
+    registry = request.app.state.registry
+    if not _has_connector(registry, target):
+        raise HTTPException(
+            status_code=422,
+            detail=f"该平台没有连接器实现，无法接入：{target}",
+        )
+    return _import_one(registry, request.app.state.kit, target)
 
 
 @router.post("/platforms/import-all", response_model=list[ImportOut])
@@ -269,4 +292,17 @@ def import_all_platforms(request: Request) -> list[ImportOut]:
         for p in kit.platforms.list_all()
         if p.is_active and p.deprecated_at is None and p.platform_code not in docked
     )  # 按 platform_code 排序：批量结果顺序确定，不随名册插入序漂移
-    return [_import_one(registry, kit, target) for target in targets]
+    out: list[ImportOut] = []
+    for target in targets:
+        if not _has_connector(registry, target):
+            # 名册里存在但没有连接器实现（手工登记/已下线）：如实出账，不拖累其它平台
+            out.append(
+                ImportOut(
+                    target=target,
+                    accounts=[],
+                    issues=["没有连接器实现，已跳过"],
+                )
+            )
+            continue
+        out.append(_import_one(registry, kit, target))
+    return out
