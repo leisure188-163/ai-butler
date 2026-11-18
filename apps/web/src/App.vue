@@ -224,21 +224,20 @@ onBeforeUnmount(() => {
 .content {
   flex: 1;
   min-width: 0;
-  max-width: 1160px;
-  padding: var(--space-8);
+  /* 2026-11-18 改版：原来 max-width 1160 + margin:0 auto 会在宽屏把内容浮到
+     屏幕正中，侧栏与内容之间空出 200~300px（"两栏隔得老远"）。现改为左贴侧栏、
+     右侧自然留白，并把上限抬到 1440——表格页多一列也不至于刚过 1160 就横滚。 */
+  max-width: 1440px;
+  margin-right: auto;
+  padding: var(--space-6) var(--space-6) var(--space-8);
   box-sizing: border-box;
-}
-
-/* 宽屏（横排）内容区居中；≤900 转纵排后不能再用 auto 边距——
-   纵排的交叉轴 auto 边距会阻止 stretch，内容块按内容宽度撑开、直接溢屏 */
-@media (min-width: 901px) {
-  .content { margin: 0 auto; }
 }
 
 /* 与 SideNav 的 900px 断点配套：侧栏变顶部横条，壳随之转纵向，否则 main 被挤出屏 */
 @media (max-width: 900px) {
   .shell { flex-direction: column; }
-  .content { width: 100%; }
+  /* 纵排时侧栏变顶部横条，margin-right 不再起作用（宽度已 100%） */
+  .content { width: 100%; margin-right: 0; }
 }
 
 @media (max-width: 640px) {
