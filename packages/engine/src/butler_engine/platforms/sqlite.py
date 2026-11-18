@@ -154,8 +154,12 @@ class SqlitePlatformRepository(PlatformRepository):
             ).fetchall()
             stale = [r[0] for r in rows]
             for code in stale:
+                # 2026-11-18 修：落 deprecated 必须同时置 is_active=0。
+                # 只写 deprecated_at 会留下「已退役但仍 active」的幽灵平台，
+                # 名册照样列出、claim-all 遍历到它就会 KeyError（连接器已下线）。
                 conn.execute(
-                    "UPDATE plat_platform SET deprecated_at = ?, updated_at = ? WHERE platform_code = ?",
+                    "UPDATE plat_platform SET deprecated_at = ?, is_active = 0, updated_at = ? "
+                    "WHERE platform_code = ?",
                     (now, now, code),
                 )
         return stale

@@ -172,7 +172,14 @@ def claim_all_runs(request: Request) -> list[RunOut]:
     out: list[RunOut] = []
     # 选哪些平台参与领取 = 名册表裁决（ADR-021/022）：活跃且未退役、
     # 且申报了 provision.run 能力；网页连接器无领取概念（A1-04 §6）天然跳过。
-    runtime = {p.platform_code: registry.get(p.platform_code) for p in kit.platforms.list_all()}
+    # 名册里可能有连接器已下线的历史行（自定义平台删除后），取不到就跳过——
+    # 那不是错误，是「该平台已不存在」，报 500 只会让一键领取整体失败。
+    runtime: dict[str, object] = {}
+    for p in kit.platforms.list_all():
+        try:
+            runtime[p.platform_code] = registry.get(p.platform_code)
+        except KeyError:
+            continue
     for code, connector in runtime.items():
         if connector.manifest.capabilities.get("provision.run") is None:
             continue
