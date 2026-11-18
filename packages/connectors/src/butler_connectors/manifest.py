@@ -7,6 +7,7 @@ manifest 是注册表发现的唯一入口；声明里出现 schema 外字段直
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -231,6 +232,9 @@ class ConnectorManifest(_Strict):
     schedule: dict[str, ScheduleSpec] = Field(default_factory=dict)
     retired: bool = False  # 退役：代码保留审计/回滚，不再出现在应用名册与一键导入
     usage: bool = True  # 是否挂载用量采集；纯签到连接器可声明 false（如 agentrouter）
+    #: 装载根目录（仅装载期内部使用，不进 manifest 契约）：内置连接器 = 包内目录，
+    #: 自定义连接器 = 用户数据目录。供声明式 entry 定位，避免硬取 package_root。
+    root_dir: Path | None = Field(default=None, exclude=True, repr=False)
 
     def model_post_init(self, __context: Any) -> None:
         bad = set(self.capabilities) - _CAPABILITY_IDS
@@ -242,7 +246,7 @@ class ConnectorManifest(_Strict):
         if self.credential is not None:
             for cap in self.capabilities.values():
                 if cap.kind == "declarative":
-                    main = _declarative_main_auth(self.id, cap.entry)
+                    main = _declarative_main_auth(self.id, cap.entry, self.root_dir)
                     if main not in self.credential.kinds:
                         raise ManifestInvalid(
                             f"{self.id}: 声明式能力主凭据 kind {main!r} 未在 "
@@ -250,13 +254,13 @@ class ConnectorManifest(_Strict):
                         )
 
 
-def _declarative_main_auth(conn_id: str, entry: str) -> str:
+def _declarative_main_auth(conn_id: str, entry: str, root: Path | None = None) -> str:
     """声明式能力主凭据 kind：读 entry YAML 的 auth.kind 做交叉校验。"""
     import yaml
 
     from butler_connectors.paths import package_root
 
-    path = package_root(conn_id) / entry
+    path = root / entry if root is not None else package_root(conn_id) / entry
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except FileNotFoundError as e:

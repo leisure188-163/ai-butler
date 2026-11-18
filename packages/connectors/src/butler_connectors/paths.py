@@ -45,3 +45,20 @@ def expand_storage_path(raw: str) -> Path | None:
 
 class _MacroMissing(Exception):
     pass
+
+
+#: 自定义连接器目录（2026-11-18）：用户自建的声明式平台落在这里，
+#: 与包内内置连接器同构（manifest.yaml + declarative/*.yaml），
+#: 由 load_registry(custom_root=...) 一并装载。环境变量可改（测试/便携部署）。
+_DEFAULT_CUSTOM_DIRNAME = "connectors"
+
+
+def custom_connectors_root() -> Path:
+    """自定义连接器根目录：``BUTLER_CUSTOM_CONNECTORS`` 优先，否则用户数据目录。"""
+    override = os.environ.get("BUTLER_CUSTOM_CONNECTORS", "").strip()
+    if override:
+        return Path(os.path.expanduser(override))
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        return Path(appdata) / "butler" / _DEFAULT_CUSTOM_DIRNAME
+    return Path.home() / ".butler" / _DEFAULT_CUSTOM_DIRNAME

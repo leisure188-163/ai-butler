@@ -160,6 +160,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platforms/custom": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Custom Platforms
+         * @description 自定义连接器目录里已登记的平台（前端据此标「自定义」徽章）。
+         */
+        get: operations["list_custom_platforms_api_v1_platforms_custom_get"];
+        put?: never;
+        /**
+         * Create Custom Platform
+         * @description 新建/更新自定义平台：校验 → 落盘 → 热重载（端口 + 名册 + 调度）。
+         */
+        post: operations["create_custom_platform_api_v1_platforms_custom_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platforms/custom/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Custom Platform
+         * @description 删除自定义平台：删目录 → 热重载（名册自动落 deprecated，不再排班）。
+         */
+        delete: operations["delete_custom_platform_api_v1_platforms_custom__code__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -337,6 +381,25 @@ export interface components {
             /** Sessions */
             sessions: components["schemas"]["SessionOut"][];
         };
+        /** ClaimDraftIn */
+        ClaimDraftIn: {
+            request: components["schemas"]["RequestDraftIn"];
+            /**
+             * Code Path
+             * @default code
+             */
+            code_path: string;
+            /**
+             * Expect Ok
+             * @default 0
+             */
+            expect_ok: string;
+            /**
+             * Retry On Codes
+             * @default []
+             */
+            retry_on_codes: string[];
+        };
         /** CollectOutcomeOut */
         CollectOutcomeOut: {
             /** Account Id */
@@ -372,6 +435,61 @@ export interface components {
             revoked_at: string | null;
             /** Revoked Reason */
             revoked_reason: string;
+        };
+        /** CustomPlatformDeleted */
+        CustomPlatformDeleted: {
+            /** Code */
+            code: string;
+            /** Deleted */
+            deleted: boolean;
+            /** Message */
+            message: string;
+        };
+        /**
+         * CustomPlatformIn
+         * @description 自定义平台草稿：网页版 + Chrome 登录态（browser_cookie 形态）。
+         */
+        CustomPlatformIn: {
+            /** Code */
+            code: string;
+            /** Display */
+            display: string;
+            /** Domain */
+            domain: string;
+            /** Cookies */
+            cookies: string[];
+            status: components["schemas"]["StatusDraftIn"];
+            claim: components["schemas"]["ClaimDraftIn"];
+            /** Business Codes */
+            business_codes?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Schedule Times
+             * @default []
+             */
+            schedule_times: string[];
+        };
+        /**
+         * CustomPlatformOut
+         * @description 自定义平台目录行（只有 code/display，详情走 GET /platforms 名册）。
+         */
+        CustomPlatformOut: {
+            /** Code */
+            code: string;
+            /** Display */
+            display: string;
+        };
+        /** CustomPlatformSaved */
+        CustomPlatformSaved: {
+            /** Code */
+            code: string;
+            /** Display */
+            display: string;
+            /** Schedule Times */
+            schedule_times: string[];
+            /** Message */
+            message: string;
         };
         /** EvidenceOut */
         EvidenceOut: {
@@ -534,6 +652,23 @@ export interface components {
             /** Recent Ledger */
             recent_ledger: components["schemas"]["LedgerEntryOut"][];
         };
+        /** RequestDraftIn */
+        RequestDraftIn: {
+            /**
+             * Method
+             * @default POST
+             */
+            method: string;
+            /** Url */
+            url: string;
+            /**
+             * Body
+             * @default {}
+             */
+            body: {
+                [key: string]: unknown;
+            };
+        };
         /**
          * RouteRuleIn
          * @description 一条路由规则入参：模型名 → 有序账户池（先 = 优先）。
@@ -642,6 +777,25 @@ export interface components {
             sessions: components["schemas"]["SessionOut"][];
             /** Unbound Locations */
             unbound_locations: string[];
+        };
+        /** StatusDraftIn */
+        StatusDraftIn: {
+            request: components["schemas"]["RequestDraftIn"];
+            /**
+             * Checked In Path
+             * @default
+             */
+            checked_in_path: string;
+            /**
+             * Code Path
+             * @default code
+             */
+            code_path: string;
+            /**
+             * Expect Ok
+             * @default 0
+             */
+            expect_ok: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -853,6 +1007,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportOut"][];
+                };
+            };
+        };
+    };
+    list_custom_platforms_api_v1_platforms_custom_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomPlatformOut"][];
+                };
+            };
+        };
+    };
+    create_custom_platform_api_v1_platforms_custom_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomPlatformIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomPlatformSaved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_custom_platform_api_v1_platforms_custom__code__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomPlatformDeleted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -26,9 +26,11 @@ def _assemble_connectors(kit) -> None:
     """连接器家族装配（ADR-005）：端口 / 调度条目 / 到期扫描都在这里挂上。"""
     from datetime import timedelta
 
+    from butler_connectors.paths import custom_connectors_root
     from butler_connectors.registry import load_registry
 
-    registry = load_registry()
+    # 内置包 + 用户自定义连接器目录（2026-11-18）：自定义平台与内置同构装载
+    registry = load_registry(custom_root=custom_connectors_root())
     provisions = registry.provision_ports(vault=kit.vault, transport=None)
     kit.register_provision_ports(targets=provisions)
     # 探针端口随 register_health_ports 挂载（同一条 target 路由 + 每日轮询名册，
@@ -45,23 +47,38 @@ def _assemble_connectors(kit) -> None:
         if source is not None:
             kit.register_session_source(source)
     app.state.registry = registry  # 端读 manifest/导入分发用（server 自持装配面）
-    # 平台册同步（ADR-021/022）：manifest 事实落 plat_platform，DB 为真相源；
-    # 退役连接器不进 facts（自动落 deprecated 不删行，审计可溯），名册改读 DB。
+    sync_platform_facts(kit, registry, provisions)
+    # 调度条目：DB 真相源合成（用户覆盖优先于 manifest 缺省，2026-11-18）
+    from server.routes.platforms import compose_schedule_entries
+
+    entries = compose_schedule_entries(registry, kit)
+    if os.environ.get("BUTLER_SCHEDULE", "1") != "0" and entries:
+        kit.start_checkin_schedule(entries)
+    if os.environ.get("BUTLER_SCHEDULE", "1") != "0":
+        kit.start_usage_scans()  # R2：每日用量采集（启动即补采第一帧，IntervalJob 语义）
+        kit.start_health_scans()  # R3-2：每日体检轮询（Run 进台账，连败升级走既有链）
+    kit.start_expiry_scans()
+
+
+def _read_client_version(port) -> str:
+    """客户端版本探测钩子（plat_platform.client_version）：端口实例未实现/读不到
+    均落空串（列语义 "" = 未知，名册如实显示未知，不静默造数据）。
+
+    注意取 provision 端口实例（adapter），不是 manifest 描述对象。"""
+    hook = getattr(port, "read_client_version", None)
+    if not callable(hook):
+        return ""
+    try:
+        return hook() or ""
+    except Exception:
+        return ""
+
+
+def sync_platform_facts(kit, registry, provisions) -> None:
+    """平台册同步（ADR-021/022）：manifest 事实落 plat_platform，DB 为真相源；
+    退役/删掉的连接器不进 facts（自动落 deprecated 不删行，审计可溯）。"""
     from butler_core.platforms.domain import PlatformEntry
     from butler_core.shared.time import now_utc
-
-    def _read_client_version(port) -> str:
-        """客户端版本探测钩子（plat_platform.client_version）：端口实例未实现/读不到
-        均落空串（列语义 "" = 未知，名册如实显示未知，不静默造数据）。
-
-        注意取 provision 端口实例（adapter），不是 manifest 描述对象。"""
-        hook = getattr(port, "read_client_version", None)
-        if not callable(hook):
-            return ""
-        try:
-            return hook() or ""
-        except Exception:
-            return ""
 
     facts = []
     for conn in registry.platforms():
@@ -82,16 +99,33 @@ def _assemble_connectors(kit) -> None:
             )
         )
     kit.sync_platforms.execute(tuple(facts))
-    # 调度条目：DB 真相源合成（用户覆盖优先于 manifest 缺省，2026-11-18）
+
+
+def reload_connectors(app) -> None:
+    """连接器热重载（自定义平台增删后）：重装端口 → 名册同步 → 调度重排。
+
+    会话扫描源只准装配一次（ADR-013），这里不重装——自定义平台没有会话扫描源。
+    已删平台的端口对象会残留在路由表里（无调度条目、名册已 deprecated，不会被
+    排班；避免为此重建整条执行链的装配面）。
+    """
+    from butler_connectors.paths import custom_connectors_root
+    from butler_connectors.registry import load_registry
+
     from server.routes.platforms import compose_schedule_entries
 
-    entries = compose_schedule_entries(registry, kit)
-    if os.environ.get("BUTLER_SCHEDULE", "1") != "0" and entries:
-        kit.start_checkin_schedule(entries)
-    if os.environ.get("BUTLER_SCHEDULE", "1") != "0":
-        kit.start_usage_scans()  # R2：每日用量采集（启动即补采第一帧，IntervalJob 语义）
-        kit.start_health_scans()  # R3-2：每日体检轮询（Run 进台账，连败升级走既有链）
-    kit.start_expiry_scans()
+    kit = app.state.kit
+    registry = load_registry(custom_root=custom_connectors_root())
+    provisions = registry.provision_ports(vault=kit.vault, transport=None)
+    kit.register_provision_ports(targets=provisions, replace=True)
+    kit.register_health_ports(
+        targets=registry.health_ports(vault=kit.vault, transport=None), replace=True
+    )
+    kit.register_usage_ports(
+        targets=registry.usage_ports(vault=kit.vault, transport=None), replace=True
+    )
+    app.state.registry = registry
+    sync_platform_facts(kit, registry, provisions)
+    kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
 
 
 @asynccontextmanager

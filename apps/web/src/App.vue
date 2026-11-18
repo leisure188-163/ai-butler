@@ -60,6 +60,10 @@ const {
 const {
   busyTarget,
   actionMsg,
+  customPlatforms,
+  loadCustomPlatforms,
+  createCustomPlatform,
+  removeCustomPlatform,
   importPlatform,
   savePlatform,
   claimApp,
@@ -71,6 +75,12 @@ const {
   scanSessions,
 } = account;
 const { collecting, usageMsg, collectUsage } = usage;
+
+/* 自定义平台目录（2026-11-18）：名册里的「自定义」徽章与删除入口用它判定；
+   新建/删除动作内部会重拉目录，这里只在首屏补一次 */
+onMounted(() => {
+  void loadCustomPlatforms().catch(() => undefined);
+});
 
 /* 待办栏可领取 target 集合（纯派生：申报了 provision.run 且已导入的平台） */
 const claimable = computed(
@@ -129,6 +139,7 @@ onBeforeUnmount(() => {
         v-if="active === '平台管理'"
         :platforms="platforms"
         :accounts="accounts"
+        :custom-codes="customPlatforms.map((p) => p.code)"
         :busy-target="busyTarget"
         :msg="actionMsg"
         :loading="loading"
@@ -137,6 +148,8 @@ onBeforeUnmount(() => {
         @import="importPlatform"
         @import-all="importAllPlatforms"
         @save-platform="savePlatform"
+        @save-custom="createCustomPlatform"
+        @remove-custom="removeCustomPlatform"
         @jump="navigate"
       />
       <AccountsPage

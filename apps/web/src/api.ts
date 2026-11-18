@@ -12,6 +12,10 @@ import type {
   AccountItem,
   PlatformItem,
   CollectOutcome,
+  CustomPlatformDraft,
+  CustomPlatformDeleted,
+  CustomPlatformRow,
+  CustomPlatformSaved,
   GatewayRouteRule,
   GatewayRoutes,
   ImportResult,
@@ -94,6 +98,30 @@ export function updateSchedule(
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ times }),
+  });
+}
+
+/** 自定义平台目录（2026-11-18）：已登记的内置清单之外的平台（前端据此标「自定义」） */
+export function getCustomPlatforms(): Promise<CustomPlatformRow[]> {
+  return request<CustomPlatformRow[]>(`${apiBase}/platforms/custom`);
+}
+
+/** 新建/更新自定义平台：server 校验 → 落成声明式连接器 → 热加载。
+ * 422 = 声明不完整（detail 直显）；409 = 编码被内置占用；非 2xx 原样抛 ApiError。 */
+export function saveCustomPlatform(
+  body: CustomPlatformDraft,
+): Promise<CustomPlatformSaved> {
+  return request<CustomPlatformSaved>(`${apiBase}/platforms/custom`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** 删除自定义平台：名册自动落 deprecated，不再排班（内置平台只能停用，409）。 */
+export function deleteCustomPlatform(code: string): Promise<CustomPlatformDeleted> {
+  return request<CustomPlatformDeleted>(`${apiBase}/platforms/custom/${code}`, {
+    method: "DELETE",
   });
 }
 

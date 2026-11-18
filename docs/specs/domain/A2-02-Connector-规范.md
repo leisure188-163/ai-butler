@@ -61,6 +61,33 @@ domains/trae 与 domains/qoder 各写一份 service/api/auth，同一签到逻�
 - 判据口诀：这段逻辑换成另一个应用还能用吗？能 → 做 kind；不能且只有这一个
   应用要 → 先问是不是协议没取证全，取全了还特殊 → 端口实现
 
+### 3.1 用户自定义平台（2026-11-18）
+
+内置清单之外的平台由用户在管理台「＋ 自定义平台」自建。它不是一行登记记录，
+而是**一份落到自定义连接器目录的声明式连接器**——所以它真的会被排班、真的会发
+请求（与"纯登记式新建"那种看着能签到、实际永不执行的死平台本质不同）。
+
+- **目录**：`BUTLER_CUSTOM_CONNECTORS` 环境变量优先，否则
+  `%APPDATA%\butler\connectors`（Windows）/ `~/.butler/connectors`。
+  目录结构与内置连接器同构：`<code>/manifest.yaml` + `<code>/declarative/*.yaml`
+- **能力边界**：自定义目录**只允许 `kind: declarative`**——这些文件不由本项目
+  维护，放开 adapter 等于放开任意代码装载，装载期显式拒绝；`entry` 路径必须
+  位于连接器目录内（不许 `../` 越界）
+- **不覆盖内置**：自定义 id 与内置 id 撞车 = 装载期 `ManifestInvalid`，
+  落盘前的完整装载校验就会拦下（连文件都不写）
+- **凭据形态**：首批只支持 `browser_cookie`（本机 Chrome 登录态，与内置网页
+  连接器同一条捕获链路），因此自定义平台天然是 `kind: web`；
+  `auth.domain` + `auth.cookies`（必需名单）由用户填
+- **用户填什么**：状态查询（先问"今天领过没"）、领取请求、判定方式（业务码
+  `code_path`+`expect_ok` 或布尔 `checked_in_path`）、登录域名与 cookie 名、
+  调度时间。server 渲染成五段式声明（`auth/status/claim/business_codes/window`），
+  缺省业务码方言 `{401: EXPIRED, 403: NO_AUTH}`（ADR-015）
+- **落盘前校验**：临时目录完整装载一遍（manifest schema + 声明式 schema + 主凭据
+  交叉校验 + entry 路径校验），通过才写正式目录（坏文件不进运行期）
+- **热加载**：保存/删除后 `reload_connectors()` 重装端口（`replace=True`）→
+  名册同步（`plat_platform`）→ 调度条目重排；删除后名册自动落 `deprecated`，
+  历史台账保留。会话扫描源只准装配一次（ADR-013），重载时不重装
+
 ## 4. 声明式 schema（升级自旧 STD-07：从"只能声明签到"到能力矩阵）
 
 ```yaml

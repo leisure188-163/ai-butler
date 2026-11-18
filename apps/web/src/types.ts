@@ -32,6 +32,11 @@ export type AccountItem = Omit<Contract["AccountOut"], "signal" | "credentials">
 };
 export type PlatformItem = Contract["PlatformOut"];
 export type ImportResult = Contract["ImportOut"];
+/** 自定义平台（2026-11-18）：草稿 = 用户填的表单形状；目录行 = 已登记的自定义平台 */
+export type CustomPlatformDraft = Contract["CustomPlatformIn"];
+export type CustomPlatformRow = Contract["CustomPlatformOut"];
+export type CustomPlatformSaved = Contract["CustomPlatformSaved"];
+export type CustomPlatformDeleted = Contract["CustomPlatformDeleted"];
 export type EvidenceItem = Contract["EvidenceOut"];
 export type RunItem = WithSignal<Contract["RunOut"]>;
 

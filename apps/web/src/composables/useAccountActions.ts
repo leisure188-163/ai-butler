@@ -9,10 +9,17 @@
  */
 import { ref } from "vue";
 import * as api from "../api";
+import type { CustomPlatformDraft, CustomPlatformRow } from "../types";
 
 export function useAccountActions({ refresh }: { refresh: () => Promise<void> }) {
   const busyTarget = ref<string | null>(null);
   const actionMsg = ref<{ text: string; tone: "ok" | "warn" } | null>(null);
+  /** 自定义平台目录（2026-11-18）：名册里据此标「自定义」，删除入口也只对这些开放 */
+  const customPlatforms = ref<CustomPlatformRow[]>([]);
+
+  async function loadCustomPlatforms() {
+    customPlatforms.value = await api.getCustomPlatforms();
+  }
 
   /* 平台动作：接入（本机接入扫描）/ 领取（手动领取）。结果如实展示，不造结论。 */
   async function importPlatform(target: string) {
@@ -63,6 +70,46 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
       }
     } finally {
       busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /* 自定义平台（2026-11-18）：新建 → server 校验落盘 + 热加载；失败逐字转述 422 detail。
+     注意这里不造结论：热加载是否真的进了名册，靠 refresh() 后的名册行说话。 */
+  async function createCustomPlatform(draft: CustomPlatformDraft) {
+    busyTarget.value = draft.code;
+    actionMsg.value = null;
+    try {
+      const body = await api.saveCustomPlatform(draft);
+      actionMsg.value = { text: body.message, tone: "ok" };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `保存失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await loadCustomPlatforms();
+      await refresh();
+    }
+  }
+
+  async function removeCustomPlatform(code: string) {
+    busyTarget.value = code;
+    actionMsg.value = null;
+    try {
+      const body = await api.deleteCustomPlatform(code);
+      actionMsg.value = { text: body.message, tone: body.deleted ? "ok" : "warn" };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `删除失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await loadCustomPlatforms();
       await refresh();
     }
   }
@@ -299,6 +346,10 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
   return {
     busyTarget,
     actionMsg,
+    customPlatforms,
+    loadCustomPlatforms,
+    createCustomPlatform,
+    removeCustomPlatform,
     importPlatform,
     savePlatform,
     claimApp,

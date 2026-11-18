@@ -8,12 +8,22 @@ import { computed, ref, watch } from "vue";
 import PlatformBadge from "../components/PlatformBadge.vue";
 import PlatformDetail from "../components/PlatformDetail.vue";
 import PlatformFilters from "../components/PlatformFilters.vue";
-import type { AccountItem, PageName, PlatformItem, PlatformQuery, Signal } from "../types";
+import CustomPlatformForm from "../components/CustomPlatformForm.vue";
+import type {
+  AccountItem,
+  CustomPlatformDraft,
+  PageName,
+  PlatformItem,
+  PlatformQuery,
+  Signal,
+} from "../types";
 import { faceOf, signalText } from "../utils";
 
 const props = defineProps<{
   platforms: PlatformItem[];
   accounts: AccountItem[];
+  /** 自定义平台编码集合（2026-11-18）：名册里的「自定义」徽章与删除入口据此判定 */
+  customCodes: string[];
   busyTarget: string | null;
   msg: { text: string; tone: "ok" | "warn" } | null;
   loading: boolean;
@@ -28,8 +38,22 @@ const emit = defineEmits<{
     target: string,
     patch: { platform_name?: string | null; active?: boolean; times?: string[] | null },
   ];
+  saveCustom: [draft: CustomPlatformDraft];
+  removeCustom: [code: string];
   jump: [page: PageName];
 }>();
+
+/* 自定义平台（2026-11-18）：内置清单之外的平台由用户自建；表单折叠在页头下方 */
+const showCustomForm = ref(false);
+
+function isCustom(id: string): boolean {
+  return props.customCodes.includes(id);
+}
+
+function confirmRemove(id: string): void {
+  if (!window.confirm(`删除自定义平台 ${id}？历史台账保留，但不再排班。`)) return;
+  emit("removeCustom", id);
+}
 
 /** 启停一键切换（列表操作列） */
 function toggleActive(platform: PlatformItem): void {
@@ -151,6 +175,9 @@ function toggleDetail(id: string) {
         </p>
       </div>
       <div class="head-actions">
+        <button class="btn" :disabled="busyTarget !== null" @click="showCustomForm = !showCustomForm">
+          {{ showCustomForm ? "收起表单" : "＋ 自定义平台" }}
+        </button>
         <button
           class="btn btn--primary"
           :disabled="busyTarget !== null || !importableCount"
@@ -159,6 +186,13 @@ function toggleDetail(id: string) {
       </div>
     </div>
   </header>
+
+  <CustomPlatformForm
+    v-if="showCustomForm"
+    :saving="busyTarget !== null"
+    @save="(draft) => emit('saveCustom', draft)"
+    @close="showCustomForm = false"
+  />
 
   <p
     v-if="msg"
@@ -197,7 +231,10 @@ function toggleDetail(id: string) {
         <tbody>
           <template v-for="platform in pagedPlatforms" :key="platform.id">
             <tr :class="{ 'is-selected': expandedId === platform.id }">
-              <td class="code-cell"><code class="mono">{{ platform.id }}</code></td>
+              <td class="code-cell">
+                <code class="mono">{{ platform.id }}</code>
+                <span v-if="isCustom(platform.id)" class="tag tag--notice custom-tag">自定义</span>
+              </td>
               <td>
                 <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
               </td>
@@ -260,6 +297,12 @@ function toggleDetail(id: string) {
                   <button class="btn btn--ghost" @click="toggleDetail(platform.id)">
                     {{ expandedId === platform.id ? "收起" : "详情" }}
                   </button>
+                  <button
+                    v-if="isCustom(platform.id)"
+                    class="btn btn--ghost"
+                    :disabled="busyTarget !== null"
+                    @click="confirmRemove(platform.id)"
+                  >删除</button>
                 </span>
               </td>
             </tr>
@@ -319,6 +362,14 @@ function toggleDetail(id: string) {
 </template>
 
 <style scoped>
+/* 自定义平台徽章（2026-11-18）：编码列内联，不单开一列 */
+.code-cell {
+  white-space: nowrap;
+}
+.custom-tag {
+  margin-left: 6px;
+}
+
 .head { padding-top: var(--space-2); }
 .head-row {
   display: flex;

@@ -1,7 +1,9 @@
 # STATUS · 进度卡（每次会话开始先读我）
 
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
-> 最后更新：2026-11-17
+> 最后更新：2026-11-18
+
+**自定义平台（2026-11-18）**：把"平台能否自己新建"落成**能真跑的自定义连接器**（而不是一行死记录）。内置清单之外的网站由用户在平台页「＋ 自定义平台」填 4 件人话的事（编码/名称/登录域名/登录态 cookie 名）+ 状态查询 + 领取请求 + 判定方式 + 调度时间，server 渲染成与内置同构的 `manifest.yaml + declarative/{provision.run,session.import}.yaml`，落 `%APPDATA%\butler\connectors`（`BUTLER_CUSTOM_CONNECTORS` 可覆盖），交给同一套 `DeclarativeProvisionPort` 执行——排班、凭据、台账、事件全部沿用。能力边界：自定义目录**只允许 declarative**（adapter = 任意代码装载，装载期拒绝）、`entry` 不许越界、与内置 id 撞车拒绝；落盘前先在临时目录完整装载一遍，坏声明不写正式目录。热加载：`reload_connectors()` 重装端口（replace=True）→ 名册同步 → 调度重排；删除后名册自动 deprecated、台账保留。端 = `GET/POST /platforms/custom` + `DELETE /platforms/custom/{code}`（409 内置占用 / 422 声明不完整 / 404 不存在）；web = 内联表单 `CustomPlatformForm.vue` + 编码列「自定义」徽 + 操作列「删除」。真机验证：POST 落盘 → 名册出现（capabilities `provision.run+session.import`、credential `browser_cookie`、kind web）→ DELETE → 名册回到 5 家、二次删 404。新增测试 11（connectors 装载/拒绝/越界/删除）+ 6（server 端到端），门禁九项 PASS。
 
 **术语统一 App + accounts 表 v2（2026-11-17，[ADR-018](adr/ADR-018-术语统一App与accounts表v2.md)）**：用户裁决退役 provider 术语，全库统一 **App/应用**（列 `app`、端口 `list_by_app`、DTO `AccountOut/RadarAccountOut.app`、领域类 `App`；`key_provider` 解密参数与第三方 LLM provider 等外部机制描述保留）；词表收编 A1-03 §3，生效 spec（A2-01..04/A1-02/A1-05/conventions-02）同批回收。**accounts 表 v2**：显式 `account_key` + `UNIQUE(app, account_key)` 兜底不变量，补 `base_url`（Qoder 双 host 事实落库）/`device_ref`/`entitlement_json`（Entitlement 首次落库）/`enabled`（调度 tick 跳过停用账户，与 health 熔断正交）/`deleted_at`（软删除落库）/`updated_at`（统一审计字段 id/created_at/updated_at 本表先行，其余域分批）；老库自迁移幂等（RENAME + ALTER 增量 + 回填）。SDK 重生成 + web 三组件同步，`vue-tsc` PASS；dump 脚本登记新索引后防漂移守卫按预期拦截并放行；全量 pytest 711 passed / 10 skipped。dump 分域视图刷新（accounts.sql 1 表 / 2 索引）。
 

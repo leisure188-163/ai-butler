@@ -282,51 +282,79 @@ class Registry:
 # --- 装载 ---
 
 
-def load_registry() -> Registry:
-    """扫描包内每个连接器子目录的 manifest.yaml；装载即注册方言（ADR-004）。
+def load_registry(custom_root: Path | None = None) -> Registry:
+    """扫描连接器目录（内置包 + 可选自定义根）；装载即注册方言（ADR-004）。
 
     幂等：同映射重复注册不报错（reload 安全），映射不同 = 装配 bug 显式爆。
+
+    ``custom_root`` = 用户自定义连接器目录（2026-11-18）：与内置同构
+    （manifest.yaml + declarative/*.yaml），但**只允许声明式能力**——
+    自定义目录里的文件不由本项目维护，放开 adapter 等于放开任意代码装载。
+    与内置 id 撞车显式拒绝，不许静默覆盖。
     """
     apps: dict[str, ConnectorPlatform] = {}
-    for child in sorted(package_root().iterdir()):
-        manifest_path = child / MANIFEST_NAME
-        if not child.is_dir() or not manifest_path.is_file():
+    roots: list[tuple[Path, bool]] = [(package_root(), False)]
+    if custom_root is not None:
+        roots.append((custom_root, True))
+    for base, is_custom in roots:
+        if not base.is_dir():
             continue
-        manifest = ConnectorManifest.model_validate(
-            yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
-        )
-        if manifest.id != child.name:
-            raise ManifestInvalid(
-                f"manifest.id {manifest.id!r} 与目录名 {child.name!r} 不一致"
-            )
-        for spec in manifest.capabilities.values():
-            if spec.kind == "adapter":
+        for child in sorted(base.iterdir()):
+            manifest_path = child / MANIFEST_NAME
+            if not child.is_dir() or not manifest_path.is_file():
+                continue
+            raw = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raise ManifestInvalid(f"{child}: {MANIFEST_NAME} 应为映射")
+            if is_custom:
+                raw = {**raw, "root_dir": child}
+            manifest = ConnectorManifest.model_validate(raw)
+            if manifest.id != child.name:
+                raise ManifestInvalid(
+                    f"manifest.id {manifest.id!r} 与目录名 {child.name!r} 不一致"
+                )
+            if is_custom and manifest.id in apps:
+                raise ManifestInvalid(
+                    f"自定义连接器 {manifest.id!r} 与内置同 id——不允许覆盖内置平台"
+                )
+            for spec in manifest.capabilities.values():
+                if spec.kind != "adapter":
+                    continue
+                if is_custom:
+                    raise ManifestInvalid(
+                        f"{manifest.id}: 自定义平台只支持声明式能力（adapter 会装载任意代码）"
+                    )
                 # 装载即 import：adapter 模块自注册业务码方言（ADR-004 装载期），
                 # 坏 entry 也在装载期显式爆，不留到首次 run（红线 5）
                 _load_entry_module(manifest.id, spec.entry)
-        declarative: dict[str, Any] = {}
-        for cap, spec in manifest.capabilities.items():
-            if spec.kind == "declarative":
-                declarative[cap] = _load_declarative(manifest.id, cap, spec.entry)
-        for cap, data in declarative.items():
-            codes = getattr(data, "business_codes", None) or getattr(data, "codes", None)
-            if codes:
-                register_dialect(
-                    manifest.id, {code: Status[name] for code, name in codes.items()}
-                )
-        apps[manifest.id] = ConnectorPlatform(
-            manifest=manifest, root=child, declarative=declarative
-        )
+            declarative: dict[str, Any] = {}
+            for cap, spec in manifest.capabilities.items():
+                if spec.kind == "declarative":
+                    declarative[cap] = _load_declarative(
+                        manifest.id, cap, spec.entry, child
+                    )
+            for cap, data in declarative.items():
+                codes = getattr(data, "business_codes", None) or getattr(data, "codes", None)
+                if codes:
+                    register_dialect(
+                        manifest.id, {code: Status[name] for code, name in codes.items()}
+                    )
+            apps[manifest.id] = ConnectorPlatform(
+                manifest=manifest, root=child, declarative=declarative
+            )
     return Registry(apps)
 
 
-def _load_declarative(conn_id: str, cap_id: str, entry: str) -> Any:
+def _load_declarative(conn_id: str, cap_id: str, entry: str, root: Path) -> Any:
     spec_cls = _DECLARATIVE_SPECS.get(cap_id)
     if spec_cls is None:
         raise ManifestInvalid(
             f"{conn_id}: 声明式能力 {cap_id!r} 无声明形状（{sorted(_DECLARATIVE_SPECS)}）"
         )
-    path = package_root(conn_id) / entry
+    path = root / entry
+    if not path.resolve().is_relative_to(root.resolve()):
+        # 自定义目录的文件不由本项目维护：entry 不许跳出连接器目录
+        raise ManifestInvalid(f"{conn_id}: 声明式 entry {entry!r} 必须位于连接器目录内")
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ManifestInvalid(f"{conn_id}/{entry}: 声明式 YAML 应为映射")

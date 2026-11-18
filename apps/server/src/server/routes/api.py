@@ -14,6 +14,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from server.routes.accounts import router as accounts_router
+from server.routes.custom_platforms import router as custom_platforms_router
 from server.routes.platforms import router as platforms_router
 from server.routes.gateway import router as gateway_router
 from server.routes.runs import router as runs_router
@@ -22,6 +23,7 @@ from server.routes.usage import router as usage_router
 router = APIRouter()
 router.include_router(accounts_router)
 router.include_router(platforms_router)
+router.include_router(custom_platforms_router)
 router.include_router(runs_router)
 router.include_router(usage_router)
 router.include_router(gateway_router)
