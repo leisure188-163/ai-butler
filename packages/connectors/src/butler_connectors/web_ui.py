@@ -36,6 +36,43 @@ class WebPageUnavailable(CdpError):
     """目标页面不存在或调试端口不可达（不可归因为登录态失效）。"""
 
 
+#: 普通浏览器页面可能出现的 URL scheme；其余 scheme = 客户端应用内窗口（如 doubao://）
+_BROWSER_SCHEMES = frozenset(
+    {
+        "http", "https", "about", "chrome", "chrome-extension", "devtools",
+        "file", "data", "blob", "view-source",
+    }
+)
+
+
+class PortNotBrowser(CdpError):
+    """调试端口上是客户端应用内窗口（私有 scheme 页面），不是可打开网页的浏览器。"""
+
+    def __init__(self, port: int, schemes: tuple[str, ...]) -> None:
+        self.port = port
+        self.schemes = schemes
+        super().__init__(
+            f"调试端口 {port} 上是客户端应用内窗口（{', '.join(f'{s}://' for s in schemes)}），"
+            "不是可打开网页的浏览器"
+        )
+
+
+def require_browser_port(channel: CdpChannel) -> None:
+    """端口归属校验：页面 scheme 出现客户端私有协议 → 显式拒绝（绝不往里开页）。
+
+    只看 target 形状（进程归属），不看站点登录态；页面为空 = 放行（空白/刚启动
+    的浏览器由后续 open_page 按真实错误上报）。依据：Chrome 的页面 scheme 只有
+    http(s)/chrome/file 等；doubao:// 一类是 Electron/客户端私有协议，出现即证明
+    该端口属于某个客户端应用，不是可承载网页的连接器浏览器。
+    """
+    pages = [t for t in channel.targets() if t.get("type") in ("page", "webview")]
+    foreign = sorted(
+        {urlsplit(t.get("url") or "").scheme for t in pages} - _BROWSER_SCHEMES - {""}
+    )
+    if foreign:
+        raise PortNotBrowser(channel.port, tuple(foreign))
+
+
 def _find_target(port: int, domain: str, *, channel: CdpChannel | None = None) -> dict | None:
     """按域名找页面；不新开标签（未打开 = 用户没在用这个网页，如实上报）。"""
     ch = channel or CdpChannel(port, http_get=http_json, ws_factory=ws_connect)

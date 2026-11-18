@@ -200,3 +200,13 @@ core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_code`、
 （browser.py）逐槽注册入库。桌面客户端连接器按各自 PROTOCOL.md"多 profile
 目录形状"小节取证后接 dock；本机 Qoder 已有双账户数据源，其余桌面连接器
 仍为单账号形状。
+
+## 10. 调试端口归属（2026-11-18，ADR-026）
+
+- **9222 归豆包客户端**（ADR-007 取证；`DOUBAO_CDP_PORT` 可覆盖），其他连接器
+  不得假设该端口可用。
+- 网页类连接器使用浏览器调试端口前必须调用 `web_ui.require_browser_port`：
+  页面 target 出现客户端私有 scheme（如 `doubao://`）→ `PortNotBrowser`
+  → 连接器显式失败（dock 进 issues / run 转 FAILED），**不往客户端窗口里开页**。
+- 端口按连接器 env 覆盖（首个采用：agentrouter `AGENTROUTER_CDP_PORT`，缺省
+  9222 仅为兼容旧契约）；非法值显式报错，不静默回缺省（红线 5）。

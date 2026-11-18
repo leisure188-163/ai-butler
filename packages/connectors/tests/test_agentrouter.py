@@ -98,6 +98,7 @@ def test_state_opens_console_when_page_missing(monkeypatch):
     }
 
     monkeypatch.setattr(adapter, "find_page", lambda *args, **kwargs: None)
+    monkeypatch.setattr(adapter, "require_browser_port", lambda *args, **kwargs: None)
 
     def _open(port: int, domain: str, url: str, **kwargs) -> dict:
         calls.append(url)
@@ -201,3 +202,76 @@ def test_dock_registers_and_stores_marker(monkeypatch):
     assert calls[0][0] == "register"
     assert calls[1][0] == "store"
     assert '"user_id":437667' in calls[1][3]
+
+
+# --- 端口归属与可配置（ADR-026）---
+
+
+def test_port_env_override_and_default(monkeypatch):
+    monkeypatch.delenv(adapter.PORT_ENV, raising=False)
+    assert adapter._debug_port() == adapter.DEBUG_PORT
+    monkeypatch.setenv(adapter.PORT_ENV, "9555")
+    assert adapter._debug_port() == 9555
+
+
+@pytest.mark.parametrize("raw", ["abc", "70000", "0", "-1"])
+def test_port_env_invalid_is_explicit(monkeypatch, raw):
+    monkeypatch.setenv(adapter.PORT_ENV, raw)
+    with pytest.raises(adapter.BrowserPortError):
+        adapter._debug_port()
+
+
+def test_foreign_app_window_refuses_to_open_page(monkeypatch):
+    """端口属于客户端应用（doubao:// 页面）→ 显式失败，绝不往里开页。"""
+
+    def _raise(channel):
+        raise adapter.PortNotBrowser(channel.port, ("doubao",))
+
+    def _forbidden(*args, **kwargs):
+        raise AssertionError("端口归属校验失败后仍尝试查找/打开页面")
+
+    monkeypatch.setattr(adapter, "require_browser_port", _raise)
+    monkeypatch.setattr(adapter, "find_page", _forbidden)
+    monkeypatch.setattr(adapter, "open_page", _forbidden)
+    with pytest.raises(adapter.BrowserPortError) as err:
+        adapter._page(9222)
+    assert "doubao://" in str(err.value)
+    assert adapter.PORT_ENV in str(err.value)
+
+
+def test_foreign_port_run_is_failed_not_no_auth(port, monkeypatch):
+    def _raise() -> WebPageState:
+        raise adapter.BrowserPortError("调试端口 9222 上是客户端应用内窗口（doubao://）")
+
+    monkeypatch.setattr(adapter, "_state", _raise)
+    result = port.run(_request())
+    assert result.status is Status.FAILED
+    assert result.repair_hint is None
+
+
+def test_dock_foreign_port_is_issue_not_exception(monkeypatch):
+    def _raise() -> WebPageState:
+        raise adapter.BrowserPortError("调试端口 9222 上是客户端应用内窗口（doubao://）")
+
+    monkeypatch.setattr(adapter, "_state", _raise)
+    outcome = adapter.dock(DockContext(vault=None, register=object()))
+    assert outcome.accounts == []
+    assert outcome.issues and "doubao://" in outcome.issues[0]
+
+
+def test_dock_marker_records_effective_port(monkeypatch):
+    stored: list[str] = []
+
+    class Register:
+        def execute(self, platform: str, display: str, *, account_code: str):
+            return SimpleNamespace(id="agentrouter:main")
+
+    class Vault:
+        def store(self, account_id: str, kind: str, secret, **_kwargs):
+            stored.append(secret.expose())
+
+    monkeypatch.setenv(adapter.PORT_ENV, "9555")
+    monkeypatch.setattr(adapter, "_state", lambda: _state(checked_in=True))
+    outcome = adapter.dock(DockContext(vault=Vault(), register=Register()))
+    assert outcome.accounts == ["agentrouter:main"]
+    assert '"port":9555' in stored[0]

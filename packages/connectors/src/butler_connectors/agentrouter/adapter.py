@@ -5,8 +5,11 @@
   即表示当日 $25 已到账；没有独立的签到按钮，也没有可用的 POST /api/user/checkin
   路由（POST 返回 404）。
 - 登录态在浏览器页面里，Chrome v20 cookie 不可解（A2-03 §7）；因此本连接器
-  不复用 cookie 捕获，而是经本机 Chromium 调试端口（9222）读取页面前端
-  自己维护的 ``localStorage.user`` 非密快照（web_ui.py 通用底座）。
+  不复用 cookie 捕获，而是经本机浏览器的 CDP 调试端口（缺省 9222，
+  ``AGENTROUTER_CDP_PORT`` 可覆盖）读取页面前端自己维护的
+  ``localStorage.user`` 非密快照（web_ui.py 通用底座）。
+- 端口归属先校验（ADR-026）：端口上若是客户端应用内窗口（如 doubao://），
+  显式失败并提示配专用浏览器，绝不往别人的窗口里开页。
 - 不读取、不保存 token/cookie；只把 user_id/checked_in 等状态作为证据。
 
 停靠：页面已登录 → 注册 agentrouter:main + 写一枚 ``browser_session``
@@ -19,13 +22,15 @@ relogin，不假装成功。
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
-from butler_connectors.cdp import CdpChannel, http_json, ws_connect
+from butler_connectors.cdp import CdpChannel, CdpError, http_json, ws_connect
 from butler_connectors.registry import DockContext, DockOutcome
 from butler_connectors.web_ui import (
+    PortNotBrowser,
     WebPageState,
     WebPageUnavailable,
     click_selector,
@@ -33,6 +38,7 @@ from butler_connectors.web_ui import (
     find_page,
     open_page,
     read_page,
+    require_browser_port,
     rewrite_host,
     state_digest,
     wait_for_page,
@@ -45,7 +51,8 @@ from butler_core.shared.results import Status
 CONN_ID = "agentrouter"
 DISPLAY = "AgentRouter"
 DOMAIN = "ps.air-outer.com"
-DEBUG_PORT = 9222
+DEBUG_PORT = 9222  # 缺省调试端口（AGENTROUTER_CDP_PORT 未设时；ADR-026）
+PORT_ENV = "AGENTROUTER_CDP_PORT"
 LOGIN_PATH = "/login"
 CALLBACK_DOMAIN = "agentrouter.org"
 CONSOLE_PATH = "/console"
@@ -56,18 +63,47 @@ class ReloginError(RuntimeError):
     """自动退出/重登链路未完成；调用方转成可修复的 NO_AUTH/PENDING。"""
 
 
-def _page() -> dict:
-    """取目标页；关掉时经 CDP 自动开控制台，不再把“页面没开”当登录失败。
+class BrowserPortError(CdpError):
+    """浏览器调试端口不可用（配置非法/被客户端应用占用）——环境问题，不转 relogin。"""
+
+
+def _debug_port() -> int:
+    """生效端口：AGENTROUTER_CDP_PORT 优先（非法值显式报错，不静默回缺省），缺省 9222。"""
+    raw = (os.environ.get(PORT_ENV) or "").strip()
+    if not raw:
+        return DEBUG_PORT
+    try:
+        port = int(raw)
+    except ValueError:
+        raise BrowserPortError(f"{PORT_ENV}={raw!r} 不是端口号——改成 1-65535 的整数") from None
+    if not 1 <= port <= 65535:
+        raise BrowserPortError(f"{PORT_ENV}={port} 超出端口范围 1-65535")
+    return port
+
+
+def _page(port: int | None = None) -> dict:
+    """取目标页；关掉时经 CDP 自动开控制台，不再把"页面没开"当登录失败。
 
     控制台优先：若该 Chromium 已保存站点会话，打开后直接是 /console；
     没有会话时由站点自己落到 /login，后续仍走 _relogin 的 GitHub 链路。
+
+    端口归属先校验（ADR-026）：9222 被豆包客户端等应用占用时显式失败——
+    绝不往别人的客户端窗口里开外站页面。
     """
-    channel = CdpChannel(DEBUG_PORT, http_get=http_json, ws_factory=ws_connect)
-    page = find_page(DEBUG_PORT, DOMAIN, channel=channel)
+    port = port if port is not None else _debug_port()
+    channel = CdpChannel(port, http_get=http_json, ws_factory=ws_connect)
+    try:
+        require_browser_port(channel)
+    except PortNotBrowser as exc:
+        raise BrowserPortError(
+            f"{exc}；用 {PORT_ENV}=<专用浏览器端口> 指向一个已登录 https://{DOMAIN} "
+            "的浏览器（浏览器需带 --remote-debugging-port 启动）"
+        ) from exc
+    page = find_page(port, DOMAIN, channel=channel)
     if page is not None:
         return page
     return open_page(
-        DEBUG_PORT,
+        port,
         DOMAIN,
         f"https://{DOMAIN}{CONSOLE_PATH}",
         channel=channel,
@@ -75,8 +111,9 @@ def _page() -> dict:
 
 
 def _state() -> WebPageState:
-    _page()
-    return read_page(DEBUG_PORT, DOMAIN)
+    port = _debug_port()
+    _page(port)
+    return read_page(port, DOMAIN)
 
 
 def _display_for(state: WebPageState) -> str:
@@ -91,9 +128,10 @@ def _relogin(*, force_login: bool = False) -> WebPageState:
     ReloginError，由 run() 转成人工 relogin
     提示，绝不假装签到成功。
     """
-    channel = CdpChannel(DEBUG_PORT, http_get=http_json, ws_factory=ws_connect)
+    port = _debug_port()
+    channel = CdpChannel(port, http_get=http_json, ws_factory=ws_connect)
     try:
-        page = _page()
+        page = _page(port)
     except WebPageUnavailable as exc:
         raise ReloginError(str(exc)) from exc
     path = urlsplit(page.get("url") or "").path
@@ -123,7 +161,7 @@ def _relogin(*, force_login: bool = False) -> WebPageState:
             raise ReloginError(f"当前页面不是登录页/控制台：{path}")
 
     login = wait_for_page(
-        DEBUG_PORT, DOMAIN, path_prefix=LOGIN_PATH, timeout=8.0, channel=channel
+        port, DOMAIN, path_prefix=LOGIN_PATH, timeout=8.0, channel=channel
     )
     if login is None:
         raise ReloginError("退出后没有回到登录页")
@@ -133,7 +171,7 @@ def _relogin(*, force_login: bool = False) -> WebPageState:
             raise ReloginError("找不到「使用 GitHub 继续」按钮")
 
     callback = wait_for_page(
-        DEBUG_PORT,
+        port,
         CALLBACK_DOMAIN,
         path_prefix="/oauth/github",
         timeout=CALLBACK_TIMEOUT,
@@ -146,11 +184,11 @@ def _relogin(*, force_login: bool = False) -> WebPageState:
         conn.call("Page.navigate", {"url": rewrite_host(callback["url"], DOMAIN)})
 
     console = wait_for_page(
-        DEBUG_PORT, DOMAIN, path_prefix=CONSOLE_PATH, timeout=20.0, channel=channel
+        port, DOMAIN, path_prefix=CONSOLE_PATH, timeout=20.0, channel=channel
     )
     if console is None:
         raise ReloginError("回调后没有进入控制台")
-    return read_page(DEBUG_PORT, DOMAIN)
+    return read_page(port, DOMAIN)
 
 
 def _no_auth(why: str) -> RunResult:
@@ -282,7 +320,7 @@ def dock(ctx: DockContext) -> DockOutcome:
     account = ctx.register.execute(CONN_ID, _display_for(state), account_code="main")
     if ctx.vault is not None:
         marker = json.dumps(
-            {"domain": DOMAIN, "port": DEBUG_PORT, "user_id": state.user_id},
+            {"domain": DOMAIN, "port": _debug_port(), "user_id": state.user_id},
             ensure_ascii=False,
             separators=(",", ":"),
         )
