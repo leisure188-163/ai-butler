@@ -198,7 +198,7 @@ function lastRunAtOf(accountId: string): string | null {
                 @change="toggleAll"
               />
             </th>
-            <th>平台</th>
+            <th class="col-platform">平台</th>
             <th>账户</th>
             <th>状态</th>
             <th>今日动作</th>
@@ -223,7 +223,7 @@ function lastRunAtOf(accountId: string): string | null {
                   @change="toggleOne(account.account_id)"
                 />
               </td>
-              <td>
+              <td class="col-platform">
                 <PlatformBadge
                   :name="appOf(account)?.display ?? account.platform_code"
                   :color-index="faceOf(account.account_id)"
@@ -326,5 +326,18 @@ function lastRunAtOf(accountId: string): string | null {
 }
 @media (max-width: 900px) {
   .col-extra { display: none; }
+  .col-last, .matrix th:last-child, .matrix td:last-child { min-width: 4.75rem; }
+  /* 失败原因别把整行撑成竖排长条：两行封顶，全文看账户详情 */
+  .row-sub {
+    max-width: 7.5rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+/* ≤760：平台名列收起（账户 ID 前缀已是平台编码），把宽度让给账户与动作 */
+@media (max-width: 760px) {
+  .col-platform { display: none; }
 }
 </style>

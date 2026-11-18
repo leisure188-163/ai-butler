@@ -203,9 +203,9 @@ const icons: Record<PageName, string> = {
     grid-area: nav;
     flex-direction: row;
     align-items: center;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;            /* 窄屏换行铺满，不靠横滚藏菜单 */
     min-width: 0;
-    overflow-x: auto;
+    overflow-x: visible;
     gap: var(--space-1);
   }
   .nav-group { flex-direction: row; align-items: center; gap: var(--space-1); }

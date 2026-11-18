@@ -190,13 +190,13 @@ function toggleDetail(id: string) {
           <tr>
             <th>平台编码</th>
             <th>平台名称</th>
-            <th>平台类型</th>
-            <th>版本号</th>
+            <th class="col-kind">平台类型</th>
+            <th class="col-version">版本号</th>
             <th>平台状态</th>
-            <th>能力</th>
+            <th class="col-caps">能力</th>
             <th>调度执行时间</th>
-            <th>账户数</th>
-            <th>账户状态</th>
+            <th class="col-accounts">账户数</th>
+            <th class="col-status">账户状态</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -207,28 +207,28 @@ function toggleDetail(id: string) {
               <td>
                 <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
               </td>
-              <td>
+              <td class="col-kind">
                 <span v-if="platform.kind" class="tag tag--quiet">{{ kindText(platform.kind) }}</span>
                 <span v-else class="faint">—</span>
               </td>
-              <td class="num">{{ platform.client_version ? `v${platform.client_version}` : "—" }}</td>
+              <td class="num col-version">{{ platform.client_version ? `v${platform.client_version}` : "—" }}</td>
               <td>
                 <span class="tag" :class="platform.active ? 'tag--ok' : 'tag--quiet'">
                   {{ platform.active ? "启用" : "已停用" }}
                 </span>
               </td>
-              <td>
+              <td class="col-caps">
                 <span v-for="cap in platform.capabilities" :key="cap" class="tag tag--quiet cap-tag">
                   {{ capabilityText(cap) }}
                 </span>
                 <span v-if="!platform.capabilities.length" class="faint">—</span>
               </td>
               <td class="num">{{ platform.schedule_times.length ? platform.schedule_times.join("、") : "—" }}</td>
-              <td class="num">
+              <td class="num col-accounts">
                 <span v-if="accountCount(platform)">{{ accountCount(platform) }}</span>
                 <span v-else class="unimported">未接入</span>
               </td>
-              <td>
+              <td class="col-status">
                 <span
                   v-for="g in statusGroups(platform)"
                   :key="g.signal"
@@ -406,6 +406,28 @@ function toggleDetail(id: string) {
 }
 .platform-wrap { overflow-x: auto; }
 .platform-wrap .matrix { min-width: 1120px; }
+/* 自适应断点（2026-11-18）：窗口变窄逐级收起次要列，避免整表靠横向滚动才可读 */
+@media (max-width: 1180px) {
+  .platform-wrap .matrix { min-width: 860px; }
+  .col-caps { display: none; }
+}
+@media (max-width: 980px) {
+  .platform-wrap .matrix { min-width: 660px; }
+  .col-kind, .col-version { display: none; }
+}
+@media (max-width: 760px) {
+  .platform-wrap { overflow-x: visible; }
+  .platform-wrap .matrix { min-width: 0; }
+  .col-accounts, .col-status { display: none; }
+  /* 极窄屏：动作收成 2×2 网格（堆四行会把表格拉得又长又稀） */
+  .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    justify-content: start;
+    gap: 2px var(--space-2);
+  }
+  .row-actions .btn { padding: 2px var(--space-2); }
+}
 
 /* 详情折叠小节 + 页面级折叠（2026-11-18） */
 .detail-fold { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) 0; }

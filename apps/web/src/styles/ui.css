@@ -211,7 +211,13 @@
 .rows .row:last-child { border-bottom: none; }
 .row-main { flex: 1; min-width: 0; }
 .row-title { margin: 0; font-size: var(--text-md); }
-.row-sub { margin: 2px 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+.row-sub {
+  margin: 2px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  max-width: 18rem;
+  overflow-wrap: anywhere;
+}
 .row-fix { margin: 2px 0 0; color: var(--color-attention-ink); font-size: var(--text-sm); }
 .row-time {
   color: var(--color-text-muted);
@@ -220,6 +226,17 @@
   white-space: nowrap;
 }
 .row-actions { display: flex; gap: var(--space-2); align-self: center; }
+.row-actions .btn { white-space: nowrap; }
+/* 窄屏行内动作收成 2×2 网格：横排会被列宽挤掉尾部按钮，竖排会把行拉得太高 */
+@media (max-width: 900px) {
+  .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    justify-content: start;
+    gap: 2px var(--space-2);
+  }
+  .row-actions .btn { padding: 2px var(--space-2); }
+}
 
 /* ---- 折叠 / 证据 ---- */
 .fold summary {

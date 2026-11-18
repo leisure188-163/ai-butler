@@ -215,9 +215,16 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 
+/* 宽屏（横排）内容区居中；≤900 转纵排后不能再用 auto 边距——
+   纵排的交叉轴 auto 边距会阻止 stretch，内容块按内容宽度撑开、直接溢屏 */
+@media (min-width: 901px) {
+  .content { margin: 0 auto; }
+}
+
 /* 与 SideNav 的 900px 断点配套：侧栏变顶部横条，壳随之转纵向，否则 main 被挤出屏 */
 @media (max-width: 900px) {
   .shell { flex-direction: column; }
+  .content { width: 100%; }
 }
 
 @media (max-width: 640px) {
