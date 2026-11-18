@@ -177,12 +177,15 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
       const bits: string[] = [];
       if (patch.platform_name !== undefined) bits.push(`名称「${updated.display}」`);
       if (patch.active !== undefined) bits.push(patch.active ? "已启用" : "已停用（不再定时领取）");
-      if (patch.times !== undefined)
+      if (patch.times === null) {
+        bits.push("已恢复平台默认调度");
+      } else if (patch.times !== undefined) {
         bits.push(
           updated.schedule_times.length
             ? `调度 ${updated.schedule_times.join("、")}`
             : "调度已清空（不排班）",
         );
+      }
       actionMsg.value = {
         text: bits.length ? `已保存：${bits.join(" · ")}（即刻生效）` : "没有改动",
         tone: "ok",

@@ -133,6 +133,7 @@ onBeforeUnmount(() => {
         :msg="actionMsg"
         :loading="loading"
         :load-error="loadError"
+        @claim="claimApp"
         @import="importPlatform"
         @import-all="importAllPlatforms"
         @save-platform="savePlatform"

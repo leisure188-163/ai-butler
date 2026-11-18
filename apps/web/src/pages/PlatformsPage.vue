@@ -6,7 +6,8 @@
  */
 import { computed, ref, watch } from "vue";
 import PlatformBadge from "../components/PlatformBadge.vue";
-import type { AccountItem, PlatformItem, PageName, Signal } from "../types";
+import PlatformFilters from "../components/PlatformFilters.vue";
+import type { AccountItem, PageName, PlatformItem, PlatformQuery, Signal } from "../types";
 import { faceOf, signalText } from "../utils";
 
 const props = defineProps<{
@@ -19,6 +20,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  claim: [target: string];
   import: [target: string];
   importAll: [];
   savePlatform: [
@@ -77,6 +79,12 @@ function resetName(platform: PlatformItem): void {
   cancelEdit();
 }
 
+/** 调度恢复平台默认：times=null 跟随 manifest（空数组则是不排班，两者语义不同） */
+function resetSchedule(platform: PlatformItem): void {
+  emit("savePlatform", platform.id, { times: null });
+  cancelEdit();
+}
+
 /** 启停一键切换（列表操作列） */
 function toggleActive(platform: PlatformItem): void {
   emit("savePlatform", platform.id, { active: !platform.active });
@@ -119,18 +127,47 @@ function statusGroups(platform: PlatformItem) {
     .filter((g) => g.count > 0);
 }
 
+/* 检索（2026-11-18）：关键字 + 状态 + 类型 + 排序，纯前端过滤，零新端点 */
+const query = ref<PlatformQuery>({ keyword: "", status: "all", kind: "all", sort: "code" });
+
+const filteredPlatforms = computed(() => {
+  const keyword = query.value.keyword.trim().toLowerCase();
+  const list = props.platforms.filter((platform) => {
+    if (query.value.status !== "all" && platform.active !== (query.value.status === "active")) {
+      return false;
+    }
+    if (query.value.kind !== "all" && platform.kind !== query.value.kind) return false;
+    if (!keyword) return true;
+    return (
+      platform.id.toLowerCase().includes(keyword) || platform.display.toLowerCase().includes(keyword)
+    );
+  });
+  const sorted = [...list];
+  if (query.value.sort === "name") {
+    sorted.sort((a, b) => a.display.localeCompare(b.display, "zh"));
+  } else if (query.value.sort === "accounts") {
+    sorted.sort((a, b) => accountCount(b) - accountCount(a) || a.id.localeCompare(b.id));
+  } else {
+    sorted.sort((a, b) => a.id.localeCompare(b.id));
+  }
+  return sorted;
+});
+
 /* 分页（2026-11-18）：每页 10 条——接入平台变多后一屏放不下 */
 const PAGE_SIZE = 10;
 const page = ref(1);
 
-const totalPages = computed(() => Math.max(1, Math.ceil(props.platforms.length / PAGE_SIZE)));
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredPlatforms.value.length / PAGE_SIZE)),
+);
 
 const pagedPlatforms = computed(() => {
   const start = (page.value - 1) * PAGE_SIZE;
-  return props.platforms.slice(start, start + PAGE_SIZE);
+  return filteredPlatforms.value.slice(start, start + PAGE_SIZE);
 });
 
-/* 数据刷新/平台增减：页码收敛到合法区间（不跳页、不空页） */
+/* 换筛选条件回第一页；平台增减时把页码收敛回合法区间（不跳页、不空页） */
+watch(query, () => { page.value = 1; }, { deep: true });
 watch(
   () => props.platforms.length,
   () => {
@@ -184,7 +221,17 @@ function toggleDetail(id: string) {
   >{{ msg.text }}</p>
 
   <section class="section" aria-label="平台名册">
-    <div v-if="platforms.length" class="platform-wrap sheet">
+    <PlatformFilters
+      v-if="platforms.length"
+      v-model:keyword="query.keyword"
+      v-model:status="query.status"
+      v-model:kind="query.kind"
+      v-model:sort="query.sort"
+      :total="platforms.length"
+      :matched="filteredPlatforms.length"
+    />
+
+    <div v-if="pagedPlatforms.length" class="platform-wrap sheet">
       <table class="matrix">
         <thead>
           <tr>
@@ -251,6 +298,12 @@ function toggleDetail(id: string) {
                     :disabled="busyTarget !== null"
                     @click="emit('import', platform.id)"
                   >刷新</button>
+                  <button
+                    v-if="platform.account_id && platform.capabilities.includes('provision.run')"
+                    class="btn btn--ghost"
+                    :disabled="busyTarget !== null"
+                    @click="emit('claim', platform.id)"
+                  >立即领取</button>
                   <button v-if="platform.account_id" class="btn btn--ghost" @click="emit('jump', '账户管理')">去账户</button>
                   <button
                     class="btn btn--ghost"
@@ -318,6 +371,9 @@ function toggleDetail(id: string) {
                       <p class="fold-note">
                         清空时间并保存 = 该平台不再定时领取；{{ platform.schedule_overridden ? "当前调度为自定义" : "当前调度为平台默认" }}
                       </p>
+                      <span v-if="platform.schedule_overridden" class="row-actions">
+                        <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="resetSchedule(platform)">恢复平台默认调度</button>
+                      </span>
                       <span class="row-actions">
                         <button class="btn btn--primary" :disabled="busyTarget !== null" @click="saveProfile(platform)">保存</button>
                         <button class="btn btn--ghost" :disabled="busyTarget !== null" @click="cancelEdit">取消</button>
@@ -326,6 +382,9 @@ function toggleDetail(id: string) {
                     <template v-else>
                       <p class="fold-line"><span class="edit-label">显示名</span>{{ platform.display }}</p>
                       <p class="fold-line"><span class="edit-label">平台状态</span>{{ platform.active ? "启用" : "已停用" }}</p>
+                      <p class="fold-line">
+                        <span class="edit-label">凭据类型</span>{{ platform.credential_kinds.join("、") || "—" }}
+                      </p>
                       <p class="fold-line">
                         <span class="edit-label">调度执行时间</span>{{ platform.schedule_times.join("、") || "未排班" }}
                         <span v-if="platform.schedule_overridden" class="tag tag--quiet sched-tag">自定义</span>
@@ -359,7 +418,7 @@ function toggleDetail(id: string) {
     <nav v-if="platforms.length" class="pager" aria-label="平台分页">
       <button class="btn btn--ghost" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
       <span class="pager-info">
-        第 {{ page }} / {{ totalPages }} 页 · 共 {{ platforms.length }} 个平台
+        第 {{ page }} / {{ totalPages }} 页 · 共 {{ filteredPlatforms.length }} 个平台
       </span>
       <button class="btn btn--ghost" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
     </nav>
@@ -381,6 +440,9 @@ function toggleDetail(id: string) {
       </ul>
     </div>
 
+    <p v-if="platforms.length && !filteredPlatforms.length" class="quietline">
+      没有匹配的平台——换个关键字，或点「清除筛选」。
+    </p>
     <p v-if="!platforms.length && loadError" class="quietline quietline--warn">
       平台列表读取失败：{{ loadError }}——请确认后端服务在运行（默认 127.0.0.1:8000）。
     </p>

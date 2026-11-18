@@ -57,3 +57,11 @@ export interface Settings {
   intervalSec: number;
   theme: ThemeName;
 }
+
+/** 平台检索条件（2026-11-18）：纯前端筛选，不是契约字段 —— 端不做业务判定 */
+export type PlatformQuery = {
+  keyword: string;
+  status: "all" | "active" | "inactive";
+  kind: "all" | "web" | "client";
+  sort: "code" | "name" | "accounts";
+};
