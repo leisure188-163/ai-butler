@@ -108,7 +108,8 @@ def import_cmd(target: str) -> None:
 def claim(
     target: str,
     account: str = typer.Option(
-        "main", "--account", "-a", help="账户 key（多账户卡；完整卡号 = <target>:<key>）"
+        None, "--account", "-a",
+        help="账户 key（完整卡号 = <target>:<key>；省略 = 该平台第一张卡）",
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="只演练不落账"),
 ) -> None:
@@ -124,6 +125,14 @@ def claim(
             app_obj = registry.get(target)
         except KeyError:
             _unknown_target(target)
+        if account is None:
+            # 省略 --account = 该平台第一张卡（2026-11-18 起卡号用实际昵称，
+            # 不再假定 main 占位存在）
+            known = kit.accounts.list_by_platform(target)
+            if not known:
+                console.print(f"[red]该平台暂无卡（未导入）——先跑 import {target}[/red]")
+                raise typer.Exit(code=2)
+            account = known[0].account_code
         account_id = f"{target}:{account}"
         if kit.accounts.get(account_id) is None:
             known = [a.id for a in kit.accounts.list_by_platform(target)]

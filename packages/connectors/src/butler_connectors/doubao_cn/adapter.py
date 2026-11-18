@@ -29,7 +29,6 @@ from butler_connectors.cdp import (
 )
 from butler_connectors.doubao_cn.identity import (
     ActiveIdentity,
-    derive_key,
     load_identity_registry,
     load_main_baseline,
     read_all_identities,
@@ -168,8 +167,7 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         self, req: ProvisionRequest, baseline, identities: list
     ) -> RunResult | None:
         """活跃账户 ≠ 目标 → 自动切号并复核；成功 None，失败返回语境正确的 PENDING。"""
-        main_active = any(i.sec_uid == baseline.sec_uid for i in identities)
-        active_key = "main" if main_active else resolve_account_key(identities[0])
+        active_key = resolve_account_key(identities[0])
         if f"{CONN_ID}:{active_key}" == req.account_id:
             return None
         others = [i.nickname or resolve_account_key(i) for i in identities
@@ -188,10 +186,7 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         if stale is not None:
             return _pending(stale)
         flipped = read_all_identities(self.channel)
-        main_now = any(i.sec_uid == baseline.sec_uid for i in flipped)
-        active_now = (
-            "main" if main_now else (resolve_account_key(flipped[0]) if flipped else "")
-        )
+        active_now = resolve_account_key(flipped[0]) if flipped else ""
         if f"{CONN_ID}:{active_now}" != req.account_id:
             return _pending(
                 f"自动切号后身份复核不符（活跃={active_now or '未知'}，"
@@ -500,21 +495,30 @@ class _Butler:
             issues = _ensure_running(env, channel)
             if issues:
                 return DockOutcome(target=CONN_ID, issues=issues)
-        account = ctx.register.execute(CONN_ID, DISPLAY)
-        accounts = [account.id]
-        # 多账户（ADR-003 落地）：dock 采集全部会话身份 → 写登记簿（main + others，
-        # 自动切号的定位依据，ADR-007 决策 8）→ 其余身份逐一登记
+        # 多账户（ADR-003 落地）：dock 采集全部会话身份 → 写登记簿（基线 + others，
+        # 自动切号的定位依据，ADR-007 决策 8）→ 按实际昵称逐一登记
+        # （2026-11-18 用户裁决：账户标识用实际信息区分，不用 main 占位）
         try:
             identities = read_all_identities(channel)
         except Exception:  # 身份只读辅助路径：读失败不阻断 dock 主流程（体检/登记）
             identities = []
         if identities:
             save_identity_registry(identities)
+        registry = load_identity_registry()
+        baseline = registry.main
+        if baseline is not None:
+            account = ctx.register.execute(
+                CONN_ID,
+                f"{DISPLAY} · {baseline.nickname}" if baseline.nickname else DISPLAY,
+                account_code=resolve_account_key(baseline),
+            )
+        else:
+            account = ctx.register.execute(CONN_ID, DISPLAY)
+        accounts = [account.id]
         # 当前客户端可能只有一条活跃 chat target（会话级单活跃），但登记簿里
         # 仍保留已见过的其它账户；dock 要把这些账户也登记成卡，否则用户在
         # 菜单里切过号后，卡包里会看不到第二张卡（ADR-003/ADR-007 决策 8）。
         candidates = list(identities)
-        registry = load_identity_registry()
         candidates.extend(
             ActiveIdentity(sec_uid=item.sec_uid, nickname=item.nickname)
             for item in registry.others
@@ -522,11 +526,10 @@ class _Butler:
         for identity in candidates:
             if not identity.sec_uid:
                 continue
-            baseline = load_main_baseline()
             if baseline is None:
-                continue  # 登记簿已把首个可读身份立为 main 基线（首采语义不变）
+                continue  # 无基线无法定编址（save_identity_registry 已把首个身份立为基线）
             if identity.sec_uid != baseline.sec_uid:
-                key = derive_key(identity.sec_uid)
+                key = resolve_account_key(identity)
                 extra = ctx.register.execute(
                     CONN_ID, identity.nickname or DISPLAY, account_code=key
                 )

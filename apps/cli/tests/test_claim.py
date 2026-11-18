@@ -38,7 +38,9 @@ class FakeAccounts:
 
     def list_by_platform(self, platform: str):
         return [
-            SimpleNamespace(id=i) for i in sorted(self._ids) if i.startswith(platform + ":")
+            SimpleNamespace(id=i, account_code=i.split(":", 1)[1])
+            for i in sorted(self._ids)
+            if i.startswith(platform + ":")
         ]
 
 

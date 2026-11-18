@@ -149,7 +149,7 @@ def _port(transport: FakeTransport, channel: FakeChannel) -> DoubaoUsagePort:
 
 
 def _req() -> UsageRequest:
-    return UsageRequest(target="doubao_cn", account_id="doubao_cn:main", deadline=_DEADLINE)
+    return UsageRequest(target="doubao_cn", account_id="doubao_cn:逍遥酒鬼", deadline=_DEADLINE)
 
 
 def test_ledger_paginates_and_maps_records():
@@ -178,7 +178,7 @@ def test_ledger_paginates_and_maps_records():
     assert (r1.record_id, r1.amount, r1.unit, r1.kind) == ("r1", 200, "POINT", "签到")
     assert r1.occurred_at is not None and r1.occurred_at.year == 2025  # 1764000000 = 2025-11
     assert (r2.record_id, r2.amount) == ("r2", 400)
-    assert r1.account_id == "doubao_cn:main" and r1.target == "doubao_cn"
+    assert r1.account_id == "doubao_cn:逍遥酒鬼" and r1.target == "doubao_cn"
 
 
 def test_connection_closed_after_collect():

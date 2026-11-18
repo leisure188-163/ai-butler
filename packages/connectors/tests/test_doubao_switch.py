@@ -265,11 +265,11 @@ def request_for(account_id: str, *, dry_run: bool = False) -> ProvisionRequest:
 
 
 def request_main() -> ProvisionRequest:
-    return request_for("doubao_cn:main")
+    return request_for(f"doubao_cn:{MAIN_NICK}")
 
 
 def request_b() -> ProvisionRequest:
-    return request_for(f"doubao_cn:{doubao_identity.derive_key(B_SEC_UID)}")
+    return request_for(f"doubao_cn:{B_NICK}")
 
 
 # --- switch 编排逐场景（switch_session 直测）---
@@ -483,7 +483,7 @@ def test_registry_roundtrip_persists_main_and_others():
     reg = doubao_identity.load_identity_registry()
     assert reg.main is not None and reg.main.sec_uid == MAIN_SEC_UID
     assert len(reg.others) == 1
-    assert reg.others[0].account_code == doubao_identity.derive_key(B_SEC_UID)
+    assert reg.others[0].account_code == B_NICK
     assert reg.others[0].nickname == B_NICK
 
 

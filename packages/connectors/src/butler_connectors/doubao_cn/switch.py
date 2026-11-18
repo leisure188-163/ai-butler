@@ -25,6 +25,7 @@ from butler_connectors.doubao_cn.identity import (
     load_main_baseline,
     load_identity_registry,
     read_all_identities,
+    resolve_account_key,
 )
 
 Sleep = Callable[[float], None]
@@ -71,12 +72,13 @@ _ACTIVE_ITEM_JS = """(() => {
 
 
 def resolve_target_identity(key: str) -> ActiveIdentity | None:
-    """account_code → 已登记身份（main = 基线；其他 = 登记簿 others）。
+    """account_code → 已登记身份（基线与其他账户同按 code 匹配，无 main 特判）。
 
     未登记 → None（自动切号无定位依据，调用方显式 PENDING 指引先 dock 登记）。
     """
-    if key == "main":
-        return load_main_baseline()
+    baseline = load_main_baseline()
+    if baseline is not None and resolve_account_key(baseline) == key:
+        return baseline
     for other in load_identity_registry().others:
         if other.account_code == key:
             return ActiveIdentity(sec_uid=other.sec_uid, nickname=other.nickname)

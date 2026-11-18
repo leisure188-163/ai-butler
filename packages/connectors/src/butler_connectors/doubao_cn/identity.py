@@ -82,7 +82,10 @@ def read_active_identity(channel: CdpChannel) -> ActiveIdentity | None:
 
 
 def derive_key(sec_uid: str) -> str:
-    """非 main 账户的 account_code：sec_uid 派生（稳定唯一）。"""
+    """昵称缺失时的 account_code 兜底：sec_uid 派生（稳定唯一）。
+
+    2026-11-18 起账户标识以实际昵称为准（用户裁决），本函数仅在昵称不可读
+    （chip 文本缺失/采集故障）时兜底，保证编址仍有稳定唯一来源。"""
     digest = hashlib.sha256(sec_uid.encode("utf-8")).hexdigest()[:8]
     return f"u{digest}"
 
@@ -187,7 +190,7 @@ def save_identity_registry(identities: list[ActiveIdentity]) -> None:
         existing[identity.sec_uid] = OtherIdentity(
             sec_uid=identity.sec_uid,
             nickname=identity.nickname,
-            account_code=derive_key(identity.sec_uid),
+            account_code=identity.nickname or derive_key(identity.sec_uid),
         )
     others = [
         {
@@ -213,8 +216,13 @@ def save_identity_registry(identities: list[ActiveIdentity]) -> None:
 
 
 def resolve_account_key(identity: ActiveIdentity) -> str:
-    """当前活跃身份对应的 account_code：main 基线命中 → "main"，否则派生 key。"""
+    """活跃身份 → account_code：实际昵称优先（2026-11-18 用户裁决：同步账户
+    信息用实际信息区分，不用 main 占位）；昵称缺失时 sec_uid 派生兜底（稳定唯一）。
+    """
     baseline = load_main_baseline()
     if baseline is not None and identity.sec_uid == baseline.sec_uid:
-        return "main"
-    return derive_key(identity.sec_uid)
+        return baseline.nickname or derive_key(identity.sec_uid)
+    for other in load_identity_registry().others:
+        if other.sec_uid == identity.sec_uid:
+            return other.nickname or other.account_code or derive_key(identity.sec_uid)
+    return identity.nickname or derive_key(identity.sec_uid)

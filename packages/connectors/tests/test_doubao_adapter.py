@@ -173,7 +173,7 @@ def request(dry_run: bool = False) -> ProvisionRequest:
     return ProvisionRequest(
         kind=ActionKind.PROVISION_RUN,
         target="doubao_cn",
-        account_id="doubao_cn:main",
+        account_id="doubao_cn:逍遥酒鬼",
         params={},
         deadline=datetime.now(UTC) + timedelta(seconds=240),
         dry_run=dry_run,
@@ -428,7 +428,7 @@ def test_engine_publishes_protocol_changed_on_code_2():
     run = usecase.execute(
         RunRequest(
             action=Action(kind=ActionKind.PROVISION_RUN, target="doubao_cn"),
-            account_id="doubao_cn:main",
+            account_id="doubao_cn:逍遥酒鬼",
             window="2026-11-11",
         )
     )
@@ -439,11 +439,11 @@ def test_engine_publishes_protocol_changed_on_code_2():
 # --- 多账户身份守卫（ADR-003 落地 / ADR-007 决策 7：切号不自动化）---
 
 def request_b() -> ProvisionRequest:
-    """目标 = 第二账户：key 由 B 身份派生（与 derive_key 同步）。"""
+    """目标 = 第二账户：实际昵称编址（2026-11-18 用户裁决，不用派生占位）。"""
     return ProvisionRequest(
         kind=ActionKind.PROVISION_RUN,
         target="doubao_cn",
-        account_id=f"doubao_cn:{doubao_identity.derive_key(B_SEC_UID)}",
+        account_id="doubao_cn:小号",
         params={},
         deadline=datetime.now(UTC) + timedelta(seconds=240),
         dry_run=False,
@@ -464,7 +464,7 @@ def test_b_active_main_request_auto_switch_fails_offline_is_pending():
     result = make_port(channel=channel).run(request())
     assert result.status is Status.PENDING
     summary = result.evidence[0].summary
-    assert "小号" in summary and "自动切号" in summary and "doubao_cn:main" in summary
+    assert "小号" in summary and "自动切号" in summary and "doubao_cn:逍遥酒鬼" in summary
     assert result.repair_hint is not None and result.repair_hint.action_id == "dock"
     assert "人工切换" in result.repair_hint.reason  # 语境 = 身份不符，不是端口
     assert "调试端口" not in result.repair_hint.reason
@@ -516,11 +516,9 @@ def test_dock_registers_b_account_when_active(tmp_path, monkeypatch):
     channel = FakeChannel(identity={"sec_uid": B_SEC_UID, "nickname": "小号"})
     spy = RegisterSpy()
     outcome = adapter.butler.dock(Ctx(register=spy), env=FakeEnv(), channel=channel)
-    assert outcome.accounts == [
-        "doubao_cn:main",
-        f"doubao_cn:{doubao_identity.derive_key(B_SEC_UID)}",
-    ]
-    assert spy.calls[1] == ("doubao_cn", "小号", doubao_identity.derive_key(B_SEC_UID))
+    assert outcome.accounts == ["doubao_cn:逍遥酒鬼", "doubao_cn:小号"]
+    assert spy.calls[0] == ("doubao_cn", "Doubao CN · 逍遥酒鬼", "逍遥酒鬼")
+    assert spy.calls[1] == ("doubao_cn", "小号", "小号")
 
 
 def test_dock_registers_registered_other_when_channel_only_has_main(tmp_path, monkeypatch):
@@ -549,11 +547,9 @@ def test_dock_registers_registered_other_when_channel_only_has_main(tmp_path, mo
     channel = FakeChannel(identity={"sec_uid": MAIN_SEC_UID, "nickname": "逍遥酒鬼"})
     spy = RegisterSpy()
     outcome = adapter.butler.dock(Ctx(register=spy), env=FakeEnv(), channel=channel)
-    assert outcome.accounts == [
-        "doubao_cn:main",
-        f"doubao_cn:{doubao_identity.derive_key(B_SEC_UID)}",
-    ]
-    assert spy.calls[1] == ("doubao_cn", "小号", doubao_identity.derive_key(B_SEC_UID))
+    assert outcome.accounts == ["doubao_cn:逍遥酒鬼", "doubao_cn:小号"]
+    assert spy.calls[0] == ("doubao_cn", "Doubao CN · 逍遥酒鬼", "逍遥酒鬼")
+    assert spy.calls[1] == ("doubao_cn", "小号", "小号")
 
 
 def test_dock_first_visit_saves_main_baseline(tmp_path, monkeypatch, request_ctx=None):

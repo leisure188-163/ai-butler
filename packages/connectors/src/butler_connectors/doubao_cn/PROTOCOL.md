@@ -174,12 +174,15 @@ checkin」~~——ADR-017 起连接器零自组请求，两者已同源同栈，
   进台账 evidence 首位
 - **身份登记簿**：dock 采集后持久化 `~/.butler/doubao_identity.json`
   （`DOUBAO_IDENTITY_PATH` 可覆盖）：`main_sec_uid`/`main_nickname` +
-  `others[{sec_uid, nickname, account_key}]`——非 main 账户的切号定位依据
-  （account_key = SHA256 前 8 位前缀 `u`，单向不可逆）；采集为空不覆盖旧簿，
-  **单会话采集只返回当前账户时也合并保留既有 others**（2026-11-17 修：原实现
-  会把 others 重写空，导致切过号的第二张卡消失）；dock 还会把登记簿里的
-  非活跃账户补登成卡。本项目 main = 逍遥酒鬼（2026-11-16 用户确认），
-  B = Leisure520（`doubao_cn:u66b1e22d`）
+  `others[{sec_uid, nickname, account_code}]`——其他账户的切号定位依据
+  （**account_code = 实际昵称**，2026-11-18 用户裁决 [ADR-025]：账户编址用
+  实际信息区分，不用 main 占位；昵称缺失才 sec_uid 派生兜底 `u` + SHA256
+  前 8 位，单向不可逆）；采集为空不覆盖旧簿，**单会话采集只返回当前账户时
+  也合并保留既有 others**（2026-11-17 修：原实现会把 others 重写空，导致
+  切过号的第二张卡消失）；dock 还会把登记簿里的非活跃账户补登成卡。
+  本项目基线 = 逍遥酒鬼（2026-11-16 用户确认），B = Leisure520
+  （`doubao_cn:Leisure520`；旧派生编址 `doubao_cn:u66b1e22d` 已一次性迁移，
+  台账历史保留旧 id）
 - **守卫语义（2026-11-17 修订）**：run 目标非活跃 → 自动切号 → 复核 → 通过
   才编排；切号失败/复核不符/旧活动页关不动 → PENDING（修复提示分语境：
   身份不符 ≠ 端口不可达），**绝不盲签**（A2-02 §6 红线）。main 基线命中任一
