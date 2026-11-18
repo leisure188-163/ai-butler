@@ -113,101 +113,150 @@ function submit(): void {
 <template>
   <ModalShell
     title="自定义平台"
-    subtitle="给内置清单之外的网站建一个能真跑的每日领取：登录态从本机 Chrome 抓，状态查询与领取请求由你填，服务端渲染成声明式连接器。"
+    subtitle="内置清单之外的网站也能每日自动领取：登录态取自本机 Chrome，填好状态查询与领取请求即可。"
     :busy="props.saving"
     @close="emit('close')"
   >
-    <div class="grid">
-      <label class="field">
-        <span class="label">平台编码</span>
-        <input v-model="form.code" class="input mono" placeholder="mysite" />
-        <span class="hint" :class="{ 'hint--bad': form.code && !codeOk }">
-          小写字母开头，仅 a-z/0-9/_，2-32 位；之后用它做调度与台账的 key
-        </span>
-      </label>
-      <label class="field">
-        <span class="label">平台名称</span>
-        <input v-model="form.display" class="input" placeholder="My Site" />
-      </label>
-      <label class="field">
-        <span class="label">登录域名</span>
-        <input v-model="form.domain" class="input mono" placeholder="mysite.com" />
-        <span class="hint">用于在本机 Chrome 的 cookie 库里匹配站点</span>
-      </label>
-      <label class="field">
-        <span class="label">登录态 cookie 名</span>
-        <input v-model="form.cookies" class="input mono" placeholder="sessionid, token" />
-        <span class="hint">逗号分隔；这些 cookie 全在才算已登录</span>
-      </label>
-    </div>
-
-    <div class="grid grid--two">
-      <div class="field">
-        <span class="label">状态查询（先问「今天领过没」）</span>
-        <div class="row">
-          <select v-model="form.statusMethod" class="input input--sm">
-            <option value="GET">GET</option>
-            <option value="POST">POST</option>
-          </select>
-          <input v-model="form.statusUrl" class="input mono" placeholder="https://mysite.com/api/status" />
-        </div>
-        <input v-model="form.statusBody" class="input mono" placeholder="请求体 JSON（可空）" />
-        <div class="row">
-          <select v-model="form.judgeMode" class="input input--sm">
-            <option value="code">业务码</option>
-            <option value="bool">布尔字段</option>
-          </select>
-          <input
-            v-if="form.judgeMode === 'code'"
-            v-model="form.codePath"
-            class="input mono input--sm"
-            placeholder="code"
-          />
-          <input
-            v-if="form.judgeMode === 'code'"
-            v-model="form.expectOk"
-            class="input mono input--sm"
-            placeholder="0"
-          />
-          <input
-            v-else
-            v-model="form.checkedInPath"
-            class="input mono"
-            placeholder="data.checked_in"
-          />
-        </div>
-        <span class="hint">
-          业务码模式：响应里 code_path 的值等于 expect_ok 即成功；
-          布尔模式：checked_in_path 为 true 即今天已领过
-        </span>
+    <section class="cpf-sec">
+      <div class="cpf-sec-head">
+        <h3 class="cpf-sec-title">基本信息</h3>
+        <p class="cpf-sec-sub">平台编码同时用作调度与台账的 key，建好后不再改。</p>
       </div>
-
-      <div class="field">
-        <span class="label">领取请求（真正签到那一下）</span>
-        <div class="row">
-          <select v-model="form.claimMethod" class="input input--sm">
-            <option value="POST">POST</option>
-            <option value="GET">GET</option>
-          </select>
-          <input v-model="form.claimUrl" class="input mono" placeholder="https://mysite.com/api/claim" />
-        </div>
-        <input v-model="form.claimBody" class="input mono" placeholder="请求体 JSON（可空）" />
-        <span class="hint">判定与状态查询共用 code_path / expect_ok；领取受理后以状态复查为准</span>
+      <div class="cpf-cols">
+        <label class="cpf-field">
+          <span class="cpf-label">平台编码</span>
+          <input v-model="form.code" class="cpf-input mono" placeholder="mysite" />
+          <span class="cpf-hint" :class="{ 'cpf-hint--bad': form.code && !codeOk }">
+            小写字母开头，仅 a-z / 0-9 / _，2–32 位
+          </span>
+        </label>
+        <label class="cpf-field">
+          <span class="cpf-label">平台名称</span>
+          <input v-model="form.display" class="cpf-input" placeholder="My Site" />
+          <span class="cpf-hint">列表与台账里显示的名字</span>
+        </label>
+        <label class="cpf-field">
+          <span class="cpf-label">登录域名</span>
+          <input v-model="form.domain" class="cpf-input mono" placeholder="mysite.com" />
+          <span class="cpf-hint">用于在本机 Chrome 的 cookie 库里匹配站点</span>
+        </label>
+        <label class="cpf-field">
+          <span class="cpf-label">登录态 cookie 名</span>
+          <input v-model="form.cookies" class="cpf-input mono" placeholder="sessionid, token" />
+          <span class="cpf-hint">逗号分隔；这些 cookie 全在才算已登录</span>
+        </label>
       </div>
-    </div>
+    </section>
 
-    <label class="field">
-      <span class="label">调度执行时间（可留空，之后在名册里改）</span>
-      <input v-model="form.scheduleTimes" class="input mono" placeholder="08:35, 20:35" />
-    </label>
+    <section class="cpf-sec">
+      <div class="cpf-sec-head">
+        <h3 class="cpf-sec-title">状态查询</h3>
+        <p class="cpf-sec-sub">先问「今天领过没」，已领过就不再发领取请求。</p>
+      </div>
+      <div class="cpf-stack">
+        <div class="cpf-field">
+          <span class="cpf-label">请求</span>
+          <div class="cpf-row">
+            <select v-model="form.statusMethod" class="cpf-input cpf-input--method">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+            </select>
+            <input
+              v-model="form.statusUrl"
+              class="cpf-input mono"
+              placeholder="https://mysite.com/api/status"
+            />
+          </div>
+        </div>
+        <label class="cpf-field">
+          <span class="cpf-label">请求体（JSON，GET 可留空）</span>
+          <input
+            v-model="form.statusBody"
+            class="cpf-input mono"
+            placeholder='{} 或 {"req_source": 1}'
+          />
+        </label>
+        <div class="cpf-field">
+          <span class="cpf-label">怎么判断已领过</span>
+          <div class="cpf-row">
+            <select v-model="form.judgeMode" class="cpf-input cpf-input--mode">
+              <option value="code">看业务码</option>
+              <option value="bool">看布尔字段</option>
+            </select>
+            <input
+              v-if="form.judgeMode === 'code'"
+              v-model="form.codePath"
+              class="cpf-input mono"
+              placeholder="code_path，如 code"
+            />
+            <input
+              v-if="form.judgeMode === 'code'"
+              v-model="form.expectOk"
+              class="cpf-input mono cpf-input--expect"
+              placeholder="0"
+            />
+            <input
+              v-else
+              v-model="form.checkedInPath"
+              class="cpf-input mono"
+              placeholder="data.checked_in"
+            />
+          </div>
+          <span class="cpf-hint">
+            看业务码：响应里 code_path 的值等于期望值即「已领过」；看布尔字段：checked_in_path 为 true 即「已领过」
+          </span>
+        </div>
+      </div>
+    </section>
 
-    <p v-if="error" class="err" role="alert">{{ error }}</p>
+    <section class="cpf-sec">
+      <div class="cpf-sec-head">
+        <h3 class="cpf-sec-title">领取请求</h3>
+        <p class="cpf-sec-sub">真正签到的那一下；判定沿用上面的 code_path 与期望值。</p>
+      </div>
+      <div class="cpf-stack">
+        <div class="cpf-field">
+          <span class="cpf-label">请求</span>
+          <div class="cpf-row">
+            <select v-model="form.claimMethod" class="cpf-input cpf-input--method">
+              <option value="POST">POST</option>
+              <option value="GET">GET</option>
+            </select>
+            <input
+              v-model="form.claimUrl"
+              class="cpf-input mono"
+              placeholder="https://mysite.com/api/claim"
+            />
+          </div>
+        </div>
+        <label class="cpf-field">
+          <span class="cpf-label">请求体（JSON，GET 可留空）</span>
+          <input
+            v-model="form.claimBody"
+            class="cpf-input mono"
+            placeholder='{} 或 {"req_source": 1}'
+          />
+        </label>
+      </div>
+    </section>
+
+    <section class="cpf-sec">
+      <div class="cpf-sec-head">
+        <h3 class="cpf-sec-title">调度</h3>
+        <p class="cpf-sec-sub">可留空，接入后在名册里按平台修改。</p>
+      </div>
+      <label class="cpf-field">
+        <span class="cpf-label">每日执行时间</span>
+        <input v-model="form.scheduleTimes" class="cpf-input mono" placeholder="08:35, 20:35" />
+        <span class="cpf-hint">HH:MM，逗号分隔；留空则只手动领取</span>
+      </label>
+    </section>
+
+    <p v-if="error" class="cpf-err" role="alert">{{ error }}</p>
 
     <template #footer>
-      <span class="hint">
-        保存后自动热加载；到名册里点「接入」，会从本机 Chrome 抓登录态并登记账户。
-      </span>
-      <span class="foot-actions">
+      <span class="cpf-foot-note">保存后自动热加载</span>
+      <span class="cpf-foot-actions">
         <button class="btn btn--ghost" :disabled="props.saving" @click="emit('close')">取消</button>
         <button class="btn btn--primary" :disabled="props.saving || !canSave" @click="submit">
           {{ props.saving ? "保存中…" : "保存并热加载" }}
@@ -218,64 +267,120 @@ function submit(): void {
 </template>
 
 <style scoped>
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px 16px;
-  margin-bottom: 14px;
+/* 2026-11-18 重构：原版是 4 个字段 auto-fit 网格 + 两列并排接口块，列宽被内容拉扯、
+   字段高度不一致、说明文字互相压字。现改成「分组 + 组内两列等宽 / 组内单列纵排」。
+   注意：类名全部加 cpf- 前缀——全局 styles/ui.css 里有设置件 `.field`（flex + border-bottom）
+   与列表行 `.row`，撞名会把表单染成一条条带下划线的横排。 */
+.cpf-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 0;
+  border-top: 1px solid var(--color-border);
 }
-.grid--two {
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+.cpf-sec:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
-.field {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-  margin-bottom: 12px;
+.cpf-sec-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
-.label {
-  font-size: 12px;
+.cpf-sec-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.cpf-sec-sub {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
   color: var(--color-text-muted);
 }
-.row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
+.cpf-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+  align-items: start;
 }
-.input {
+.cpf-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cpf-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
   min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.cpf-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.cpf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+}
+.cpf-input {
+  box-sizing: border-box;
   width: 100%;
-  padding: 6px 9px;
-  font-size: 13px;
+  min-width: 0;
+  padding: 7px 10px;
+  font-size: var(--text-sm);
   color: var(--color-text);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
 }
-.input--sm {
-  flex: 0 0 auto;
-  width: auto;
+.cpf-row > .cpf-input:not(.cpf-input--method):not(.cpf-input--mode):not(.cpf-input--expect) {
+  flex: 1 1 auto;
 }
-.hint {
-  font-size: 11px;
+.cpf-input--method {
+  flex: 0 0 76px;
+  width: 76px;
+}
+.cpf-input--mode {
+  flex: 0 0 104px;
+  width: 104px;
+}
+.cpf-input--expect {
+  flex: 0 0 72px;
+  width: 72px;
+}
+.cpf-hint {
+  font-size: var(--text-xs);
+  line-height: 1.55;
+  color: var(--color-text-faint);
+}
+.cpf-hint--bad {
+  color: var(--color-danger);
+}
+.cpf-err {
+  margin: 12px 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-danger);
+}
+.cpf-foot-note {
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
-  line-height: 1.5;
+  white-space: nowrap;
 }
-.hint--bad {
-  color: var(--color-danger);
-}
-.err {
-  margin: 0;
-  font-size: 12px;
-  color: var(--color-danger);
-}
-.foot-actions {
+.cpf-foot-actions {
   display: inline-flex;
-  gap: 8px;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 @media (max-width: 640px) {
-  .grid,
-  .grid--two {
+  .cpf-cols {
     grid-template-columns: 1fr;
   }
 }
