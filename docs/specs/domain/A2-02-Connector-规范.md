@@ -210,3 +210,17 @@ core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_code`、
   → 连接器显式失败（dock 进 issues / run 转 FAILED），**不往客户端窗口里开页**。
 - 端口按连接器 env 覆盖（首个采用：agentrouter `AGENTROUTER_CDP_PORT`，缺省
   9222 仅为兼容旧契约）；非法值显式报错，不静默回缺省（红线 5）。
+
+## 11. 只读采集不产生界面动作（2026-11-18，ADR-028）
+
+- 用量/额度等只读采集的会话凭据走**浏览器级** `CdpChannel.storage_cookies(domain)`
+  （`Storage.getCookies` + `/json/version` 的 `webSocketDebuggerUrl`）：不 `attach`
+  页面、不 `open_activity`、不 `Target.createTarget`、不 `Page.bringToFront`。
+- 历史事故：doubao 用量在无活动页时 `open_activity` 新建页面，客户端窗口被拉到
+  前台——平台行「刷新」= `POST /platforms/{target}/import` 顺带 `collect_usage`，
+  于是点刷新就跳豆包。
+- 界面动作只属于用户显式触发的写路径：领取/签到、切号（`Page.bringToFront`）、
+  dock 自动拉起（ADR-007 决策 5）。不得以「顺便采集」为由建页。
+- Cookie 按连接器所需域过滤后再拼请求头；取不到会话 Cookie 显式报错（可能未登录），
+  不静默空采。
+- 保留导入顺带采集语义：修的是取 Cookie 的方式，不是删采集链路。

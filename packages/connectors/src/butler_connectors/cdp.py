@@ -212,6 +212,29 @@ class CdpChannel:
         result = conn.call("Network.getCookies", {"urls": [url]})
         return list((result or {}).get("cookies") or [])
 
+    def storage_cookies(self, domain: str | None = None) -> list[dict]:
+        """浏览器级 Cookie 读取（Storage.getCookies）：不依附页面、不新建页面。
+
+        用途：只读额度/流水需要会话 Cookie，而**读数据不得产生界面动作**——旧路径
+        经活动页 Network.getCookies，活动页缺失时会 ``open_activity`` 在客户端里
+        新开页面（客户端窗口被拉到前台，ADR-028）。Cookie 是浏览器级状态，与当前
+        开着哪些页面无关；``domain`` 只做域过滤（含子域，前缀点忽略）。
+        """
+        version = self.probe()
+        browser_url = version.get("webSocketDebuggerUrl")
+        if not browser_url:
+            raise CdpError("/json/version 缺 webSocketDebuggerUrl")
+        with self._ws_factory(browser_url, 10.0) as browser:
+            result = browser.call("Storage.getCookies", {}, wait=10.0)
+        cookies = list((result or {}).get("cookies") or [])
+        if domain is not None:
+            cookies = [
+                c
+                for c in cookies
+                if str(c.get("domain") or "").lstrip(".").endswith(domain)
+            ]
+        return cookies
+
     def evaluate(
         self,
         conn: CdpConnection,

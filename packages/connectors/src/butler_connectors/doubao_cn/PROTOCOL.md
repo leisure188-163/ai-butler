@@ -268,6 +268,13 @@ checkin」~~——ADR-017 起连接器零自组请求，两者已同源同栈，
   **周一 400**（11-02/11-09 两个周一双实证），断签无补登记录
 - cursor 为 base64 JSON `{"create_time", "id"}`
 
+**Cookie 来源（2026-11-18 修订，ADR-028）**：会话 Cookie 走**浏览器级**
+`Storage.getCookies`（经 `/json/version` 的 `webSocketDebuggerUrl`，按
+`doubao.com` 域过滤），**不依附活动页、不新建页面**。旧实现无活动页时
+`open_activity`（`Target.createTarget`）会在客户端新开页面，导致客户端窗口被拉到
+前台——用户点平台行「刷新」（= 导入顺带采集）就跳豆包。读额度不得产生界面动作；
+`Page.bringToFront` 仅保留给领取/切号这类显式写操作。
+
 ### 7.3 ADR-007 遗留三选一：裁决材料齐（倾向「detail 读，不做 CDP 读用量」）
 
 CDP DOM/截图实证（agent-explore 活动页 + doubao-chat 主聊天页）：界面能读到

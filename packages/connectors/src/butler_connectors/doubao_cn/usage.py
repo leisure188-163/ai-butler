@@ -1,7 +1,8 @@
 """doubao_cn 用量通道（R2，PROTOCOL §7.2）：quota/records 入账流水裸读。
 
 - 零凭据设计（ADR-007）：CDP 现取 Cookie（现取现用不入 vault），复用签到
-  通道的环境束（version_code 运行时派生）与活动页连接（有页附着，无页新开）
+  通道的环境束（version_code 运行时派生）；Cookie 走浏览器级
+  ``Storage.getCookies``（ADR-028）——**读数据不建页、不抢焦点**
 - quota/records = 入账 ledger（本机全量 15 条全为正值实证）：cursor 翻页
   （上限 10 页防御）；detail/UI 无余额 → snapshot=None aggregate=None 如实
   申报（绝不造空快照充数）
@@ -19,7 +20,7 @@ from butler_core.usage.ports import UsageRequest, UsageResult
 from butler_core.shared.ids import new_id
 from butler_core.usage.domain import QuotaLedgerEntry
 
-from butler_connectors.cdp import CdpChannel, CdpError, pick_activity_target
+from butler_connectors.cdp import CdpChannel, CdpError
 from butler_connectors.doubao_cn.adapter import (
     _ACTIVITY_URL,
     _BASE,
@@ -87,28 +88,24 @@ class DoubaoUsagePort:
         active_key = resolve_account_key(identities[0]) if identities else None
         if active_key is None or f"{_TARGET}:{active_key}" != req.account_id:
             return UsageResult(snapshot=None, aggregate=None, ledger=())
-        target = pick_activity_target(self.channel.targets())
-        conn = (
-            self.channel.attach(target)
-            if target is not None
-            else self.channel.open_activity(_ACTIVITY_URL)
-        )
-        try:
-            cookie_header = self._cookie_header(conn)
-            return self._ledger(req, cookie_header, vcode, version)
-        finally:
-            conn.close()  # 编排全程在连接存活期内，finally 才关（同签到通道纪律）
+        # 会话现取（ADR-028）：浏览器级 Storage.getCookies——不依附页面、不建页。
+        # 旧实现经活动页 Network.getCookies，活动页缺失时 open_activity 会在豆包
+        # 客户端里新开页面（窗口被拉到前台）。读额度绝不能产生界面动作。
+        cookie_header = self._cookie_header()
+        return self._ledger(req, cookie_header, vcode, version)
 
     # --- 会话现取 ---
 
-    def _cookie_header(self, conn) -> str:
+    def _cookie_header(self) -> str:
         pairs: dict[str, str] = {}
-        for cookie in self.channel.cookies(conn):
+        for cookie in self.channel.storage_cookies("doubao.com"):
             name, value = cookie.get("name"), cookie.get("value")
             if name and value:
                 pairs.setdefault(name, value)  # 同名先到先得（同签到通道语义）
         if not pairs:
-            raise ValueError("Network.getCookies 返回空——会话异常?")
+            raise ValueError(
+                "Storage.getCookies 未取到 doubao.com 会话 Cookie——客户端可能未登录"
+            )
         return "; ".join(f"{name}={value}" for name, value in pairs.items())
 
     # --- 流水翻页 ---

@@ -65,7 +65,8 @@ class FakeConn:
 class FakeChannel:
     """probe 可达 + 一枚可附着目标 + 固定 Cookie；记录翻页请求序列。
 
-    identity：活跃账户身份（identity.py 守卫查询用）；None = 无聊天页 → 守卫空采。"""
+    identity：活跃账户身份（identity.py 守卫查询用）；None = 无聊天页 → 守卫空采。
+    Cookie 走浏览器级 storage_cookies（ADR-028）：不依附页面、不建页。"""
 
     def __init__(
         self,
@@ -73,6 +74,7 @@ class FakeChannel:
         *,
         fail_probe: bool = False,
         identity: dict | None = None,
+        cookies: list[dict] | None = None,
     ):
         self.transport = transport
         self.fail_probe = fail_probe
@@ -82,6 +84,12 @@ class FakeChannel:
         self.attached: list[Any] = []
         self.opened: list[str] = []
         self.conns: list[FakeConn] = []
+        self.cookie_domains: list[str | None] = []
+        self._cookies = cookies if cookies is not None else [
+            {"name": "sid_tt", "value": "s1"},
+            {"name": "sid_tt", "value": "dup-ignored"},  # 同名先到先得
+            {"name": "sessionid", "value": "s2"},
+        ]
 
     def probe(self):
         if self.fail_probe:
@@ -121,12 +129,12 @@ class FakeChannel:
             return dict(self.identity) if self.identity else None
         raise AssertionError("unexpected evaluate")  # usage 编排无其他求值
 
+    def storage_cookies(self, domain: str | None = None):
+        self.cookie_domains.append(domain)
+        return [dict(c) for c in self._cookies]
+
     def cookies(self, conn):
-        return [
-            {"name": "sid_tt", "value": "s1"},
-            {"name": "sid_tt", "value": "dup-ignored"},  # 同名先到先得
-            {"name": "sessionid", "value": "s2"},
-        ]
+        raise AssertionError("用量采集不该依附页面取 Cookie（ADR-028）")
 
 
 class FakeTransport:
@@ -181,11 +189,25 @@ def test_ledger_paginates_and_maps_records():
     assert r1.account_id == "doubao_cn:逍遥酒鬼" and r1.target == "doubao_cn"
 
 
-def test_connection_closed_after_collect():
+def test_usage_never_opens_page_or_attaches_for_cookies():
+    """ADR-028：读额度不产生界面动作——不新建页面、不依附活动页取 Cookie。
+
+    历史事故：活动页缺失时 open_activity 会在豆包客户端里新开页面，客户端窗口被
+    拉到前台（用户点「刷新」就跳豆包）。"""
     transport = FakeTransport([_page([], has_more=False)])
     channel = FakeChannel(transport)
     _port(transport, channel).collect(_req())
-    assert channel.attached and channel.conns[0].closed  # 编排全程在连接存活期内
+    assert channel.opened == []
+    assert channel.cookie_domains == ["doubao.com"]
+    # 唯一的 attach 来自身份查询（只读已有聊天页），Cookie/流水路径零连接
+    assert [t["id"] for t in channel.attached] == ["chat-1"]
+
+
+def test_missing_cookies_is_explicit_error():
+    transport = FakeTransport([_page([], has_more=False)])
+    channel = FakeChannel(transport, cookies=[])
+    with pytest.raises(Exception, match="会话 Cookie"):
+        _port(transport, channel).collect(_req())
 
 
 def test_probe_failure_propagates():

@@ -187,6 +187,34 @@ def test_open_activity_timeout_raises():
         channel.open_activity("https://www.doubao.com/pc/agent-explore", wait=0.05)
 
 
+def test_storage_cookies_are_browser_level_and_domain_filtered():
+    """ADR-028：Cookie 走浏览器级 Storage.getCookies——不依附页面、绝不建页。"""
+    ws = EchoWs(
+        {
+            "cookies": [
+                {"name": "sid_tt", "value": "s1", "domain": ".doubao.com"},
+                {"name": "feishu", "value": "f", "domain": ".feishu.cn"},
+                {"name": "nodomain", "value": "x"},
+            ]
+        }
+    )
+    channel = _channel(
+        http_get=lambda url, t: {"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/browser/1"},
+        ws_factory=lambda url, timeout: CdpConnection(ws),
+    )
+    cookies = channel.storage_cookies("doubao.com")
+    assert [c["name"] for c in cookies] == ["sid_tt"]  # 前缀点 + 子域匹配
+    assert len(channel.storage_cookies()) == 3  # 不传域 = 浏览器全量
+    assert ws.sent[0]["method"] == "Storage.getCookies"
+    assert ws.sent[0]["params"] == {}
+    assert all(m["method"] != "Target.createTarget" for m in ws.sent)
+
+
+def test_storage_cookies_requires_browser_endpoint():
+    with pytest.raises(CdpError, match="webSocketDebuggerUrl"):
+        _channel(http_get=lambda url, t: {}).storage_cookies()
+
+
 def test_cookies_and_evaluate_and_click():
     ws = EchoWs({"cookies": [{"name": "sessionid", "value": "s"}]})
     conn = CdpConnection(ws)
