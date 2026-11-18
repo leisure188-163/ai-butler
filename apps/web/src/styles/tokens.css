@@ -3,8 +3,8 @@
    真比例拟物/压印编号/金箔芯片/墨印章/扇面动画退役；身份色降级为
    PlatformBadge 小徽单色（--card-face-1..6 保留单值，渐变对待退役）；语义五色不变。
    语义五色只消费 core 出产的 signal 分类（红线 2），填充用 base、正文用 ink 档（白底 ≥4.5:1）。
-   多主题（D2 v5）：:root = 纸墨（浅，默认），[data-theme="dark"] = 墨夜，[data-theme="warm"] = 暖纸；
-   覆盖块只覆写颜色类令牌，字体/字号/尺寸/动效天然继承。主题偏好由 App.vue 挂 <html data-theme>。 */
+   多主题（D2 v5）：:root = 纸墨（浅，默认），[data-theme="dark"] = 墨夜，[data-theme="mist"] = 晨雾；
+   覆盖块以颜色类令牌为主，字体/动效天然继承（晨雾额外校准圆角一档，属视觉语言的一部分）。主题偏好由 App.vue 挂 <html data-theme>。 */
 :root {
   /* 纸与墨 */
   --color-bg: #f1f3f4;            /* 案面：冷纸灰 */
@@ -152,40 +152,41 @@ body {
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.5);
 }
 
-/* ---- 暖纸（浅色护眼 · 2026-11-16 v7 清新绿纸感）：浅绿纸底 + 白卡 + 绿主色；
-   参考清新工作台风改版（用户裁决，见 DESIGN-DECISIONS D2 v7）——
-   主文本/主按钮换墨绿，强调色从品牌金改绿叶绿（白卡 ≥4.5:1），
-   语义五色沿用白底档（卡片同为白底），阴影转绿调。 ---- */
-[data-theme="warm"] {
-  --color-bg: #eaf2e6;            /* 案面：浅绿纸 */
+/* ---- 晨雾（浅色 · 2026-11-18 换肤）：冷雾工作台 — 雾蓝灰案面 + 纯白卡 + 亮蓝主色；
+   参考现代 SaaS 工作台（浅底/白卡/细描边/大留白），替换原「暖纸」浅绿纸感 ——
+   绿系在深浅两档都不耐看（案面偏黄、激活态发闷），冷蓝灰更中性、更贴数据台气质。
+   主文本/主按钮走深墨蓝，强调色为文本级蓝（白卡 ≥4.5:1），亮蓝只做图标与装饰。
+   语义五色沿用白卡档；阴影转冷蓝调。 ---- */
+[data-theme="mist"] {
+  --color-bg: #f5f7fb;            /* 案面：冷雾蓝灰 */
   --color-surface: #ffffff;       /* 白卡 */
-  --color-surface-2: #dfeadd;     /* 凹槽层 */
-  --color-border: #cdddd2;        /* 纸绳线 */
-  --color-ink: #1d3326;           /* 墨绿——主文本与主按钮 */
+  --color-surface-2: #edf1f7;     /* 凹槽层 */
+  --color-border: #dfe5ee;        /* 细描边 */
+  --color-ink: #16202e;           /* 深墨蓝——主文本与主按钮（白底 ≈15.6:1） */
   --color-text: var(--color-ink);
-  --color-text-muted: #56705f;    /* 雾绿（白底 ≥4.5:1） */
-  --color-text-faint: #8aa18f;    /* 仅装饰/占位 */
-  --color-accent: #2f7d4e;        /* 叶绿·文本级（白底 ≈4.6:1） */
-  --color-accent-bright: #52a86f;
-  --color-accent-weak: rgba(82, 168, 111, 0.15);
-  --color-on-ink: #ffffff;        /* 墨绿底上的白字 */
-  --color-ink-strong: #2a4a36;    /* 墨底 hover：再压一档 */
+  --color-text-muted: #5a6779;    /* 雾灰蓝（白底 ≈6.1:1） */
+  --color-text-faint: #97a3b5;    /* 仅装饰/占位 */
+  --color-accent: #1f6fe0;        /* 湖蓝·文本级（白底 ≈4.9:1）——激活与链接 */
+  --color-accent-bright: #4a90f0; /* 亮蓝——仅图标/图形/装饰 */
+  --color-accent-weak: rgba(74, 144, 240, 0.12);
+  --color-on-ink: #ffffff;        /* 墨蓝底上的白字 */
+  --color-ink-strong: #24324a;    /* 墨底 hover：再压一档 */
 
-  --color-ok: #1f8a5d;
-  --color-ok-ink: #177a50;
-  --color-ok-weak: rgba(31, 138, 93, 0.12);
-  --color-notice: #b07a10;
-  --color-notice-ink: #8f6109;
-  --color-notice-weak: rgba(192, 138, 30, 0.14);
-  --color-attention: #c05c22;
-  --color-attention-ink: #9a4614;
-  --color-attention-weak: rgba(217, 106, 43, 0.13);
-  --color-danger: #c4413f;
-  --color-danger-ink: #a02d2c;
-  --color-danger-weak: rgba(217, 72, 72, 0.12);
-  --color-quiet: #6e8a7a;
-  --color-quiet-ink: #54705f;
-  --color-quiet-weak: rgba(110, 138, 122, 0.16);
+  --color-ok: #1a8a5f;
+  --color-ok-ink: #157a52;
+  --color-ok-weak: rgba(26, 138, 95, 0.12);
+  --color-notice: #b5791a;
+  --color-notice-ink: #96600f;
+  --color-notice-weak: rgba(181, 121, 26, 0.13);
+  --color-attention: #c45a22;
+  --color-attention-ink: #a04716;
+  --color-attention-weak: rgba(196, 90, 34, 0.13);
+  --color-danger: #cb3f3f;
+  --color-danger-ink: #ac2c2c;
+  --color-danger-weak: rgba(203, 63, 63, 0.12);
+  --color-quiet: #8794a8;
+  --color-quiet-ink: #657286;
+  --color-quiet-weak: rgba(135, 148, 168, 0.16);
 
   /* 平台身份色：跨主题保持一致（PlatformBadge 小徽用） */
   --card-face-1: #24466b;
@@ -195,7 +196,12 @@ body {
   --card-face-5: #5c4a2f;
   --card-face-6: #14535a;
 
-  /* 绿调阴影 */
-  --shadow-soft: 0 1px 2px rgba(29, 64, 42, 0.06), 0 2px 10px rgba(29, 64, 42, 0.07);
-  --shadow-card: 0 1px 2px rgba(29, 64, 42, 0.08), 0 10px 28px rgba(29, 64, 42, 0.12);
+  /* 圆角上一档：白卡 + 细描边 + 大留白的现代工作台观感（纸墨/墨夜不动） */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* 冷蓝调阴影：比纸墨更轻，靠描边撑结构 */
+  --shadow-soft: 0 1px 2px rgba(22, 32, 46, 0.04), 0 2px 10px rgba(22, 32, 46, 0.05);
+  --shadow-card: 0 1px 2px rgba(22, 32, 46, 0.06), 0 10px 28px rgba(22, 32, 46, 0.09);
 }

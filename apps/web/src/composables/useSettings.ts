@@ -7,7 +7,7 @@
 import { onBeforeUnmount, ref, watch } from "vue";
 import type { Settings, ThemeName } from "../types";
 
-const THEME_NAMES: ReadonlySet<string> = new Set(["system", "paper", "dark", "warm"]);
+const THEME_NAMES: ReadonlySet<string> = new Set(["system", "paper", "dark", "mist"]);
 
 export function useSettings() {
   const settings = ref<Settings>(loadSettings());
@@ -22,16 +22,25 @@ export function useSettings() {
       }
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<Settings>;
+        /* 旧主题名迁移（2026-11-18 换肤）：warm（暖纸浅绿）→ mist（晨雾冷蓝）；
+           旧存档里存的是 warm，不映射就会因不在 THEME_NAMES 里被判非法、静默回退 system。
+           存档是用户浏览器里的任意字符串，故按 string 读（不能按 ThemeName 比较）。 */
+        const saved = parsed.theme as string | undefined;
+        const theme = saved === "warm"
+          ? "mist"
+          : saved && THEME_NAMES.has(saved)
+            ? (saved as ThemeName)
+            : "mist";
         return {
           autoRefresh: parsed.autoRefresh ?? true,
           intervalSec: parsed.intervalSec ?? 60,
-          theme: parsed.theme && THEME_NAMES.has(parsed.theme) ? parsed.theme : "system",
+          theme,
         };
       }
     } catch {
       /* 存档损坏即回默认 */
     }
-    return { autoRefresh: true, intervalSec: 60, theme: "system" };
+    return { autoRefresh: true, intervalSec: 60, theme: "mist" };
   }
 
   function updateSettings(patch: Partial<Settings>) {

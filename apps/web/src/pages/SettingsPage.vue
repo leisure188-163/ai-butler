@@ -101,7 +101,7 @@ function saveRoutes() {
           <option value="system">跟随系统</option>
           <option value="paper">纸墨（浅）</option>
           <option value="dark">墨夜（深）</option>
-          <option value="warm">暖纸（浅）</option>
+          <option value="mist">晨雾（浅）</option>
         </select>
       </div>
       <div class="field">

@@ -50,7 +50,7 @@ export type GatewayRoutes = Contract["GatewayRoutesOut"];
 export type SessionItem = Contract["SessionOut"];
 export type SessionsScan = Contract["SessionsScanOut"];
 
-export type ThemeName = "system" | "paper" | "dark" | "warm";
+export type ThemeName = "system" | "paper" | "dark" | "mist";
 
 export interface Settings {
   autoRefresh: boolean;
