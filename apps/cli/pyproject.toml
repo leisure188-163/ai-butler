@@ -5,7 +5,7 @@ requires-python = ">=3.11"
 dependencies = ["typer", "rich", "butler-core", "butler-engine", "butler-connectors"]
 
 [project.scripts]
-butler = "cli.main:app"
+butler = "cli.main:platform"
 
 [tool.uv.sources]
 butler-core = { workspace = true }
