@@ -197,6 +197,8 @@ def umid_ready(monkeypatch):
         lambda exe: {"machineToken": "MT", "machineCode": "MC", "machineType": "MTY"},
     )
     monkeypatch.setattr(dockio, "_client_version", lambda exe: "0.4.8")
+    # 双客户端分区版本也替身：单测不碰真机注册表（2026-11-19 新增字段）
+    monkeypatch.setattr(dockio, "_region_versions", lambda: {})
 
 
 def _dock(spec: DeclarativeSpec, vault: MemVault):

@@ -110,7 +110,7 @@ def _resolve_auth_headers(
                 note=f"缺凭据 kind={kind}（登录态在，身份未停靠）——{_no_auth_note(auth.kind)}",
             ) from exc
     fields = unlock_all(kinds, secrets)
-    return fill_auth_headers(auth, fields)
+    return fill_auth_headers(auth, fields, account_id=account_id)
 
 
 def _verdict_to_result(display: str, verdict: _Verdict, *, default_no_auth: str) -> RunResult:
@@ -157,6 +157,16 @@ class DeclarativeProvisionPort(ProvisionPort):
 
     def capabilities(self) -> Capabilities:
         return Capabilities(dry_run=True, idempotency_window="daily")
+
+    def read_client_version(self) -> str:
+        """本机客户端版本（平台册 client_version 同步源，组合根经端口实例调）。
+
+        声明式连接器没有 adapter 实例，钩子按 conn_id 查探针表（version_probe）：
+        未登记 = 不适用/未知，返回 ""（名册如实显示未知，不静默造数据）。
+        """
+        from butler_connectors.version_probe import client_version
+
+        return client_version(self._id)
 
     def run(self, req: ProvisionRequest) -> RunResult:
         try:

@@ -27,6 +27,7 @@ from butler_connectors.qoder_runtime import (
     hostname as _hostname,
     locate_umid as _locate_umid_impl,
     machine_os as _machine_os,
+    region_versions as _region_versions,
     registry_install_roots as _registry_install_roots,
     run_runtime_info as _run_runtime_info,
 )
@@ -284,6 +285,11 @@ def _collect_umid_cosy(
         "cosy_machine_hostname": _hostname(),
         "cosy_version": _client_version(exe),
     }
+    # 双客户端分区（2026-11-19）：同一台机器装了 Qoder/Koder CN 两套时，各账户的
+    # Cosy-Version 应与其产品域的真实客户端一致（decl_auth 按账户域取 cosy_version_<region>）
+    for region, version in _region_versions().items():
+        if version:
+            payload[f"cosy_version_{region}"] = version
     missing = sorted(k for k, v in payload.items() if not v)
     if missing:
         raise ManifestInvalid(

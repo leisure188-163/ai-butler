@@ -18,12 +18,65 @@ from butler_connectors.manifest import ManifestInvalid
 #: 官方 runtime-info 组件相对安装根的路径（win / mac 两种束形态）
 UMID_REL_WIN = ("resources", "umid", "runtime-info.exe")
 UMID_REL_MAC = ("Contents", "Resources", "umid", "runtime-info")
+#: 多版本目录（2026-11-19 真机取证）：Qoder 升级后新版落
+#: ``<安装根>/.qoder-versions/<版本>/``，安装根 resources 常停在旧壳——
+#: 本机 Global 壳 0.5.7/实际跑 0.5.13，CN 壳 0.4.8/实际跑 0.5.14。
+VERSIONS_DIRNAME = ".qoder-versions"
 #: mac 应用查找根（~/Applications 兜用户级安装）；两种束形态并存（与 workbuddy
 #: localenv 同因）：2026-11-12 记录为 /Applications/Qoder.platform/…，2026-11-18
 #: 本机 Global 实测为 /Applications/Qoder.app/…（Contents/Resources/umid/runtime-info
 #: arm64 Mach-O 实跑通过）——候选序尝试，先命中先执行
 MAC_APP_ROOTS = ("/Applications", "~/Applications")
 MAC_APP_NAMES = ("Qoder.app", "Qoder CN.app", "Qoder.platform", "Qoder CN.platform")
+
+
+def _umid_rel() -> tuple[str, ...]:
+    import sys
+
+    return UMID_REL_MAC if sys.platform == "darwin" else UMID_REL_WIN
+
+
+def _version_key(name: str) -> tuple[int, ...]:
+    """目录名当版本号排序（0.5.14 > 0.5.13 > 0.4.8）：非数字段一律 -1 沉底。"""
+    return tuple(int(part) if part.isdigit() else -1 for part in name.split("."))
+
+
+def version_roots(root) -> list[Path]:
+    """安装根下的历史版本目录，按版本号降序（无该目录 = 老装法，返回空）。"""
+    base = Path(root) / VERSIONS_DIRNAME
+    if not base.is_dir():
+        return []
+    dirs = [entry for entry in base.iterdir() if entry.is_dir()]
+    return sorted(dirs, key=lambda entry: _version_key(entry.name), reverse=True)
+
+
+def umid_within(root) -> Path | None:
+    """在一个安装根里找 runtime-info：先版本目录（最新版优先），再安装根 resources。"""
+    root = Path(root)
+    rel = _umid_rel()
+    for version_root in version_roots(root):
+        candidate = version_root.joinpath(*rel)
+        if candidate.is_file():
+            return candidate
+    candidate = root.joinpath(*rel)
+    return candidate if candidate.is_file() else None
+
+
+def install_roots(*, roots: tuple[str, ...] = MAC_APP_ROOTS, names: tuple[str, ...] = MAC_APP_NAMES):
+    """候选安装根（环境覆盖不在此列）：win 常见目录 + 卸载注册表；mac 束候选序。"""
+    import os
+    import sys
+
+    located: list[Path] = []
+    if sys.platform == "darwin":
+        located.extend(Path(os.path.expanduser(base)) / name for base in roots for name in names)
+        return located
+    for var in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
+        base = os.environ.get(var)
+        if base:
+            located.extend(Path(base) / name for name in ("Qoder CN", "Qoder"))
+    located.extend(registry_install_roots())
+    return located
 
 
 def locate_umid(
@@ -33,30 +86,16 @@ def locate_umid(
 ):
     """runtime-info 定位：环境覆盖 → 平台默认位置（win: 常见目录+卸载注册表；mac: 束候选序）。"""
     import os
-    import sys
 
     override = os.environ.get("QODER_UMID_EXE")
     if override:
         path = Path(override).expanduser()
         if path.is_file():
             return path
-    located: list[Path] = []
-    rel = UMID_REL_WIN
-    if sys.platform == "darwin":
-        rel = UMID_REL_MAC
-        located.extend(
-            Path(os.path.expanduser(base)) / name for base in roots for name in names
-        )
-    else:
-        for var in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
-            base = os.environ.get(var)
-            if base:
-                located.extend(Path(base) / name for name in ("Qoder CN", "Qoder"))
-        located.extend(registry_install_roots())
-    for root in located:
-        candidate = root.joinpath(*rel)
-        if candidate.is_file():
-            return candidate
+    for root in install_roots(roots=roots, names=names):
+        found = umid_within(root)
+        if found is not None:
+            return found
     return None
 
 
@@ -170,6 +209,45 @@ def machine_os() -> str:
     if sys.platform == "darwin":  # mac 解锁分支暂缓，OS 口径先对齐备查
         return f"{'arm64' if arch == 'aarch64' else 'x64'}_darwin"
     return f"{arch}_windows"
+
+
+#: 产品域区域（与 auth.base_urls 的键同源）：CN 走 openapi.qoder.com.cn，Global 走 .sh
+REGION_CN = "cn"
+REGION_GLOBAL = "global"
+
+
+def region_of_root(root) -> str:
+    """安装根 → 区域：国际版目录名为 ``Qoder``，国内版为 ``Qoder CN``。"""
+    return REGION_CN if "CN" in Path(root).name.upper() else REGION_GLOBAL
+
+
+def region_umids(
+    *, roots: tuple[str, ...] = MAC_APP_ROOTS, names: tuple[str, ...] = MAC_APP_NAMES
+) -> dict[str, Path]:
+    """本机每个区域各一支 runtime-info（首命中者）：同一台机器装了两套客户端时按域分。"""
+    found: dict[str, Path] = {}
+    for root in install_roots(roots=roots, names=names):
+        region = region_of_root(root)
+        if region in found:
+            continue
+        umid = umid_within(root)
+        if umid is not None:
+            found[region] = umid
+    return found
+
+
+def region_versions() -> dict[str, str]:
+    """区域 → 客户端版本（Cosy-Version 按账户域选，见 decl_auth 的 scoped 覆盖）。"""
+    return {region: client_version(umid) for region, umid in region_umids().items()}
+
+
+def installed_version() -> str:
+    """平台册 client_version 的事实源：本机已安装（取最新版本目录）的客户端版本。
+
+    纯只读探测，不拉起客户端；定不到组件或读不到 manifest 返回 ""（= 未知）。
+    """
+    umid = locate_umid()
+    return client_version(umid) if umid is not None else ""
 
 
 def hostname() -> str:

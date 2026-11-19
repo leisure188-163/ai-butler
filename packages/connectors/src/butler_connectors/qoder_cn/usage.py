@@ -74,7 +74,7 @@ class QoderUsagePort:
         for kind in self.kinds:
             secrets[kind] = self._vault.load(req.account_id, [kind])[0]  # 缺失显式上抛
         fields = unlock_all(self.kinds, secrets)
-        headers = fill_auth_headers(self.auth, fields)
+        headers = fill_auth_headers(self.auth, fields, account_id=req.account_id)
         base = account_base_url(self.auth, req.account_id) or _DEFAULT_USAGE_BASE
         response = self.transport(
             HttpRequest(method="GET", url=base + _USAGE_PATH, headers=headers),

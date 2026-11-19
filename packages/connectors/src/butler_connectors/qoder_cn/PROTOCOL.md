@@ -15,7 +15,7 @@
 | 凭据文件 | `auth.v1.dat`：**Windows = DPAPI（CryptUnprotectData）+ AES-256-GCM（CNG BCrypt）双层**，密钥在 `Local State` 的 `os_crypt.encrypted_key`；**macOS = Keychain safeStorage + AES-128-CBC**（`v10` 头同形、固定 16 空格 IV、PKCS7 补位），钥匙 = Keychain 条目 `Qoder App Safe Storage`（**2026-11-12 dump-keychain 元数据实取证得**，比 Chrome 惯例多 "App"）口令（24B）经 PBKDF2-HMAC-SHA1(salt `saltysalt`, 1003 轮, 16B) 派生——mac 的 `Local State` 只有 `uninstall_metrics` 无 `os_crypt`；两平台信封解锁同 kind `dpapi_gcm_v10`（win 信封自包含 dat+key_b64；mac 信封只带 dat，钥匙现用现取不入 vault） | 2026-10-21 / 2026-11-12 |
 | token 有效期 | 解密产物 `expiresAt` ISO 时间——入 vault.expires_at；**过期直接 NO_AUTH 提醒重登，不碰 refresh token**（不与桌面端争抢令牌轮换） | 2026-10-21 |
 | 机器身份 | 客户端自带 `resources/umid/runtime-info` 组件产出 8 头组：`Cosy-Version / ClientType / MachineOS / MachineToken / MachineCode / MachineType / MachineId / MachineHostname` | 2026-10-21 |
-| 组件定位 | Windows：`QODER_UMID_EXE` 环境变量 → `{LOCALAPPDATA,ProgramFiles,ProgramFiles(x86)}/Qoder CN|Qoder` → 卸载注册表 `Qoder*` 条目（**子键为 GUID 型**；`InstallLocation` 常缺失，`DisplayIcon` 指向安装目录的 .ico——取其父目录）。macOS：`QODER_UMID_EXE` 环境变量 → `{/Applications,~/Applications}/Qoder.app|Qoder CN.app/Contents/Resources/umid/runtime-info`（**2026-11-12 mac 本机取证**：组件在且无参可运行，输出键与 Windows 同形 `{machineCode, machineToken, machineType, vmInfo}`） | 2026-11-11 |
+| 组件定位 | Windows：`QODER_UMID_EXE` 环境变量 → `{LOCALAPPDATA,ProgramFiles,ProgramFiles(x86)}/Qoder CN|Qoder` → 卸载注册表 `Qoder*` 条目（**子键为 GUID 型**；`InstallLocation` 常缺失，`DisplayIcon` 指向安装目录的 .ico——取其父目录）。macOS：`QODER_UMID_EXE` 环境变量 → `{/Applications,~/Applications}/Qoder.app|Qoder CN.app/Contents/Resources/umid/runtime-info`（**2026-11-12 mac 本机取证**：组件在且无参可运行，输出键与 Windows 同形 `{machineCode, machineToken, machineType, vmInfo}`）。**多版本目录（2026-11-19）**：定位到安装根后先找 `<安装根>/.qoder-versions/<版本>/`（版本号降序、最新优先），无该目录才退回安装根 `resources/`——安装根常停在旧壳（本机 Global 壳 0.5.7/实跑 0.5.13、CN 壳 0.4.8/实跑 0.5.14） | 2026-11-11 / 2026-11-19 |
 
 ### 1.1 真机取证补记（2026-11-11，客户端 0.4.8 / Windows）
 
@@ -67,6 +67,31 @@
   `/Applications/Qoder.app`（非旧记录的 `.platform`），
   `Contents/Resources/umid/runtime-info`（arm64 Mach-O）实跑通过——
   dockio 候选序 `.app` 与 `.platform` 双兼容
+
+### 1.3 多版本目录与按账户域取版本（2026-11-19 真机取证）
+
+用户发现「应用和功能」里同时有 `Qoder 0.5.7` 与 `Qoder CN 0.5.14`（827MB/698MB），
+追问系统实际用哪个。取证结论：
+
+- **客户端是「空壳安装根 + 多版本目录」装法**：升级后新版落
+  `<安装根>/.qoder-versions/<版本>/`，安装根 `resources/` 停在**旧壳**。
+  本机实测：Global 根 `Qoder.exe` 0.5.7 / `.qoder-versions` 有 0.5.12、**0.5.13**（11-18）；
+  CN 根 `Qoder CN.exe` 0.4.8 / `.qoder-versions` 有 0.5.13、**0.5.14**。
+  即「注册表登记 0.5.14、目录内主程序 0.4.8」并非安装损坏，而是壳与版本目录分离。
+- **四个 runtime-info 的机器身份完全一致**：`machineToken` / `machineCode
+  (8b6509ed76c1cded02)` / `machineType` 逐字段相同（同一台机器同一套算法），
+  **只有版本号不同**——所以选哪支组件只影响 `Cosy-Version`，不影响设备身份。
+- **旧实现错在取数口径**：`locate_umid` 只读安装根 `resources/`，报出去的是
+  壳版本（Global 0.5.7），与账户真实客户端（Global 0.5.13 / CN 0.5.14）都不符。
+- **现行口径**：①定位取 `.qoder-versions` 里版本号最高的那人组件（残缺版本
+  目录无组件时继续往下找，最后退回壳）；②`Cosy-Version` 随账户产品域走——
+  dock 采集同时写 `cosy_version_global` / `cosy_version_cn`，头拼装按账户所连
+  host 归组取同名 `_<域键>` 字段（CN 域有 main/cn 两个键指向同一 host，故按
+  host 归组而不是按账户键）；③平台册 `client_version` 由 `version_probe` 探针
+  供给（`qoder_cn` → 最新版本目录的 `productVersion`），名册不再显示「—」。
+- **不拆平台**：国际版/国内版是同一产品两个发行区域，领取接口、凭据 kind、
+  活动规则、调度全共用；拆成两行会让调度/凭据/台账各重复一套。账户仍按
+  区域分（`main` 走 CN、`global-*` 走 Global），平台名册仍只有 `qoder_cn` 一行。
 
 ## 2. 端点族
 

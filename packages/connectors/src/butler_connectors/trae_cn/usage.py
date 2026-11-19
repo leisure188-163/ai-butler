@@ -70,7 +70,7 @@ class TraeUsagePort:
             # 凭据缺失显式上抛（CredentialMissing）——CollectUsage 收进 outcome.error
             secrets[kind] = self._vault.load(req.account_id, [kind])[0]
         fields = unlock_all(self.kinds, secrets)
-        headers = fill_auth_headers(self.auth, fields)
+        headers = fill_auth_headers(self.auth, fields, account_id=req.account_id)
         response = self.transport(
             HttpRequest(
                 method="POST",
