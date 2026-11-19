@@ -48,8 +48,18 @@ const headline = computed(() => {
     return { strong: "今日暂无数据", tail: "服务恢复后点刷新会重新拉取" };
   if (props.pending.length > 0)
     return { strong: `${props.pending.length} 项待处理`, tail: "处理完即可清静" };
+  /* 空库文案对齐「同步平台 → 接入账户」两步式（ADR-031 决策 7）：
+     名册都没扫回来时先让用户去同步，名册有了才说接入——一步一句，不混着说 */
   if (props.accounts.length === 0)
-    return { strong: "还没有接入任何平台", tail: "到「平台管理」页接入全部，把本机客户端接进来" };
+    return props.platforms.length === 0
+      ? {
+          strong: "还没有平台名册",
+          tail: "到「平台管理」页点「同步平台」，把本机已登录的客户端扫成名册",
+        }
+      : {
+          strong: "还没有接入账户",
+          tail: `名册已就绪（${props.platforms.length} 家）：到「平台管理」页点「接入全部」，把客户端账户导进来`,
+        };
   const unwell = props.accounts.filter((a) => a.signal !== "ok").length;
   if (unwell > 0)
     return {

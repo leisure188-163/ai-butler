@@ -1,8 +1,12 @@
 <script setup lang="ts">
 /**
  * 上手自检卡（2026-11-19）：
- * 两种形态，同一份数据决定——空库（一个账户都没有）显示三步引导；
+ * 两种形态，同一份数据决定——空库（一个账户都没有）显示四步引导；
  * 已有数据时显示自检清单（服务 / 平台接入 / 排班 / 账户健康）。
+ *
+ * 引导口径对齐「同步平台 → 接入账户」两步式（ADR-031 决策 7）：
+ * 先点「同步平台」把连接器扫成名册，再点「接入全部」把账户导进来——
+ * 名册为空时「接入全部」没有候选可接，这两步不能合并成一步。
  *
  * 全部判断只消费既有投影：platform.account_ids / schedule_times / account.signal，
  * 不新开端点、不自造阈值（红线 2：健康分类由 core 出产）。
@@ -61,13 +65,15 @@ const checks = computed<Check[]>(() => {
       key: "docking",
       name: "平台接入",
       detail:
-        dockedCount === 0
-          ? `还没有接入任何平台（可用 ${totalActive} 家）`
-          : undocked.value.length
-            ? `已接入 ${dockedCount} / ${totalActive} 家，还差 ${undocked.value.length} 家`
-            : `${dockedCount} 家全部接入`,
+        props.platforms.length === 0
+          ? "还没有平台名册——去平台页点「同步平台」把连接器扫回来"
+          : dockedCount === 0
+            ? `还没有接入任何账户（名册 ${totalActive} 家）`
+            : undocked.value.length
+              ? `已接入 ${dockedCount} / ${totalActive} 家，还差 ${undocked.value.length} 家`
+              : `${dockedCount} 家全部接入`,
       ok: dockedCount > 0 && undocked.value.length === 0,
-      action: "去接入",
+      action: props.platforms.length === 0 ? "去同步" : "去接入",
       page: "平台管理",
     },
     {
@@ -128,7 +134,7 @@ function toggle() {
         <p class="ob-title">{{ isFresh ? "从这里开始" : "系统自检" }}</p>
         <p class="ob-sum" :class="badCount ? 'ob-sum--warn' : 'ob-sum--ok'">
           <template v-if="loading && !checks.length">检查中…</template>
-          <template v-else-if="isFresh">三步把管家跑起来</template>
+          <template v-else-if="isFresh">四步把管家跑起来</template>
           <template v-else>
             {{ okCount }} 项正常<template v-if="badCount"> · {{ badCount }} 项需处理</template>
           </template>
@@ -139,21 +145,31 @@ function toggle() {
       </button>
     </header>
 
-    <!-- 空库：三步引导（带入口，不问人也能走完） -->
+    <!-- 空库：四步引导（同步平台 → 接入账户 → 排班 → 首次签到，带入口，不问人也能走完） -->
     <ol v-if="isFresh && !collapsed" class="ob-steps">
       <li>
         <span class="ob-step-no">1</span>
         <span class="ob-step-body">
-          <span class="ob-step-name">接入平台</span>
+          <span class="ob-step-name">同步平台</span>
           <span class="ob-step-hint">
             前提是本机已装好并登录对应客户端（豆包 / Qoder / Trae / WorkBuddy）。
-            平台管理点「接入全部」一次接完。
+            平台管理点「同步平台」，把连接器扫成名册，一般会出来 5 家。
+          </span>
+        </span>
+        <button class="btn" @click="emit('navigate', '平台管理')">去同步</button>
+      </li>
+      <li>
+        <span class="ob-step-no">2</span>
+        <span class="ob-step-body">
+          <span class="ob-step-name">接入账户</span>
+          <span class="ob-step-hint">
+            名册出来后点「接入全部」，把客户端里的账户一次导进来；只想接某一家就点它那一行的「接入」。
           </span>
         </span>
         <button class="btn" @click="emit('navigate', '平台管理')">去接入</button>
       </li>
       <li>
-        <span class="ob-step-no">2</span>
+        <span class="ob-step-no">3</span>
         <span class="ob-step-body">
           <span class="ob-step-name">设好签到时间</span>
           <span class="ob-step-hint">给每个平台排班（如 08:35），到点自动签；不排班只能手动点。</span>
@@ -161,7 +177,7 @@ function toggle() {
         <button class="btn" @click="emit('navigate', '平台管理')">去排班</button>
       </li>
       <li>
-        <span class="ob-step-no">3</span>
+        <span class="ob-step-no">4</span>
         <span class="ob-step-body">
           <span class="ob-step-name">跑第一次签到</span>
           <span class="ob-step-hint">先手动点一次，确认链路通——成败都会进运行日志。</span>
