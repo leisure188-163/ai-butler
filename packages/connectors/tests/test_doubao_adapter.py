@@ -7,6 +7,7 @@ detail fetch 结果（detail_results）与页面求值结果（eval_results）�
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -229,7 +230,8 @@ def test_click_then_recheck_true_is_claimed():
     assert "立即签到" in result.evidence[0].summary
 
 
-def test_click_then_recheck_false_is_failed():
+def test_click_then_recheck_false_is_failed(tmp_path, monkeypatch):
+    monkeypatch.setenv("DOUBAO_FAILURE_DIR", str(tmp_path))
     channel = FakeChannel(
         pages=[{"type": "page", "url": "https://www.doubao.com/x",
                 "webSocketDebuggerUrl": "ws://p"}],
@@ -240,7 +242,15 @@ def test_click_then_recheck_false_is_failed():
     assert result.status is Status.FAILED
     # 点击已送达但退避复查 3 次仍未签（PROTOCOL §3 FAILED 行，2026-11-16 语义）
     assert f"复查 {len(adapter._RECHECK_DELAYS)} 次仍未签" in result.evidence[0].summary
-    assert len(channel.detail_calls) == 1 + len(adapter._RECHECK_DELAYS)
+    # +1 = 失败留证时再读一次 detail（2026-11-19 evidence.record_failure）
+    assert len(channel.detail_calls) == 2 + len(adapter._RECHECK_DELAYS)
+    # 失败现场包必须落盘：stage=click_no_flip（本篇的核心断言）
+    files = list(tmp_path.glob("doubao_failures-*.jsonl"))
+    assert files, "失败但没落现场包"
+    record = json.loads(files[0].read_text(encoding="utf-8").splitlines()[-1])
+    assert record["stage"] == "click_no_flip"
+    assert record["click"]["text"] == "签到"
+    assert "dom" in record and "page_text" in record
 
 
 def test_click_recheck_retry_then_true_is_claimed():
@@ -570,3 +580,4 @@ def test_dock_first_visit_saves_main_baseline(tmp_path, monkeypatch, request_ctx
     adapter.butler.dock(Ctx(register=RegisterOk()), env=FakeEnv(), channel=channel)
     baseline = doubao_identity.load_main_baseline()
     assert baseline is not None and baseline.sec_uid == MAIN_SEC_UID
+

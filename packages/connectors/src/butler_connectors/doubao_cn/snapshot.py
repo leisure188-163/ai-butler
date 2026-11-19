@@ -117,6 +117,84 @@ def _append(record: dict[str, Any]) -> Path:
     return path
 
 
+def failure_dir() -> Path:
+    """失败现场目录：DOUBAO_FAILURE_DIR 优先，否则 ~/.butler/doubao_failures。"""
+    raw = os.environ.get("DOUBAO_FAILURE_DIR")
+    return Path(raw) if raw else Path.home() / ".butler" / "doubao_failures"
+
+
+def record_failure_evidence(
+    *,
+    account_id: str,
+    stage: str,
+    click: dict[str, Any] | None,
+    checks: int,
+    detail: Any,
+    dom: Any,
+    page_text: str,
+    entries: Any,
+) -> Path:
+    """落一份「签到失败现场包」——把判定失败的那一刻的页面与请求证据留档。
+
+    目的（2026-11-19 用户裁决）：下次失败不必猜。三类失败各自可区分：
+
+    - ``no_button``：页面上找不到「立即签到」→ 界面改版/未加载/账户无资格
+    - ``click_no_flip`` + entries 有 ``landing/checkin`` → **平台拒绝**（702 族）
+    - ``click_no_flip`` + entries 空 → **点击没落到按钮上**（坐标/遮挡）
+    - ``identity_mismatch``：点击前身份硬断言未过（绝不出手，见 adapter）
+
+    ``detail`` 是失败时刻的完整 detail 返回（本地文件，含昵称/额度等原始值）；
+    ``entries`` 走 ``record_checkin_trace`` 同一套脱敏（签名类只存 hash）。
+    """
+    safe_entries: list[dict[str, Any]] = []
+    if isinstance(entries, list):
+        for entry in entries[:20]:
+            if not isinstance(entry, dict):
+                continue
+            response = entry.get("response")
+            safe_entries.append(
+                {
+                    "transport": entry.get("transport"),
+                    "method": entry.get("method"),
+                    "url": redact_url(str(entry.get("url") or "")),
+                    "query": redact_query(str(entry.get("url") or "")),
+                    "headers": redact_headers(entry.get("headers")),
+                    "body": _trim(entry.get("body")),
+                    "response": (
+                        {
+                            "status": response.get("status"),
+                            "body": _trim(response.get("body")),
+                        }
+                        if isinstance(response, dict)
+                        else None
+                    ),
+                }
+            )
+    directory = failure_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"doubao_failures-{datetime.now().strftime('%Y-%m-%d')}.jsonl"
+    line = json.dumps(
+        {
+            "ts": _now(),
+            "event": "failure_evidence",
+            "account_id": account_id,
+            "stage": stage,
+            "click": click,
+            "recheck_count": checks,
+            "checkin_requests": [e for e in safe_entries if "landing/checkin" in str(e.get("url"))],
+            "entries": safe_entries,
+            "dom": dom,
+            "page_text": page_text[:_MAX_TEXT],
+            "detail": _trim(detail),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+    return path
+
+
 def record_checkin_trace(
     *,
     account_id: str,

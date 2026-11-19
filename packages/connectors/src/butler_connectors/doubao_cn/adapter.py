@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import replace
+from typing import Any
 
 from butler_core.execution.ports import Capabilities, ProvisionPort, ProvisionRequest
 from butler_core.shared.results import Status, from_engine
@@ -37,6 +38,11 @@ from butler_connectors.doubao_cn.identity import (
 )
 from butler_connectors.doubao_cn.localenv import LocalEnv, real_env, version_code
 from butler_connectors.doubao_cn import snapshot as request_snapshot
+from butler_connectors.doubao_cn.evidence import (
+    assert_identity,
+    read_active_keys,
+    record_failure,
+)
 from butler_connectors.doubao_cn.switch import (
     SwitchError,
     resolve_target_identity,
@@ -77,6 +83,8 @@ from butler_connectors.doubao_cn.ui_js import (
     _PAGE_TEXT_JS,
     _RECHECK_DELAYS,
     _SETTLE_SECONDS,
+    _SIGNIN_AREA_JS,
+    _TOPMOST_AT_JS,
     _TRACE_INSTALL_JS,
     _TRACE_READ_JS,
 )
@@ -98,6 +106,9 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         self.sleep = sleep
         self.monotonic = monotonic  # 切号翻转轮询的时钟（可注入，离线测试不真等）
         self.capture = capture  # 请求快照（脱敏 JSONL）；失败不阻断签到
+        # 失败留证（2026-11-19 用户裁决）：默认开——仅在「未签→点击」路径装只读旁路，
+        # 成功即丢弃、失败才落现场包（detail + DOM + 是否发出 checkin 请求）。
+        self.failure_capture = os.environ.get("DOUBAO_FAILURE_CAPTURE", "1") != "0"
         self._switch_note: str | None = None
 
     def capabilities(self) -> Capabilities:
@@ -185,11 +196,11 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         stale = self._close_stale_activity_pages()
         if stale is not None:
             return _pending(stale)
-        flipped = read_all_identities(self.channel)
-        active_now = resolve_account_key(flipped[0]) if flipped else ""
-        if f"{CONN_ID}:{active_now}" != req.account_id:
+        # 连读两次复核（2026-11-19）：切号瞬间界面可能还在刷新，两次都命中才认翻转。
+        seen = read_active_keys(self.channel, self.sleep)
+        if len(seen) != 2 or any(f"{CONN_ID}:{key}" != req.account_id for key in seen):
             return _pending(
-                f"自动切号后身份复核不符（活跃={active_now or '未知'}，"
+                f"自动切号后身份复核不符（连读={'/'.join(key or '未知' for key in seen)}，"
                 f"目标 {req.account_id}）——绝不盲签（A2-02 §6 红线）",
                 hint="切换复核失败——人工在客户端头像菜单确认当前账户后重试",
             )
@@ -310,6 +321,10 @@ class DoubaoCdpProvisionPort(ProvisionPort):
         raw_code: str,
         account_id: str,
     ) -> RunResult:
+        # 硬断言（2026-11-19）：切号复核后、点击前最后一道身份校验，不符即 PENDING。
+        guard = assert_identity(self.channel, CONN_ID, account_id, sleep=self.sleep)
+        if guard is not None:
+            return _pending(guard, hint="客户端当前账户不是目标账户：在头像菜单人工确认后重试")
         box = None
         for _ in range(_FIND_RETRIES):
             try:
@@ -324,6 +339,15 @@ class DoubaoCdpProvisionPort(ProvisionPort):
                 page_text = str(self.channel.evaluate(conn, _PAGE_TEXT_JS) or "")
             except CdpError:
                 page_text = ""
+            record_failure(
+                self.channel,
+                conn,
+                account_id,
+                stage="no_button",
+                click=None,
+                checks=0,
+                detail=self._safe_detail(conn, vcode),
+            )
             return _failed(
                 f"页面上找不到签到按钮（可能界面改版；页面文本摘要: {page_text[:120]!r}）",
                 raw_code=raw_code,
@@ -363,9 +387,27 @@ class DoubaoCdpProvisionPort(ProvisionPort):
                         ),
                     )
             if last_detail_error is not None:
+                record_failure(
+                    self.channel,
+                    conn,
+                    account_id,
+                    stage="detail_error",
+                    click=box,
+                    checks=len(_RECHECK_DELAYS),
+                    detail=None,
+                )
                 return _failed(
                     f"点击后复查 detail 失败: {last_detail_error}", raw_code=raw_code
                 )
+            record_failure(
+                self.channel,
+                conn,
+                account_id,
+                stage="click_no_flip",
+                click=box,
+                checks=len(_RECHECK_DELAYS),
+                detail=self._safe_detail(conn, vcode),
+            )
             return _failed(
                 f"已在客户端界面点击「{text}」但复查 {len(_RECHECK_DELAYS)} 次仍未签"
                 "——服务端/账号侧异常，可手工点一次确认",
@@ -378,8 +420,9 @@ class DoubaoCdpProvisionPort(ProvisionPort):
             self._snapshot_trace(account_id, text, box, trace)
 
     def _install_trace(self, conn: CdpConnection) -> None:
-        """安装只读页面旁路；capture=False 时不产生任何额外 CDP 调用。"""
-        if not self.capture:
+        """安装只读页面旁路；取证全关时零额外 CDP 调用。安装条件 = capture 或
+        failure_capture；旁路只记录出入参，不改请求本身（ADR-017 零裸请求不变）。"""
+        if not (self.capture or self.failure_capture):
             return
         try:
             self.channel.evaluate(conn, _TRACE_INSTALL_JS)
@@ -387,13 +430,19 @@ class DoubaoCdpProvisionPort(ProvisionPort):
             return
 
     def _read_trace(self, conn: CdpConnection):
-        if not self.capture:
+        if not (self.capture or self.failure_capture):
             return None
         try:
             value = self.channel.evaluate(conn, _TRACE_READ_JS)
         except CdpError:
             return None
         return value if isinstance(value, dict) else None
+
+    def _safe_detail(self, conn: CdpConnection, vcode: int) -> Any:
+        try:
+            return self._detail(conn, vcode)
+        except CdpError:
+            return None
 
     def _snapshot_trace(self, account_id: str, text: str, box: dict, trace) -> None:
         if not self.capture:

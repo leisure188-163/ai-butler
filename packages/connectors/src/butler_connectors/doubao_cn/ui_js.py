@@ -185,3 +185,38 @@ _RECHECK_DELAYS = (3.0, 5.0, 8.0)
 #: 杀净与拉起之间的落定间隔（2026-11-17 真机：旧实例未完全退出时立即拉起
 #: 撞单实例锁，新实例静默消失——settle 后再拉起 + 轮询绑定一次成功）。
 _KILL_SETTLE_SECONDS = 6.0
+
+#: 失败留证：签到区相关元素快照。配合 _TOPMOST_AT_JS 判读三种失败形态——
+#: ①有「立即签到」但 disabled/pointerEvents=none（按钮存在但不可点）；
+#: ②只剩「每日签到+200 额度」大卡（已签态或界面改版）；③两者都没有（页面没加载好）。
+_SIGNIN_AREA_JS = """
+(() => {
+  const items = [];
+  for (const el of document.querySelectorAll('button,[role=button],a,span,div')) {
+    const t = (el.textContent || '').trim();
+    if (!t || t.length > 14) continue;
+    if (!/(签到|已签|领取|打卡)/.test(t)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 10 || r.height < 8) continue;
+    items.push({text: t, tag: el.tagName,
+                cls: String(el.className || '').slice(0, 60),
+                x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2),
+                w: Math.round(r.width), h: Math.round(r.height),
+                disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true',
+                pe: getComputedStyle(el).pointerEvents});
+  }
+  return {items: items.slice(0, 20), scrollY: Math.round(window.scrollY),
+          viewport: [window.innerWidth, window.innerHeight], href: String(location.href)};
+})()
+"""
+
+#: 失败留证：点击坐标上真正吃到这一击的元素。%d 由 adapter 填入 x、y；
+#: 返回文本与目标「立即签到」不一致 = 点到遮挡层/空白（点空），不是平台拒绝。
+_TOPMOST_AT_JS = """
+(() => {
+  const el = document.elementFromPoint(%d, %d);
+  if (!el) return null;
+  return {text: (el.textContent || '').trim().slice(0, 60), tag: el.tagName,
+          cls: String(el.className || '').slice(0, 60)};
+})()
+"""
