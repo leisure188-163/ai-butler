@@ -21,6 +21,7 @@ import type {
   Signal,
 } from "../types";
 import { faceOf, signalText } from "../utils";
+import { accessHint, accountCount, capabilityText, kindText, visibleCaps } from "../utils/platform";
 const props = defineProps<{
   platforms: PlatformItem[];
   accounts: AccountItem[];
@@ -117,34 +118,6 @@ function isConnected(platform: PlatformItem): boolean {
 const connectedPlatforms = computed(() => props.platforms.filter(isConnected));
 const emptyPlatforms = computed(() => props.platforms.filter((p) => !isConnected(p)));
 const importableCount = computed(() => emptyPlatforms.value.length);
-function capabilityText(kind: string): string {
-  if (kind === "provision.run") return "领取";
-  if (kind === "health.check") return "体检";
-  if (kind.startsWith("usage")) return "用量";
-  return kind;
-}
-/** 主表只出白话能力；session.import 等协议字样留在详情 */
-function visibleCaps(platform: PlatformItem): string[] {
-  return platform.capabilities.filter(
-    (c) => c === "provision.run" || c === "health.check" || c.startsWith("usage"),
-  );
-}
-/** 平台类型直译（词表 = core PLATFORM_KINDS；空=未申报） */
-function kindText(kind: string): string {
-  if (kind === "web") return "网页版";
-  if (kind === "client") return "客户端";
-  return "—";
-}
-/** 接入前提：只按契约字段直译，不在这里判定能不能接 */
-function accessHint(platform: PlatformItem): string {
-  if (platform.kind === "client") return "需本机已安装并登录该客户端";
-  if (platform.kind === "web") return "需先在浏览器里登录该平台";
-  return "需先登录对应客户端或浏览器";
-}
-function accountCount(platform: PlatformItem): number {
-  if (platform.account_ids?.length) return platform.account_ids.length;
-  return platform.account_id ? 1 : 0;
-}
 function accountsOf(platform: PlatformItem): AccountItem[] {
   const ids = new Set(platform.account_ids ?? (platform.account_id ? [platform.account_id] : []));
   return props.accounts.filter((a) => ids.has(a.account_id) || a.platform_code === platform.id);
@@ -260,7 +233,8 @@ const slotsOpen = ref(false);
           <tr>
             <th class="col-identity">平台名称</th>
             <th class="col-code">平台编码</th>
-            <th class="col-kindver">类型 · 版本</th>
+            <th class="col-kind">类型</th>
+            <th class="col-version">版本</th>
             <th class="col-state">状态</th>
             <th class="col-caps">能力</th>
             <th class="col-sched">调度执行时间</th>
@@ -270,7 +244,7 @@ const slotsOpen = ref(false);
         </thead>
         <tbody>
           <tr v-if="!pagedPlatforms.length">
-            <td class="table-empty" colspan="8">暂无平台数据</td>
+            <td class="table-empty" colspan="9">暂无平台数据</td>
           </tr>
           <tr v-for="platform in pagedPlatforms" :key="platform.id">
             <!-- 身份锚点：名称与编码各占一列；点名称弹详情，不再展开表格行。
@@ -288,11 +262,14 @@ const slotsOpen = ref(false);
             <td class="col-code">
               <span class="mono identity-code">{{ platform.id }}</span>
             </td>
-            <td class="col-kindver">
+            <td class="col-kind">
               <span class="tag tag--quiet">{{ platform.kind ? kindText(platform.kind) : "—" }}</span>
-              <!-- 网页版没有客户端版本，不占位；客户端探不到版本时如实说「未知」，不留悬空破折号 -->
+            </td>
+            <!-- 版本单列：网页版无客户端版本，写「—」；客户端探不到时如实说「版本未知」，不留空 -->
+            <td class="col-version">
               <span v-if="platform.client_version" class="ver num">v{{ platform.client_version }}</span>
               <span v-else-if="platform.kind === 'client'" class="ver faint">版本未知</span>
+              <span v-else class="faint">—</span>
             </td>
             <td class="col-state">
               <button
@@ -422,9 +399,10 @@ const slotsOpen = ref(false);
 }
 .platform-open:hover .open-arrow { color: var(--color-accent); }
 .identity-code { font-size: var(--text-xs); color: var(--color-text-muted); }
-.col-kindver { white-space: nowrap; }
-.col-kindver .tag { margin-right: var(--space-2); }
-.col-kindver .ver { font-size: var(--text-xs); color: var(--color-text-muted); }
+/* 类型与版本各占一列（2026-11-19 用户要求拆开）：两列都窄、都 nowrap，拼起来与原「类型·版本」同宽 */
+.col-kind { white-space: nowrap; width: 76px; }
+.col-version { white-space: nowrap; width: 96px; }
+.col-version .ver { font-size: var(--text-xs); color: var(--color-text-muted); }
 .state-switch {
   display: inline-flex;
   align-items: center;
@@ -522,7 +500,7 @@ const slotsOpen = ref(false);
   .col-sched { display: none; }
 }
 @media (max-width: 720px) {
-  .col-kindver { display: none; }
+  .col-kind, .col-version { display: none; }
 }
 @media (max-width: 640px) {
   .platform-wrap { overflow-x: visible; }
