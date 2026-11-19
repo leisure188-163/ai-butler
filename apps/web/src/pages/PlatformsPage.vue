@@ -416,10 +416,10 @@ const slotsOpen = ref(false);
 .col-kind { white-space: nowrap; width: 76px; }
 .col-version { white-space: nowrap; width: 96px; }
 .col-version .ver { font-size: var(--text-xs); color: var(--color-text-muted); }
-/* 列头统一居中（2026-11-19 用户要求）：短列内容跟着居中，否则表头与内容左右错位 */
+/* 列表规范 07：表头与短列内容居中；.row-actions 是 flex，得单独居中 */
 .platform-wrap .matrix th { text-align: center; }
-.platform-wrap .matrix td.col-kind,
-td.col-version, td.col-state, td.col-anchor, td.col-actions { text-align: center; }
+.platform-wrap .matrix td.col-kind, td.col-version, td.col-state, td.col-anchor, td.col-actions { text-align: center; }
+.platform-wrap .matrix .row-actions { justify-content: center; }
 .state-switch {
   display: inline-flex;
   align-items: center;

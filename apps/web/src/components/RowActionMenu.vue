@@ -147,38 +147,7 @@ watch(
 .more-anchor {
   display: inline-flex;
 }
-/* 图标动作按钮（2026-11-19 用户要求）：28×28 方形、无文字、悬停才显底色；
-   title/aria-label 承载动作名，鼠标停一下就知道是什么 */
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
-}
-.icon-btn:hover:not(:disabled) {
-  color: var(--color-accent);
-  background: var(--color-accent-weak);
-}
-.icon-btn:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
-}
-.icon-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.act-icon {
-  width: 16px;
-  height: 16px;
-}
+/* 图标按钮的样式在 styles/ui.css 的 .icon-btn（列表规范统一件），本组件不再重复定义 */
 .more-toggle {
   display: inline-flex;
   align-items: center;

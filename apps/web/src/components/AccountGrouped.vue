@@ -6,10 +6,12 @@
  * 行内修复入口复用 ADR-015 两步引导：先重新登录，再点「我已登录，立即重试」。
  */
 import { computed, ref, watch } from "vue";
+import ActionIcon from "./ActionIcon.vue";
 import PlatformBadge from "./PlatformBadge.vue";
 import AccountDetail from "./AccountDetail.vue";
 import { useAccountRows } from "../composables/useAccountRows";
 import { faceOf, fmtTime, signalText } from "../utils";
+import { platformIcon } from "../utils/platformIcons";
 import type { AccountItem, PlatformItem, RadarRow, RunItem, Signal } from "../types";
 
 const props = defineProps<{
@@ -185,7 +187,7 @@ function confirmRepair(account: AccountItem) {
         <button class="caret" :aria-expanded="!collapsed.has(g.code)" @click="toggleCollapse(g.code)">
           {{ collapsed.has(g.code) ? "▸" : "▾" }}
         </button>
-        <PlatformBadge :name="g.platform?.platform_name ?? g.code" :color-index="faceOf(g.code)" />
+        <PlatformBadge :name="g.platform?.platform_name ?? g.code" :color-index="faceOf(g.code)" :icon="platformIcon(g.code)" />
         <code class="mono group-code">{{ g.code }}</code>
         <span class="group-health">
           <span v-for="h in g.health" :key="h.signal" class="tag" :class="`tag--${h.signal}`">
@@ -228,7 +230,7 @@ function confirmRepair(account: AccountItem) {
                   <div class="acct-name">{{ accountLabel(a) }}</div>
                   <div class="acct-id mono">{{ a.account_id }}</div>
                 </td>
-                <td><span class="tag" :class="`tag--${a.signal}`">{{ signalText(a.signal) }}</span></td>
+                <td class="col-state"><span class="tag" :class="`tag--${a.signal}`">{{ signalText(a.signal) }}</span></td>
                 <td>
                   <span class="tag" :class="`tag--${todayAction.get(a.account_id)?.cls}`">
                     {{ todayAction.get(a.account_id)?.label }}
@@ -252,26 +254,50 @@ function confirmRepair(account: AccountItem) {
                     </span>
                   </div>
                 </td>
-                <td class="col-extra">
+                <td class="col-extra col-quota">
                   <template v-if="quotaOf(a.account_id)">
                     <div class="quota num">{{ quotaOf(a.account_id)!.text }}</div>
                     <div class="meter"><span class="meter-fill" :class="{ 'meter-fill--low': quotaOf(a.account_id)!.low }" :style="{ width: `${(quotaOf(a.account_id)!.ratio ?? 0) * 100}%` }"></span></div>
                   </template>
                   <span v-else class="faint">—</span>
                 </td>
-                <td class="col-extra">
+                <td class="col-extra col-cred">
                   <template v-if="earliestExpiry(a)">
                     <span class="num">{{ fmtTime(earliestExpiry(a)) }} 到期</span>
                     <span v-if="credNoticeOf(a)" class="tag tag--notice">临期</span>
                   </template>
                   <span v-else class="faint">—</span>
                 </td>
-                <td class="col-extra row-time">{{ lastRunAtOf(a.account_id) ? fmtTime(lastRunAtOf(a.account_id)) : "—" }}</td>
-                <td @click.stop>
+                <td class="col-extra col-time row-time">{{ lastRunAtOf(a.account_id) ? fmtTime(lastRunAtOf(a.account_id)) : "—" }}</td>
+                <td class="col-actions" @click.stop>
                   <span class="row-actions">
-                    <button v-if="g.claimable" class="btn btn--ghost" :disabled="busyTarget !== null" @click="emit('claim', g.code)">领取</button>
-                    <button v-if="g.platform?.capabilities.includes('health.check')" class="btn btn--ghost" :disabled="busyTarget !== null" @click="emit('health', g.code)">体检</button>
-                    <button class="btn btn--ghost" @click="toggleDetail(a.account_id)">{{ expandedId === a.account_id ? "收起" : "详情" }}</button>
+                    <button
+                      v-if="g.claimable"
+                      class="icon-btn"
+                      title="领取该平台今日额度"
+                      aria-label="领取"
+                      :disabled="busyTarget !== null"
+                      @click="emit('claim', g.code)"
+                    >
+                      <ActionIcon name="claim" />
+                    </button>
+                    <button
+                      v-if="g.platform?.capabilities.includes('health.check')"
+                      class="icon-btn"
+                      title="检查凭据与登录态"
+                      aria-label="体检"
+                      :disabled="busyTarget !== null"
+                      @click="emit('health', g.code)"
+                    >
+                      <ActionIcon name="health" />
+                    </button>
+                    <span
+                      class="expand-hint"
+                      :class="{ 'is-open': expandedId === a.account_id }"
+                      aria-hidden="true"
+                    >
+                      <ActionIcon name="expand" />
+                    </span>
                   </span>
                 </td>
               </tr>
@@ -315,6 +341,21 @@ function confirmRepair(account: AccountItem) {
 .group-matrix { min-width: 720px; }
 .group-body { overflow-x: auto; }
 .group-matrix .col-check { width: 2.75rem; }
+/* 列表规范 07：表头居中，短值列内容跟着居中；账户与今日动作仍左对齐 */
+.group-matrix th { text-align: center; }
+.group-matrix td.col-state,
+td.col-quota, td.col-cred, td.col-time, td.col-actions { text-align: center; }
+.group-matrix .row-actions { justify-content: center; }
+.expand-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--color-text-faint);
+  transition: transform 0.15s ease;
+}
+.expand-hint.is-open { transform: rotate(180deg); }
 .acct-name { font-size: var(--text-sm); font-weight: 600; }
 .acct-id { font-size: var(--text-xs); color: var(--color-text-muted); }
 .quota { font-size: var(--text-xs); }

@@ -228,6 +228,25 @@
 }
 .row-actions { display: flex; gap: var(--space-2); align-self: center; }
 .row-actions .btn { white-space: nowrap; }
+/* 图标动作按钮（docs/conventions/07-列表设计规范）：28×28、透明底、hover 才显底色；
+   动作名只放 title/aria-label，鼠标停留即可读。所有列表行操作共用这一处。 */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.icon-btn:hover:not(:disabled) { color: var(--color-accent); background: var(--color-accent-weak); }
+.icon-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.icon-btn:disabled { opacity: 0.45; cursor: default; }
 /* 窄屏行内动作收成 2×2 网格：横排会被列宽挤掉尾部按钮，竖排会把行拉得太高 */
 @media (max-width: 900px) {
   .row-actions {

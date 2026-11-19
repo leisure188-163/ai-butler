@@ -6,7 +6,7 @@
  * 或组件里内联散装 SVG——否则同一动作在不同列表会长得不一样。
  */
 <script setup lang="ts">
-defineProps<{ name: "edit" | "refresh" | "dots" }>();
+defineProps<{ name: "edit" | "refresh" | "dots" | "claim" | "health" | "expand" }>();
 </script>
 
 <template>
@@ -37,6 +37,44 @@ defineProps<{ name: "edit" | "refresh" | "dots" }>();
     <path d="M3 3v5h5" />
     <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
     <path d="M16 16h5v5" />
+  </svg>
+  <svg
+    v-else-if="name === 'claim'"
+    class="act-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    aria-hidden="true"
+  >
+    <path d="M12 3v11" />
+    <path d="m8 10 4 4 4-4" />
+    <path d="M5 20h14" />
+  </svg>
+  <svg
+    v-else-if="name === 'health'"
+    class="act-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    aria-hidden="true"
+  >
+    <path d="M3 12h3.2l2.6-7.2 4.4 14.4 2.6-7.2H21" />
+  </svg>
+  <svg
+    v-else-if="name === 'expand'"
+    class="act-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    aria-hidden="true"
+  >
+    <path d="m6 9 6 6 6-6" />
   </svg>
   <svg
     v-else

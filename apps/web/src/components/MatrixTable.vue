@@ -5,11 +5,13 @@
  * 不认识 Status 字面量；repair_reason / evidence 直渲染不加工。
  */
 import { computed, ref, watch } from "vue";
+import ActionIcon from "./ActionIcon.vue";
 import PlatformBadge from "./PlatformBadge.vue";
 import AccountDetail from "./AccountDetail.vue";
 import { useAccountRows } from "../composables/useAccountRows";
 import type { AccountItem, PlatformItem, RadarRow, RunItem } from "../types";
 import { faceOf, fmtTime, signalText } from "../utils";
+import { platformIcon } from "../utils/platformIcons";
 
 const props = defineProps<{
   accounts: AccountItem[];
@@ -177,13 +179,14 @@ function toggleDetail(accountId: string) {
                 <PlatformBadge
                   :name="appOf(account)?.platform_name ?? account.platform_code"
                   :color-index="faceOf(account.account_id)"
+                  :icon="platformIcon(account.platform_code)"
                 />
               </td>
               <td>
                 <div class="acct-name">{{ accountLabel(account) }}</div>
                 <div class="mono acct-id">{{ account.account_id }}</div>
               </td>
-              <td>
+              <td class="col-state">
                 <span class="tag" :class="`tag--${account.signal}`">
                   {{ signalText(account.signal) }}
                 </span>
@@ -196,7 +199,7 @@ function toggleDetail(accountId: string) {
                   {{ todayAction.get(account.account_id)?.reason }}
                 </p>
               </td>
-              <td class="col-extra">
+              <td class="col-extra col-quota">
                 <template v-if="quotaOf(account.account_id)">
                   <div class="num quota-text">{{ quotaOf(account.account_id)!.text }}</div>
                   <div class="meter">
@@ -209,33 +212,46 @@ function toggleDetail(accountId: string) {
                 </template>
                 <span v-else class="faint">—</span>
               </td>
-              <td class="col-extra">
+              <td class="col-extra col-cred">
                 <template v-if="earliestExpiry(account)">
                   {{ fmtTime(earliestExpiry(account)) }} 到期
                   <span v-if="credNoticeOf(account)" class="tag tag--notice">临期</span>
                 </template>
                 <span v-else class="faint">—</span>
               </td>
-              <td class="col-extra row-time">
+              <td class="col-extra col-time row-time">
                 {{ lastRunAtOf(account.account_id) ? fmtTime(lastRunAtOf(account.account_id)) : "—" }}
               </td>
-              <td @click.stop>
+              <td class="col-actions" @click.stop>
                 <span class="row-actions">
                   <button
                     v-if="appOf(account)?.capabilities.includes('provision.run')"
-                    class="btn btn--ghost"
+                    class="icon-btn"
+                    title="领取该平台今日额度"
+                    aria-label="领取"
                     :disabled="busyTarget !== null"
                     @click="emit('claim', appOf(account)!.id)"
-                  >领取</button>
+                  >
+                    <ActionIcon name="claim" />
+                  </button>
                   <button
                     v-if="appOf(account)?.capabilities.includes('health.check')"
-                    class="btn btn--ghost"
+                    class="icon-btn"
+                    title="检查凭据与登录态"
+                    aria-label="体检"
                     :disabled="busyTarget !== null"
                     @click="emit('health', appOf(account)!.id)"
-                  >体检</button>
-                  <button class="btn btn--ghost" @click="toggleDetail(account.account_id)">
-                    {{ expandedId === account.account_id ? "收起" : "详情" }}
+                  >
+                    <ActionIcon name="health" />
                   </button>
+                  <!-- 展开提示不是第二个入口：整行点击即开合，这里只用箭头状态暗示 -->
+                  <span
+                    class="expand-hint"
+                    :class="{ 'is-open': expandedId === account.account_id }"
+                    aria-hidden="true"
+                  >
+                    <ActionIcon name="expand" />
+                  </span>
                 </span>
               </td>
             </tr>
@@ -276,6 +292,24 @@ function toggleDetail(accountId: string) {
 }
 .matrix-wrap { overflow-x: auto; }
 .matrix-wrap .matrix { min-width: 620px; }
+/* 列表规范 07：表头居中；短值列（状态/额度/凭据/最近/动作）内容跟着居中，
+   平台与账户、今日动作这类长文本列两边都左对齐 */
+.matrix-wrap .matrix th { text-align: center; }
+.matrix-wrap .matrix td.col-state,
+td.col-quota, td.col-cred, td.col-time, td.col-actions { text-align: center; }
+/* .row-actions 是 flex 容器，td 的 text-align 管不到它，得单独居中 */
+.matrix-wrap .matrix .row-actions { justify-content: center; }
+/* 展开提示（非按钮）：整行点击开合，箭头只表达状态 */
+.expand-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--color-text-faint);
+  transition: transform 0.15s ease;
+}
+.expand-hint.is-open { transform: rotate(180deg); }
 .acct-name { font-size: var(--text-sm); font-weight: 600; }
 .acct-id { font-size: var(--text-xs); color: var(--color-text-muted); }
 .quota-text { font-size: var(--text-xs); }
@@ -287,6 +321,8 @@ function toggleDetail(accountId: string) {
 }
 @media (max-width: 900px) {
   .col-extra { display: none; }
+  /* 收起三列后不再撑 620px 底宽，否则窗口够宽也要横向滚动 */
+  .matrix-wrap .matrix { min-width: 0; }
   .col-last, .matrix th:last-child, .matrix td:last-child { min-width: 4.75rem; }
   /* 失败原因别把整行撑成竖排长条：两行封顶，全文看账户详情 */
   .row-sub {
