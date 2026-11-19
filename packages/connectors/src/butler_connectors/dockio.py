@@ -18,6 +18,18 @@ from butler_connectors.dock_storage import dpapi_envelope, glob_dirs, mac_envelo
 from butler_connectors.manifest import AuthSpec, DeclarativeSpec, ManifestInvalid
 from butler_connectors.paths import expand_storage_path
 from butler_connectors.qoder_identity import qoder_display, qoder_main_identity, qoder_region
+from butler_connectors.qoder_runtime import (
+    MAC_APP_NAMES as _MAC_APP_NAMES,
+    MAC_APP_ROOTS as _MAC_APP_ROOTS,
+    UMID_REL_MAC as _UMID_REL_MAC,
+    UMID_REL_WIN as _UMID_REL_WIN,
+    client_version as _client_version,
+    hostname as _hostname,
+    locate_umid as _locate_umid_impl,
+    machine_os as _machine_os,
+    registry_install_roots as _registry_install_roots,
+    run_runtime_info as _run_runtime_info,
+)
 from butler_connectors.registry import ConnectorPlatform, DockContext, DockOutcome
 
 #: 兼容旧模块内调用名（本文件只用别名，不复制实现）。
@@ -286,129 +298,13 @@ def _collect_umid_cosy(
 
 _COLLECTORS["umid_cosy"] = _collect_umid_cosy
 
-_UMID_REL_WIN = ("resources", "umid", "runtime-info.exe")
-_UMID_REL_MAC = ("Contents", "Resources", "umid", "runtime-info")
-#: mac 应用查找根（~/Applications 兜用户级安装）；两种束形态并存（与 workbuddy
-#: localenv 同因）：2026-11-12 记录为 /Applications/Qoder.platform/…，2026-11-18
-#: 本机 Global 实测为 /Applications/Qoder.app/…（Contents/Resources/umid/runtime-info
-#: arm64 Mach-O 实跑通过）——候选序尝试，先命中先执行
-_MAC_APP_ROOTS = ("/Applications", "~/Applications")
-_MAC_APP_NAMES = ("Qoder.app", "Qoder CN.app", "Qoder.platform", "Qoder CN.platform")
+#: Qoder runtime 探针实现见 qoder_runtime（2026-11-19 拆分，conventions/4 §2.2）——
+#: 同名薄包装保持测试 monkeypatch 面不变（_MAC_APP_ROOTS/_MAC_APP_NAMES 走参数传入）。
 
 
 def _locate_umid():
-    """runtime-info 定位：环境覆盖 → 平台默认位置（win: 常见目录+卸载注册表；mac: .app/.platform 束候选序）。"""
-    import os
-    import sys
-
-    override = os.environ.get("QODER_UMID_EXE")
-    if override:
-        path = Path(override).expanduser()
-        if path.is_file():
-            return path
-    roots: list[Path] = []
-    rel = _UMID_REL_WIN
-    if sys.platform == "darwin":
-        rel = _UMID_REL_MAC
-        roots.extend(
-            Path(os.path.expanduser(base)) / name
-            for base in _MAC_APP_ROOTS
-            for name in _MAC_APP_NAMES
-        )
-    else:
-        for var in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"):
-            base = os.environ.get(var)
-            if base:
-                roots.extend(Path(base) / name for name in ("Qoder CN", "Qoder"))
-        roots.extend(_registry_install_roots())
-    for root in roots:
-        candidate = root.joinpath(*rel)
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-def _registry_install_roots() -> list[Path]:
-    """卸载注册表 Qoder* 条目：InstallLocation 优先，DisplayIcon 所在目录兜底。
-
-    （2026-11-11 真机取证：本机 InstallLocation 为空，DisplayIcon 给出安装目录。）
-    """
-    try:
-        import winreg
-    except ImportError:  # 非 Windows：mac 分支待真机取证（M1 暂缓）
-        return []
-    roots: list[Path] = []
-    hives = [
-        (winreg.HKEY_CURRENT_USER, 0),
-        (winreg.HKEY_LOCAL_MACHINE, winreg.KEY_WOW64_32KEY),
-        (winreg.HKEY_LOCAL_MACHINE, winreg.KEY_WOW64_64KEY),
-    ]
-    for hive, flag in hives:
-        try:
-            key = winreg.OpenKey(
-                hive,
-                r"Software\Microsoft\Windows\CurrentVersion\Uninstall",
-                0,
-                winreg.KEY_READ | flag,
-            )
-        except OSError:
-            continue
-        with key:
-            index = 0
-            while True:
-                try:
-                    sub = winreg.EnumKey(key, index)
-                    index += 1
-                except OSError:
-                    break
-                try:
-                    with winreg.OpenKey(key, sub) as entry:
-                        try:
-                            display, _ = winreg.QueryValueEx(entry, "DisplayName")
-                        except OSError:
-                            continue  # 无 DisplayName 的系统组件条目，跳过
-                        if "Qoder" not in str(display):
-                            continue
-                        # 2026-11-11 真机取证：子键常为 GUID 型且 InstallLocation
-                        # 值缺失——每个值独立容错，缺值换下一个（整键吞错曾让
-                        # DisplayIcon 兜底永远轮不到，真机定位落空）
-                        for name in ("InstallLocation", "DisplayIcon"):
-                            try:
-                                value, _ = winreg.QueryValueEx(entry, name)
-                            except OSError:
-                                continue  # 该值缺失：试下一个
-                            if isinstance(value, str) and value.strip():
-                                root = Path(value.split(",")[0].strip())
-                                if root.suffix:  # DisplayIcon 指向 .ico → 取所在目录
-                                    root = root.parent
-                                if str(root) and root.is_dir() and root not in roots:
-                                    roots.append(root)
-                                break
-                except OSError:
-                    continue
-    return roots
-
-
-def _run_runtime_info(exe) -> dict:
-    """无参运行官方组件（2026-11-11 取证：--account-stdin 报 invalid_input，用无参）。"""
-    import subprocess
-
-    proc = subprocess.run(
-        [str(exe)], capture_output=True, timeout=15, cwd=str(exe.parent)
-    )
-    for line in reversed(proc.stdout.decode("utf-8", "replace").splitlines()):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            data = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(data, dict):
-            return data
-    raise ManifestInvalid(
-        f"runtime-info 输出解析失败（exit={proc.returncode}）——组件输出形状已变?"
-    )
+    """runtime-info 定位：环境覆盖 → 平台默认位置（实现见 qoder_runtime）。"""
+    return _locate_umid_impl(roots=_MAC_APP_ROOTS, names=_MAC_APP_NAMES)
 
 
 def _read_machine_id(facts: dict[str, str], candidates: list[str]) -> str:
@@ -431,36 +327,6 @@ def _read_machine_id(facts: dict[str, str], candidates: list[str]) -> str:
     return ""
 
 
-def _client_version(exe) -> str:
-    """Cosy-Version 来源：安装根 build-manifest.json 的 productVersion（取证 risk.py）。"""
-    try:
-        manifest = json.loads(
-            (exe.parent.parent / "build-manifest.json").read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError):
-        return ""
-    version = manifest.get("productVersion")
-    return str(version) if version else ""
-
-
-def _machine_os() -> str:
-    """Cosy-MachineOS：客户端 SDK 口径（取证 risk.py）——``{arch}_windows``。"""
-    import platform
-    import sys
-
-    machine = platform.machine().lower()
-    arch = {"amd64": "x86_64", "x86_64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}.get(
-        machine, machine
-    )
-    if sys.platform == "darwin":  # mac 解锁分支暂缓，OS 口径先对齐备查
-        return f"{'arm64' if arch == 'aarch64' else 'x64'}_darwin"
-    return f"{arch}_windows"
-
-
-def _hostname() -> str:
-    import socket
-
-    return socket.gethostname()
 
 
 def _scan_ss_aes(auth: AuthSpec, conn_id: str, candidates: list[str]) -> dict[str, str]:

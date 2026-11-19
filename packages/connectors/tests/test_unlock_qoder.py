@@ -180,8 +180,11 @@ def test_mac_short_dat_rejected():
 def test_keychain_failure_is_explicit(monkeypatch):
     """候选名全 miss 时显式爆（2026-11-18 mac Global 取证：候选序见 unlock._MACOS_KEYCHAIN_SERVICES）。"""
     import subprocess
+    import sys
     import types
 
+    # 平台面钉成 darwin：subprocess 已被 fake，无需真 Keychain（Windows 上同样可跑）
+    monkeypatch.setattr(sys, "platform", "darwin")
     seen: list[str] = []
 
     def fake_run(cmd, **kwargs):
@@ -198,8 +201,11 @@ def test_keychain_failure_is_explicit(monkeypatch):
 def test_keychain_first_hit_wins(monkeypatch):
     """第一个命中的候选名即用——不再读后续候选（一次授权弹窗原则）。"""
     import subprocess
+    import sys
     import types
 
+    # 同 test_keychain_failure_is_explicit：平台面钉 darwin，subprocess 已 fake
+    monkeypatch.setattr(sys, "platform", "darwin")
     reads: list[str] = []
 
     def fake_run(cmd, **kwargs):
