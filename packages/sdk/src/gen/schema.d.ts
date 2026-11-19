@@ -268,9 +268,16 @@ export interface paths {
         put?: never;
         /**
          * Import All Platforms
-         * @description 一键导入：全部未泊位连接器逐家接入（结果如实分列，单家失败已在 dock 内收进 issues）。
+         * @description 一键导入：本机客户端连接器逐家接入（结果如实分列，单家失败已在 dock 内收进 issues）。
          *
-         *     选谁不选谁是编排语义，归 server（A1-02 编排层）；端零入参。
+         *     选谁不选谁是编排语义，归 server（A1-02 编排层）；端零入参，`include_docked`
+         *     表达用户意图（「接入全部」= false 只补零账户平台；「扫描本机」= true 全量重扫）。
+         *
+         *     `include_docked=true`（2026-11-20 修复）：账户已有 ≠ 客户端没有新账号。
+         *     豆包这类多账号客户端，一个平台下可能同时登录 2 个账号，若按「平台已有账户就整块
+         *     跳过」，第二个账号永远接不进来，而前端还会报「本机客户端账户均已接入」——这句话
+         *     在有漏接账号时是假话。dock + RegisterAccount 都是按 (platform, account_code) 幂等
+         *     回放的，重扫只补新增账号，不动既有账户。
          */
         post: operations["import_all_platforms_api_v1_platforms_import_all_post"];
         delete?: never;
@@ -1338,7 +1345,9 @@ export interface operations {
     };
     import_all_platforms_api_v1_platforms_import_all_post: {
         parameters: {
-            query?: never;
+            query?: {
+                include_docked?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1352,6 +1361,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -251,15 +251,21 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
-  /* 扫描本机（2026-11-19 用户裁决）：一次点击完成两件事——刷新平台名册 + 自动接入
-     本机客户端账户。只自动接客户端；网页版仍留在「未导入的平台」里由用户手动导入。
-     典型场景：名册被清空、连接器升级、账户被删后需要重新接入客户端。 */
+  /* 扫描本机（2026-11-19 用户裁决，2026-11-20 修复）：一次点击完成两件事——刷新平台名册 +
+     全量重扫本机客户端账户。只扫客户端；网页版仍留在「未导入的平台」里由用户手动导入。
+     典型场景：名册被清空、连接器升级、账户被删后需要重新接入客户端。
+
+     2026-11-20 修复：原来调 import-all 默认只接「零账户」的平台，于是名册里平台都已有
+     账户时 results 为空 → 提示「本机客户端账户均已接入」，而实际上一个平台都没扫，
+     多账号客户端（豆包双账号）漏接的账号也永远补不上。改为 include_docked=true 全量
+     重扫（dock/注册均按 (platform, account_code) 幂等，只补新增、不动既有），
+     文案只报事实：名册数、扫到账户数、未发现登录态、异常。 */
   async function resyncPlatforms() {
     busyTarget.value = "resync";
     actionMsg.value = { text: "正在扫描本机客户端…", tone: "ok" };
     try {
       const rows = await api.resyncPlatforms();
-      const results = await api.importAllPlatforms();
+      const results = await api.importAllPlatforms(true);
       const imported = results.flatMap((r) => r.accounts);
       const issues = results.flatMap((r) => r.issues.map((i) => `${r.target}：${i}`));
       const empty = results
@@ -268,13 +274,13 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
       const text =
         [
           `平台名册：${rows.length} 个`,
-          imported.length ? `已接入：${imported.join("、")}` : "",
+          imported.length ? `已扫到 ${imported.length} 个账户` : "",
           empty.length ? `未发现登录态：${empty.join("、")}` : "",
-          ...(results.length === 0 ? ["本机客户端账户均已接入"] : []),
+          ...(results.length === 0 ? ["名册里没有可扫描的本机客户端"] : []),
           ...issues,
         ]
           .filter(Boolean)
-          .join(" · ") || "没有可接入的本机客户端。";
+          .join(" · ") || "没有可扫描的本机客户端。";
       actionMsg.value = { text, tone: issues.length ? "warn" : "ok" };
     } catch (e) {
       if (e instanceof api.ApiError) {

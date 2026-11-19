@@ -427,15 +427,22 @@ def remove_platform(platform_code: str, request: Request) -> PlatformRemovedOut:
 
 
 @router.post("/platforms/import-all", response_model=list[ImportOut])
-def import_all_platforms(request: Request) -> list[ImportOut]:
-    """一键导入：全部未泊位连接器逐家接入（结果如实分列，单家失败已在 dock 内收进 issues）。
+def import_all_platforms(request: Request, include_docked: bool = False) -> list[ImportOut]:
+    """一键导入：本机客户端连接器逐家接入（结果如实分列，单家失败已在 dock 内收进 issues）。
 
-    选谁不选谁是编排语义，归 server（A1-02 编排层）；端零入参。
+    选谁不选谁是编排语义，归 server（A1-02 编排层）；端零入参，`include_docked`
+    表达用户意图（「接入全部」= false 只补零账户平台；「扫描本机」= true 全量重扫）。
+
+    `include_docked=true`（2026-11-20 修复）：账户已有 ≠ 客户端没有新账号。
+    豆包这类多账号客户端，一个平台下可能同时登录 2 个账号，若按「平台已有账户就整块
+    跳过」，第二个账号永远接不进来，而前端还会报「本机客户端账户均已接入」——这句话
+    在有漏接账号时是假话。dock + RegisterAccount 都是按 (platform, account_code) 幂等
+    回放的，重扫只补新增账号，不动既有账户。
     """
     registry = request.app.state.registry
     kit = request.app.state.kit
     docked = {a.platform_code for a in kit.accounts.list_all()}
-    # 选谁导入 = 名册表裁决（ADR-021/022）：活跃、未退役、未导入的**本机客户端**；
+    # 选谁导入 = 名册表裁决（ADR-021/022）：活跃、未退役的**本机客户端**；
     # 网页版（kind=web）不自动接——它们留在「未导入的平台」里由用户手动导入
     # （2026-11-19 用户裁决）。retired 连接器启动同步时已落 deprecated，不进名册。
     targets = sorted(
@@ -444,7 +451,7 @@ def import_all_platforms(request: Request) -> list[ImportOut]:
         if p.is_active
         and p.deprecated_at is None
         and p.platform_kind != "web"
-        and p.platform_code not in docked
+        and (include_docked or p.platform_code not in docked)
     )  # 按 platform_code 排序：批量结果顺序确定，不随名册插入序漂移
     out: list[ImportOut] = []
     for target in targets:

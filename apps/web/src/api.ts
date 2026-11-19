@@ -96,8 +96,11 @@ export function importPlatform(
   return request(`${apiBase}/platforms/${target}/import`, post());
 }
 
-export function importAllPlatforms(): Promise<ImportResult[]> {
-  return request<ImportResult[]>(`${apiBase}/platforms/import-all`, post());
+export function importAllPlatforms(includeDocked = false): Promise<ImportResult[]> {
+  /* includeDocked=true（2026-11-20）：全量重扫本机客户端——已有账户的平台也重新 dock，
+     补上多账号客户端里未入库的账号（幂等回放，不覆盖既有账户）。 */
+  const query = includeDocked ? "?include_docked=true" : "";
+  return request<ImportResult[]>(`${apiBase}/platforms/import-all${query}`, post());
 }
 
 /** 同步平台（ADR-031）：重扫连接器把 manifest 事实写回名册，返回同步后的名册。

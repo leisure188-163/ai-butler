@@ -351,6 +351,29 @@ def test_import_all_empty_when_nothing_to_dock(tmp_path):
         assert client.post("/api/v1/platforms/import-all").json() == []
 
 
+def test_import_all_include_docked_rescans_all_client_platforms(tmp_path):
+    """扫描本机（2026-11-20 修复）：include_docked=true 时已有账户的平台也重扫。
+
+    修复前「平台已有账户就整块跳过」：多账号客户端（豆包双账号）漏接的第二个账号
+    永远补不进来，前端还会误报「本机客户端账户均已接入」——那句话在有漏接账号时是假话。
+    全量重扫靠 (platform, account_code) 幂等回放：只补新增账号、不重复建号、不动既有账户。
+    """
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        client.app.state.registry = _BatchRegistry(["trae_cn", "qoder_cn"])
+        _sync_registry(client)
+        kit.register_account.execute("trae_cn", "Trae CN")  # 已导入 → 默认批量跳过
+        kit.collect_usage.ports = {}  # 采集端口全失败 → issues，不影响账户落册
+
+        default_rows = client.post("/api/v1/platforms/import-all").json()
+        assert [r["target"] for r in default_rows] == ["qoder_cn"]  # 「接入全部」只补零账户平台
+
+        scanned = client.post("/api/v1/platforms/import-all?include_docked=true").json()
+        assert [r["target"] for r in scanned] == ["qoder_cn", "trae_cn"]  # 「扫描本机」全量重扫
+        # 幂等回放：已导入的 trae_cn 仍是 1 行账户，不重复建号
+        assert len([a for a in kit.accounts.list_all() if a.platform_code == "trae_cn"]) == 1
+
+
 def test_claim_all_claims_docked_and_replays(tmp_path):
     """一键领取：逐已导入账户发起；同窗口再点 → 幂等回放同 Run（不重复领取）。"""
     with _client(tmp_path) as client:

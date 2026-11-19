@@ -1,7 +1,9 @@
 # STATUS · 进度卡（每次会话开始先读我）
 
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
-> 最后更新：2026-11-19
+> 最后更新：2026-11-20
+
+**扫描本机改全量重扫（2026-11-20 修复）**：用户点「扫描本机」只看到「平台名册：4 个 · 本机客户端账户均已接入」，指出提示不对。查证是真 bug 不是文案问题：`import-all` 的候选过滤带 `p.platform_code not in docked`，**名册里平台只要已有 1 个账户就整块跳过**，于是 4 家都有账户时 `results` 为空、前端只能吐「均已接入」——实际一个平台都没扫，而豆包这类多账号客户端（本机同时登录逍遥酒鬼 + Leisure520）漏接的第二个账号永远补不进册，那句提示在有漏接账号时是假话。修复：①`POST /platforms/import-all` 增 `include_docked`（默认 false = 「接入全部」只补零账户平台；扫描本机传 true = 全量重扫全部活跃本机客户端平台，`dock`/`RegisterAccount` 按 (platform, account_code) 幂等回放，只补新增账号、不重复建号、不动既有账户）；②前端 `api.importAllPlatforms(includeDocked)` + `resyncPlatforms` 传 true，文案只报事实「平台名册：n 个 · 已扫到 n 个账户 · 未发现登录态：…」，删掉「均已接入」这句；③契约重生成（指纹 `0c1799a2…`）。测试：新增 `test_import_all_include_docked_rescans_all_client_platforms`（默认跳过已导入 → include_docked 全量重扫 → 幂等不重复建号），`test_platforms_api` 14 passed、全量 **809 passed / 10 skipped**、`vue-tsc` 干净、结构门禁 PASS。
 
 **平台页以名册为准 + 扫描本机一次完成接入（2026-11-19）**：用户删掉账户后平台表整块消失——根因是 `PlatformsPage` 用「账户数 > 0」当接入判据，0 账户的平台被移到页脚「尚未接入」清单，与「未导入的平台」形成两套接入入口。裁决：①**名册即平台管理真相源**，`plat_platform` 里的平台全部进主表，0 账户显示「暂无账户」，删账户不再影响平台展示；②删除页头「接入全部」与页脚旧「尚未接入的平台」区块，接入入口只留「未导入的平台」里的「**扫描本机**」；③「扫描本机」语义升级为**刷新名册 + 自动接入本机客户端账户**（`POST /platforms/resync` → `POST /platforms/import-all`），`import-all` 显式跳过 `kind=web`，网页版仍手动导入；④扫描结果按事实分列「平台名册：n 个 · 已接入：… · 未发现登录态：…」，无待接时提示「本机客户端账户均已接入」；⑤「未导入的平台」标题栏整行可点（标题/计数/右侧箭头任一处）展开收起，去掉「展开」二字按钮；⑥Qoder 显示名统一为 **Qoder CN**（manifest 默认名 + 当前名册名同步改齐）。已验证：清空账户后平台表仍显示 4 家客户端（「暂无账户」）；`扫描本机` 真机重新接入 5 个账户（Doubao×2 / Qoder / Trae / WorkBuddy）；`vue-tsc` 干净。
 
