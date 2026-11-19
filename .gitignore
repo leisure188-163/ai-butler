@@ -8,6 +8,8 @@ dist/
 *.db-journal
 data/database/
 data/doubao_identity.json
+# 豆包真实抓包样本（含昵称/邀请码/额度，本地留存不入库；结构摘要见 docs/guides/02）
+data/doubao_samples/
 .trae/
 .env
 .DS_Store
