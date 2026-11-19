@@ -11,6 +11,8 @@ import type { components } from "@butler/sdk";
 
 type Contract = components["schemas"];
 
+export type AccountDeleted = Contract["AccountDeletedOut"];
+
 export type Signal = "ok" | "notice" | "attention" | "danger" | "quiet";
 
 export type PageName =
@@ -31,6 +33,8 @@ export type AccountItem = Omit<Contract["AccountOut"], "signal" | "credentials">
   credentials: CredentialItem[];
 };
 export type PlatformItem = Contract["PlatformOut"];
+export type PlatformCandidate = Contract["PlatformCandidateOut"];
+export type PlatformRemoved = Contract["PlatformRemovedOut"];
 export type ImportResult = Contract["ImportOut"];
 /** 平台编辑载荷（UI 只提交四项契约字段；端不做业务判定） */
 export type PlatformPatch = {

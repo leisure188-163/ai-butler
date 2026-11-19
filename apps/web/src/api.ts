@@ -9,8 +9,11 @@
  *   文案由调用方拼装），网络异常原样传播（不加兜底，红线 5）
  */
 import type {
+  AccountDeleted,
   AccountItem,
   PlatformItem,
+  PlatformCandidate,
+  PlatformRemoved,
   CollectOutcome,
   CustomPlatformDraft,
   CustomPlatformDeleted,
@@ -98,9 +101,33 @@ export function importAllPlatforms(): Promise<ImportResult[]> {
 }
 
 /** 同步平台（ADR-031）：重扫连接器把 manifest 事实写回名册，返回同步后的名册。
- * 平台表被清空 / 连接器升级后用；「接入」只导账户、不建名册。 */
+ * 平台表被清空 / 连接器升级后用；「接入」只导账户、不建名册。
+ * 2026-11-19 起：只自动纳本机客户端，网页版留在「未导入」清单里人工导入。 */
 export function resyncPlatforms(): Promise<PlatformItem[]> {
   return request<PlatformItem[]>(`${apiBase}/platforms/resync`, post());
+}
+
+/** 未导入的平台（2026-11-19）：连接器存在但名册里没有的连接器平台。
+ * 网页版不自动纳册，由用户在这份清单里按需导入。 */
+export function getUnimportedPlatforms(): Promise<PlatformCandidate[]> {
+  return request<PlatformCandidate[]>(`${apiBase}/platforms/unimported`);
+}
+
+/** 人工导入单个平台（2026-11-19）：纳册 + 立即接入，一步完成。
+ * 平台已存在时等同「重新接入」；网页版走这里才进名册。 */
+export function adoptPlatform(target: string): Promise<ImportResult> {
+  return request<ImportResult>(
+    `${apiBase}/platforms/${encodeURIComponent(target)}/adopt`,
+    post(),
+  );
+}
+
+/** 移出名册（2026-11-19）：只删平台事实行，账户/台账/凭据保留；
+ * 之后可在「未导入的平台」重新导入（按 platform_code 自动归位）。 */
+export function removePlatform(code: string): Promise<PlatformRemoved> {
+  return request<PlatformRemoved>(`${apiBase}/platforms/${encodeURIComponent(code)}`, {
+    method: "DELETE",
+  });
 }
 
 /** 编辑平台信息（2026-11-18 / 11-19）：显示名 / 启用状态 / 调度执行时间 / 平台图标。
@@ -154,6 +181,13 @@ export function saveCustomPlatform(
 /** 删除自定义平台：名册自动落 deprecated，不再排班（内置平台只能停用，409）。 */
 export function deleteCustomPlatform(code: string): Promise<CustomPlatformDeleted> {
   return request<CustomPlatformDeleted>(`${apiBase}/platforms/custom/${code}`, {
+    method: "DELETE",
+  });
+}
+
+/** 删除账户（2026-11-19）：账户行 + 关联凭据一并删除，不留脏数据。 */
+export function deleteAccount(accountId: string): Promise<AccountDeleted> {
+  return request<AccountDeleted>(`${apiBase}/accounts/${encodeURIComponent(accountId)}`, {
     method: "DELETE",
   });
 }

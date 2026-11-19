@@ -6,7 +6,7 @@
  * 或组件里内联散装 SVG——否则同一动作在不同列表会长得不一样。
  */
 <script setup lang="ts">
-defineProps<{ name: "edit" | "refresh" | "dots" | "claim" | "health" | "expand" }>();
+defineProps<{ name: "edit" | "refresh" | "dots" | "claim" | "health" | "expand" | "trash" }>();
 </script>
 
 <template>
@@ -63,6 +63,22 @@ defineProps<{ name: "edit" | "refresh" | "dots" | "claim" | "health" | "expand" 
     aria-hidden="true"
   >
     <path d="M3 12h3.2l2.6-7.2 4.4 14.4 2.6-7.2H21" />
+  </svg>
+  <svg
+    v-else-if="name === 'trash'"
+    class="act-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 7h16" />
+    <path d="M9.5 7V4.8h5V7" />
+    <path d="M6.5 7l.8 12.4h9.4L17.5 7" />
+    <path d="M10 10.5v6M14 10.5v6" />
   </svg>
   <svg
     v-else-if="name === 'expand'"

@@ -247,6 +247,8 @@
 .icon-btn:hover:not(:disabled) { color: var(--color-accent); background: var(--color-accent-weak); }
 .icon-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .icon-btn:disabled { opacity: 0.45; cursor: default; }
+/* 危险行操作（2026-11-19）：删除账户等，图标与 hover 走 danger 色 */
+.icon-btn--danger:hover:not(:disabled) { color: var(--color-danger-ink); background: var(--color-danger-weak); }
 /* 窄屏行内动作收成 2×2 网格：横排会被列宽挤掉尾部按钮，竖排会把行拉得太高 */
 @media (max-width: 900px) {
   .row-actions {
@@ -422,3 +424,64 @@
 
 /* ---- 批量选择 ---- */
 .checkbox { accent-color: var(--color-ink); }
+
+/* ---- 折叠清单（平台页「未导入 / 尚未接入」通用，2026-11-19） ---- */
+.fold-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.fold-head:hover { color: var(--color-accent); }
+.fold-caret { width: 1em; color: var(--color-text-muted); }
+.fold-hint { margin-left: auto; color: var(--color-text-muted); font-size: var(--text-xs); }
+.slots-fold { margin-top: var(--space-4); }
+.fold-head--page { border-top: 1px solid var(--color-border); }
+.slots {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.slot-row {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-base),
+    color var(--motion-base);
+}
+.slot-row:hover:not(:disabled) { border-color: var(--color-accent); color: var(--color-accent); }
+.slot-row:disabled { opacity: 0.45; cursor: not-allowed; }
+.slot-plus { font-size: var(--text-lg); line-height: 1; }
+.slot-body { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.slot-name { color: inherit; font-size: var(--text-sm); }
+.slot-hint { color: var(--color-text-faint); font-size: var(--text-xs); }
+
+/* ---- 危险操作按钮（2026-11-19）：删除 / 移出名册的确认键 ---- */
+.btn--danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger-ink);
+  background: none;
+}
+.btn--danger:hover { background: var(--color-danger-weak); }

@@ -47,6 +47,7 @@ const {
 const {
   accounts,
   platforms,
+  unimported,
   runs,
   pending,
   radarRows,
@@ -66,13 +67,15 @@ const {
   loadCustomPlatforms,
   createCustomPlatform,
   removeCustomPlatform,
+  removePlatform,
+  removeAccount,
   importPlatform,
   savePlatform,
   claimApp,
   healthApp,
   repairAccount,
-  importAllPlatforms,
   resyncPlatforms,
+  adoptPlatform,
   claimAllApps,
   claimMany,
   scanSessions,
@@ -168,6 +171,7 @@ onBeforeUnmount(() => {
       <PlatformsPage
         v-if="active === '平台管理'"
         :platforms="platforms"
+        :unimported="unimported"
         :accounts="accounts"
         :custom-codes="customPlatforms.map((p) => p.code)"
         :busy-target="busyTarget"
@@ -175,11 +179,12 @@ onBeforeUnmount(() => {
         :load-error="loadError"
         @claim="claimApp"
         @import="importPlatform"
-        @import-all="importAllPlatforms"
         @resync="resyncPlatforms"
+        @adopt="adoptPlatform"
         @save-platform="savePlatform"
         @save-custom="createCustomPlatform"
         @remove-custom="removeCustomPlatform"
+        @remove-platform="removePlatform"
         @jump="jumpToPage"
       />
       <AccountsPage
@@ -199,6 +204,7 @@ onBeforeUnmount(() => {
         @scan-sessions="scanSessions"
         @repair="repairAccount"
         @rename="renameAccount"
+        @remove-account="removeAccount"
       />
       <TrafficPage
         v-else-if="active === '用量管理'"

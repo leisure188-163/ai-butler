@@ -7,24 +7,28 @@
 import { computed, ref, watch } from "vue";
 import PlatformBadge from "../components/PlatformBadge.vue";
 import PlatformDetail from "../components/PlatformDetail.vue";
+import ModalShell from "../components/ModalShell.vue";
 import PlatformEditor from "../components/PlatformEditor.vue";
 import PlatformFilters from "../components/PlatformFilters.vue";
 import RowActionMenu from "../components/RowActionMenu.vue";
+import UnimportedPlatforms from "../components/UnimportedPlatforms.vue";
 import type {
   AccountItem,
   CustomPlatformDraft,
   PageName,
   PlatformItem,
+  PlatformCandidate,
   PlatformPatch,
   PlatformQuery,
   RowAction,
   Signal,
 } from "../types";
 import { faceOf, signalText } from "../utils";
-import { accessHint, accountCount, capabilityText, kindText, visibleCaps } from "../utils/platform";
+import { accountCount, capabilityText, kindText, visibleCaps } from "../utils/platform";
 import { platformIcon } from "../utils/platformIcons";
 const props = defineProps<{
   platforms: PlatformItem[];
+  unimported: PlatformCandidate[];
   accounts: AccountItem[];
   customCodes: string[];
   busyTarget: string | null;
@@ -36,15 +40,19 @@ const emit = defineEmits<{
   import: [target: string];
   importAll: [];
   resync: [];
+  adopt: [target: string];
   savePlatform: [target: string, patch: PlatformPatch];
   saveCustom: [draft: CustomPlatformDraft];
   removeCustom: [code: string];
+  removePlatform: [code: string];
   jump: [page: PageName, platformCode?: string];
 }>();
 /** 弹层状态：详情 / 创建 / 修改，三者互斥；不往表格里塞详情行 */
 const detailTarget = ref<PlatformItem | null>(null);
 const editorMode = ref<"create" | "edit" | null>(null);
 const editorTarget = ref<PlatformItem | null>(null);
+/** 移除确认弹层（2026-11-19）：内置平台 = 移出名册，自定义平台 = 删除 */
+const removeTarget = ref<PlatformItem | null>(null);
 const detailPlatform = computed(() =>
   detailTarget.value
     ? props.platforms.find((p) => p.id === detailTarget.value!.id) ?? detailTarget.value
@@ -104,30 +112,40 @@ function primaryActions(platform: PlatformItem): RowAction[] {
 function moreActions(platform: PlatformItem): RowAction[] {
   const out: RowAction[] = [];
   if (platform.capabilities.includes("provision.run")) out.push({ key: "claim", label: "立即领取" });
-  if (isCustom(platform.id)) out.push({ key: "remove", label: "删除", danger: true });
+  // 移除入口（2026-11-19）：内置平台「移出名册」可退回未导入；自定义平台走原删除
+  out.push({
+    key: "remove",
+    label: "删除平台",
+    danger: true,
+  });
   return out;
 }
 function runRowAction(platform: PlatformItem, key: string): void {
   if (key === "edit") openEdit(platform);
   else if (key === "import") emit("import", platform.id);
   else if (key === "claim") emit("claim", platform.id);
-  else if (key === "remove") confirmRemove(platform.id);
+  else if (key === "remove") confirmRemove(platform);
 }
-function confirmRemove(id: string): void {
-  if (!window.confirm(`删除自定义平台 ${id}？历史台账保留，但不再排班。`)) return;
-  emit("removeCustom", id);
+const removeIsCustom = computed(
+  () => removeTarget.value !== null && isCustom(removeTarget.value.id),
+);
+function confirmRemove(platform: PlatformItem): void {
+  removeTarget.value = platform;
+}
+function doRemove(): void {
+  const platform = removeTarget.value;
+  if (!platform) return;
+  removeTarget.value = null;
+  if (isCustom(platform.id)) emit("removeCustom", platform.id);
+  else emit("removePlatform", platform.id);
 }
 /** 启停一键切换（列表状态列） */
 function toggleActive(platform: PlatformItem): void {
   emit("savePlatform", platform.id, { active: !platform.active });
 }
-/* 接入状态是唯一事实来源：有账户的平台进主表格，没账户的只进底部清单，两处互斥。 */
-function isConnected(platform: PlatformItem): boolean {
-  return accountCount(platform) > 0;
-}
-const connectedPlatforms = computed(() => props.platforms.filter(isConnected));
-const emptyPlatforms = computed(() => props.platforms.filter((p) => !isConnected(p)));
-const importableCount = computed(() => emptyPlatforms.value.length);
+/* 名册即平台管理的真相源（2026-11-19 用户裁决）：删账户不该让平台从表格消失——
+   已纳册平台全部进主表格，没有账户的行显示「暂无账户」；未纳册的候选只在下方清单。 */
+const connectedPlatforms = computed(() => props.platforms);
 function accountsOf(platform: PlatformItem): AccountItem[] {
   const ids = new Set(platform.account_ids ?? (platform.account_id ? [platform.account_id] : []));
   return props.accounts.filter((a) => ids.has(a.account_id) || a.platform_code === platform.id);
@@ -183,8 +201,6 @@ watch(
 function goPage(next: number) {
   page.value = Math.min(Math.max(1, next), totalPages.value);
 }
-/** 未接入平台清单默认收起 */
-const slotsOpen = ref(false);
 </script>
 <template>
   <header class="head">
@@ -196,23 +212,9 @@ const slotsOpen = ref(false);
         </p>
       </div>
       <div class="head-actions">
-        <button
-          class="btn btn--primary"
-          :disabled="busyTarget !== null"
-          title="重新扫描连接器，把平台定义（类型/能力/版本/排班）写回名册——不导入账户；平台表被清空或连接器升级后用"
-          @click="emit('resync')"
-        >同步平台</button>
         <button class="btn" :disabled="busyTarget !== null" @click="openCreate">
           ＋ 自定义平台
         </button>
-        <!-- 批量接入只在「有未接入平台」时出现：无空位时留一个永远点不动的按钮是噪音 -->
-        <button
-          v-if="importableCount"
-          class="btn"
-          :disabled="busyTarget !== null"
-          title="对所有尚未接入的平台逐个执行接入（等同逐行点「接入」）"
-          @click="emit('importAll')"
-        >接入全部（{{ importableCount }}）</button>
       </div>
     </div>
   </header>
@@ -233,6 +235,27 @@ const slotsOpen = ref(false);
     @save-custom="onSaveCustom"
     @save-platform="onSavePlatform"
   />
+  <ModalShell
+    v-if="removeTarget"
+    :title="removeIsCustom ? '删除自定义平台？' : '删除平台？'"
+    :subtitle="`${removeTarget.platform_name}（${removeTarget.id}）`"
+    :busy="busyTarget !== null"
+    @close="removeTarget = null"
+  >
+    <p class="remove-copy">
+      {{
+        removeIsCustom
+          ? "将删除连接器目录与平台名册行；历史台账保留，需要重装才能恢复。"
+          : "平台会从列表删除，连接器仍在本机；账户、凭据与历史台账都保留，之后可在「未导入的平台」重新导入。"
+      }}
+    </p>
+    <template #footer>
+      <button class="btn" :disabled="busyTarget !== null" @click="removeTarget = null">取消</button>
+      <button class="btn btn--danger" :disabled="busyTarget !== null" @click="doRemove">
+        删除
+      </button>
+    </template>
+  </ModalShell>
   <section class="section" aria-label="平台名册">
     <PlatformFilters
       v-model:keyword="query.keyword"
@@ -314,7 +337,7 @@ const slotsOpen = ref(false);
             <td class="col-anchor">
               <div class="anchor-line">
                 <span v-if="accountCount(platform)" class="anchor-count num">{{ accountCount(platform) }}</span>
-                <span v-else class="unimported">未接入</span>
+                <span v-else class="no-account">暂无账户</span>
                 <span v-if="accountCount(platform)" class="health-dots">
                   <span
                     v-for="(g, i) in statusGroups(platform)"
@@ -351,30 +374,20 @@ const slotsOpen = ref(false);
       </span>
       <button class="btn btn--ghost" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
     </nav>
-    <div v-if="emptyPlatforms.length" class="slots-fold">
-      <button class="fold-head fold-head--page" :aria-expanded="slotsOpen" @click="slotsOpen = !slotsOpen">
-        <span class="fold-caret">{{ slotsOpen ? "▾" : "▸" }}</span>
-        尚未接入的平台（{{ emptyPlatforms.length }}）
-        <span class="fold-hint">{{ slotsOpen ? "收起" : "展开可逐家接入" }}</span>
-      </button>
-      <ul v-if="slotsOpen" class="slots" aria-label="可接入平台">
-        <li v-for="platform in emptyPlatforms" :key="platform.id">
-          <button class="slot-row" :disabled="busyTarget !== null" @click="emit('import', platform.id)">
-            <span class="slot-plus" aria-hidden="true">＋</span>
-            <span class="slot-body">
-              <span class="slot-name">接入 {{ platform.platform_name }}（{{ platform.id }}）</span>
-              <span class="slot-hint">{{ accessHint(platform) }}</span>
-            </span>
-          </button>
-        </li>
-      </ul>
-    </div>
-    <p v-if="connectedPlatforms.length && !filteredPlatforms.length" class="quietline">
+    <UnimportedPlatforms
+      :candidates="props.unimported"
+      :busy="busyTarget !== null"
+      :scanning="busyTarget === 'resync'"
+      @adopt="emit('adopt', $event)"
+      @resync="emit('resync')"
+    />
+    <p v-if="props.platforms.length && !filteredPlatforms.length" class="quietline">
       没有匹配的平台——换个关键字，或点「清除筛选」。
     </p>
   </section>
 </template>
 <style scoped>
+.remove-copy { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.7; }
 .platform-wrap .matrix { min-width: 1040px; }
 .identity-cell { min-width: 140px; }
 /* 编码独立成列（2026-11-19 用户裁决）：等宽小字、不换行，宽度不够时省略 */
@@ -531,26 +544,6 @@ const slotsOpen = ref(false);
   .row-actions { display: grid; grid-template-columns: repeat(2, auto); justify-content: start; gap: 2px var(--space-2); }
   .row-actions .btn { padding: 2px var(--space-2); }
 }
-.fold-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2) 0;
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  text-align: left;
-  cursor: pointer;
-}
-.fold-head:hover { color: var(--color-accent); }
-.fold-caret { width: 1em; color: var(--color-text-muted); }
-.fold-hint { margin-left: auto; color: var(--color-text-muted); font-size: var(--text-xs); }
-.quietline--warn { color: var(--color-attention); }
-.slots-fold { margin-top: var(--space-4); }
-.fold-head--page { border-top: 1px solid var(--color-border); }
 .pager {
   display: flex;
   align-items: center;
@@ -561,40 +554,5 @@ const slotsOpen = ref(false);
 .pager-info { font-size: var(--text-xs); color: var(--color-text-muted); }
 .cap-tag { margin-right: var(--space-1); }
 .faint { color: var(--color-text-faint); }
-.unimported {
-  color: var(--color-text-muted);
-  border-bottom: 1px dashed var(--color-border);
-}
-.slots {
-  list-style: none;
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.slot-row {
-  box-sizing: border-box;
-  width: 100%;
-  border: 1.5px dashed var(--color-border);
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--text-sm);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  cursor: pointer;
-  transition:
-    border-color var(--motion-base),
-    color var(--motion-base);
-}
-.slot-row:hover:not(:disabled) { border-color: var(--color-accent); color: var(--color-accent); }
-.slot-row:disabled { opacity: 0.45; cursor: not-allowed; }
-.slot-plus { font-size: var(--text-lg); line-height: 1; }
-.slot-body { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.slot-name { color: inherit; font-size: var(--text-sm); }
-.slot-hint { color: var(--color-text-faint); font-size: var(--text-xs); }
+.no-account { color: var(--color-text-faint); }
 </style>

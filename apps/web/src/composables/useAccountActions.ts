@@ -114,6 +114,44 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
+  /** 移出名册（2026-11-19）：平台事实行删除，账户/台账保留；可回「未导入」重新导入。 */
+  async function removePlatform(code: string) {
+    busyTarget.value = code;
+    actionMsg.value = null;
+    try {
+      const body = await api.removePlatform(code);
+      actionMsg.value = { text: body.message, tone: body.removed ? "ok" : "warn" };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `移出失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /** 删除账户（2026-11-19）：账户行 + 关联凭据一并删除，不留脏数据。 */
+  async function removeAccount(accountId: string) {
+    busyTarget.value = accountId;
+    actionMsg.value = null;
+    try {
+      const body = await api.deleteAccount(accountId);
+      actionMsg.value = { text: body.message, tone: "ok" };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `删除失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
   /* 体检探针（R3 网页通道）：kind=health.check 走同一 /runs 通道，结论如实转述 */
   async function healthApp(target: string) {
     busyTarget.value = target;
@@ -213,21 +251,65 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
-  /* 同步平台（ADR-031）：名册只在后端启动/热重载时自动刷，运行期靠这个入口补。
-     典型场景：平台表被清空、连接器升级改了 manifest——不必重启后端。 */
+  /* 扫描本机（2026-11-19 用户裁决）：一次点击完成两件事——刷新平台名册 + 自动接入
+     本机客户端账户。只自动接客户端；网页版仍留在「未导入的平台」里由用户手动导入。
+     典型场景：名册被清空、连接器升级、账户被删后需要重新接入客户端。 */
   async function resyncPlatforms() {
     busyTarget.value = "resync";
-    actionMsg.value = { text: "正在重新扫描连接器…", tone: "ok" };
+    actionMsg.value = { text: "正在扫描本机客户端…", tone: "ok" };
     try {
       const rows = await api.resyncPlatforms();
-      actionMsg.value = {
-        text: `平台名册已同步：${rows.length} 个平台`,
-        tone: "ok",
-      };
+      const results = await api.importAllPlatforms();
+      const imported = results.flatMap((r) => r.accounts);
+      const issues = results.flatMap((r) => r.issues.map((i) => `${r.target}：${i}`));
+      const empty = results
+        .filter((r) => !r.accounts.length && !r.issues.length)
+        .map((r) => r.target);
+      const text =
+        [
+          `平台名册：${rows.length} 个`,
+          imported.length ? `已接入：${imported.join("、")}` : "",
+          empty.length ? `未发现登录态：${empty.join("、")}` : "",
+          ...(results.length === 0 ? ["本机客户端账户均已接入"] : []),
+          ...issues,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "没有可接入的本机客户端。";
+      actionMsg.value = { text, tone: issues.length ? "warn" : "ok" };
     } catch (e) {
       if (e instanceof api.ApiError) {
         actionMsg.value = {
           text: e.detail ?? `同步失败（HTTP ${e.status}）`,
+          tone: "warn",
+        };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /* 人工导入平台（2026-11-19）：自动同步只纳本机客户端，网页版在这里按需导入。
+     纳册 + 立即接入一步完成；已导入的平台重复点等同「重新接入」。 */
+  async function adoptPlatform(target: string) {
+    busyTarget.value = target;
+    actionMsg.value = { text: `正在导入 ${target}…`, tone: "ok" };
+    try {
+      const res = await api.adoptPlatform(target);
+      const text =
+        [
+          res.accounts?.length ? `已导入并接入：${res.accounts.join("、")}` : "已导入平台（未发现登录态）",
+          ...(res.issues ?? []),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+      actionMsg.value = { text, tone: (res.issues ?? []).length ? "warn" : "ok" };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = {
+          text: e.detail ?? `导入失败（HTTP ${e.status}）`,
           tone: "warn",
         };
       } else {
@@ -400,6 +482,8 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     loadCustomPlatforms,
     createCustomPlatform,
     removeCustomPlatform,
+    removePlatform,
+    removeAccount,
     importPlatform,
     savePlatform,
     claimApp,
@@ -407,6 +491,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     repairAccount,
     importAllPlatforms,
     resyncPlatforms,
+    adoptPlatform,
     claimAllApps,
     claimMany,
     scanSessions,

@@ -9,7 +9,7 @@
  */
 import { computed, ref } from "vue";
 import * as api from "../api";
-import type { AccountItem, PlatformItem, RadarRow, RunItem } from "../types";
+import type { AccountItem, PlatformCandidate, PlatformItem, RadarRow, RunItem } from "../types";
 import { isToday } from "../utils";
 
 type DomainIssue = { label: string; reason: string };
@@ -47,6 +47,8 @@ function describeIssues(list: DomainIssue[], primaryAllFailed: boolean): string 
 export function useShellData() {
   const accounts = ref<AccountItem[]>([]);
   const platforms = ref<PlatformItem[]>([]);
+  /* 未导入平台（2026-11-19）：同步只纳客户端，网页版留在清单里人工导入 */
+  const unimported = ref<PlatformCandidate[]>([]);
   const runs = ref<RunItem[]>([]);
   const pending = ref<RunItem[]>([]);
   const loading = ref(false);
@@ -60,12 +62,13 @@ export function useShellData() {
 
   async function loadAll() {
     loading.value = true;
-    const [acc, run, pend, appList, radar] = await Promise.all([
+    const [acc, run, pend, appList, radar, waiting] = await Promise.all([
       settle("账户", api.getAccounts),
       settle("台账", api.getRuns),
       settle("待处理", api.getPending),
       settle("平台", api.getPlatforms),
       settle("用量", api.getRadar),
+      settle("未导入平台", api.getUnimportedPlatforms),
     ]);
     /* 成功的域才覆盖：失败的保留上次值（首次失败即空数组），不因一个域抖掉整屏 */
     if (acc.value) accounts.value = acc.value;
@@ -73,9 +76,15 @@ export function useShellData() {
     if (pend.value) pending.value = pend.value;
     if (appList.value) platforms.value = appList.value;
     if (radar.value) radarRows.value = radar.value;
-    issues.value = [acc.issue, run.issue, pend.issue, appList.issue, radar.issue].filter(
-      (issue): issue is DomainIssue => issue !== null,
-    );
+    if (waiting.value) unimported.value = waiting.value;
+    issues.value = [
+      acc.issue,
+      run.issue,
+      pend.issue,
+      appList.issue,
+      radar.issue,
+      waiting.issue,
+    ].filter((issue): issue is DomainIssue => issue !== null);
     const primaryAllFailed = [acc.issue, run.issue, pend.issue, appList.issue].every(
       (issue) => issue !== null,
     );
@@ -122,6 +131,7 @@ export function useShellData() {
   return {
     accounts,
     platforms,
+    unimported,
     runs,
     pending,
     radarRows,

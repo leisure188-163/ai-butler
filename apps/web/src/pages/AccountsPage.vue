@@ -5,6 +5,7 @@
  * 矩阵交互由 components/MatrixTable.vue 承载，本页只做页头与动作下发。
  */
 import { computed, ref, watch } from "vue";
+import DeleteAccountDialog from "../components/DeleteAccountDialog.vue";
 import MatrixTable from "../components/MatrixTable.vue";
 import AccountGrouped from "../components/AccountGrouped.vue";
 import type { AccountItem, PlatformItem, RadarRow, RunItem } from "../types";
@@ -29,6 +30,7 @@ const emit = defineEmits<{
   scanSessions: [accountId: string];
   repair: [target: string, accountId: string];
   rename: [accountId: string, alias: string];
+  removeAccount: [accountId: string];
 }>();
 
 /** 关联重设计 v1：默认平铺表格（一屏看全），按平台分组作为可切换的第二视图。
@@ -45,6 +47,18 @@ watch(
     }
   },
 );
+
+/** 删除账户确认（2026-11-19）：账户行与关联凭据一并删，凭据条数取契约字段 */
+const removeTarget = ref<AccountItem | null>(null);
+function askRemove(accountId: string): void {
+  removeTarget.value = props.accounts.find((a) => a.account_id === accountId) ?? null;
+}
+function doRemoveAccount(): void {
+  const account = removeTarget.value;
+  if (!account) return;
+  removeTarget.value = null;
+  emit("removeAccount", account.account_id);
+}
 
 /* 一键领取计数：申报了 provision.run 且已导入的平台才计数（不虚报） */
 const claimableCount = computed(
@@ -128,6 +142,7 @@ const claimableCount = computed(
       @scan-sessions="emit('scanSessions', $event)"
       @repair="(target, id) => emit('repair', target, id)"
       @rename="(id, alias) => emit('rename', id, alias)"
+      @remove="askRemove"
     />
     <MatrixTable
       v-else
@@ -142,8 +157,16 @@ const claimableCount = computed(
       @claim-many="emit('claimMany', $event)"
       @scan-sessions="emit('scanSessions', $event)"
       @rename="(id, alias) => emit('rename', id, alias)"
+      @remove="askRemove"
     />
   </section>
+  <DeleteAccountDialog
+    v-if="removeTarget"
+    :account="removeTarget"
+    :busy="busyTarget !== null"
+    @close="removeTarget = null"
+    @confirm="doRemoveAccount"
+  />
 </template>
 
 <style scoped>

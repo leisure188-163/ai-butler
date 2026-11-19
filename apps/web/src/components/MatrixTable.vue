@@ -29,6 +29,7 @@ const emit = defineEmits<{
   claimMany: [targets: string[]];
   scanSessions: [accountId: string];
   rename: [accountId: string, alias: string];
+  remove: [accountId: string];
 }>();
 
 /* 派生逻辑单源：与 AccountGrouped 共用 useAccountRows（红线 2：端零映射） */
@@ -243,6 +244,15 @@ function toggleDetail(accountId: string) {
                     @click="emit('health', appOf(account)!.id)"
                   >
                     <ActionIcon name="health" />
+                  </button>
+                  <button
+                    class="icon-btn icon-btn--danger"
+                    title="删除账户（关联凭据一并删除）"
+                    aria-label="删除账户"
+                    :disabled="busyTarget !== null"
+                    @click="emit('remove', account.account_id)"
+                  >
+                    <ActionIcon name="trash" />
                   </button>
                   <!-- 展开提示不是第二个入口：整行点击即开合，这里只用箭头状态暗示 -->
                   <span

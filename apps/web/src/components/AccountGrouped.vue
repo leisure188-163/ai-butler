@@ -30,6 +30,7 @@ const emit = defineEmits<{
   scanSessions: [accountId: string];
   repair: [target: string, accountId: string];
   rename: [accountId: string, alias: string];
+  remove: [accountId: string];
 }>();
 
 const {
@@ -290,6 +291,15 @@ function confirmRepair(account: AccountItem) {
                       @click="emit('health', g.code)"
                     >
                       <ActionIcon name="health" />
+                    </button>
+                    <button
+                      class="icon-btn icon-btn--danger"
+                      title="删除账户（关联凭据一并删除）"
+                      aria-label="删除账户"
+                      :disabled="busyTarget !== null"
+                      @click="emit('remove', a.account_id)"
+                    >
+                      <ActionIcon name="trash" />
                     </button>
                     <span
                       class="expand-hint"
