@@ -275,12 +275,15 @@ const slotsOpen = ref(false);
             <td class="table-empty" colspan="8">暂无平台数据</td>
           </tr>
           <tr v-for="platform in pagedPlatforms" :key="platform.id">
-            <!-- 身份锚点：名称与编码各占一列；点名称弹详情，不再展开表格行 -->
+            <!-- 身份锚点：名称与编码各占一列；点名称弹详情，不再展开表格行。
+                 名称右侧常驻「详情 ›」胶囊（2026-11-19 用户要求）：纯文字按钮
+                 没有任何可点迹象，得让人一眼看出这里能点开详情。 -->
             <td class="identity-cell">
               <button class="platform-open" :aria-label="`查看 ${platform.platform_name} 详情`" @click="openDetail(platform)">
                 <span class="identity-name">
                   <PlatformBadge :name="platform.platform_name" :color-index="faceOf(platform.id)" />
                   <span v-if="isCustom(platform.id)" class="tag tag--notice">自定义</span>
+                  <span class="detail-chip" aria-hidden="true">详情 ›</span>
                 </span>
               </button>
             </td>
@@ -404,6 +407,24 @@ const slotsOpen = ref(false);
 .platform-open:hover .identity-name { color: var(--color-accent); }
 .platform-open:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 .identity-name { display: flex; align-items: center; gap: var(--space-2); font-weight: 600; }
+/* 「详情 ›」提示片：与「查看账户」同族描边胶囊，缩到名称行内、常态就可见 */
+.detail-chip {
+  flex: none;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  line-height: 1.7;
+  white-space: nowrap;
+}
+.platform-open:hover .detail-chip {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-weak);
+}
 .identity-code { font-size: var(--text-xs); color: var(--color-text-muted); }
 .col-kindver { white-space: nowrap; }
 .col-kindver .tag { margin-right: var(--space-2); }
