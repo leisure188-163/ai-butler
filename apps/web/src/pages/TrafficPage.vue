@@ -78,7 +78,7 @@ function aggText(s: { [key: string]: unknown }): string {
     role="status"
   >{{ msg.text }}</p>
 
-  <div v-if="rows.length" class="wall">
+  <div class="wall">
     <article v-for="row in rows" :key="row.account_id" class="acct sheet">
       <header class="acct-head">
         <PlatformBadge :name="row.account_name" :color-index="faceOf(row.account_id)" />
@@ -170,10 +170,12 @@ function aggText(s: { [key: string]: unknown }): string {
         </div>
       </div>
     </article>
+    <article v-if="!rows.length" class="acct acct--empty sheet">
+      <p class="quietline">
+        还没有可观测的账户——先到「平台管理」页导入，或点上方「立即采集」。
+      </p>
+    </article>
   </div>
-  <p v-else-if="!loading" class="quietline">
-    还没有可观测的账户——先到「平台管理」页导入。
-  </p>
 </template>
 
 <style scoped>
@@ -204,6 +206,15 @@ function aggText(s: { [key: string]: unknown }): string {
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-border);
+}
+/* 无数据时的占位卡：整行铺满，保留「这里本该有卡片」的版面感 */
+.acct--empty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 110px;
+  border: 1px dashed var(--color-border);
 }
 .acct-id { margin: 0; font-size: var(--text-xs); color: var(--color-text-faint); }
 .acct-body { padding: var(--space-4) var(--space-5); }

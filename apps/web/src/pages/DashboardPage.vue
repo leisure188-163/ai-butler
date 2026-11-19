@@ -42,8 +42,10 @@ function onRepair(target: string, accountId: string) {
 /* ---- 今日一句话结论（逐字沿用原账户页谓词，按词表 v2 换词）---- */
 const headline = computed(() => {
   if (props.loading) return { strong: "正在打开签到概览", tail: "正在拉取最新状态" };
-  if (props.loadError)
-    return { strong: "暂时够不到服务", tail: "确认 server 已启动后点刷新" };
+  /* 读不到数据时用中性表述：界面应像「今天没有数据」，而不是变成一张报错页
+     （故障原因已在顶部状态行说清，这里不再复述成第二个报错位置） */
+  if (props.loadError && !props.accounts.length)
+    return { strong: "今日暂无数据", tail: "服务恢复后点刷新会重新拉取" };
   if (props.pending.length > 0)
     return { strong: `${props.pending.length} 项待处理`, tail: "处理完即可清静" };
   if (props.accounts.length === 0)
