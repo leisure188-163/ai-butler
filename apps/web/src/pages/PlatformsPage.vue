@@ -86,9 +86,9 @@ function onSavePlatform(target: string, patch: PlatformPatch): void {
 function isCustom(id: string): boolean {
   return props.customCodes.includes(id);
 }
-/** 修改外露到操作列；重扫/领取进「更多」（下钻唯一入口是账户列的「查看账户」，不再重复） */
+/** 行操作全部图标化（docs/conventions/07）：动作名只在 hover/读屏里出现 */
 function primaryActions(platform: PlatformItem): RowAction[] {
-  const out: RowAction[] = [{ key: "edit", label: "修改" }];
+  const out: RowAction[] = [{ key: "edit", label: "修改", icon: "edit", title: "修改平台信息" }];
   out.push({
     key: "import",
     label: accountCount(platform) ? "重新接入" : "接入",

@@ -7,6 +7,7 @@
  * getBoundingClientRect 定位、右对齐按钮右缘，下方空间不足时向上弹。
  */
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import ActionIcon from "./ActionIcon.vue";
 import type { RowAction } from "../types";
 
 const props = defineProps<{
@@ -94,21 +95,7 @@ watch(
       :aria-label="action.icon ? action.label : undefined"
       @click.stop="run(action)"
     >
-      <svg
-        v-if="action.icon === 'refresh'"
-        class="act-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        aria-hidden="true"
-      >
-        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-        <path d="M3 3v5h5" />
-        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-        <path d="M16 16h5v5" />
-      </svg>
+      <ActionIcon v-if="action.icon" :name="action.icon" />
       <template v-else>{{ action.label }}</template>
     </button>
 
@@ -121,17 +108,7 @@ watch(
         :disabled="props.busy"
         @click.stop="toggle"
       >
-        <svg
-          class="act-icon"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          stroke="none"
-          aria-hidden="true"
-        >
-          <circle cx="5.5" cy="12" r="1.7" />
-          <circle cx="12" cy="12" r="1.7" />
-          <circle cx="18.5" cy="12" r="1.7" />
-        </svg>
+        <ActionIcon name="dots" />
       </button>
     </span>
   </span>
