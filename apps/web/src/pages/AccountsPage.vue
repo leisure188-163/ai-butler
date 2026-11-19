@@ -31,10 +31,10 @@ const emit = defineEmits<{
   repair: [target: string, accountId: string];
 }>();
 
-/** 关联重设计 v1：默认按平台分组，平铺矩阵作为可切换的第二视图。
+/** 关联重设计 v1：默认平铺表格（一屏看全），按平台分组作为可切换的第二视图。
  * 平台页「查看账户」下钻时强制切到分组视图（归属一眼可见）。 */
 type ViewMode = "group" | "flat";
-const view = ref<ViewMode>("group");
+const view = ref<ViewMode>("flat");
 const focusPlatform = ref<string | null>(props.initialPlatform ?? null);
 watch(
   () => props.initialPlatform,
@@ -57,7 +57,7 @@ const claimableCount = computed(
     <div class="head-row">
       <div>
         <h1 class="page-title">账户管理</h1>
-        <p class="page-sub">全部平台 × 账户一屏管理，默认按平台分组——每个账户都有归属。</p>
+        <p class="page-sub">全部平台 × 账户一屏管理，默认平铺表格——切到分组视图可按平台看归属。</p>
       </div>
       <button
         class="btn btn--primary"
