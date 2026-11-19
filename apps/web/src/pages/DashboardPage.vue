@@ -8,6 +8,7 @@
  * 不认识 Status / HealthLevel 字面量；空数据如实留白，不编造结论。
  */
 import { computed } from "vue";
+import OnboardingCard from "../components/OnboardingCard.vue";
 import QuickPanel from "../components/QuickPanel.vue";
 import TodoRail from "../components/TodoRail.vue";
 import type { AccountItem, PlatformItem, PageName, RadarRow, RunItem, Signal } from "../types";
@@ -214,6 +215,14 @@ const trafficSub = computed(() => {
     :class="msg.tone === 'ok' ? 'action-msg--ok' : 'action-msg--warn'"
     role="status"
   >{{ msg.text }}</p>
+
+  <OnboardingCard
+    :accounts="accounts"
+    :platforms="platforms"
+    :loading="loading"
+    :load-error="loadError"
+    @navigate="emit('navigate', $event)"
+  />
 
   <section class="section" aria-label="速览">
     <h2 class="section-title">速览</h2>
