@@ -260,7 +260,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
         );
       }
       actionMsg.value = {
-        text: bits.length ? `已保存：${bits.join(" · ")}（即刻生效）` : "没有改动",
+        text: bits.length ? `已保存：${bits.join(" · ")}` : "没有改动",
         tone: "ok",
       };
     } catch (e) {
