@@ -97,6 +97,12 @@ export function importAllPlatforms(): Promise<ImportResult[]> {
   return request<ImportResult[]>(`${apiBase}/platforms/import-all`, post());
 }
 
+/** 同步平台（ADR-031）：重扫连接器把 manifest 事实写回名册，返回同步后的名册。
+ * 平台表被清空 / 连接器升级后用；「接入」只导账户、不建名册。 */
+export function resyncPlatforms(): Promise<PlatformItem[]> {
+  return request<PlatformItem[]>(`${apiBase}/platforms/resync`, post());
+}
+
 /** 编辑平台信息（2026-11-18）：显示名 / 启用状态 / 调度执行时间三合一。
  * 只传要改的键；times=null 恢复默认、[] 不排班。写后调度即刻热替换。 */
 export function patchPlatform(

@@ -47,6 +47,7 @@ def _assemble_connectors(kit) -> None:
         if source is not None:
             kit.register_session_source(source)
     app.state.registry = registry  # 端读 manifest/导入分发用（server 自持装配面）
+    app.state.provisions = provisions  # 名册回填端点复用同一份端口（不重建 adapter）
     sync_platform_facts(kit, registry, provisions)
     # 调度条目：DB 真相源合成（用户覆盖优先于 manifest 缺省，2026-11-18）
     from server.routes.platforms import compose_schedule_entries
@@ -76,9 +77,16 @@ def _read_client_version(port) -> str:
 
 def sync_platform_facts(kit, registry, provisions) -> None:
     """平台册同步（ADR-021/022）：manifest 事实落 plat_platform，DB 为真相源；
-    退役/删掉的连接器不进 facts（自动落 deprecated 不删行，审计可溯）。"""
+    退役/删掉的连接器不进 facts（自动落 deprecated 不删行，审计可溯）。
+
+    provisions=None 时按 registry 现建（运行期「同步平台」端点没有启动期那份端口）；
+    client_version 只从端口实例读，读不到落 ""（列语义未知）。
+    """
     from butler_core.platforms.domain import PlatformEntry
     from butler_core.shared.time import now_utc
+
+    if provisions is None:
+        provisions = registry.provision_ports(vault=kit.vault, transport=None)
 
     facts = []
     for conn in registry.platforms():
@@ -124,6 +132,7 @@ def reload_connectors(app) -> None:
         targets=registry.usage_ports(vault=kit.vault, transport=None), replace=True
     )
     app.state.registry = registry
+    app.state.provisions = provisions
     sync_platform_facts(kit, registry, provisions)
     kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
 

@@ -130,6 +130,29 @@ def list_platforms(request: Request) -> list[PlatformOut]:
     return out
 
 
+@router.post("/platforms/resync", response_model=list[PlatformOut])
+def resync_platforms(request: Request) -> list[PlatformOut]:
+    """同步平台（运行期补偿入口，ADR-031）：重扫连接器 → manifest 事实落名册 → 重排调度。
+
+    为什么需要它：名册只在**后端启动**和连接器热重载时自动同步，运行期没有任何
+    入口。于是「平台表被清空」「连接器升级改了 manifest」只能靠重启后端恢复——
+    而「接入」是导账户、不建名册（表空时「接入全部」候选为 0，一个也不接）。
+
+    语义与启动同步完全一致，不复刻第二套：新连接器首插落名、已存在行不被覆盖
+    （名字归用户，ADR-031）；已下线连接器落 deprecated 不删行。
+
+    返回同步后的名册（前端可直接用它替换列表，不必二次 GET）。
+    """
+    from server.main import sync_platform_facts  # 延迟 import：main 会 import 本模块
+
+    kit = request.app.state.kit
+    registry = request.app.state.registry
+    provisions = getattr(request.app.state, "provisions", None)
+    sync_platform_facts(kit, registry, provisions)
+    kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
+    return list_platforms(request)
+
+
 def compose_schedule_entries(registry, kit) -> list:
     """调度条目合成（DB 真相源）：用户覆盖优先于 manifest 缺省；空时间=不排班。
 

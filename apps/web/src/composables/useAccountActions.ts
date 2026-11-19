@@ -213,6 +213,32 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
+  /* 同步平台（ADR-031）：名册只在后端启动/热重载时自动刷，运行期靠这个入口补。
+     典型场景：平台表被清空、连接器升级改了 manifest——不必重启后端。 */
+  async function resyncPlatforms() {
+    busyTarget.value = "resync";
+    actionMsg.value = { text: "正在重新扫描连接器…", tone: "ok" };
+    try {
+      const rows = await api.resyncPlatforms();
+      actionMsg.value = {
+        text: `平台名册已同步：${rows.length} 个平台`,
+        tone: "ok",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = {
+          text: e.detail ?? `同步失败（HTTP ${e.status}）`,
+          tone: "warn",
+        };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
   /* 编辑平台（2026-11-18）：显示名 / 启停 / 调度三合一；失败按 ApiError 转提示 */
   async function savePlatform(
     target: string,
@@ -380,6 +406,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     healthApp,
     repairAccount,
     importAllPlatforms,
+    resyncPlatforms,
     claimAllApps,
     claimMany,
     scanSessions,

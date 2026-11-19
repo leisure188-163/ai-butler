@@ -70,6 +70,7 @@ const {
   healthApp,
   repairAccount,
   importAllPlatforms,
+  resyncPlatforms,
   claimAllApps,
   claimMany,
   scanSessions,
@@ -161,6 +162,7 @@ onBeforeUnmount(() => {
         @claim="claimApp"
         @import="importPlatform"
         @import-all="importAllPlatforms"
+        @resync="resyncPlatforms"
         @save-platform="savePlatform"
         @save-custom="createCustomPlatform"
         @remove-custom="removeCustomPlatform"

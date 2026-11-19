@@ -90,6 +90,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platforms/resync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resync Platforms
+         * @description 同步平台（运行期补偿入口，ADR-031）：重扫连接器 → manifest 事实落名册 → 重排调度。
+         *
+         *     为什么需要它：名册只在**后端启动**和连接器热重载时自动同步，运行期没有任何
+         *     入口。于是「平台表被清空」「连接器升级改了 manifest」只能靠重启后端恢复——
+         *     而「接入」是导账户、不建名册（表空时「接入全部」候选为 0，一个也不接）。
+         *
+         *     语义与启动同步完全一致，不复刻第二套：新连接器首插落名、已存在行不被覆盖
+         *     （名字归用户，ADR-031）；已下线连接器落 deprecated 不删行。
+         *
+         *     返回同步后的名册（前端可直接用它替换列表，不必二次 GET）。
+         */
+        post: operations["resync_platforms_api_v1_platforms_resync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platforms/{platform_code}": {
         parameters: {
             query?: never;
@@ -943,6 +972,26 @@ export interface operations {
         };
     };
     list_platforms_api_v1_platforms_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformOut"][];
+                };
+            };
+        };
+    };
+    resync_platforms_api_v1_platforms_resync_post: {
         parameters: {
             query?: never;
             header?: never;

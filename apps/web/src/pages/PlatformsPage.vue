@@ -34,6 +34,7 @@ const emit = defineEmits<{
   claim: [target: string];
   import: [target: string];
   importAll: [];
+  resync: [];
   savePlatform: [target: string, patch: PlatformPatch];
   saveCustom: [draft: CustomPlatformDraft];
   removeCustom: [code: string];
@@ -215,6 +216,12 @@ const slotsOpen = ref(false);
         </p>
       </div>
       <div class="head-actions">
+        <button
+          class="btn"
+          :disabled="busyTarget !== null"
+          title="重新扫描连接器，把平台定义写回名册（平台表被清空或连接器升级后用；不导入账户）"
+          @click="emit('resync')"
+        >同步平台</button>
         <button class="btn" :disabled="busyTarget !== null" @click="openCreate">
           ＋ 自定义平台
         </button>
