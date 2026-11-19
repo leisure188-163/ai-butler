@@ -16,11 +16,7 @@ const emit = defineEmits<{ close: []; edit: [] }>();
 </script>
 
 <template>
-  <ModalShell
-    :title="`平台详情 · ${platform.platform_name}`"
-    :busy="busy"
-    @close="emit('close')"
-  >
+  <ModalShell :title="`平台详情 · ${platform.platform_name}`" :busy="busy" @close="emit('close')">
     <section class="pd-sec">
       <div class="pd-grid">
         <div><span class="pd-key">平台编码</span><code class="mono">{{ platform.id }}</code></div>
@@ -61,7 +57,7 @@ const emit = defineEmits<{ close: []; edit: [] }>();
     <template #footer>
       <span class="pd-actions">
         <button class="btn btn--ghost" :disabled="busy" @click="emit('close')">关闭</button>
-        <button class="btn btn--primary" :disabled="busy" @click="emit('edit')">修改平台信息</button>
+        <button class="btn btn--primary" :disabled="busy" @click="emit('edit')">修改</button>
       </span>
     </template>
   </ModalShell>
@@ -72,45 +68,53 @@ const emit = defineEmits<{ close: []; edit: [] }>();
   padding: 14px 0;
   border-top: 1px solid var(--color-border);
 }
+
 .pd-sec:first-child {
   padding-top: 0;
   border-top: 0;
 }
+
 .pd-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px 18px;
 }
-.pd-grid > div {
+
+.pd-grid>div {
   display: flex;
   align-items: baseline;
   gap: 10px;
   min-width: 0;
   font-size: var(--text-sm);
 }
+
 .pd-key {
   flex: 0 0 76px;
   color: var(--color-text-faint);
   font-size: var(--text-xs);
 }
+
 .pd-title {
   margin: 0 0 6px;
   font-size: 13px;
   font-weight: 600;
   color: var(--color-text);
 }
+
 .pd-text {
   margin: 0;
   font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--color-text);
 }
+
 .pd-hint {
   margin: 6px 0 0;
   font-size: var(--text-xs);
   line-height: 1.5;
   color: var(--color-text-faint);
 }
+
 .pd-accounts {
   display: flex;
   flex-direction: column;
@@ -119,31 +123,38 @@ const emit = defineEmits<{ close: []; edit: [] }>();
   padding: 0;
   list-style: none;
 }
+
 .pd-accounts li {
   display: flex;
   align-items: baseline;
   gap: 10px;
   font-size: var(--text-sm);
 }
+
 .pd-account-name {
   font-weight: 500;
 }
+
 .pd-account-id {
   color: var(--color-text-muted);
   font-size: var(--text-xs);
 }
+
 .pd-actions {
   display: inline-flex;
   gap: var(--space-2);
   margin-left: auto;
 }
+
 @media (max-width: 640px) {
   .pd-grid {
     grid-template-columns: 1fr;
   }
+
   .pd-actions {
     width: 100%;
   }
+
   .pd-actions :deep(.btn) {
     flex: 1;
   }

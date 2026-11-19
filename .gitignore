@@ -16,3 +16,5 @@ data/doubao_samples/
 .superpowers/
 packages/sdk/src/gen/openapi.json
 .playwright-cli/
+# 本地服务运行日志（scripts/start-server.ps1、pnpm dev:web 的重定向输出）
+logs/
