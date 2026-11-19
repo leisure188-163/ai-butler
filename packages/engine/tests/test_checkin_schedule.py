@@ -36,6 +36,9 @@ class MemAccounts(AccountRepository):
     def list_all(self) -> list[Account]:
         return list(self.rows.values())
 
+    def remove(self, account_id):
+        return self.rows.pop(account_id, None) is not None
+
 
 class RecordingUseCase:
     """记录触发的 RunRequest；textbook 立刻攒终态 Run。"""

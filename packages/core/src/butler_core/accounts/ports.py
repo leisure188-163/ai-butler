@@ -34,6 +34,13 @@ class AccountRepository(ABC):
     @abstractmethod
     def list_all(self) -> list[Account]: ...
 
+    @abstractmethod
+    def remove(self, account_id: str) -> bool:
+        """删除账户行（2026-11-19）：只删 `acc_account`，凭据由用例先清。
+
+        不存在 = False（端侧 404）。
+        """
+
 
 class VaultPort(ABC):
     """凭据保险库端口：明文只在适配器侧，core 只认这套 API。"""
@@ -71,6 +78,14 @@ class VaultPort(ABC):
 
     @abstractmethod
     def health(self) -> list[CredentialHealth]: ...
+
+    @abstractmethod
+    def purge(self, account_id: str) -> int:
+        """彻底清除该账户全部凭据（2026-11-19 删除账户专用）。
+
+        与 `revoke` 的区别：**不留 revoked 行、不留 history 归档**——账户都删了，
+        残留条目只会变成无主脏数据。返回清除的条目数；后端秘密缺失按已清理跳过。
+        """
 
 
 class CredentialPool(Protocol):

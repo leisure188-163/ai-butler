@@ -28,6 +28,9 @@ class MemAccounts(AccountRepository):
     def list_all(self) -> list[Account]:
         return list(self._rows.values())
 
+    def remove(self, account_id):
+        return self.rows.pop(account_id, None) is not None
+
 
 def test_main_account_id_policy():
     assert main_account_id("trae_cn") == "trae_cn:main"

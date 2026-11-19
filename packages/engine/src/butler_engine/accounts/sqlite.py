@@ -215,6 +215,12 @@ class SqliteAccountRepository(AccountRepository):
             ).fetchall()
         return [_load(r) for r in rows]
 
+    def remove(self, account_id: str) -> bool:
+        """删除账户行（2026-11-19）：只删 acc_account，凭据由用例先清。"""
+        with self._connect() as conn, conn:
+            cur = conn.execute("DELETE FROM acc_account WHERE account_id = ?", (account_id,))
+            return cur.rowcount > 0
+
 
 def _dump_sessions(sessions: tuple[Session, ...]) -> str:
     return json.dumps(

@@ -90,39 +90,55 @@ def _read_client_icon(conn_id: str) -> str:
         return ""
 
 
-def sync_platform_facts(kit, registry, provisions) -> None:
-    """平台册同步（ADR-021/022）：manifest 事实落 plat_platform，DB 为真相源；
-    退役/删掉的连接器不进 facts（自动落 deprecated 不删行，审计可溯）。
+def platform_fact(conn, provisions) -> "PlatformEntry":
+    """连接器 manifest → 平台事实（同步与人工「导入」共用同一投影，单源）。
 
-    provisions=None 时按 registry 现建（运行期「同步平台」端点没有启动期那份端口）；
-    client_version 只从端口实例读，读不到落 ""（列语义未知）。
+    只读 manifest/端口，不猜：client_version 从 provision 端口实例读，读不到落 ""
+    （列语义 = 未知）；icon 走 icon_probe 表，网页版/未安装落 ""。
     """
     from butler_core.platforms.domain import PlatformEntry
     from butler_core.shared.time import now_utc
 
+    m = conn.manifest
+    sched = m.schedule.get("provision.run")
+    return PlatformEntry(
+        platform_code=m.id,
+        platform_name=m.display,
+        created_at=now_utc(),
+        platform_kind=m.kind,
+        capabilities=tuple(sorted(m.capabilities)),
+        credential_kinds=tuple(m.credential.kinds) if m.credential else (),
+        schedule_times=tuple(sched.times) if sched else (),
+        client_version=_read_client_version(provisions.get(m.id)),
+        icon=_read_client_icon(m.id),
+    )
+
+
+def sync_platform_facts(kit, registry, provisions) -> None:
+    """平台册同步（ADR-021/022）：manifest 事实落 plat_platform，DB 为真相源；
+    退役/删掉的连接器不进 facts（自动落 deprecated 不删行，审计可溯）。
+
+    **只纳本机客户端 + 用户自建平台**（2026-11-19 用户裁决）：kind=web 的内置
+    网页版连接器不自动进名册——它们出现在平台页「未导入的平台」里，由用户按需
+    点「导入」；自定义平台是用户亲手创建，创建即入册（不退回未导入清单）。
+    被策略跳过的连接器仍在宇宙内，因此已有网页版行不会被 deprecate
+    （策略性跳过 ≠ 退役）。
+
+    provisions=None 时按 registry 现建（运行期「同步平台」端点没有启动期那份端口）；
+    client_version 只从端口实例读，读不到落 ""（列语义未知）。
+    """
     if provisions is None:
         provisions = registry.provision_ports(vault=kit.vault, transport=None)
 
-    facts = []
-    for conn in registry.platforms():
-        m = conn.manifest
-        if getattr(m, "retired", False):
-            continue
-        sched = m.schedule.get("provision.run")
-        facts.append(
-            PlatformEntry(
-                platform_code=m.id,
-                platform_name=m.display,
-                created_at=now_utc(),
-                platform_kind=m.kind,
-                capabilities=tuple(sorted(m.capabilities)),
-                credential_kinds=tuple(m.credential.kinds) if m.credential else (),
-                schedule_times=tuple(sched.times) if sched else (),
-                client_version=_read_client_version(provisions.get(m.id)),
-                icon=_read_client_icon(m.id),
-            )
-        )
-    kit.sync_platforms.execute(tuple(facts))
+    conns = [c for c in registry.platforms() if not getattr(c.manifest, "retired", False)]
+    facts = tuple(
+        platform_fact(conn, provisions)
+        for conn in conns
+        if (conn.manifest.kind or "").strip() == "client"
+        or conn.manifest.root_dir is not None  # 自定义平台：用户手工创建，创建即入册
+    )
+    universe = frozenset(c.manifest.id for c in conns)
+    kit.sync_platforms.execute(facts, known_codes=universe)
 
 
 def reload_connectors(app) -> None:

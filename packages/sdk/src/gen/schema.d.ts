@@ -13,7 +13,10 @@ export interface paths {
         };
         /**
          * List Accounts
-         * @description 卡名册：账号册账号 ∪ vault 凭据账号，逐账号现场评估健康（A4-01 §2）。
+         * @description 账户名册：**只读 `acc_account`**（2026-11-19 用户裁决）。
+         *
+         *     此前是「账户册 ∪ vault 凭据账号」，导致删掉账户行后凭据仍把它顶成幽灵账户；
+         *     现在凭据只作为账户的附属投影，不再单独造账户行——账户数据的唯一真相源是账户表。
          */
         get: operations["list_accounts_api_v1_accounts_get"];
         put?: never;
@@ -34,7 +37,14 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Account
+         * @description 删除账户（2026-11-19 用户裁决）：账户行 + 关联凭据一并删除，不留脏数据。
+         *
+         *     确认弹层的「还有 N 条关联凭据」由前端按 `AccountOut.credentials` 明示；
+         *     这里返回实际清掉的条数。账户不存在 = 404（不会误清同名凭据）。
+         */
+        delete: operations["delete_account_api_v1_accounts__account_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -119,6 +129,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platforms/unimported": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Unimported Platforms
+         * @description 未纳册的连接器平台（2026-11-19 用户裁决）：自动同步只纳本机客户端，
+         *     网页版等被策略跳过的连接器留在这份清单里，由用户手动「导入」。
+         *
+         *     判据 = 连接器存在（未退役）且名册里没有活跃行；account_ids 如实带上
+         *     名册外的既有账户（>0 = 有账户待归位，导入后自动重新挂上）。端零加工。
+         */
+        get: operations["list_unimported_platforms_api_v1_platforms_unimported_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platforms/{platform_code}": {
         parameters: {
             query?: never;
@@ -129,7 +163,15 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Remove Platform
+         * @description 删除平台（2026-11-19 用户裁决，内部称「移出名册」）：误导入 / 不再用的平台可退回「未导入的平台」。
+         *
+         *     只删 `plat_platform` 事实行——账户、领取台账、凭据一律保留；重新导入时
+         *     按 platform_code 自动归位。自定义平台请走 `DELETE /platforms/custom/{code}`
+         *     （那条会连连接器目录一起删）。
+         */
+        delete: operations["remove_platform_api_v1_platforms__platform_code__delete"];
         options?: never;
         head?: never;
         /**
@@ -185,6 +227,30 @@ export interface paths {
          *     新手点「接入」看到的必须是「为什么接不进」，不是服务器错误。
          */
         post: operations["import_platform_api_v1_platforms__target__import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platforms/{target}/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adopt Platform
+         * @description 人工导入单个连接器（2026-11-19）：纳册 + 立即接入，一步完成。
+         *
+         *     自动同步只纳本机客户端；网页版等被策略跳过的连接器由用户在「未导入的
+         *     平台」里手动导入。纳册复用 platform_fact 同一投影（不另拼一套）；缺失判定
+         *     传连接器宇宙，保证不会把其它平台误落 deprecated。
+         */
+        post: operations["adopt_platform_api_v1_platforms__target__adopt_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -411,6 +477,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AccountDeletedOut
+         * @description 删除账户结果（2026-11-19）：账户行 + 关联凭据一并清掉。
+         */
+        AccountDeletedOut: {
+            /** Account Id */
+            account_id: string;
+            /** Credentials Deleted */
+            credentials_deleted: number;
+            /** Message */
+            message: string;
+        };
         /** AccountOut */
         AccountOut: {
             /** Account Id */
@@ -646,6 +724,22 @@ export interface components {
             status: string;
         };
         /**
+         * PlatformCandidateOut
+         * @description 未纳册的连接器平台（平台页「未导入的平台」清单，2026-11-19 用户裁决）。
+         */
+        PlatformCandidateOut: {
+            /** Platform Code */
+            platform_code: string;
+            /** Platform Name */
+            platform_name: string;
+            /** Kind */
+            kind: string;
+            /** Capabilities */
+            capabilities: string[];
+            /** Account Ids */
+            account_ids: string[];
+        };
+        /**
          * PlatformOut
          * @description 平台名册行：连接器能力矩阵 + 调度缺省（A2-02 §2 的端侧投影）。
          */
@@ -694,6 +788,18 @@ export interface components {
             times?: string[] | null;
             /** Icon */
             icon?: string | null;
+        };
+        /**
+         * PlatformRemovedOut
+         * @description 移出名册结果（2026-11-19）：只删平台事实行，账户/台账/凭据保留。
+         */
+        PlatformRemovedOut: {
+            /** Platform Code */
+            platform_code: string;
+            /** Removed */
+            removed: boolean;
+            /** Message */
+            message: string;
         };
         /**
          * RadarAccountOut
@@ -910,6 +1016,37 @@ export interface operations {
             };
         };
     };
+    delete_account_api_v1_accounts__account_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountDeletedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     patch_account_api_v1_accounts__account_id__patch: {
         parameters: {
             query?: never;
@@ -1016,6 +1153,57 @@ export interface operations {
             };
         };
     };
+    list_unimported_platforms_api_v1_platforms_unimported_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformCandidateOut"][];
+                };
+            };
+        };
+    };
+    remove_platform_api_v1_platforms__platform_code__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformRemovedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     patch_platform_api_v1_platforms__platform_code__patch: {
         parameters: {
             query?: never;
@@ -1087,6 +1275,37 @@ export interface operations {
         };
     };
     import_platform_api_v1_platforms__target__import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adopt_platform_api_v1_platforms__target__adopt_post: {
         parameters: {
             query?: never;
             header?: never;

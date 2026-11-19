@@ -165,6 +165,14 @@ class SqlitePlatformRepository(PlatformRepository):
                 ),
             )
 
+    def remove(self, platform_code: str) -> bool:
+        """移出名册：只删平台事实行（账户/台账/凭据不动，见端口 docstring）。"""
+        with self._connect() as conn, conn:
+            cur = conn.execute(
+                "DELETE FROM plat_platform WHERE platform_code = ?", (platform_code,)
+            )
+            return cur.rowcount > 0
+
     def deprecate_missing(self, platform_codes: frozenset[str]) -> list[str]:
         from butler_core.shared.time import now_utc
 

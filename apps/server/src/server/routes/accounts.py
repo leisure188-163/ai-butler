@@ -92,14 +92,42 @@ def _account_out(account_id: str, account: object, kit) -> AccountOut:
 # --- 端点（读 = 评估最新健康，事件变更检测保证不重复通知）---
 
 
+class AccountDeletedOut(BaseModel):
+    """删除账户结果（2026-11-19）：账户行 + 关联凭据一并清掉。"""
+
+    account_id: str
+    credentials_deleted: int
+    message: str
+
+
 @router.get("/accounts", response_model=list[AccountOut])
 def list_accounts(request: Request) -> list[AccountOut]:
-    """卡名册：账号册账号 ∪ vault 凭据账号，逐账号现场评估健康（A4-01 §2）。"""
+    """账户名册：**只读 `acc_account`**（2026-11-19 用户裁决）。
+
+    此前是「账户册 ∪ vault 凭据账号」，导致删掉账户行后凭据仍把它顶成幽灵账户；
+    现在凭据只作为账户的附属投影，不再单独造账户行——账户数据的唯一真相源是账户表。
+    """
     kit = request.app.state.kit
-    known: dict[str, object] = {a.id: a for a in kit.accounts.list_all()}
-    for hp in kit.vault.health():
-        known.setdefault(hp.account_id, None)
-    return [_account_out(account_id, known[account_id], kit) for account_id in sorted(known)]
+    rows = kit.accounts.list_all()
+    return [_account_out(a.id, a, kit) for a in rows]
+
+
+@router.delete("/accounts/{account_id}", response_model=AccountDeletedOut)
+def delete_account(account_id: str, request: Request) -> AccountDeletedOut:
+    """删除账户（2026-11-19 用户裁决）：账户行 + 关联凭据一并删除，不留脏数据。
+
+    确认弹层的「还有 N 条关联凭据」由前端按 `AccountOut.credentials` 明示；
+    这里返回实际清掉的条数。账户不存在 = 404（不会误清同名凭据）。
+    """
+    kit = request.app.state.kit
+    purged = kit.delete_account.execute(account_id)
+    if purged is None:
+        raise HTTPException(status_code=404, detail=f"账户不存在：{account_id}")
+    return AccountDeletedOut(
+        account_id=account_id,
+        credentials_deleted=purged,
+        message=f"已删除账户与 {purged} 条关联凭据" if purged else "已删除账户（无关联凭据）",
+    )
 
 
 # --- 别名（ADR-030）：连接器取不到真实身份时人工命名，绑定到真实账户 ---

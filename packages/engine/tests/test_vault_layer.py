@@ -128,6 +128,22 @@ def test_revoke_archives_marks_and_blocks_load(tmp_path):
     assert {hp.kind: hp for hp in vault.health()}["token"].revoked_at is None
 
 
+def test_purge_删除账户时凭据行与历史一并清除(tmp_path):
+    """删除账户专用（2026-11-19）：不留 revoked 行、不留 history，后端秘密也删。"""
+    vault, _ = _vault(tmp_path)
+    vault.store("acc1", "cookie", Secret("sid=abc"))
+    vault.rotate("acc1", "cookie", Secret("sid=new"))  # 产生 #1 历史归档
+    vault.store("acc1", "token", Secret("tk"))
+    assert vault.purge("acc1") == 2
+    assert vault.health() == []
+    # 主引用与历史归档都不可再解密（后端已删）
+    with pytest.raises(VaultCredentialMissing):
+        vault.load("acc1", ["cookie"])
+    with pytest.raises(VaultCredentialMissing):
+        vault.load("acc1", ["token"])
+    assert vault.purge("acc1") == 0  # 幂等
+
+
 def test_health_empty_expiry_is_healthy(tmp_path):
     vault, _ = _vault(tmp_path)
     vault.store("acc1", "session-file", Secret("x"))  # 无期限 = 长期凭据

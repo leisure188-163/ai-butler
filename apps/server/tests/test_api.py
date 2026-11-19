@@ -70,28 +70,71 @@ def test_health_and_empty_pages(tmp_path):
 
 def test_accounts_report_core_semantics_unchanged(tmp_path):
     with _client(tmp_path) as client:
+        from butler_core.accounts.domain import Account
+        from butler_core.shared.time import now_utc
+
         kit = client.app.state.kit
-        kit.vault.store("acc1", "cookie", Secret("x"), expires_at=None)
+        kit.accounts.save(
+            Account(
+                id="demo_cn:acc1",
+                platform_code="demo_cn",
+                account_name="Demo CN",
+                created_at=now_utc(),
+            )
+        )
+        kit.vault.store("demo_cn:acc1", "cookie", Secret("x"), expires_at=None)
         rows = client.get("/api/v1/accounts").json()
         assert rows == [
             {
-                "account_id": "acc1",
+                "account_id": "demo_cn:acc1",
                 "account_code": "acc1",  # 多账号维度（ADR-003）
-                "platform_code": "",  # vault-only 账号：号册无记录，如实空串
-                "account_name": "acc1",  # 缺省回落 account_id
+                "platform_code": "demo_cn",
+                "account_name": "Demo CN",
                 "alias": "",  # ADR-030：未起别名时如实空串（显示层再用 account_name 兜底）
                 "level": "healthy",  # core 出产字面量，server 原样传递
                 "signal": "ok",  # core 出产视觉分类（端零映射）
                 "evidence": [],
                 "repair_hint": None,
                 "credentials": [
-                    {"account_id": "acc1", "kind": "cookie", "level": "healthy",
+                    {"account_id": "demo_cn:acc1", "kind": "cookie", "level": "healthy",
                      "signal": "ok", "expires_at": None, "revoked": False,
                      "revoked_at": None, "revoked_reason": ""}
                 ],
                 "sessions": [],  # R5-S1：名册投影带会话清单（vault-only 账号如实空）
             }
         ]
+
+
+def test_accounts_只读账户表_凭据残留不再造幽灵账户(tmp_path):
+    """2026-11-19 用户裁决：vault-only 凭据不再出现在账户列表（无脏数据）。"""
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        kit.vault.store("ghost:main", "cookie", Secret("x"))
+        assert client.get("/api/v1/accounts").json() == []
+
+
+def test_delete_account_一并清掉关联凭据(tmp_path):
+    """删除账户：账户行 + 关联凭据一起删，二次删除 404。"""
+    with _client(tmp_path) as client:
+        from butler_core.accounts.domain import Account
+        from butler_core.shared.time import now_utc
+
+        kit = client.app.state.kit
+        kit.accounts.save(
+            Account(
+                id="demo_cn:main",
+                platform_code="demo_cn",
+                account_name="Demo CN",
+                created_at=now_utc(),
+            )
+        )
+        kit.vault.store("demo_cn:main", "cookie", Secret("x"))
+        kit.vault.store("demo_cn:main", "token", Secret("y"))
+        out = client.delete("/api/v1/accounts/demo_cn:main").json()
+        assert out["credentials_deleted"] == 2
+        assert client.get("/api/v1/accounts").json() == []
+        assert kit.vault.health() == []
+        assert client.delete("/api/v1/accounts/demo_cn:main").status_code == 404
 
 
 def test_patch_account_alias(tmp_path):
@@ -128,9 +171,20 @@ def test_patch_account_alias(tmp_path):
 
 def test_accounts_reports_revoked_credentials(tmp_path):
     with _client(tmp_path) as client:
+        from butler_core.accounts.domain import Account
+        from butler_core.shared.time import now_utc
+
         kit = client.app.state.kit
-        kit.vault.store("acc1", "cookie", Secret("x"))
-        assert kit.vault.revoke("acc1", reason="测试撤销") == 1
+        kit.accounts.save(
+            Account(
+                id="demo_cn:main",
+                platform_code="demo_cn",
+                account_name="Demo CN",
+                created_at=now_utc(),
+            )
+        )
+        kit.vault.store("demo_cn:main", "cookie", Secret("x"))
+        assert kit.vault.revoke("demo_cn:main", reason="测试撤销") == 1
         rows = client.get("/api/v1/accounts").json()
         cred = rows[0]["credentials"][0]
         assert cred["revoked"] is True

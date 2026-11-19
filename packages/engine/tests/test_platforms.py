@@ -83,6 +83,36 @@ def test_sync_缺失平台落deprecated_幂等不删行(tmp_path) -> None:
     assert repo.get("trae_cn") is not None
 
 
+def test_remove_只删平台行_可重新upsert(tmp_path) -> None:
+    """移出名册（2026-11-19）：删事实行，幂等语义 = 第二次 False；可再次 upsert 回来。"""
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    created = datetime(2026, 11, 19, tzinfo=UTC)
+    repo.upsert(_entry("agentrouter", "AgentRouter", created, kind="web"))
+    assert repo.remove("agentrouter") is True
+    assert repo.get("agentrouter") is None
+    assert repo.remove("agentrouter") is False  # 不存在 = False（端 404）
+    repo.upsert(_entry("agentrouter", "AgentRouter", created, kind="web"))
+    assert repo.get("agentrouter") is not None
+
+
+def test_sync_策略跳过网页版_不误判退役(tmp_path) -> None:
+    """2026-11-19 裁决：同步只纳 client；web 行不在 facts 里但连接器仍在宇宙内，
+    必须保持 active（策略性跳过 ≠ 退役）。"""
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    sync = SyncPlatforms(platforms=repo)
+    created = datetime(2026, 11, 19, tzinfo=UTC)
+    repo.upsert(_entry("agentrouter", "AgentRouter", created, kind="web"))
+    # 本轮只纳客户端平台：agentrouter 故意缺席，但仍在连接器宇宙里
+    sync.execute(
+        (_entry("doubao_cn", "豆包", created),),
+        known_codes=frozenset({"doubao_cn", "agentrouter"}),
+    )
+    router = repo.get("agentrouter")
+    assert router is not None
+    assert router.deprecated_at is None and router.is_active  # 未被误判退役
+    assert sync.execute((), known_codes=frozenset({"doubao_cn", "agentrouter"})) == []
+
+
 def test_空code_显式拒绝(tmp_path) -> None:
     import pytest
 

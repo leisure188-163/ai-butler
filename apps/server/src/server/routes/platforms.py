@@ -38,6 +38,24 @@ class ImportOut(BaseModel):
     issues: list[str]
 
 
+class PlatformRemovedOut(BaseModel):
+    """移出名册结果（2026-11-19）：只删平台事实行，账户/台账/凭据保留。"""
+
+    platform_code: str
+    removed: bool
+    message: str
+
+
+class PlatformCandidateOut(BaseModel):
+    """未纳册的连接器平台（平台页「未导入的平台」清单，2026-11-19 用户裁决）。"""
+
+    platform_code: str
+    platform_name: str
+    kind: str  # web=网页版 / client=本机客户端
+    capabilities: list[str]
+    account_ids: list[str]  # 名册外已有账户（>0 = 有账户待归位）
+
+
 def _has_connector(registry, target: str) -> bool:
     """该 platform_code 是否有连接器实现（没实现 = 不可接入，不是服务器错误）。"""
     getter = getattr(registry, "get", None)
@@ -153,6 +171,37 @@ def resync_platforms(request: Request) -> list[PlatformOut]:
     sync_platform_facts(kit, registry, provisions)
     kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
     return list_platforms(request)
+
+
+@router.get("/platforms/unimported", response_model=list[PlatformCandidateOut])
+def list_unimported_platforms(request: Request) -> list[PlatformCandidateOut]:
+    """未纳册的连接器平台（2026-11-19 用户裁决）：自动同步只纳本机客户端，
+    网页版等被策略跳过的连接器留在这份清单里，由用户手动「导入」。
+
+    判据 = 连接器存在（未退役）且名册里没有活跃行；account_ids 如实带上
+    名册外的既有账户（>0 = 有账户待归位，导入后自动重新挂上）。端零加工。
+    """
+    kit = request.app.state.kit
+    registry = request.app.state.registry
+    roster = {p.platform_code for p in kit.platforms.list_all() if p.deprecated_at is None}
+    docked: dict[str, list[str]] = {}
+    for account in kit.accounts.list_all():
+        docked.setdefault(account.platform_code, []).append(account.id)
+    out: list[PlatformCandidateOut] = []
+    for conn in registry.platforms():
+        m = conn.manifest
+        if getattr(m, "retired", False) or m.id in roster:
+            continue
+        out.append(
+            PlatformCandidateOut(
+                platform_code=m.id,
+                platform_name=m.display,
+                kind=m.kind,
+                capabilities=sorted(m.capabilities),
+                account_ids=sorted(docked.get(m.id, [])),
+            )
+        )
+    return sorted(out, key=lambda c: c.platform_code)
 
 
 def compose_schedule_entries(registry, kit) -> list:
@@ -313,6 +362,70 @@ def import_platform(target: str, request: Request) -> ImportOut:
     return _import_one(registry, request.app.state.kit, target)
 
 
+@router.post("/platforms/{target}/adopt", response_model=ImportOut)
+def adopt_platform(target: str, request: Request) -> ImportOut:
+    """人工导入单个连接器（2026-11-19）：纳册 + 立即接入，一步完成。
+
+    自动同步只纳本机客户端；网页版等被策略跳过的连接器由用户在「未导入的
+    平台」里手动导入。纳册复用 platform_fact 同一投影（不另拼一套）；缺失判定
+    传连接器宇宙，保证不会把其它平台误落 deprecated。
+    """
+    from fastapi import HTTPException
+
+    from server.main import platform_fact  # 延迟 import：main 会 import 本模块
+
+    registry = request.app.state.registry
+    kit = request.app.state.kit
+    try:
+        conn = registry.get(target)
+    except KeyError:
+        raise HTTPException(status_code=422, detail=f"没有这个连接器：{target}") from None
+    if getattr(conn.manifest, "retired", False):
+        raise HTTPException(status_code=422, detail=f"连接器已退役，无法导入：{target}")
+    provisions = getattr(request.app.state, "provisions", None)
+    if provisions is None:
+        provisions = registry.provision_ports(vault=kit.vault, transport=None)
+        request.app.state.provisions = provisions
+    fact = platform_fact(conn, provisions)
+    universe = frozenset(
+        c.manifest.id
+        for c in registry.platforms()
+        if not getattr(c.manifest, "retired", False)
+    )
+    kit.sync_platforms.execute((fact,), known_codes=universe)
+    kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
+    return _import_one(registry, kit, target)
+
+
+@router.delete("/platforms/{platform_code}", response_model=PlatformRemovedOut)
+def remove_platform(platform_code: str, request: Request) -> PlatformRemovedOut:
+    """删除平台（2026-11-19 用户裁决，内部称「移出名册」）：误导入 / 不再用的平台可退回「未导入的平台」。
+
+    只删 `plat_platform` 事实行——账户、领取台账、凭据一律保留；重新导入时
+    按 platform_code 自动归位。自定义平台请走 `DELETE /platforms/custom/{code}`
+    （那条会连连接器目录一起删）。
+    """
+    from fastapi import HTTPException
+
+    from butler_connectors.paths import custom_connectors_root
+
+    kit = request.app.state.kit
+    if (custom_connectors_root() / platform_code).is_dir():
+        raise HTTPException(
+            status_code=409,
+            detail="自定义平台请用「删除自定义平台」（会同时删除连接器目录）",
+        )
+    if not kit.remove_platform.execute(platform_code):
+        raise HTTPException(status_code=404, detail=f"名册里没有这个平台：{platform_code}")
+    registry = request.app.state.registry
+    kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
+    return PlatformRemovedOut(
+        platform_code=platform_code,
+        removed=True,
+        message="已删除平台；账户与历史台账保留，可在「未导入的平台」重新导入",
+    )
+
+
 @router.post("/platforms/import-all", response_model=list[ImportOut])
 def import_all_platforms(request: Request) -> list[ImportOut]:
     """一键导入：全部未泊位连接器逐家接入（结果如实分列，单家失败已在 dock 内收进 issues）。
@@ -322,12 +435,16 @@ def import_all_platforms(request: Request) -> list[ImportOut]:
     registry = request.app.state.registry
     kit = request.app.state.kit
     docked = {a.platform_code for a in kit.accounts.list_all()}
-    # 选谁导入 = 名册表裁决（ADR-021/022）：活跃且未退役、未导入的平台；
-    # retired 连接器启动同步时已落 deprecated，不进名册，天然被排除。
+    # 选谁导入 = 名册表裁决（ADR-021/022）：活跃、未退役、未导入的**本机客户端**；
+    # 网页版（kind=web）不自动接——它们留在「未导入的平台」里由用户手动导入
+    # （2026-11-19 用户裁决）。retired 连接器启动同步时已落 deprecated，不进名册。
     targets = sorted(
         p.platform_code
         for p in kit.platforms.list_all()
-        if p.is_active and p.deprecated_at is None and p.platform_code not in docked
+        if p.is_active
+        and p.deprecated_at is None
+        and p.platform_kind != "web"
+        and p.platform_code not in docked
     )  # 按 platform_code 排序：批量结果顺序确定，不随名册插入序漂移
     out: list[ImportOut] = []
     for target in targets:

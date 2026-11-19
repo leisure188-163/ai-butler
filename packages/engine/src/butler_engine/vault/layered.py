@@ -245,6 +245,41 @@ class LayeredVault(VaultPort):
             )
         return revoked
 
+    def purge(self, account_id: str) -> int:
+        """彻底清除账户凭据（2026-11-19 删除账户）：主引用、历史归档、DB 行全删。
+
+        不留 revoked 行、不留 history——账户都不存在了，任何残留都是无主脏数据。
+        后端秘密已缺失按已清理跳过（幂等）；返回清掉的条目数。
+        """
+        items = self._items(account_id)
+        backend_by_kind = {kind: backend_name for kind, backend_name, _ in items}
+        for kind, backend_name, _ in items:
+            ref = vault_ref(account_id, kind)
+            try:
+                self._backend(backend_name).delete(ref)
+            except VaultCredentialMissing:
+                pass
+        with closing(self._connect()) as conn, conn:
+            history = conn.execute(
+                "SELECT kind, archived_ref FROM vault_history WHERE account_id = ?",
+                (account_id,),
+            ).fetchall()
+        for kind, archived_ref in history:
+            backend_name = backend_by_kind.get(kind, self._default)
+            try:
+                self._backend(backend_name).delete(archived_ref)
+            except VaultCredentialMissing:
+                pass
+        with closing(self._connect()) as conn, conn:
+            conn.execute("DELETE FROM vault_item WHERE account_id = ?", (account_id,))
+            conn.execute("DELETE FROM vault_history WHERE account_id = ?", (account_id,))
+        if items:
+            self._audit.record(
+                actor="vault", action="vault.purge", outcome=f"ok:purged={len(items)}",
+                account_id=account_id, credential_ref=f"{account_id}:*",
+            )
+        return len(items)
+
     def health(self) -> list[CredentialHealth]:
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(

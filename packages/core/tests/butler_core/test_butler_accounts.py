@@ -37,6 +37,9 @@ class MemoryAccounts(AccountRepository):
     def list_all(self):
         return list(self.rows.values())
 
+    def remove(self, account_id):
+        return self.rows.pop(account_id, None) is not None
+
 
 def test_identity_default_key_and_collection():
     assert account_identity("trae_cn") == "trae_cn:main"

@@ -32,6 +32,14 @@ def test_save_upsert_idempotent(tmp_path):
     assert len(repo.list_all()) == 1
 
 
+def test_remove_只删账户行(tmp_path):
+    repo = SqliteAccountRepository(tmp_path / "butler.db")
+    repo.save(acct("trae_cn:main", "trae_cn", "Trae CN"))
+    assert repo.remove("trae_cn:main") is True
+    assert repo.get("trae_cn:main") is None
+    assert repo.remove("trae_cn:main") is False  # 不存在 = False（端 404）
+
+
 def test_persistence_across_instances(tmp_path):
     db = tmp_path / "butler.db"
     SqliteAccountRepository(db).save(acct("trae_cn:main", "trae_cn", "Trae CN"))

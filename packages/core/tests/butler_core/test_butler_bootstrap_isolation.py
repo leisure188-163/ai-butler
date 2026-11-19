@@ -17,6 +17,7 @@ class _Accounts(AccountRepository):
     def get(self, account_id): return None
     def list_by_platform(self, platform): return []
     def list_all(self): return []
+    def remove(self, account_id): return False
 
 
 class _Ledger(RunLedger):

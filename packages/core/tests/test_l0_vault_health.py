@@ -114,6 +114,9 @@ class FakeVault(VaultPort):
         self.revoked.append((account_id, reason))
         return self.revoke_result
 
+    def purge(self, account_id):
+        return 0
+
     def health(self):
         return self._creds
 

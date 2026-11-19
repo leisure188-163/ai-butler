@@ -44,6 +44,14 @@ class PlatformRepository(ABC):
         """写调度覆盖（None = 恢复跟随 manifest）；返回更新后的行（平台不存在 = None）。"""
 
     @abstractmethod
+    def remove(self, platform_code: str) -> bool:
+        """移出名册（2026-11-19）：删除平台事实行，返回是否真的删了。
+
+        只删 `plat_platform` 行——账户/台账/凭据不归本端口管，一律不动；
+        之后重新 adopt 即按 platform_code 归位。不存在 = False。
+        """
+
+    @abstractmethod
     def get(self, platform_code: str) -> PlatformEntry | None: ...
 
     @abstractmethod

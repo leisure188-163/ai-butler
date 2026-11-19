@@ -125,13 +125,17 @@ class _StubRegistry:
 class _BatchRegistry:
     """批量 dock 假件：逐 target 注册 {target}:main（import-all 的编排面专用）。"""
 
-    def __init__(self, targets):
+    def __init__(self, targets, kinds=None):
         self._targets = list(targets)
+        self._kinds = dict(kinds or {})
 
     def platforms(self):
         from types import SimpleNamespace
 
-        return [SimpleNamespace(manifest=SimpleNamespace(id=t)) for t in self._targets]
+        return [
+            SimpleNamespace(manifest=SimpleNamespace(id=t, kind=self._kinds.get(t, "")))
+            for t in self._targets
+        ]
 
     def dock(self, ctx, *, target):
         from butler_connectors.registry import DockOutcome
@@ -154,6 +158,7 @@ def _sync_registry(client):
                 platform_code=m.id,
                 platform_name=getattr(m, "display", m.id),
                 created_at=now_utc(),
+                platform_kind=getattr(m, "kind", ""),
                 capabilities=tuple(sorted(getattr(m, "capabilities", ()))),
                 credential_kinds=(),
                 schedule_times=(),
@@ -163,12 +168,37 @@ def _sync_registry(client):
 
 
 def test_apps_hidden_retired_web_connectors(tmp_path):
-    """退役连接器不再出现在应用名册；代码保留用于回滚/审计。"""
+    """退役连接器不再出现在应用名册；存活网页版也不自动纳册（2026-11-19 裁决：
+    同步只纳本机客户端，网页版走「未导入的平台」人工导入）。"""
     with _client(tmp_path) as client:
         ids = [row["id"] for row in client.get("/api/v1/platforms").json()]
         assert "chatgpt_web" not in ids
-        assert "claude_web" not in ids
-        assert "agentrouter" in ids
+        assert "claude_web" not in ids  # 退役：连未导入清单也不进
+        assert "agentrouter" not in ids  # 存活网页版：只在未导入清单里
+
+
+def test_remove_platform_移出名册后回到未导入(tmp_path):
+    """移出名册（2026-11-19）：删平台事实行 → 名册消失、未导入清单回来；
+    再删同一条 = 404；账户表不受影响。"""
+    with _client(tmp_path) as client:
+        assert client.delete("/api/v1/platforms/trae_cn").status_code == 200
+        ids = [row["id"] for row in client.get("/api/v1/platforms").json()]
+        assert "trae_cn" not in ids
+        assert "trae_cn" in {
+            c["platform_code"] for c in client.get("/api/v1/platforms/unimported").json()
+        }
+        assert client.delete("/api/v1/platforms/trae_cn").status_code == 404
+
+
+def test_unimported_lists_web_connectors_for_manual_import(tmp_path):
+    """未导入清单（2026-11-19）：客户端自动纳册后不在清单；存活网页版在清单。"""
+    with _client(tmp_path) as client:
+        cands = client.get("/api/v1/platforms/unimported").json()
+        codes = [c["platform_code"] for c in cands]
+        assert codes == ["agentrouter"]
+        assert cands[0]["kind"] == "web"
+        assert "doubao_cn" not in codes  # 客户端已自动纳册
+        assert client.post("/api/v1/platforms/nope/adopt").status_code == 422
 
 
 def test_patch_platform_name_生效且同步不覆盖(tmp_path):
@@ -197,27 +227,27 @@ def test_patch_platform_name_生效且同步不覆盖(tmp_path):
 def test_patch_platform_icon_写入与校验(tmp_path):
     """平台图标（2026-11-19）：png data URI 可写、随列表返回；非 png / 超长 400；空串清空。"""
     with _client(tmp_path) as client:
-        row = next(r for r in client.get("/api/v1/platforms").json() if r["id"] == "agentrouter")
+        row = next(r for r in client.get("/api/v1/platforms").json() if r["id"] == "trae_cn")
         assert row["icon"] == ""  # 默认无图标 → 前端回落内置图标/身份色点
 
         uri = "data:image/png;base64,AAAA"
-        patched = client.patch("/api/v1/platforms/agentrouter", json={"icon": uri}).json()
+        patched = client.patch("/api/v1/platforms/trae_cn", json={"icon": uri}).json()
         assert patched["icon"] == uri
 
-        listed = next(r for r in client.get("/api/v1/platforms").json() if r["id"] == "agentrouter")
+        listed = next(r for r in client.get("/api/v1/platforms").json() if r["id"] == "trae_cn")
         assert listed["icon"] == uri  # 图标跟着平台数据走：列表即可拿到
 
         # 只认 png data URI（前端上传前已转码），其他形态显式 400
         assert (
-            client.patch("/api/v1/platforms/agentrouter", json={"icon": "https://x/y.png"}).status_code
+            client.patch("/api/v1/platforms/trae_cn", json={"icon": "https://x/y.png"}).status_code
             == 400
         )
         oversized = "data:image/png;base64," + "A" * 200_001
         assert (
-            client.patch("/api/v1/platforms/agentrouter", json={"icon": oversized}).status_code == 400
+            client.patch("/api/v1/platforms/trae_cn", json={"icon": oversized}).status_code == 400
         )
 
-        cleared = client.patch("/api/v1/platforms/agentrouter", json={"icon": ""}).json()
+        cleared = client.patch("/api/v1/platforms/trae_cn", json={"icon": ""}).json()
         assert cleared["icon"] == ""  # 空串 = 清空（回落内置图标）
 
 
@@ -242,6 +272,7 @@ def test_resync_platforms_从空名册回填(tmp_path):
         rows = client.post("/api/v1/platforms/resync").json()
         ids = sorted(r["id"] for r in rows)
         assert "doubao_cn" in ids and "trae_cn" in ids
+        assert "agentrouter" not in ids  # 网页版不随同步自动纳册
         assert all(r["name_is_default"] for r in rows)  # 首插落的是连接器申报名
 
         client.patch("/api/v1/platforms/trae_cn", json={"platform_name": "Trae 主号"})
@@ -299,6 +330,18 @@ def test_import_all_skips_docked_and_reports_collect_errors(tmp_path):
         for row in rows:
             assert row["accounts"] == [f"{row['target']}:main"]
             assert any("用量采集" in i for i in row["issues"])
+
+
+def test_import_all_skips_web_even_when_roster_has_it(tmp_path):
+    """扫描本机只自动接客户端（2026-11-19 用户裁决）：名册里的网页版不自动 dock。"""
+    with _client(tmp_path) as client:
+        client.app.state.registry = _BatchRegistry(
+            ["agentrouter", "trae_cn"], {"agentrouter": "web", "trae_cn": "client"}
+        )
+        _sync_registry(client)
+
+        rows = client.post("/api/v1/platforms/import-all").json()
+        assert [r["target"] for r in rows] == ["trae_cn"]
 
 
 def test_import_all_empty_when_nothing_to_dock(tmp_path):
