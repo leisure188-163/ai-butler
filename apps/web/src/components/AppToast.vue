@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * 居中提示条（2026-11-19 用户裁决：界面中间弹出，3 秒自动消失，全系统统一）。
+ * 顶部提示条（2026-11-19 用户裁决：页面顶部弹出，3 秒自动消失，全系统统一）。
  *
- * 位置固定在整个视口正中，不吃点击（pointer-events: none，只有卡片本身可交互）；
+ * 固定在整个视口顶部、横向居中，不吃点击（pointer-events: none，只有卡片本身可交互）；
  * 显隐与计时全在 useToast 单例里，本组件只负责画。
  */
 import { useToast } from "../composables/useToast";
@@ -28,7 +28,10 @@ const { visible, text, tone } = useToast();
   position: fixed;
   inset: 0;
   display: grid;
-  place-items: center;
+  /* 页面顶部居中（2026-11-19 用户二次裁决：不要盖住页面中间的内容）；
+     18px 与页头留一口气，横向仍居中，纵向贴顶。 */
+  place-items: start center;
+  padding-top: 18px;
   pointer-events: none;
   z-index: 900;
 }
@@ -71,6 +74,6 @@ const { visible, text, tone } = useToast();
 .toast-enter-from,
 .toast-leave-to {
   opacity: 0;
-  transform: translateY(6px) scale(0.98);
+  transform: translateY(-8px) scale(0.98);
 }
 </style>
