@@ -20,7 +20,8 @@ defineProps<{
   loadedAt: string;
 }>();
 
-const emit = defineEmits<{ refresh: []; collect: [] }>();
+/** 数据刷新只有壳层顶部一枚「刷新」（同一 loadAll，页面内不再放第二个入口）；本页独有动作只有采集。 */
+const emit = defineEmits<{ collect: [] }>();
 
 /* ---- 展示辅助（纯格式化，不做语义决策）---- */
 
@@ -62,7 +63,6 @@ function aggText(s: { [key: string]: unknown }): string {
       </div>
       <div class="head-actions">
         <span v-if="loadedAt" class="row-time">更新于 {{ loadedAt }}</span>
-        <button class="btn" :disabled="loading || collecting" @click="emit('refresh')">刷新</button>
         <button class="btn btn--primary" :disabled="loading || collecting" @click="emit('collect')">
           {{ collecting ? "采集中…" : "立即采集" }}
         </button>

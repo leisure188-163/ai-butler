@@ -84,16 +84,15 @@ function onSavePlatform(target: string, patch: PlatformPatch): void {
 function isCustom(id: string): boolean {
   return props.customCodes.includes(id);
 }
-/** 修改外露到操作列；接入/刷新紧随其后，领取与下钻进「更多」 */
+/** 修改外露到操作列；重扫/领取进「更多」（下钻唯一入口是账户列的「查看账户」，不再重复） */
 function primaryActions(platform: PlatformItem): RowAction[] {
   const out: RowAction[] = [{ key: "edit", label: "修改" }];
-  out.push({ key: "import", label: accountCount(platform) ? "刷新" : "接入" });
+  out.push({ key: "import", label: accountCount(platform) ? "重新接入" : "接入" });
   return out;
 }
 function moreActions(platform: PlatformItem): RowAction[] {
   const out: RowAction[] = [];
   if (platform.capabilities.includes("provision.run")) out.push({ key: "claim", label: "立即领取" });
-  if (accountCount(platform)) out.push({ key: "jump", label: "去账户" });
   if (isCustom(platform.id)) out.push({ key: "remove", label: "删除", danger: true });
   return out;
 }
@@ -101,7 +100,6 @@ function runRowAction(platform: PlatformItem, key: string): void {
   if (key === "edit") openEdit(platform);
   else if (key === "import") emit("import", platform.id);
   else if (key === "claim") emit("claim", platform.id);
-  else if (key === "jump") emit("jump", "账户管理", platform.id);
   else if (key === "remove") confirmRemove(platform.id);
 }
 function confirmRemove(id: string): void {
@@ -276,14 +274,14 @@ const slotsOpen = ref(false);
           </tr>
           <tr v-for="platform in pagedPlatforms" :key="platform.id">
             <!-- 身份锚点：名称与编码各占一列；点名称弹详情，不再展开表格行。
-                 名称右侧常驻「详情 ›」胶囊（2026-11-19 用户要求）：纯文字按钮
-                 没有任何可点迹象，得让人一眼看出这里能点开详情。 -->
+                 可点提示用「轻」的表达（2026-11-19 用户否掉了「详情」文字胶囊）：
+                 名称末尾一枚极小的 › 箭头常驻，hover 时名称转主色并出现下划线。 -->
             <td class="identity-cell">
               <button class="platform-open" :aria-label="`查看 ${platform.platform_name} 详情`" @click="openDetail(platform)">
                 <span class="identity-name">
                   <PlatformBadge :name="platform.platform_name" :color-index="faceOf(platform.id)" />
                   <span v-if="isCustom(platform.id)" class="tag tag--notice">自定义</span>
-                  <span class="detail-chip" aria-hidden="true">详情 ›</span>
+                  <span class="open-arrow" aria-hidden="true">›</span>
                 </span>
               </button>
             </td>
@@ -405,26 +403,22 @@ const slotsOpen = ref(false);
   cursor: pointer;
 }
 .platform-open:hover .identity-name { color: var(--color-accent); }
+.platform-open:hover .identity-name .badge-name {
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent);
+  text-underline-offset: 3px;
+}
 .platform-open:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
-.identity-name { display: flex; align-items: center; gap: var(--space-2); font-weight: 600; }
-/* 「详情 ›」提示片：与「查看账户」同族描边胶囊，缩到名称行内、常态就可见 */
-.detail-chip {
+.identity-name { display: flex; align-items: center; gap: var(--space-1); font-weight: 600; }
+/* › 只做「可进入」的暗示：faint 灰、跟名称同字号，不占额外宽度 */
+.open-arrow {
   flex: none;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-chip);
-  background: var(--color-surface-2);
   color: var(--color-text-muted);
-  font-size: var(--text-xs);
   font-weight: 400;
-  line-height: 1.7;
-  white-space: nowrap;
+  font-size: var(--text-xs);
+  line-height: 1;
 }
-.platform-open:hover .detail-chip {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-  background: var(--color-accent-weak);
-}
+.platform-open:hover .open-arrow { color: var(--color-accent); }
 .identity-code { font-size: var(--text-xs); color: var(--color-text-muted); }
 .col-kindver { white-space: nowrap; }
 .col-kindver .tag { margin-right: var(--space-2); }

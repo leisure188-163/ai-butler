@@ -206,7 +206,6 @@ onBeforeUnmount(() => {
         :loading="loading"
         :collecting="collecting"
         :loaded-at="usageLoadedAt"
-        @refresh="loadAll"
         @collect="collectUsage"
       />
       <LogPage v-else-if="active === '运行日志'" :runs="runs" />
