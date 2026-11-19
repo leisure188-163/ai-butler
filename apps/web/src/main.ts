@@ -1,6 +1,6 @@
 import { createApp } from "vue";
-import "./styles/tokens.css";
-import "./styles/ui.css";
-import App from "./App.vue";
+import "@/shared/styles/tokens.css";
+import "@/shared/styles/ui.css";
+import App from "@/app/App.vue";
 
 createApp(App).mount("#app");

@@ -45,7 +45,7 @@ def check_manifest(root: Path, pkg: str) -> list[str]:
         "apps/server/src/server/routes/__init__.py",
         "apps/cli/pyproject.toml",
         "apps/web/package.json", "apps/web/vite.config.ts",
-        "apps/web/src/styles/tokens.css",
+        "apps/web/src/shared/styles/tokens.css",  # 2026-11-20 按业务域分包后位置
         "docs/DESIGN-DECISIONS.md",   # 阶段 3.5 设计包流程的必产物(决策可追溯)
         "apps/desktop/main.py" if (root / "apps/desktop/main.py").exists()
         else "apps/desktop/main.js",
@@ -223,7 +223,9 @@ def check_token_closure(root: Path) -> list[str]:
     web_src = root / "apps/web/src"
     if not web_src.is_dir():
         return []
-    tokens = web_src / "styles/tokens.css"
+    # 2026-11-20 按业务域分包后样式收进 shared/styles/；保留旧路径回落，避免历史分支跑门禁
+    tokens_candidates = [web_src / "shared/styles/tokens.css", web_src / "styles/tokens.css"]
+    tokens = next((p for p in tokens_candidates if p.exists()), tokens_candidates[0])
     defined: set[str] = set()
     if tokens.exists():
         defined |= set(_VAR_DEF.findall(tokens.read_text(encoding="utf-8")))
