@@ -88,7 +88,14 @@ function isCustom(id: string): boolean {
 /** 修改外露到操作列；重扫/领取进「更多」（下钻唯一入口是账户列的「查看账户」，不再重复） */
 function primaryActions(platform: PlatformItem): RowAction[] {
   const out: RowAction[] = [{ key: "edit", label: "修改" }];
-  out.push({ key: "import", label: accountCount(platform) ? "重新接入" : "接入" });
+  out.push({
+    key: "import",
+    label: accountCount(platform) ? "重新接入" : "接入",
+    // 已接入平台的「重新接入」= 重连本机客户端并重读凭据，不是再登记一遍账户
+    title: accountCount(platform)
+      ? "重新连接本机客户端并重读凭据（换号、重装、重新登录客户端之后用）"
+      : "连接本机客户端，读取凭据并登记账户",
+  });
   return out;
 }
 function moreActions(platform: PlatformItem): RowAction[] {
@@ -187,19 +194,22 @@ const slotsOpen = ref(false);
       </div>
       <div class="head-actions">
         <button
-          class="btn"
+          class="btn btn--primary"
           :disabled="busyTarget !== null"
-          title="重新扫描连接器，把平台定义写回名册（平台表被清空或连接器升级后用；不导入账户）"
+          title="重新扫描连接器，把平台定义（类型/能力/版本/排班）写回名册——不导入账户；平台表被清空或连接器升级后用"
           @click="emit('resync')"
         >同步平台</button>
         <button class="btn" :disabled="busyTarget !== null" @click="openCreate">
           ＋ 自定义平台
         </button>
+        <!-- 批量接入只在「有未接入平台」时出现：无空位时留一个永远点不动的按钮是噪音 -->
         <button
-          class="btn btn--primary"
-          :disabled="busyTarget !== null || !importableCount"
+          v-if="importableCount"
+          class="btn"
+          :disabled="busyTarget !== null"
+          title="对所有尚未接入的平台逐个执行接入（等同逐行点「接入」）"
           @click="emit('importAll')"
-        >接入全部{{ importableCount ? `（${importableCount}）` : "" }}</button>
+        >接入全部（{{ importableCount }}）</button>
       </div>
     </div>
   </header>

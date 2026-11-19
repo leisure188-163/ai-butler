@@ -42,6 +42,8 @@ export type PlatformPatch = {
 export type RowAction = {
   key: string;
   label: string;
+  /** 悬停说明（2026-11-19）：动作名不足以表达语义时补一句，如「重新接入」 */
+  title?: string;
   danger?: boolean;
   disabled?: boolean;
 };

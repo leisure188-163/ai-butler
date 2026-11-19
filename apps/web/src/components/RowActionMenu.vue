@@ -90,6 +90,7 @@ watch(
       :key="action.key"
       class="btn btn--ghost"
       :disabled="props.busy || action.disabled"
+      :title="action.title"
       @click.stop="run(action)"
     >{{ action.label }}</button>
 
@@ -120,6 +121,7 @@ watch(
         :class="{ 'more-item--danger': action.danger }"
         role="menuitem"
         :disabled="props.busy || action.disabled"
+        :title="action.title"
         @click="run(action)"
       >{{ action.label }}</button>
     </div>
