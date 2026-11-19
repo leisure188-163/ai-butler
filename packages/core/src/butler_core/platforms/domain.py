@@ -35,7 +35,9 @@ class PlatformEntry:
     开关（停用平台不再出现在名册与一键导入）。"""
 
     platform_code: str
-    platform_name: str  # manifest 事实名（连接器申报）
+    #: 平台名：接入同步时由连接器 manifest 写入；之后归用户，可在平台页改名。
+    #: 同步不会再覆盖它（ADR-031：名称是用户标识，编码才是不可变锚点）。
+    platform_name: str
     created_at: datetime
     platform_kind: str = ""  # web=网页版 / client=本机客户端（PLATFORM_KINDS；"" = 历史行未申报）
     client_version: str = ""  # 本机客户端版本（同步时探测；"" = 探不到=未知，不猜）
@@ -45,8 +47,6 @@ class PlatformEntry:
     #: 用户覆盖的调度执行时间（None = 跟随 manifest；空元组 = 该平台不排班，
     #: 2026-11-18 裁决：调度时间可由平台管理页直接编辑）
     schedule_override: tuple[str, ...] | None = None
-    #: 用户改的显示名（"" = 跟随 manifest 名；2026-11-18 裁决：平台信息可编辑）
-    name_override: str = ""
     is_active: bool = True
     deprecated_at: datetime | None = None
 
@@ -55,8 +55,6 @@ class PlatformEntry:
             raise PlatformInvalid("PlatformEntry 需要非空 platform_code")
         if not self.platform_name.strip():
             raise PlatformInvalid("PlatformEntry 需要非空 platform_name")
-        if self.name_override.strip() != "" and len(self.name_override) > 40:
-            raise PlatformInvalid("PlatformEntry name_override 过长（≤40）")
         if self.schedule_override is not None:
             for slot in self.schedule_override:
                 if not _HHMM.match(slot):

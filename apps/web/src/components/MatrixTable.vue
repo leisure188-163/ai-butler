@@ -120,7 +120,7 @@ function toggleDetail(accountId: string) {
     <p class="filters">
       <select v-model="appFilter" class="input" aria-label="按平台筛选">
         <option value="">全部平台</option>
-        <option v-for="platform in platforms" :key="platform.id" :value="platform.id">{{ platform.display }}</option>
+        <option v-for="platform in platforms" :key="platform.id" :value="platform.id">{{ platform.platform_name }}</option>
       </select>
       <select v-model="statusFilter" class="input" aria-label="按状态筛选">
         <option value="all">全部状态</option>
@@ -175,7 +175,7 @@ function toggleDetail(accountId: string) {
               </td>
               <td class="col-platform">
                 <PlatformBadge
-                  :name="appOf(account)?.display ?? account.platform_code"
+                  :name="appOf(account)?.platform_name ?? account.platform_code"
                   :color-index="faceOf(account.account_id)"
                 />
               </td>

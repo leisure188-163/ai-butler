@@ -51,9 +51,9 @@ export function useAccountRows({
     if (alias) return alias;
     const platform = appOf(account);
     const name = account.account_name?.trim() || "";
-    if (!name || (platform && name === platform.display)) return account.account_code;
-    if (platform && name.startsWith(`${platform.display} · `)) {
-      return name.slice(platform.display.length + 3).trim();
+    if (!name || (platform && name === platform.platform_name)) return account.account_code;
+    if (platform && name.startsWith(`${platform.platform_name} · `)) {
+      return name.slice(platform.platform_name.length + 3).trim();
     }
     return name;
   }

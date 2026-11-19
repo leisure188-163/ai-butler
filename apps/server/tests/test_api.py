@@ -483,6 +483,29 @@ def test_apps_hidden_retired_web_connectors(tmp_path):
         assert "agentrouter" in ids
 
 
+def test_patch_platform_name_生效且同步不覆盖(tmp_path):
+    """ADR-031：平台名可改，改后同步不覆盖；空串 = 恢复连接器申报名；编码不可改。"""
+    with _client(tmp_path) as client:
+        row = next(r for r in client.get("/api/v1/platforms").json() if r["id"] == "trae_cn")
+        assert row["platform_name"] == "Trae CN"
+        assert row["name_is_default"] is True
+
+        patched = client.patch(
+            "/api/v1/platforms/trae_cn", json={"platform_name": "Trae 主号"}
+        ).json()
+        assert patched["platform_name"] == "Trae 主号"
+        assert patched["name_is_default"] is False
+        assert patched["id"] == "trae_cn"  # 编码是锚点，改名不动它
+
+        _sync_registry(client)  # 模拟下一轮启动时的 manifest 同步
+        again = next(r for r in client.get("/api/v1/platforms").json() if r["id"] == "trae_cn")
+        assert again["platform_name"] == "Trae 主号"  # 用户的名字没被冲掉
+
+        reset = client.patch("/api/v1/platforms/trae_cn", json={"platform_name": ""}).json()
+        assert reset["platform_name"] == "Trae CN"  # 空串 = 恢复连接器申报名
+        assert reset["name_is_default"] is True
+
+
 def test_import_skips_usage_error_for_checkin_only_connector(tmp_path):
     """纯签到连接器没有 usage 端口：import 不把“无额度可采”报成 issue。"""
     with _client(tmp_path) as client:

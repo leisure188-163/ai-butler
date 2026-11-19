@@ -60,7 +60,7 @@ def test_create_lists_in_roster(tmp_path, monkeypatch):
         rows = {row["id"]: row for row in client.get("/api/v1/platforms").json()}
         assert "demo_site" in rows
         row = rows["demo_site"]
-        assert row["display"] == "Demo Site"
+        assert row["platform_name"] == "Demo Site"
         assert row["kind"] == "web"
         assert row["capabilities"] == ["provision.run", "session.import"]
         assert row["credential_kinds"] == ["browser_cookie"]

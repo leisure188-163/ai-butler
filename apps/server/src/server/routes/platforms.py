@@ -12,7 +12,8 @@ class PlatformOut(BaseModel):
     """平台名册行：连接器能力矩阵 + 调度缺省（A2-02 §2 的端侧投影）。"""
 
     id: str
-    display: str
+    platform_name: str  # 平台名：接入时来自 manifest，之后归用户（ADR-031，可改名）
+    name_is_default: bool  # 名字仍是连接器申报名（前端据此决定要不要显示「恢复默认名」）
     kind: str  # 平台类型：web=网页版 / client=本机客户端（"" = 未申报）
     client_version: str  # 本机客户端版本（"" = 探不到/不适用）
     capabilities: list[str]  # ActionKind.value 列表（core 词表）
@@ -69,6 +70,44 @@ def _import_one(registry, kit, target: str) -> ImportOut:
     return ImportOut(target=outcome.target, accounts=outcome.accounts, issues=outcome.issues)
 
 
+def _manifest_display(registry, target: str) -> str | None:
+    """连接器 manifest 申报的平台名（"恢复原名"用）；没有实现 → None。"""
+    getter = getattr(registry, "get", None)
+    if not callable(getter):
+        return None
+    try:
+        return getter(target).manifest.display.strip() or None
+    except KeyError:
+        return None
+
+
+def _platform_out(platform, ids: list[str], registry=None) -> PlatformOut:
+    """平台册行投影（名册读端点与改名端点共用，避免三处各拼一遍）。
+
+    name_is_default 只在运行时跟 manifest 比一次（DB 不存第二份名字）；
+    连接器已下线（取不到 manifest）时按"非默认"处理，不误报可恢复。
+    """
+    display = _manifest_display(registry, platform.platform_code) if registry else None
+    return PlatformOut(
+        id=platform.platform_code,
+        platform_name=platform.platform_name,
+        name_is_default=display is None or display == platform.platform_name,
+        kind=platform.platform_kind,
+        client_version=platform.client_version,
+        capabilities=sorted(platform.capabilities),
+        credential_kinds=list(platform.credential_kinds),
+        schedule_times=list(
+            platform.schedule_override
+            if platform.schedule_override is not None
+            else platform.schedule_times
+        ),
+        schedule_overridden=platform.schedule_override is not None,
+        active=platform.is_active,
+        account_id=ids[0] if ids else None,
+        account_ids=ids,
+    )
+
+
 @router.get("/platforms", response_model=list[PlatformOut])
 def list_platforms(request: Request) -> list[PlatformOut]:
     """平台名册（ADR-021/022）：读 plat_platform 名册表（DB 为真相源）+ 台账并账。
@@ -77,6 +116,7 @@ def list_platforms(request: Request) -> list[PlatformOut]:
     这里只做 DB 投影 + 账户并账，不再穿连接器包拼装（端零映射）。
     """
     kit = request.app.state.kit
+    registry = request.app.state.registry
     docked: dict[str, list[str]] = {}
     for account in kit.accounts.list_all():
         docked.setdefault(account.platform_code, []).append(account.id)
@@ -84,25 +124,8 @@ def list_platforms(request: Request) -> list[PlatformOut]:
     for platform in kit.platforms.list_all():
         if platform.deprecated_at is not None:
             continue  # 退役平台不出现；停用（is_active=false）要显示，否则用户无法再启用
-        ids = sorted(docked.get(platform.platform_code, []))
         out.append(
-            PlatformOut(
-                id=platform.platform_code,
-                display=platform.name_override or platform.platform_name,
-                kind=platform.platform_kind,
-                client_version=platform.client_version,
-                capabilities=sorted(platform.capabilities),
-                credential_kinds=list(platform.credential_kinds),
-                schedule_times=list(
-                    platform.schedule_override
-                    if platform.schedule_override is not None
-                    else platform.schedule_times
-                ),
-                schedule_overridden=platform.schedule_override is not None,
-                active=platform.is_active,
-                account_id=ids[0] if ids else None,
-                account_ids=ids,
-            )
+            _platform_out(platform, sorted(docked.get(platform.platform_code, [])), registry)
         )
     return out
 
@@ -140,12 +163,13 @@ def compose_schedule_entries(registry, kit) -> list:
 
 
 class PlatformPatchIn(BaseModel):
-    """平台信息编辑（2026-11-18）：只开放三项——显示名、启用状态、调度执行时间。
+    """平台信息编辑（2026-11-18）：只开放三项——平台名称、启用状态、调度执行时间。
 
     `model_fields_set` 区分"没传"与"传了 null"：times=null 恢复默认，times=[] 不排班。
+    `platform_name` 为空串 = 恢复连接器申报的名称（ADR-031）。
     """
 
-    platform_name: str | None = None  # 显示名（空串 = 恢复 manifest 名）
+    platform_name: str | None = None  # 平台名（空串 = 恢复 manifest 名）
     active: bool | None = None  # 启用状态
     times: list[str] | None = None  # 调度执行时间
 
@@ -168,25 +192,34 @@ def _normalize_times(times: list[str]) -> list[str]:
 
 @router.patch("/platforms/{platform_code}", response_model=PlatformOut)
 def patch_platform(platform_code: str, body: PlatformPatchIn, request: Request):
-    """编辑平台（显示名 / 启用状态 / 调度时间）：落 DB + 调度热替换，即刻生效。
+    """编辑平台（平台名称 / 启用状态 / 调度时间）：落 DB + 调度热替换，即刻生效。
 
-    能力、凭据类型、客户端版本、平台编码来自连接器 manifest 探测，不可在本端点编辑。
+    **平台编码（platform_code）不可改**：它被账户、台账、调度条目、CLI 目标引用，
+    改名等于拆迁（ADR-031）。能力、凭据类型、客户端版本仍来自连接器探测。
     """
     from fastapi import HTTPException
 
     kit = request.app.state.kit
     registry = request.app.state.registry
     fields = body.model_fields_set
-    name_override: str | None = None
+    new_name: str | None = None
     active: bool | None = None
     if "platform_name" in fields and body.platform_name is not None:
-        name_override = body.platform_name.strip()
-        if len(name_override) > 40:
+        new_name = body.platform_name.strip()
+        if not new_name:
+            # 空串 = 恢复连接器申报的名称（不保留第二列，运行时向 manifest 取）
+            new_name = _manifest_display(registry, platform_code)
+            if new_name is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="该平台没有连接器实现，无法恢复原名——请直接填写平台名称",
+                )
+        elif len(new_name) > 40:
             raise HTTPException(status_code=400, detail="平台名称过长（≤40）")
     if "active" in fields:
         active = body.active
     updated = kit.platforms.update_profile(
-        platform_code, name_override=name_override, is_active=active
+        platform_code, platform_name=new_name, is_active=active
     )
     if updated is None:
         raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
@@ -199,24 +232,7 @@ def patch_platform(platform_code: str, body: PlatformPatchIn, request: Request):
             raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
     kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
     docked = sorted(a.id for a in kit.accounts.list_all() if a.platform_code == platform_code)
-    effective = (
-        updated.schedule_override
-        if updated.schedule_override is not None
-        else updated.schedule_times
-    )
-    return PlatformOut(
-        id=updated.platform_code,
-        display=updated.name_override or updated.platform_name,
-        kind=updated.platform_kind,
-        client_version=updated.client_version,
-        capabilities=sorted(updated.capabilities),
-        credential_kinds=list(updated.credential_kinds),
-        schedule_times=list(effective),
-        schedule_overridden=updated.schedule_override is not None,
-        active=updated.is_active,
-        account_id=docked[0] if docked else None,
-        account_ids=docked,
-    )
+    return _platform_out(updated, docked, registry)
 
 
 @router.put("/platforms/{platform_code}/schedule", response_model=PlatformOut)
@@ -234,24 +250,8 @@ def set_platform_schedule(platform_code: str, body: ScheduleIn, request: Request
     if updated is None:
         raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
     kit.update_checkin_schedule(compose_schedule_entries(registry, kit))
-    docked = [a.id for a in kit.accounts.list_all() if a.platform_code == platform_code]
-    return PlatformOut(
-        id=updated.platform_code,
-        display=updated.name_override or updated.platform_name,
-        kind=updated.platform_kind,
-        client_version=updated.client_version,
-        capabilities=sorted(updated.capabilities),
-        credential_kinds=list(updated.credential_kinds),
-        schedule_times=list(
-            updated.schedule_override
-            if updated.schedule_override is not None
-            else updated.schedule_times
-        ),
-        schedule_overridden=updated.schedule_override is not None,
-        active=updated.is_active,
-        account_id=docked[0] if docked else None,
-        account_ids=sorted(docked),
-    )
+    docked = sorted(a.id for a in kit.accounts.list_all() if a.platform_code == platform_code)
+    return _platform_out(updated, docked, registry)
 
 
 @router.post("/platforms/{target}/import", response_model=ImportOut)

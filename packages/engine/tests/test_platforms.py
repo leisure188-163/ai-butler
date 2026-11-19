@@ -41,13 +41,29 @@ def test_upsert_get_roundtrip(tmp_path) -> None:
     assert loaded.is_active and loaded.deprecated_at is None
 
 
-def test_upsert_重复_事实更新_幂等(tmp_path) -> None:
+def test_upsert_重复_其余事实更新_名称不被覆盖(tmp_path) -> None:
+    """ADR-031：名称落库即归用户——后续同步只刷其余事实，不覆盖用户看到的名称。"""
     repo = SqlitePlatformRepository(tmp_path / "butler.db")
     created = datetime(2026, 11, 17, tzinfo=UTC)
     repo.upsert(_entry("doubao_cn", "豆包", created))
-    repo.upsert(_entry("doubao_cn", "豆包（更名）", created))
-    assert repo.list_all()[0].platform_name == "豆包（更名）"
+    repo.upsert(_entry("doubao_cn", "豆包（连接器改名）", created))
+    loaded = repo.list_all()[0]
+    assert loaded.platform_name == "豆包"  # 首次插入落名，之后同步不动
     assert len(repo.list_all()) == 1  # UPSERT 不漂移代理键
+
+
+def test_update_profile_改名永久生效_同步不冲掉(tmp_path) -> None:
+    """改平台名（ADR-031）：写即生效；之后再来 manifest 同步不得覆盖用户的名字。"""
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    created = datetime(2026, 11, 17, tzinfo=UTC)
+    repo.upsert(_entry("trae_cn", "Trae CN", created))
+    updated = repo.update_profile("trae_cn", platform_name="Trae 主号")
+    assert updated is not None and updated.platform_name == "Trae 主号"
+    repo.upsert(_entry("trae_cn", "Trae CN", created))  # 下一轮启动同步
+    assert repo.get("trae_cn").platform_name == "Trae 主号"
+    # 平台编码是锚点：本端口没有改 code 的入口，code 恒等于原值
+    assert repo.get("trae_cn").platform_code == "trae_cn"
+    assert repo.update_profile("nope", platform_name="x") is None  # 不存在 → None（端 404）
 
 
 def test_sync_缺失平台落deprecated_幂等不删行(tmp_path) -> None:
@@ -123,7 +139,7 @@ def test_老库补列后物理列序按DDL重建(tmp_path) -> None:
         for r in sqlite3.connect(db).execute("PRAGMA table_info(plat_platform)").fetchall()
     ]
     assert cols == [
-        "id", "platform_code", "platform_name", "name_override", "platform_kind", "client_version",
+        "id", "platform_code", "platform_name", "platform_kind", "client_version",
         "capabilities", "credential_kinds", "schedule_times", "schedule_override",
         "is_active", "deprecated_at", "created_at", "updated_at",
     ]
@@ -154,3 +170,41 @@ def test_schedule_override_写入_恢复与不冲掉(tmp_path) -> None:
 
     # 平台不存在 = None（调用方显式 404）
     assert repo.set_schedule_override("nope", ("09:15",)) is None
+
+
+def test_老库name_override并入platform_name(tmp_path) -> None:
+    """列合并（ADR-031）：老库 name_override 的非空值并入 platform_name，列随之消失。"""
+    import sqlite3
+
+    db = tmp_path / "butler.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE plat_platform (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform_code TEXT NOT NULL UNIQUE,
+            platform_name TEXT NOT NULL,
+            name_override TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        """
+    )
+    conn.execute(
+        "INSERT INTO plat_platform (platform_code, platform_name, name_override, created_at, updated_at) "
+        "VALUES ('trae_cn', 'Trae CN', 'Trae 主号', "
+        "'2026-11-18T00:00:00+00:00', '2026-11-18T00:00:00+00:00')"
+    )
+    conn.execute(
+        "INSERT INTO plat_platform (platform_code, platform_name, name_override, created_at, updated_at) "
+        "VALUES ('qoder_cn', 'Qoder', '', "
+        "'2026-11-18T00:00:00+00:00', '2026-11-18T00:00:00+00:00')"
+    )
+    conn.commit()
+    conn.close()
+
+    repo = SqlitePlatformRepository(db)  # 触发合并 + 列序重建
+    cols = [r[1] for r in sqlite3.connect(db).execute("PRAGMA table_info(plat_platform)")]
+    assert "name_override" not in cols
+    assert repo.get("trae_cn").platform_name == "Trae 主号"  # 用户改过的名保留
+    assert repo.get("qoder_cn").platform_name == "Qoder"  # 没改过的保持连接器申报名

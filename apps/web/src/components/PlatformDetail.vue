@@ -17,7 +17,7 @@ const emit = defineEmits<{ close: []; edit: [] }>();
 
 <template>
   <ModalShell
-    :title="`平台详情 · ${platform.display}`"
+    :title="`平台详情 · ${platform.platform_name}`"
     :busy="busy"
     @close="emit('close')"
   >

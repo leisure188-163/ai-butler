@@ -169,12 +169,12 @@ const filteredPlatforms = computed(() => {
     if (query.value.kind !== "all" && platform.kind !== query.value.kind) return false;
     if (!keyword) return true;
     return (
-      platform.id.toLowerCase().includes(keyword) || platform.display.toLowerCase().includes(keyword)
+      platform.id.toLowerCase().includes(keyword) || platform.platform_name.toLowerCase().includes(keyword)
     );
   });
   const sorted = [...list];
   if (query.value.sort === "name") {
-    sorted.sort((a, b) => a.display.localeCompare(b.display, "zh"));
+    sorted.sort((a, b) => a.platform_name.localeCompare(b.platform_name, "zh"));
   } else if (query.value.sort === "accounts") {
     sorted.sort((a, b) => accountCount(b) - accountCount(a) || a.id.localeCompare(b.id));
   } else {
@@ -277,9 +277,9 @@ const slotsOpen = ref(false);
           <tr v-for="platform in pagedPlatforms" :key="platform.id">
             <!-- 身份锚点：名称与编码各占一列；点名称弹详情，不再展开表格行 -->
             <td class="identity-cell">
-              <button class="platform-open" :aria-label="`查看 ${platform.display} 详情`" @click="openDetail(platform)">
+              <button class="platform-open" :aria-label="`查看 ${platform.platform_name} 详情`" @click="openDetail(platform)">
                 <span class="identity-name">
-                  <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
+                  <PlatformBadge :name="platform.platform_name" :color-index="faceOf(platform.id)" />
                   <span v-if="isCustom(platform.id)" class="tag tag--notice">自定义</span>
                 </span>
               </button>
@@ -297,7 +297,7 @@ const slotsOpen = ref(false);
                 :class="platform.active ? 'is-on' : 'is-off'"
                 :disabled="busyTarget !== null"
                 :aria-pressed="platform.active"
-                :aria-label="`${platform.display}：${platform.active ? '已启用，点击停用' : '已停用，点击启用'}`"
+                :aria-label="`${platform.platform_name}：${platform.active ? '已启用，点击停用' : '已停用，点击启用'}`"
                 :title="platform.active ? '点击停用' : '点击启用'"
                 @click="toggleActive(platform)"
               >
@@ -369,7 +369,7 @@ const slotsOpen = ref(false);
           <button class="slot-row" :disabled="busyTarget !== null" @click="emit('import', platform.id)">
             <span class="slot-plus" aria-hidden="true">＋</span>
             <span class="slot-body">
-              <span class="slot-name">接入 {{ platform.display }}（{{ platform.id }}）</span>
+              <span class="slot-name">接入 {{ platform.platform_name }}（{{ platform.id }}）</span>
               <span class="slot-hint">{{ accessHint(platform) }}</span>
             </span>
           </button>

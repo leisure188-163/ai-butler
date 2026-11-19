@@ -222,7 +222,7 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     try {
       const updated = await api.patchPlatform(target, patch);
       const bits: string[] = [];
-      if (patch.platform_name !== undefined) bits.push(`名称「${updated.display}」`);
+      if (patch.platform_name !== undefined) bits.push(`名称「${updated.platform_name}」`);
       if (patch.active !== undefined) bits.push(patch.active ? "已启用" : "已停用（不再定时领取）");
       if (patch.times === null) {
         bits.push("已恢复平台默认调度");

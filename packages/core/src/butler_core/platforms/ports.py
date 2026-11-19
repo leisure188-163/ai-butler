@@ -24,12 +24,13 @@ class PlatformRepository(ABC):
         self,
         platform_code: str,
         *,
-        name_override: str | None = None,
+        platform_name: str | None = None,
         is_active: bool | None = None,
     ) -> PlatformEntry | None:
-        """改可编辑项（None = 不动）：显示名覆盖（"" 恢复 manifest 名）与启停。
+        """改可编辑项（None = 不动）：平台名称与启停。
 
-        manifest 同步不覆盖这两项（用户改过的不被冲掉）；平台不存在返回 None。
+        名称归用户（ADR-031）：接入同步只在首次插入时写一次，之后 upsert 不再覆盖；
+        平台编码（platform_code）是不可变锚点，本端口无改写入口。平台不存在返回 None。
         """
 
     @abstractmethod

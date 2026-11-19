@@ -105,9 +105,10 @@ export interface paths {
         head?: never;
         /**
          * Patch Platform
-         * @description 编辑平台（显示名 / 启用状态 / 调度时间）：落 DB + 调度热替换，即刻生效。
+         * @description 编辑平台（平台名称 / 启用状态 / 调度时间）：落 DB + 调度热替换，即刻生效。
          *
-         *     能力、凭据类型、客户端版本、平台编码来自连接器 manifest 探测，不可在本端点编辑。
+         *     **平台编码（platform_code）不可改**：它被账户、台账、调度条目、CLI 目标引用，
+         *     改名等于拆迁（ADR-031）。能力、凭据类型、客户端版本仍来自连接器探测。
          */
         patch: operations["patch_platform_api_v1_platforms__platform_code__patch"];
         trace?: never;
@@ -622,8 +623,10 @@ export interface components {
         PlatformOut: {
             /** Id */
             id: string;
-            /** Display */
-            display: string;
+            /** Platform Name */
+            platform_name: string;
+            /** Name Is Default */
+            name_is_default: boolean;
             /** Kind */
             kind: string;
             /** Client Version */
@@ -645,9 +648,10 @@ export interface components {
         };
         /**
          * PlatformPatchIn
-         * @description 平台信息编辑（2026-11-18）：只开放三项——显示名、启用状态、调度执行时间。
+         * @description 平台信息编辑（2026-11-18）：只开放三项——平台名称、启用状态、调度执行时间。
          *
          *     `model_fields_set` 区分"没传"与"传了 null"：times=null 恢复默认，times=[] 不排班。
+         *     `platform_name` 为空串 = 恢复连接器申报的名称（ADR-031）。
          */
         PlatformPatchIn: {
             /** Platform Name */

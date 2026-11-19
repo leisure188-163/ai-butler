@@ -163,7 +163,7 @@ function confirmRepair(account: AccountItem) {
       <input v-model="keyword" class="input search" type="search" placeholder="搜索账户名 / ID" aria-label="搜索账户" />
       <select v-model="appFilter" class="input" aria-label="按平台筛选">
         <option value="">全部平台</option>
-        <option v-for="p in platforms" :key="p.id" :value="p.id">{{ p.display }}</option>
+        <option v-for="p in platforms" :key="p.id" :value="p.id">{{ p.platform_name }}</option>
       </select>
       <select v-model="statusFilter" class="input" aria-label="按状态筛选">
         <option value="all">全部状态</option>
@@ -185,7 +185,7 @@ function confirmRepair(account: AccountItem) {
         <button class="caret" :aria-expanded="!collapsed.has(g.code)" @click="toggleCollapse(g.code)">
           {{ collapsed.has(g.code) ? "▸" : "▾" }}
         </button>
-        <PlatformBadge :name="g.platform?.display ?? g.code" :color-index="faceOf(g.code)" />
+        <PlatformBadge :name="g.platform?.platform_name ?? g.code" :color-index="faceOf(g.code)" />
         <code class="mono group-code">{{ g.code }}</code>
         <span class="group-health">
           <span v-for="h in g.health" :key="h.signal" class="tag" :class="`tag--${h.signal}`">
@@ -243,7 +243,7 @@ function confirmRepair(account: AccountItem) {
                   >去修复</button>
                   <div v-if="repairingId === a.account_id" class="repair-panel" @click.stop>
                     <p class="repair-steps">
-                      1. 在 {{ g.platform?.display ?? g.code }} 客户端退出登录，再重新登录<br />
+                      1. 在 {{ g.platform?.platform_name ?? g.code }} 客户端退出登录，再重新登录<br />
                       2. 点「我已登录，立即重试」——会先重新读取本机凭据
                     </p>
                     <span class="repair-actions">

@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS plat_platform (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     platform_code    TEXT NOT NULL UNIQUE,
     platform_name    TEXT NOT NULL,
-    name_override    TEXT NOT NULL DEFAULT '',
     platform_kind    TEXT NOT NULL DEFAULT '',
     client_version   TEXT NOT NULL DEFAULT '',
     capabilities     TEXT NOT NULL DEFAULT '[]',
@@ -44,7 +43,7 @@ _SCHEMA = _TABLE_DDL + _INDEX_DDL
 
 #: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
 _DDL_COLS = (
-    "platform_code", "platform_name", "name_override", "platform_kind", "client_version",
+    "platform_code", "platform_name", "platform_kind", "client_version",
     "capabilities", "credential_kinds", "schedule_times", "schedule_override",
     "is_active", "deprecated_at", "created_at", "updated_at",
 )
@@ -53,7 +52,15 @@ _COLS = ", ".join(_DDL_COLS)
 #: 重建时缺失列的落值（显式未知，不猜）
 _ADDED_DEFAULTS = {
     "platform_kind": "''", "client_version": "''", "schedule_override": "''",
-    "name_override": "''",
+}
+
+#: 重建整表时缺列的兜底值：必须与 DDL 默认一致（NOT NULL 列落 NULL 会直接炸）
+_DDL_DEFAULTS = {
+    **_ADDED_DEFAULTS,
+    "capabilities": "'[]'",
+    "credential_kinds": "'[]'",
+    "schedule_times": "'[]'",
+    "is_active": "1",
 }
 
 
@@ -98,6 +105,15 @@ class SqlitePlatformRepository(PlatformRepository):
                     "ALTER TABLE plat_platform RENAME COLUMN display_name TO platform_name"
                 )
             if plat_cols:
+                # 列合并（ADR-031）：name_override 并入 platform_name 后丢弃该列。
+                # 用户改过的名就是他要的名字——原 platform_name 只是 manifest 申报值，
+                # 未改过（'' ）的行保持 manifest 名不变。
+                if "name_override" in plat_cols:
+                    conn.execute(
+                        "UPDATE plat_platform SET platform_name = name_override "
+                        "WHERE TRIM(IFNULL(name_override, '')) <> ''"
+                    )
+                    plat_cols.discard("name_override")
                 for name, default in _ADDED_DEFAULTS.items():
                     if name not in plat_cols:
                         # 新增列（2026-11-18 裁决）：老库补列，存量行落显式未知
@@ -111,15 +127,19 @@ class SqlitePlatformRepository(PlatformRepository):
         return connect(self._db)
 
     def upsert(self, entry: PlatformEntry) -> None:
+        """接入/启动同步落库：INSERT 时写 platform_name，UPDATE 时**不写**（ADR-031）。
+
+        名称一旦落库即归用户：连接器改名不再覆盖用户已经看过、可能已经改过的名字。
+        """
         from butler_core.shared.time import now_utc
 
         created = entry.created_at.isoformat()
         with self._connect() as conn, conn:
             conn.execute(
                 f"INSERT INTO plat_platform ({_COLS}) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (platform_code) DO UPDATE SET "
-                "platform_name=excluded.platform_name, platform_kind=excluded.platform_kind, "
+                "platform_kind=excluded.platform_kind, "
                 "client_version=excluded.client_version, "
                 "capabilities=excluded.capabilities, "
                 "credential_kinds=excluded.credential_kinds, schedule_times=excluded.schedule_times, "
@@ -127,7 +147,6 @@ class SqlitePlatformRepository(PlatformRepository):
                 (
                     entry.platform_code,
                     entry.platform_name,
-                    entry.name_override,
                     entry.platform_kind.strip(),
                     entry.client_version.strip(),
                     _dump(entry.capabilities),
@@ -168,17 +187,20 @@ class SqlitePlatformRepository(PlatformRepository):
         self,
         platform_code: str,
         *,
-        name_override: str | None = None,
+        platform_name: str | None = None,
         is_active: bool | None = None,
     ) -> PlatformEntry | None:
-        """改显示名覆盖 / 启停（None = 不动；"" = 恢复 manifest 名）。平台不存在 → None。"""
+        """改平台名 / 启停（None = 不动）。平台不存在 → None。
+
+        平台编码是锚点，本方法没有改写它的入口（ADR-031）。
+        """
         from butler_core.shared.time import now_utc
 
         sets: list[str] = []
         args: list[object] = []
-        if name_override is not None:
-            sets.append("name_override = ?")
-            args.append(name_override)
+        if platform_name is not None:
+            sets.append("platform_name = ?")
+            args.append(platform_name)
         if is_active is not None:
             sets.append("is_active = ?")
             args.append(1 if is_active else 0)
@@ -241,16 +263,15 @@ def _load(row) -> PlatformEntry | None:
     return PlatformEntry(
         platform_code=row[0],
         platform_name=row[1],
-        name_override=row[2] or "",
-        platform_kind=row[3] or "",
-        client_version=row[4] or "",
-        capabilities=_load_values(row[5]),
-        credential_kinds=_load_values(row[6]),
-        schedule_times=_load_values(row[7]),
-        schedule_override=_load_override(row[8]),
-        is_active=bool(row[9]),
-        deprecated_at=datetime.fromisoformat(row[10]) if row[10] else None,
-        created_at=datetime.fromisoformat(row[11]),
+        platform_kind=row[2] or "",
+        client_version=row[3] or "",
+        capabilities=_load_values(row[4]),
+        credential_kinds=_load_values(row[5]),
+        schedule_times=_load_values(row[6]),
+        schedule_override=_load_override(row[7]),
+        is_active=bool(row[8]),
+        deprecated_at=datetime.fromisoformat(row[9]) if row[9] else None,
+        created_at=datetime.fromisoformat(row[10]),
     )
 
 
@@ -267,7 +288,7 @@ def _reorder_columns(conn) -> None:
     conn.execute("ALTER TABLE plat_platform RENAME TO plat_platform__reorder")
     conn.executescript(_TABLE_DDL)
     select = ", ".join(
-        col if col in actual else _ADDED_DEFAULTS.get(col, "NULL") for col in _DDL_COLS
+        col if col in actual else _DDL_DEFAULTS.get(col, "NULL") for col in _DDL_COLS
     )
     conn.execute(
         f"INSERT INTO plat_platform (id, {_COLS}) "

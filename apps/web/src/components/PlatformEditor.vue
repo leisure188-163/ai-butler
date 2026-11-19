@@ -3,7 +3,7 @@
  * 平台编辑弹层（2026-11-19）：创建自定义平台与修改已有平台共用同一个 Vue 组件。
  *
  * create：把人话表单渲染成 CustomPlatformDraft，由调用方交给 createCustomPlatform。
- * edit：只提交契约开放的 display / active / schedule_times 差量；编码、类型、版本、
+ * edit：只提交契约开放的 platform_name / active / schedule_times 差量；编码、类型、版本、
  * 能力、凭据来自连接器探测，保持只读。
  * 调度执行时间两态共用 ScheduleTimesField，避免“创建一套 / 修改另一套”。
  */
@@ -53,7 +53,7 @@ watch(
   () => props.platform,
   (platform) => {
     if (!isEdit.value || !platform) return;
-    editName.value = platform.display;
+    editName.value = platform.platform_name;
     editActive.value = platform.active;
     editTimes.value = [...platform.schedule_times];
   },
@@ -77,7 +77,7 @@ const canSave = computed(() => {
 });
 
 const dialogTitle = computed(() =>
-  isEdit.value ? `修改平台信息 · ${props.platform?.display ?? ""}` : "创建自定义平台",
+  isEdit.value ? `修改平台信息 · ${props.platform?.platform_name ?? ""}` : "创建自定义平台",
 );
 
 function parseBody(text: string): Record<string, unknown> {
@@ -134,7 +134,7 @@ function submitEdit(): void {
   const patch: PlatformPatch = {};
   const name = editName.value.trim();
   const times = normalizeTimes(editTimes.value);
-  if (name !== platform.display) patch.platform_name = name;
+  if (name !== platform.platform_name) patch.platform_name = name;
   if (editActive.value !== platform.active) patch.active = editActive.value;
   if (JSON.stringify(times) !== JSON.stringify(platform.schedule_times)) patch.times = times;
   if (Object.keys(patch).length) emit("savePlatform", platform.id, patch);
@@ -320,7 +320,7 @@ function resetSchedule(): void {
         <div class="cpf-field pf-schedule">
           <span class="cpf-label">调度执行时间</span>
           <ScheduleTimesField v-model="editTimes" :busy="saving" />
-          <span v-if="platform.schedule_overridden || platform.display !== platform.id" class="pf-reset">
+          <span v-if="platform.schedule_overridden || !platform.name_is_default" class="pf-reset">
             <button
               v-if="platform.schedule_overridden"
               class="btn btn--ghost"
@@ -328,7 +328,7 @@ function resetSchedule(): void {
               @click="resetSchedule"
             >恢复平台默认调度</button>
             <button
-              v-if="platform.display !== platform.id"
+              v-if="!platform.name_is_default"
               class="btn btn--ghost"
               :disabled="saving"
               @click="resetName"

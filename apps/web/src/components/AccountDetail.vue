@@ -55,7 +55,7 @@ const hasHealth = computed(() => props.platform?.capabilities.includes("health.c
 <template>
   <div v-if="account && platform" class="detail">
     <div class="detail-head">
-      <PlatformBadge :name="platform.display" :color-index="faceOf(account.account_id)" />
+      <PlatformBadge :name="platform.platform_name" :color-index="faceOf(account.account_id)" />
       <span class="detail-id mono">{{ account.account_id }}</span>
       <button class="detail-close" aria-label="收起详情" @click="emit('close')">✕</button>
     </div>
