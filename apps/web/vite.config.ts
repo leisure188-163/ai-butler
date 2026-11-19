@@ -4,6 +4,11 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [vue()],
   server: {
+    // 固定绑 IPv4：Windows 下 Node 默认 host=localhost 会解析到 ::1，
+    // 导致 `http://127.0.0.1:5173` 连接被拒（2026-11-19 实测），而项目
+    // 文档与浏览器收藏用的都是 127.0.0.1。
+    host: "127.0.0.1",
+    port: 5173,
     proxy: {
       "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
       // 设置页「接口文档」按同源派生（/docs），dev 下转发给主控 server；
