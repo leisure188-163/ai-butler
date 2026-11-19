@@ -44,6 +44,8 @@ export type RowAction = {
   label: string;
   /** 悬停说明（2026-11-19）：动作名不足以表达语义时补一句，如「重新接入」 */
   title?: string;
+  /** 图标化动作（2026-11-19）：有值时渲染图标按钮，label 只作 aria-label/title 用 */
+  icon?: "refresh" | "dots";
   danger?: boolean;
   disabled?: boolean;
 };

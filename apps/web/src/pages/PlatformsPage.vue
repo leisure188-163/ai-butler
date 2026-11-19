@@ -22,6 +22,7 @@ import type {
 } from "../types";
 import { faceOf, signalText } from "../utils";
 import { accessHint, accountCount, capabilityText, kindText, visibleCaps } from "../utils/platform";
+import { platformIcon } from "../utils/platformIcons";
 const props = defineProps<{
   platforms: PlatformItem[];
   accounts: AccountItem[];
@@ -91,6 +92,8 @@ function primaryActions(platform: PlatformItem): RowAction[] {
   out.push({
     key: "import",
     label: accountCount(platform) ? "重新接入" : "接入",
+    // 图标动作（2026-11-19）：文字只做 hover 说明与读屏名，按钮本身是循环箭头
+    icon: "refresh",
     // 已接入平台的「重新接入」= 重连本机客户端并重读凭据，不是再登记一遍账户
     title: accountCount(platform)
       ? "重新连接本机客户端并重读凭据（换号、重装、重新登录客户端之后用）"
@@ -263,7 +266,7 @@ const slotsOpen = ref(false);
             <td class="identity-cell">
               <button class="platform-open" :aria-label="`查看 ${platform.platform_name} 详情`" @click="openDetail(platform)">
                 <span class="identity-name">
-                  <PlatformBadge :name="platform.platform_name" :color-index="faceOf(platform.id)" />
+                  <PlatformBadge :name="platform.platform_name" :color-index="faceOf(platform.id)" :icon="platformIcon(platform.id)" />
                   <span v-if="isCustom(platform.id)" class="tag tag--notice">自定义</span>
                   <span class="open-arrow" aria-hidden="true">›</span>
                 </span>
@@ -413,6 +416,10 @@ const slotsOpen = ref(false);
 .col-kind { white-space: nowrap; width: 76px; }
 .col-version { white-space: nowrap; width: 96px; }
 .col-version .ver { font-size: var(--text-xs); color: var(--color-text-muted); }
+/* 列头统一居中（2026-11-19 用户要求）：短列内容跟着居中，否则表头与内容左右错位 */
+.platform-wrap .matrix th { text-align: center; }
+.platform-wrap .matrix td.col-kind,
+td.col-version, td.col-state, td.col-anchor, td.col-actions { text-align: center; }
 .state-switch {
   display: inline-flex;
   align-items: center;
@@ -459,7 +466,10 @@ const slotsOpen = ref(false);
 .health-dot--attention { background: var(--color-attention); }
 .health-dot--danger { background: var(--color-danger); }
 .health-dot--quiet { background: var(--color-quiet); }
-.anchor-line { display: flex; align-items: center; }
+.anchor-line { display: flex; align-items: center; justify-content: center; }
+/* 账户列与操作列定宽（2026-11-19）：窄窗口自适应后这两列被压出折行，定宽后胶囊单行、图标并排 */
+.col-anchor { width: 112px; }
+.col-actions { width: 156px; }
 .anchor-count { font-weight: 600; }
 /* 「查看账户」是下钻入口，不是装饰文字：做成描边胶囊（2026-11-19 用户要求
    「一看就知道可以点开详情」）。纯文字 + hover 下划线的弱链接在表格里没人认得。 */
@@ -467,6 +477,7 @@ const slotsOpen = ref(false);
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  white-space: nowrap;
   margin-top: var(--space-1);
   padding: 1px var(--space-2);
   border: 1px solid var(--color-border);
@@ -505,6 +516,8 @@ const slotsOpen = ref(false);
 .platform-wrap { overflow-x: auto; }
 @media (max-width: 1100px) {
   .col-caps { display: none; }
+  /* 能力列收掉后不再撑 1040px 底宽：让表格按内容自适应，窗口够宽就全显示 */
+  .platform-wrap .matrix { min-width: 0; }
 }
 @media (max-width: 900px) {
   .col-sched { display: none; }

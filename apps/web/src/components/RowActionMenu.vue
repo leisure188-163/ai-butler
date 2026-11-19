@@ -88,19 +88,51 @@ watch(
     <button
       v-for="action in props.inline"
       :key="action.key"
-      class="btn btn--ghost"
+      :class="action.icon ? 'icon-btn' : 'btn btn--ghost'"
       :disabled="props.busy || action.disabled"
-      :title="action.title"
+      :title="action.title || action.label"
+      :aria-label="action.icon ? action.label : undefined"
       @click.stop="run(action)"
-    >{{ action.label }}</button>
+    >
+      <svg
+        v-if="action.icon === 'refresh'"
+        class="act-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+        <path d="M16 16h5v5" />
+      </svg>
+      <template v-else>{{ action.label }}</template>
+    </button>
 
     <span v-if="props.more.length" ref="anchor" class="more-anchor">
       <button
-        class="btn btn--ghost more-toggle"
+        class="icon-btn more-toggle"
+        title="更多操作"
+        aria-label="更多操作"
         :aria-expanded="open"
         :disabled="props.busy"
         @click.stop="toggle"
-      >更多 <span class="caret" :class="{ 'caret--up': open }">▾</span></button>
+      >
+        <svg
+          class="act-icon"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          stroke="none"
+          aria-hidden="true"
+        >
+          <circle cx="5.5" cy="12" r="1.7" />
+          <circle cx="12" cy="12" r="1.7" />
+          <circle cx="18.5" cy="12" r="1.7" />
+        </svg>
+      </button>
     </span>
   </span>
 
@@ -137,6 +169,38 @@ watch(
 }
 .more-anchor {
   display: inline-flex;
+}
+/* 图标动作按钮（2026-11-19 用户要求）：28×28 方形、无文字、悬停才显底色；
+   title/aria-label 承载动作名，鼠标停一下就知道是什么 */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.icon-btn:hover:not(:disabled) {
+  color: var(--color-accent);
+  background: var(--color-accent-weak);
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+.icon-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.act-icon {
+  width: 16px;
+  height: 16px;
 }
 .more-toggle {
   display: inline-flex;
