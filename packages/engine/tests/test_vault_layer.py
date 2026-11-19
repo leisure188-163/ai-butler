@@ -203,6 +203,17 @@ def test_windows_backend_migrates_legacy_prefix_once():
         backend.get("ghost:cookie")  # 无运行时读穿分支
 
 
+def test_windows_backend_does_not_overwrite_newer_value_with_legacy():
+    """只回填不覆盖：新前缀已有值（如 dock 刚写的）时，旧前缀残留不得回退它。"""
+    api = FakeWinApi()
+    api.data["marina.vault:old:cookie"] = b"legacy-secret"  # 历史条目（旧值）
+    api.data["butler.vault:old:cookie"] = b"newer-secret"  # 已迁移后又写入的新值
+    backend = WindowsCredmanBackend(api_factory=lambda: api)
+    assert backend.migrate_legacy_refs(["old:cookie"]) == []  # 不迁移、不覆盖
+    assert api.data["butler.vault:old:cookie"] == b"newer-secret"
+    assert backend.get("old:cookie") == "newer-secret"
+
+
 def test_windows_backend_still_missing_when_no_legacy():
     api = FakeWinApi()
     backend = WindowsCredmanBackend(api_factory=lambda: api)
@@ -294,6 +305,15 @@ def test_keychain_migrates_legacy_service_once():
     assert runner.items[("butler.vault", "old:token")] == "legacy-secret"  # 已回写
     assert runner.items[("marina.vault", "old:token")] == "legacy-secret"  # 旧条目保留
     assert backend.get("old:token") == "legacy-secret"  # 运行时只认新 service
+
+
+def test_keychain_migration_does_not_overwrite_newer_value():
+    runner = FakeRunner()
+    runner.items[("marina.vault", "old:token")] = "legacy-secret"
+    runner.items[("butler.vault", "old:token")] = "newer-secret"
+    backend = KeychainBackend(runner=runner)
+    assert backend.migrate_legacy_refs(["old:token"]) == []
+    assert runner.items[("butler.vault", "old:token")] == "newer-secret"
 
 
 def test_keychain_get_missing_maps_to_explicit_error():

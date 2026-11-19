@@ -52,7 +52,11 @@ class KeychainBackend:
     def migrate_legacy_refs(
         self, refs: list[str], *, legacy_service: str = "marina.vault"
     ) -> list[str]:
-        """一次性迁移：把旧 service 下已知引用回写到新 service，旧条目保留不删。"""
+        """一次性迁移：把旧 service 下已知引用回写到新 service，旧条目保留不删。
+
+        只回填、不覆盖（与 Windows credman 同口径）：新 service 已有值即视为
+        已迁移，旧条目不得覆盖后来写入的最新凭据。
+        """
 
         migrated: list[str] = []
         for ref in refs:
@@ -60,9 +64,16 @@ class KeychainBackend:
                 value = self._read(legacy_service, ref)
             except VaultCredentialMissing:
                 continue
-            if value:
-                self.put(ref, value)
-                migrated.append(ref)
+            if not value:
+                continue
+            try:
+                self._read(self._service, ref)
+            except VaultCredentialMissing:
+                pass
+            else:
+                continue  # 新 service 已有值 = 已迁移
+            self.put(ref, value)
+            migrated.append(ref)
         return migrated
 
     def delete(self, ref: str) -> None:

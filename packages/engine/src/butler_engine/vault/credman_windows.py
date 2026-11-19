@@ -127,17 +127,28 @@ class WindowsCredmanBackend:
     def migrate_legacy_refs(
         self, refs: list[str], *, legacy_prefix: str = "marina.vault"
     ) -> list[str]:
-        """一次性迁移：把旧前缀下已知引用回写到新前缀，旧条目保留不删。"""
+        """一次性迁移：把旧前缀下已知引用回写到新前缀，旧条目保留不删。
 
+        只回填、不覆盖（2026-11-19 真机事故）：新前缀已有值说明该引用早已迁移过，
+        之后写入的才是最新凭据——用旧条目覆盖会把 dock 新写进去的头组/登录态
+        回退成历史值（`qoder_cn:main` 的 umid_cosy 曾每进程启动被 0.4.8 覆盖）。
+        """
         migrated: list[str] = []
         for ref in refs:
             try:
                 value = self._api.read(f"{legacy_prefix}:{ref}").decode("utf-8")
             except VaultCredentialMissing:
                 continue
-            if value:
-                self.put(ref, value)
-                migrated.append(ref)
+            if not value:
+                continue
+            try:
+                self._api.read(self._target(ref))
+            except VaultCredentialMissing:
+                pass
+            else:
+                continue  # 新前缀已有值 = 已迁移，旧值不得覆盖
+            self.put(ref, value)
+            migrated.append(ref)
         return migrated
 
     def delete(self, ref: str) -> None:
