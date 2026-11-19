@@ -260,13 +260,22 @@
 
 /* ---- 空态 / 提示 ---- */
 .quietline { color: var(--color-text-muted); font-size: var(--text-sm); }
+/* 读数据异常：轻量状态行，不是红色横幅（2026-11-19 用户裁决）——
+   界面骨架应照常呈现，"没数据"就是空表格；故障信息让位给内容，不占视觉主位 */
 .errorline {
   margin: 0 0 var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-md);
-  color: var(--color-danger-ink);
-  background: var(--color-danger-weak);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-attention-ink);
+  border-radius: var(--radius-sm);
+  color: var(--color-attention-ink);
+  background: var(--color-attention-weak);
+  font-size: var(--text-xs);
+}
+/* 表格空行：无数据时表格结构仍在（表头 + 一行提示），不做整块消失 */
+.table-empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
   font-size: var(--text-sm);
 }
 .action-msg { margin: var(--space-3) 0 0; font-size: var(--text-sm); }

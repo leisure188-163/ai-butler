@@ -251,13 +251,12 @@ const slotsOpen = ref(false);
   >{{ msg.text }}</p>
   <section class="section" aria-label="平台名册">
     <PlatformFilters
-      v-if="connectedPlatforms.length"
       v-model:keyword="query.keyword"
       v-model:status="query.status"
       v-model:kind="query.kind"
       v-model:sort="query.sort"
     />
-    <div v-if="pagedPlatforms.length" class="platform-wrap sheet">
+    <div class="platform-wrap sheet">
       <table class="matrix">
         <thead>
           <tr>
@@ -271,6 +270,9 @@ const slotsOpen = ref(false);
           </tr>
         </thead>
         <tbody>
+          <tr v-if="!pagedPlatforms.length">
+            <td class="table-empty" colspan="7">暂无平台数据</td>
+          </tr>
           <tr v-for="platform in pagedPlatforms" :key="platform.id">
             <!-- 身份锚点：点击名称直接弹详情，不再展开表格行 -->
             <td class="identity-cell">
@@ -373,15 +375,6 @@ const slotsOpen = ref(false);
     </div>
     <p v-if="connectedPlatforms.length && !filteredPlatforms.length" class="quietline">
       没有匹配的平台——换个关键字，或点「清除筛选」。
-    </p>
-    <p v-if="!platforms.length && loadError" class="quietline">
-      服务未连接，平台数据暂时读不到——具体原因见顶部提示。
-    </p>
-    <p v-else-if="!connectedPlatforms.length && platforms.length" class="quietline">
-      还没有平台接入——用右上角「接入全部」或下方「尚未接入的平台」把本机客户端接进来。
-    </p>
-    <p v-else-if="!platforms.length" class="quietline">
-      还没有平台——「接入全部」把本机客户端接进来。
     </p>
   </section>
 </template>

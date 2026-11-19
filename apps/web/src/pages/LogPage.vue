@@ -12,12 +12,17 @@ defineProps<{ runs: RunItem[] }>();
   </header>
 
   <section class="section" aria-label="动作日志">
-    <div v-if="runs.length" class="log-wrap sheet">
+    <div class="log-wrap sheet">
       <table class="log">
         <thead>
           <tr><th>时间</th><th>动作</th><th>平台</th><th>账户</th><th>结果</th></tr>
         </thead>
         <tbody>
+          <tr v-if="!runs.length">
+            <td class="table-empty" colspan="5">
+              暂无运行记录——动作执行后会在这里留痕。
+            </td>
+          </tr>
           <tr v-for="run in runs" :key="run.id">
             <td class="num">{{ fmtTime(run.started_at) }}</td>
             <td class="mono code">{{ run.kind }}</td>
@@ -38,7 +43,6 @@ defineProps<{ runs: RunItem[] }>();
         </tbody>
       </table>
     </div>
-    <p v-else class="quietline">日志还是空白——领取类动作执行后会在这里留痕。</p>
   </section>
 </template>
 

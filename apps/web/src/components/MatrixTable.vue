@@ -129,7 +129,7 @@ function toggleDetail(accountId: string) {
     </p>
 
     <!-- 矩阵表 -->
-    <div v-if="filteredAccounts.length" class="matrix-wrap sheet">
+    <div class="matrix-wrap sheet">
       <table class="matrix">
         <thead>
           <tr>
@@ -153,6 +153,11 @@ function toggleDetail(accountId: string) {
           </tr>
         </thead>
         <tbody>
+          <tr v-if="!filteredAccounts.length">
+            <td class="table-empty" colspan="9">
+              {{ accounts.length ? "当前筛选没有匹配的账户" : "暂无账户" }}
+            </td>
+          </tr>
           <template v-for="account in filteredAccounts" :key="account.account_id">
             <tr
               :class="{ 'is-selected': expandedId === account.account_id }"
@@ -250,8 +255,6 @@ function toggleDetail(accountId: string) {
         </tbody>
       </table>
     </div>
-    <p v-else-if="accounts.length" class="quietline">当前筛选没有匹配的账户——换个条件试试。</p>
-    <p v-else class="quietline">还没有账户——到「平台管理」页接入平台。</p>
   </section>
 </template>
 
