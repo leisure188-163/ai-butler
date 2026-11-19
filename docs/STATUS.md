@@ -1,7 +1,9 @@
 # STATUS · 进度卡（每次会话开始先读我）
 
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
-> 最后更新：2026-11-18
+> 最后更新：2026-11-19
+
+**豆包签到请求样本留档 + 「参数是否拼错」复核（2026-11-19）**：用户再问「是不是我们拼的请求数据完整性不对导致签不上」。真机对照两路：①我们自组的 `detail`（`version_code=23610`）与页面自发（`20800`）返回**逐字段一致**、`code=0`；②11-17 页面旁路快照（`~/.butler/doubao_requests/doubao_requests-2026-11-17.jsonl`，20 条）显示点击后客户端自发的 `POST /alice/ug/campaign/landing/checkin` body `{"scene":"pc_incentive_task_mvp_v3"}`、query 带 `msToken/a_bogus/web_id/tea_uuid`，响应 `710010702`——与我们点击是同一个请求，我们无拼装面。→ 「参数缺项」假设不成立，702 维持既定性（账号级服务侧写路径故障，本地无可修项）；11-19 `Leisure520` 手动点击成功 = 该账号已自愈。新增 [docs/guides/02-豆包签到请求样本.md](guides/02-豆包签到请求样本.md) 留档真实参数、采样方法与判读口诀；`DOUBAO_REQUEST_CAPTURE` 维持默认关（仅取证时临时开）。
 
 **只读采集不再抢焦点（2026-11-18，[ADR-028](adr/ADR-028-只读采集不产生界面动作.md)）**：用户反馈平台行「刷新」（已接入后由「接入」变来）会把豆包客户端窗口弹到前台。真凶：`POST /platforms/{target}/import` 导入后顺带 `collect_usage`，豆包用量取 Cookie 时无活动页则 `open_activity`（`Target.createTarget`）在客户端新开页面 → 窗口置前。修复：`cdp.py` 新增浏览器级 `storage_cookies(domain)`（`Storage.getCookies` + `/json/version` 的 `webSocketDebuggerUrl`，按域过滤）；`doubao_cn/usage.py` 改走它，删 `pick_activity_target`/`open_activity` 分支，取不到 Cookie 显式报错；导入顺带采集语义保留。**实测**：5 个平台 `POST /platforms/{id}/import` 前后前台应用不变；`POST /usage/collect` 9222 targets 12→12、前台不变；真机 `storage_cookies('doubao.com')` 34 条（全量 53）。测试：doubao usage 8 passed（新增「绝不建页」「空 Cookie 显式报错」）+ cdp 13 passed（`storage_cookies` 两用例）。红线 8 同批：ADR-028 + doubao PROTOCOL §7.2 Cookie 来源 + A2-02 §11 + 本条。
 
