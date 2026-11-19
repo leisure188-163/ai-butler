@@ -25,6 +25,8 @@ import { useAccountActions } from "./composables/useAccountActions";
 import { useUsageActions } from "./composables/useUsageActions";
 import { useSettings } from "./composables/useSettings";
 import { useGatewayRoutes } from "./composables/useGatewayRoutes";
+import { useToast } from "./composables/useToast";
+import AppToast from "./components/AppToast.vue";
 
 /* ---- 装配（各域 composable；解构保模板绑定名）---- */
 const { active, navigate } = useHashRoute();
@@ -96,6 +98,18 @@ watch(active, (page) => {
   if (page !== "账户管理") accountFocus.value = null;
 });
 
+/* ---- 统一提示（2026-11-19 用户裁决）----
+   各域仍写各自的 msg 状态（语义不动），这里统一桥接到居中 Toast（3 秒自动消失）。
+   逐源独立 watch：只有该源**自己**变化才弹——若把三源合成一个 watch，某源持有旧值时
+   另一源一变就会用旧文案重新 show，倒计时被无限重置（实测过，永不消失）。 */
+const toast = useToast();
+function pushToast(msg: { text: string; tone: "ok" | "warn" } | null) {
+  if (msg) toast.show(msg.text, msg.tone === "warn" ? "warn" : "ok");
+}
+watch(actionMsg, pushToast);
+watch(usageMsg, pushToast);
+watch(routesMsg, pushToast);
+
 /* 待办栏可领取 target 集合（纯派生：申报了 provision.run 且已导入的平台） */
 const claimable = computed(
   () =>
@@ -137,6 +151,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="shell">
+    <AppToast />
     <SideNav
       :active="active"
       :alert-count="alertCount"
@@ -156,7 +171,6 @@ onBeforeUnmount(() => {
         :accounts="accounts"
         :custom-codes="customPlatforms.map((p) => p.code)"
         :busy-target="busyTarget"
-        :msg="actionMsg"
         :loading="loading"
         :load-error="loadError"
         @claim="claimApp"
@@ -176,7 +190,6 @@ onBeforeUnmount(() => {
         :runs="runs"
         :busy-target="busyTarget"
         :initial-platform="accountFocus"
-        :msg="actionMsg"
         :loading="loading"
         :load-error="loadError"
         @claim="claimApp"
@@ -192,7 +205,6 @@ onBeforeUnmount(() => {
         :rows="radarRows"
         :loading="loading"
         :collecting="collecting"
-        :msg="usageMsg"
         :loaded-at="usageLoadedAt"
         @refresh="loadAll"
         @collect="collectUsage"
@@ -206,7 +218,6 @@ onBeforeUnmount(() => {
         :takes-effect="takesEffect"
         :routes-loading="loadingRoutes"
         :routes-busy="savingRoutes"
-        :routes-msg="routesMsg"
         @update="updateSettings"
         @save-routes="saveRoutes"
         @reload-routes="loadRoutes"
@@ -222,7 +233,6 @@ onBeforeUnmount(() => {
         :today-done="todayDone"
         :claimable="claimable"
         :busy-target="busyTarget"
-        :msg="actionMsg"
         :loading="loading"
         :load-error="loadError"
         :loaded-at="loadedAt"

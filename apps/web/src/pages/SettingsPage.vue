@@ -15,7 +15,6 @@ const props = defineProps<{
   takesEffect: string;
   routesLoading: boolean;
   routesBusy: boolean;
-  routesMsg: { text: string; tone: "ok" | "warn" } | null;
 }>();
 
 const emit = defineEmits<{
@@ -199,10 +198,7 @@ function saveRoutes() {
             @click="saveRoutes"
           >{{ routesBusy ? "保存中…" : "保存路由表" }}</button>
         </div>
-        <p v-if="routesMsg" class="action-msg" :class="`action-msg--${routesMsg.tone}`" role="status">
-          {{ routesMsg.text }}
-        </p>
-        <p v-else-if="draftWarn" class="action-msg action-msg--warn" role="status">{{ draftWarn }}</p>
+        <p v-if="draftWarn" class="action-msg action-msg--warn" role="status">{{ draftWarn }}</p>
         <p v-else-if="takesEffect" class="quietline">{{ takesEffect }}</p>
         <p v-else class="quietline">账户顺序即优先级；非法表会被拒绝（模型重复/字段为空）。</p>
       </template>

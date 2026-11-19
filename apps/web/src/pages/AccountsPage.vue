@@ -17,7 +17,6 @@ const props = defineProps<{
   busyTarget: string | null;
   /** 从平台页「查看账户」下钻带来的平台编码（分组视图预筛选） */
   initialPlatform?: string | null;
-  msg: { text: string; tone: "ok" | "warn" } | null;
   loading: boolean;
   loadError: string;
 }>();
@@ -67,13 +66,6 @@ const claimableCount = computed(
       >一键领取{{ claimableCount ? `（${claimableCount}）` : "" }}</button>
     </div>
   </header>
-
-  <p
-    v-if="msg"
-    class="action-msg"
-    :class="msg.tone === 'ok' ? 'action-msg--ok' : 'action-msg--warn'"
-    role="status"
-  >{{ msg.text }}</p>
 
   <section class="section">
     <div class="view-bar">

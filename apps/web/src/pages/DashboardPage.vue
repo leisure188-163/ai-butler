@@ -23,7 +23,6 @@ const props = defineProps<{
   todayDone: { label: string; ok: number; total: number } | null;
   claimable: Set<string>;
   busyTarget: string | null;
-  msg: { text: string; tone: "ok" | "warn" } | null;
   loading: boolean;
   loadError: string;
   loadedAt: string;
@@ -208,13 +207,6 @@ const trafficSub = computed(() => {
     <h1 class="page-title">{{ headline.strong }}</h1>
     <p class="page-sub">{{ headline.tail }}</p>
   </header>
-
-  <p
-    v-if="msg"
-    class="action-msg"
-    :class="msg.tone === 'ok' ? 'action-msg--ok' : 'action-msg--warn'"
-    role="status"
-  >{{ msg.text }}</p>
 
   <OnboardingCard
     :accounts="accounts"

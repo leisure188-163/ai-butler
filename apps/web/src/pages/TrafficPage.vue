@@ -17,7 +17,6 @@ defineProps<{
   rows: RadarRow[];
   loading: boolean;
   collecting: boolean;
-  msg: { text: string; tone: "ok" | "warn" } | null;
   loadedAt: string;
 }>();
 
@@ -70,13 +69,6 @@ function aggText(s: { [key: string]: unknown }): string {
       </div>
     </div>
   </header>
-
-  <p
-    v-if="msg"
-    class="action-msg"
-    :class="msg.tone === 'ok' ? 'action-msg--ok' : 'action-msg--warn'"
-    role="status"
-  >{{ msg.text }}</p>
 
   <div class="wall">
     <article v-for="row in rows" :key="row.account_id" class="acct sheet">

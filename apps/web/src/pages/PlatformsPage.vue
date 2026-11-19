@@ -26,7 +26,6 @@ const props = defineProps<{
   accounts: AccountItem[];
   customCodes: string[];
   busyTarget: string | null;
-  msg: { text: string; tone: "ok" | "warn" } | null;
   loading: boolean;
   loadError: string;
 }>();
@@ -250,12 +249,6 @@ const slotsOpen = ref(false);
     @save-custom="onSaveCustom"
     @save-platform="onSavePlatform"
   />
-  <p
-    v-if="msg"
-    class="action-msg"
-    :class="msg.tone === 'ok' ? 'action-msg--ok' : 'action-msg--warn'"
-    role="status"
-  >{{ msg.text }}</p>
   <section class="section" aria-label="平台名册">
     <PlatformFilters
       v-model:keyword="query.keyword"
