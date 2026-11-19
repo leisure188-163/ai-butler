@@ -101,12 +101,13 @@ def test_installed_version_定不到组件返回空(tmp_path, monkeypatch) -> No
 
 
 def test_platform_client_version_探针按_conn_id_分流(monkeypatch) -> None:
-    """声明式连接器经 version_probe 暴露版本：qoder_cn 有值，其余如实为空。"""
-    from butler_connectors import version_probe
+    """声明式连接器经 version_probe 暴露版本：qoder_cn/trae_cn 有探针，未登记如实为空。"""
+    from butler_connectors import app_version, version_probe
 
     monkeypatch.setattr(qr, "installed_version", lambda: "0.5.13")
+    monkeypatch.setattr(app_version, "display_version", lambda **_kwargs: "3.4.20")
     assert version_probe.client_version("qoder_cn") == "0.5.13"
-    assert version_probe.client_version("trae_cn") == ""
+    assert version_probe.client_version("trae_cn") == "3.4.20"
     assert version_probe.client_version("没有这家") == ""
 
 

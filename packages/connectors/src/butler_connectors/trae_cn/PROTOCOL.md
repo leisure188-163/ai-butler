@@ -15,6 +15,7 @@
 | 设备号 | 键名 `iCubeAuthInfo://icube-dc:<8-20 位纯数字>` 承载 Aha 数字设备号——**claim 必须发这种数字号**，发 UUID 形态的 `telemetry.devDeviceId` 会触发 9074 风控 | 2026-10-21 |
 | 兜底键 | 信封键缺省时容对待任意 `iCubeAuthInfo://` 前缀键（不含 icube-dc:） | 2026-10-21 |
 | 辅助字段 | `iCubeLastVersion`（客户端版本，UA 指纹观察项；未用于 M1 请求头——不发未取证的头） | 2026-10-21 |
+| 平台册版本 | `version_probe` → `app_version.display_version(prefixes=("trae",))`：Windows 取卸载注册表条目「TRAE CN (User)」的 `DisplayVersion`（本机 **3.4.20**），mac 取 `Trae CN.app` 的 `CFBundleShortVersionString`；与 `iCubeLastVersion` 无关（一个来自本机安装，一个来自登录态文件） | 2026-11-19 |
 
 ### 1.1 SS_AES 信封（byteCrypto，与 DPAPI 无关、系统无关）
 

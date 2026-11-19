@@ -21,6 +21,7 @@ from butler_core.execution.ports import Capabilities, ProvisionPort, ProvisionRe
 from butler_core.shared.results import Status, from_engine
 from butler_core.execution.domain import Evidence, RepairHint, RunResult
 
+from butler_connectors import app_version
 from butler_connectors.registry import DockContext, DockOutcome
 from butler_connectors.transport import HttpRequest, TransportError
 from butler_connectors.workbuddy_cn.credentials import find_auth_file, load_session_retry
@@ -39,7 +40,6 @@ from butler_connectors.workbuddy_cn.session import (
 
 CONN_ID = "workbuddy_cn"
 DISPLAY = "WorkBuddy CN"
-
 _BASE = DEFAULT_ENDPOINT  # credential auth.endpoint can override (PROTOCOL §1, only if valid https)
 _STATUS_PATH = "/v2/billing/meter/checkin-activity-status"
 _CLAIM_PATH = "/v2/billing/meter/daily-checkin"
@@ -146,6 +146,17 @@ class WorkbuddyProvisionPort(ProvisionPort):
 
     def capabilities(self) -> Capabilities:
         return Capabilities(dry_run=True, idempotency_window="daily")
+
+    def read_client_version(self) -> str:
+        """本机客户端版本（平台册 client_version 的事实源；探不到返回 ""=未知）。
+
+        本机并存 WorkBuddy 5.11.3 与 WorkBuddy AI 5.9.4（ADR-006 §1.3 多版本同型），
+        与 Qoder 同口径取最新；纯只读探测，不拉起客户端。"""
+        return app_version.display_version(
+            prefixes=("workbuddy",),
+            app_names=("WorkBuddy.app", "WorkBuddyAI.app"),
+            exe_names=("WorkBuddy.exe", "WorkBuddyAI.exe"),
+        )
 
     def run(self, req: ProvisionRequest) -> RunResult:
         path, looked_in = find_auth_file()

@@ -1,7 +1,8 @@
 """平台册 client_version 探针表（声明式连接器没有 adapter 实例，钩子按 conn_id 查表）。
 
 `apps/server` 的 `sync_platform_facts` 调端口实例的 `read_client_version()`：
-adapter 型连接器自己实现，声明式连接器经本表分流。未登记 = 不适用/未知（""）。
+adapter 型连接器自己实现（doubao_cn / workbuddy_cn），声明式连接器经本表分流。
+未登记 = 不适用/未知（""）。
 探测一律只读，不拉起客户端；读不到就如实返回 ""（名册显示未知，不造数据）。
 """
 
@@ -9,11 +10,24 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from butler_connectors import qoder_runtime
+from butler_connectors import app_version, qoder_runtime
 
 _PROBES: dict[str, Callable[[], str]] = {
     # Qoder 空壳安装根 + .qoder-versions 多版本并存：探针取最新版本目录的 productVersion
     "qoder_cn": qoder_runtime.installed_version,
+    # Trae CN（VS Code 家族 Electron）：卸载注册表 DisplayName「TRAE CN (User)」的
+    # DisplayVersion（本机 3.4.20 实测）；mac 兜 Info.plist。
+    "trae_cn": lambda: app_version.display_version(
+        prefixes=("trae",),
+        app_names=("Trae CN.app", "Trae.app"),
+        exe_names=("Trae CN.exe", "Trae.exe"),
+    ),
+    # WorkBuddy（Electron）：本机并存 WorkBuddy 5.11.3 与 WorkBuddy AI 5.9.4，按最新取
+    "workbuddy_cn": lambda: app_version.display_version(
+        prefixes=("workbuddy",),
+        app_names=("WorkBuddy.app", "WorkBuddyAI.app"),
+        exe_names=("WorkBuddy.exe", "WorkBuddyAI.exe"),
+    ),
 }
 
 

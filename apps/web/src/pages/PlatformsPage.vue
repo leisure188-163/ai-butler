@@ -290,7 +290,9 @@ const slotsOpen = ref(false);
             </td>
             <td class="col-kindver">
               <span class="tag tag--quiet">{{ platform.kind ? kindText(platform.kind) : "—" }}</span>
-              <span class="ver num">{{ platform.client_version ? `v${platform.client_version}` : "—" }}</span>
+              <!-- 网页版没有客户端版本，不占位；客户端探不到版本时如实说「未知」，不留悬空破折号 -->
+              <span v-if="platform.client_version" class="ver num">v{{ platform.client_version }}</span>
+              <span v-else-if="platform.kind === 'client'" class="ver faint">版本未知</span>
             </td>
             <td class="col-state">
               <button

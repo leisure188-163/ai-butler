@@ -31,7 +31,7 @@
 | `platform_code` | TEXT NOT NULL UNIQUE | 平台 id（连接器 manifest.id） |
 | `platform_name` | TEXT NOT NULL | 平台名（命名裁决 ADR-023：显示名列按业务命名，禁 display_name 通用名） |
 | `platform_kind` | TEXT NOT NULL DEFAULT '' | 平台类型词表（core `PLATFORM_KINDS`）：`web`=网页版 / `client`=本机客户端；manifest 侧必填，'' 仅历史行兼容（2026-11-18 裁决；列序在 client_version 之前） |
-| `client_version` | TEXT NOT NULL DEFAULT '' | 本机客户端版本（同步时经 provision 端口只读探测；'' = 探不到/网页平台=未知，2026-11-18 裁决；列序在 capabilities 之前） |
+| `client_version` | TEXT NOT NULL DEFAULT '' | 本机客户端版本（同步时经 provision 端口只读探测；'' = 探不到/网页平台=未知，2026-11-18 裁决；列序在 capabilities 之前）。事实源按连接器形态分两路：adapter 型实现 `read_client_version()`（豆包 = 卸载注册表 / Info.plist，WorkBuddy = `app_version`，Qoder = 版本目录 manifest），声明式型经 `version_probe` 按 conn_id 查表（Trae CN / WorkBuddy / Qoder）。通用口径见 `butler_connectors/app_version.py`：Windows 卸载注册表 `DisplayVersion`、mac `Info.plist CFBundleShortVersionString`，多版本并存取最新（2026-11-19） |
 | `capabilities` | TEXT JSON | ActionKind.value 列表（core 词表） |
 | `credential_kinds` | TEXT JSON | 凭据 kinds 声明 |
 | `schedule_times` | TEXT JSON | HH:MM 触发时间并集（manifest 缺省事实，只读；不被用户编辑覆盖） |
