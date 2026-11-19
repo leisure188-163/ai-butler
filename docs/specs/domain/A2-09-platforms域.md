@@ -57,7 +57,33 @@ DDL 权威单源 = `butler_engine/platforms/sqlite.py` `_SCHEMA`，生成视图
 
 - `GET /api/v1/platforms`：名册表 + 台账并账（account_ids 按账户域
   platform_code 归组）；deprecated / 停用平台不出现在响应
-- 一键导入仍按 connectors registry 分发（需要活端口，名册只管事实）
+- `POST /api/v1/platforms/resync`：运行期名册补偿——重扫连接器 manifest 落名册并重排调度，不导账户
+- `POST /api/v1/platforms/import-all`：一键导入**名册内未导入的本机客户端**（`kind=web` 不自动接，
+  网页版留在未导入清单由用户手动 adopt）；仍按 connectors registry 分发（需要活端口，名册只管事实）
+- `GET /api/v1/platforms/unimported`：未纳册候选（见下节）
+- `POST /api/v1/platforms/{target}/adopt`：人工导入单个连接器（纳册 + 接入一步）
+- `DELETE /api/v1/platforms/{platform_code}`：删除平台 / 移出名册（2026-11-19 用户裁决；界面词「删除平台」）——误导入 / 不再用的平台可退回「未导入的平台」；
+  **只删 `plat_platform` 事实行**，账户 / 凭据 / 历史台账一律保留，重新 adopt 按 platform_code 自动归位；
+  不存在 404，自定义平台 409（那条走 `DELETE /platforms/custom/{code}`，会连连接器目录一起删）
+
+## 同步范围与人工导入（2026-11-19 裁决）
+
+- **自动同步只纳两类**：本机客户端（`kind=client`）+ 用户自建平台
+  （`manifest.root_dir` 非空，创建即入册，不退回清单）。
+- **内置网页版（`kind=web`）不自动纳册**：出现在平台页「未导入的平台（N）」，
+  写明「同步平台不会自动纳网页版——点一下即导入并接入」，由用户手动点导入。
+- **策略性跳过 ≠ 退役**：被跳过的连接器仍在「连接器宇宙」（未退役 id 全集）里，
+  `sync_platforms.execute(facts, known_codes=universe)` 只把真正消失的连接器落
+  deprecated，跳过项的行保持 active（否则每次同步都会把网页版误标退役）。
+- **未导入判据**：连接器存在且未退役、名册里没有活跃行；`account_ids` 带上名册外
+  的既有账户（>0 = 导入后自动归位）。
+- **名册与账户解耦**（2026-11-19 用户裁决）：删除账户只清账户行与凭据，不删 `plat_platform`；
+  平台页主表以名册为准，账户数为 0 的平台仍展示（列值「暂无账户」），不能因删账户而消失。
+- **导入即纳册**：复用 `platform_fact` 同一 manifest 投影，不另拼一套；未知/已退役
+  连接器 422。
+- **可逆**：名册行的删除 = 移出（`RemovePlatform`，只碰平台事实行）；破坏性目录删除
+  只属于自定义平台（`DELETE /platforms/custom/{code}`）——两种语义在端侧分两个入口。
+
 
 ## 6. 禁止
 

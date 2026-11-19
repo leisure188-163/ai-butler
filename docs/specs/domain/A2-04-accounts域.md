@@ -96,6 +96,18 @@ account_code/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形�
 - 凭据到期/将到期事件（CREDENTIAL_EXPIRING / CREDENTIAL_EXPIRED）由 health 域
   扫描产出，事件源头是本域的凭据事实；severity 与通知口径见 A4-01。
 
+## 账户删除与名册真相源（2026-11-19 用户裁决）
+
+- **`GET /api/v1/accounts` 只读 `acc_account`**：账户数据的唯一真相源是账户表。
+  此前「账户册 ∪ vault 凭据账号」会把删掉账户行的凭据顶成幽灵账户，造成删不干净的错觉；
+  现在 `vault_item` 只作为账户的附属投影（凭据列），不再单独造账户行。
+- **`DELETE /api/v1/accounts/{account_id}` = 账户行 + 关联凭据一并删除**：
+  `DeleteAccount` 用例先 `vault.purge(account_id)`（主引用、`#seq` 历史归档、`vault_item`
+  与 `vault_history` 行全删，不留 revoked 行），再 `accounts.remove`；账户不存在 404，
+  不会误清同名凭据。返回清掉的凭据条数（`credentials_deleted`）。
+- **不碰平台与台账**：平台名册、`exe_claim` 历史与审计保留；删除账户后重新导入本机客户端
+  即可恢复（新凭据重新入库）。
+
 ## 6. 禁止
 
 - ❌ 账户状态/健康分级逻辑写进本域（那是 health 域的）；`is_active` 是用户管理
