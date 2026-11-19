@@ -32,11 +32,13 @@ export type AccountItem = Omit<Contract["AccountOut"], "signal" | "credentials">
 };
 export type PlatformItem = Contract["PlatformOut"];
 export type ImportResult = Contract["ImportOut"];
-/** 平台编辑载荷（UI 只提交三项契约字段；端不做业务判定） */
+/** 平台编辑载荷（UI 只提交四项契约字段；端不做业务判定） */
 export type PlatformPatch = {
   platform_name?: string | null;
   active?: boolean;
   times?: string[] | null;
+  /** 平台图标（2026-11-19）：96px PNG data URI；"" = 清空（回落身份色点/内置图标） */
+  icon?: string | null;
 };
 /** 行操作项（2026-11-18）：操作列直连 ≤2 个，其余进「更多」下拉 */
 export type RowAction = {

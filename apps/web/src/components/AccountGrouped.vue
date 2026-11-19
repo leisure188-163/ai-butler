@@ -187,7 +187,7 @@ function confirmRepair(account: AccountItem) {
         <button class="caret" :aria-expanded="!collapsed.has(g.code)" @click="toggleCollapse(g.code)">
           {{ collapsed.has(g.code) ? "▸" : "▾" }}
         </button>
-        <PlatformBadge :name="g.platform?.platform_name ?? g.code" :color-index="faceOf(g.code)" :icon="platformIcon(g.code)" />
+        <PlatformBadge :name="g.platform?.platform_name ?? g.code" :color-index="faceOf(g.code)" :icon="platformIcon(g.platform)" />
         <code class="mono group-code">{{ g.code }}</code>
         <span class="group-health">
           <span v-for="h in g.health" :key="h.signal" class="tag" :class="`tag--${h.signal}`">

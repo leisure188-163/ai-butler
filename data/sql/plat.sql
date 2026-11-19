@@ -10,6 +10,7 @@ CREATE TABLE plat_platform (
     platform_name    TEXT NOT NULL,
     platform_kind    TEXT NOT NULL DEFAULT '',
     client_version   TEXT NOT NULL DEFAULT '',
+    icon             TEXT NOT NULL DEFAULT '',
     capabilities     TEXT NOT NULL DEFAULT '[]',
     credential_kinds TEXT NOT NULL DEFAULT '[]',
     schedule_times   TEXT NOT NULL DEFAULT '[]',

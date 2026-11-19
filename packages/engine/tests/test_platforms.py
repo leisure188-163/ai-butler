@@ -139,7 +139,7 @@ def test_老库补列后物理列序按DDL重建(tmp_path) -> None:
         for r in sqlite3.connect(db).execute("PRAGMA table_info(plat_platform)").fetchall()
     ]
     assert cols == [
-        "id", "platform_code", "platform_name", "platform_kind", "client_version",
+        "id", "platform_code", "platform_name", "platform_kind", "client_version", "icon",
         "capabilities", "credential_kinds", "schedule_times", "schedule_override",
         "is_active", "deprecated_at", "created_at", "updated_at",
     ]
@@ -208,3 +208,50 @@ def test_老库name_override并入platform_name(tmp_path) -> None:
     assert "name_override" not in cols
     assert repo.get("trae_cn").platform_name == "Trae 主号"  # 用户改过的名保留
     assert repo.get("qoder_cn").platform_name == "Qoder"  # 没改过的保持连接器申报名
+
+
+def _png_uri(tag: str = "A") -> str:
+    """够用的假 png data URI（domain 只校验前缀与长度，不解析像素）。"""
+    return "data:image/png;base64," + tag
+
+
+def test_icon_同步探测刷新_探不到保留原值(tmp_path) -> None:
+    """图标（2026-11-19）：探测到就刷新，探测为空不抹掉已有值（用户上传的图标要留住）。"""
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    created = datetime(2026, 11, 17, tzinfo=UTC)
+    repo.upsert(_entry("doubao_cn", "豆包", created))
+    assert repo.get("doubao_cn").icon == ""  # 默认无图标 → 前端回落色点
+
+    probe1 = PlatformEntry(
+        platform_code="doubao_cn", platform_name="豆包", created_at=created,
+        platform_kind="client", icon=_png_uri("probe1"),
+    )
+    repo.upsert(probe1)
+    assert repo.get("doubao_cn").icon == _png_uri("probe1")  # 探测到即落库
+
+    # 下一轮探不到（icon=""）：保留原图标，不清空
+    repo.upsert(_entry("doubao_cn", "豆包", created))
+    assert repo.get("doubao_cn").icon == _png_uri("probe1")
+
+    # 客户端升级换图：新探测覆盖旧图
+    probe2 = PlatformEntry(
+        platform_code="doubao_cn", platform_name="豆包", created_at=created,
+        platform_kind="client", icon=_png_uri("probe2"),
+    )
+    repo.upsert(probe2)
+    assert repo.get("doubao_cn").icon == _png_uri("probe2")
+
+
+def test_icon_用户上传与清空(tmp_path) -> None:
+    """自定义平台图标（2026-11-19）：update_profile 写入；空串 = 清空回落色点。"""
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    created = datetime(2026, 11, 17, tzinfo=UTC)
+    repo.upsert(_entry("custom_x", "我的平台", created, kind="web"))
+
+    uploaded = repo.update_profile("custom_x", icon=_png_uri("user"))
+    assert uploaded is not None and uploaded.icon == _png_uri("user")
+
+    cleared = repo.update_profile("custom_x", icon="")
+    assert cleared is not None and cleared.icon == ""
+
+    assert repo.update_profile("nope", icon=_png_uri("x")) is None  # 不存在 → None（端 404）

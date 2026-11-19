@@ -266,7 +266,7 @@ const slotsOpen = ref(false);
             <td class="identity-cell">
               <button class="platform-open" :aria-label="`查看 ${platform.platform_name} 详情`" @click="openDetail(platform)">
                 <span class="identity-name">
-                  <PlatformBadge :name="platform.platform_name" :color-index="faceOf(platform.id)" :icon="platformIcon(platform.id)" />
+                  <PlatformBadge :name="platform.platform_name" :color-index="faceOf(platform.id)" :icon="platformIcon(platform)" />
                   <span v-if="isCustom(platform.id)" class="tag tag--notice">自定义</span>
                   <span class="open-arrow" aria-hidden="true">›</span>
                 </span>

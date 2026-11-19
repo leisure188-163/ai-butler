@@ -16,6 +16,7 @@ class PlatformOut(BaseModel):
     name_is_default: bool  # 名字仍是连接器申报名（前端据此决定要不要显示「恢复默认名」）
     kind: str  # 平台类型：web=网页版 / client=本机客户端（"" = 未申报）
     client_version: str  # 本机客户端版本（"" = 探不到/不适用）
+    icon: str  # 平台图标（2026-11-19）：96px PNG 的 data URI；"" = 无图标（前端回落色点）
     capabilities: list[str]  # ActionKind.value 列表（core 词表）
     credential_kinds: list[str]
     schedule_times: list[str]  # HH:MM 生效时间（用户覆盖优先，见下）
@@ -94,6 +95,7 @@ def _platform_out(platform, ids: list[str], registry=None) -> PlatformOut:
         name_is_default=display is None or display == platform.platform_name,
         kind=platform.platform_kind,
         client_version=platform.client_version,
+        icon=platform.icon,
         capabilities=sorted(platform.capabilities),
         credential_kinds=list(platform.credential_kinds),
         schedule_times=list(
@@ -186,15 +188,17 @@ def compose_schedule_entries(registry, kit) -> list:
 
 
 class PlatformPatchIn(BaseModel):
-    """平台信息编辑（2026-11-18）：只开放三项——平台名称、启用状态、调度执行时间。
+    """平台信息编辑（2026-11-18）：开放四项——平台名称、启用状态、调度执行时间、图标。
 
     `model_fields_set` 区分"没传"与"传了 null"：times=null 恢复默认，times=[] 不排班。
     `platform_name` 为空串 = 恢复连接器申报的名称（ADR-031）。
+    `icon`（2026-11-19）为 png data URI：空串 = 清空图标（回落身份色点），不传 = 不动。
     """
 
     platform_name: str | None = None  # 平台名（空串 = 恢复 manifest 名）
     active: bool | None = None  # 启用状态
     times: list[str] | None = None  # 调度执行时间
+    icon: str | None = None  # 平台图标（png data URI，空串 = 清空）
 
 
 _HHMM_RE = r"^([01]\d|2[0-3]):[0-5]\d$"
@@ -241,8 +245,18 @@ def patch_platform(platform_code: str, body: PlatformPatchIn, request: Request):
             raise HTTPException(status_code=400, detail="平台名称过长（≤40）")
     if "active" in fields:
         active = body.active
+    new_icon: str | None = None
+    if "icon" in fields and body.icon is not None:
+        new_icon = body.icon.strip()
+        if new_icon and not new_icon.startswith("data:image/png;base64,"):
+            # 只收 png data URI：前端上传前统一用 canvas 转码，端上不再兼容第二套格式
+            raise HTTPException(
+                status_code=400, detail="图标须为 png data URI（data:image/png;base64,…）"
+            )
+        if len(new_icon) > 200_000:
+            raise HTTPException(status_code=400, detail="图标过大（上限约 200KB）")
     updated = kit.platforms.update_profile(
-        platform_code, platform_name=new_name, is_active=active
+        platform_code, platform_name=new_name, is_active=active, icon=new_icon
     )
     if updated is None:
         raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")

@@ -11,6 +11,7 @@ import { computed, reactive, ref, watch } from "vue";
 import ModalShell from "./ModalShell.vue";
 import ScheduleTimesField from "./ScheduleTimesField.vue";
 import type { CustomPlatformDraft, PlatformItem, PlatformPatch } from "../types";
+import { platformIcon } from "../utils/platformIcons";
 
 const props = defineProps<{
   mode: "create" | "edit";
@@ -48,6 +49,9 @@ const error = ref("");
 const editName = ref("");
 const editActive = ref(true);
 const editTimes = ref<string[]>([]);
+/** 平台图标（2026-11-19）：选图后本地转 96px PNG data URI，保存时随 patch 一起提交 */
+const editIcon = ref("");
+const iconDirty = ref(false);
 
 watch(
   () => props.platform,
@@ -56,9 +60,55 @@ watch(
     editName.value = platform.platform_name;
     editActive.value = platform.active;
     editTimes.value = [...platform.schedule_times];
+    editIcon.value = platform.icon ?? "";
+    iconDirty.value = false;
   },
   { immediate: true },
 );
+
+/** 弹层里看到的图标：本次待保存值 → 平台数据 → 内置兜底（与列表同一套解析） */
+const iconPreview = computed(
+  () => editIcon.value || platformIcon(props.platform) || "",
+);
+
+/** 任意图片 → 96×96 等比居中 PNG data URI（端上只认 png，转码在这里统一做） */
+async function toSquarePng(file: File, size: number): Promise<string> {
+  if (file.size > 4 * 1024 * 1024) throw new Error("图片过大，请选择 4MB 以内的图片");
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("浏览器不支持 canvas，无法转码图标");
+    const scale = Math.min(size / bitmap.width, size / bitmap.height);
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    ctx.drawImage(bitmap, (size - w) / 2, (size - h) / 2, w, h);
+    return canvas.toDataURL("image/png");
+  } finally {
+    bitmap.close?.();
+  }
+}
+
+async function pickIcon(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  input.value = ""; // 允许重复选同一个文件
+  if (!file) return;
+  error.value = "";
+  try {
+    editIcon.value = await toSquarePng(file, 96);
+    iconDirty.value = true;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
+function resetIcon(): void {
+  editIcon.value = "";
+  iconDirty.value = true; // 清空也是一次修改：保存时提交 icon="" 回落内置图标
+}
 
 const codeOk = computed(() => /^[a-z][a-z0-9_]{1,31}$/.test(create.code.trim()));
 
@@ -137,6 +187,8 @@ function submitEdit(): void {
   if (name !== platform.platform_name) patch.platform_name = name;
   if (editActive.value !== platform.active) patch.active = editActive.value;
   if (JSON.stringify(times) !== JSON.stringify(platform.schedule_times)) patch.times = times;
+  // 图标：只有用户选过图/点过恢复默认才提交（不覆盖同步探测写进来的图标）
+  if (iconDirty.value && editIcon.value !== (platform.icon ?? "")) patch.icon = editIcon.value;
   if (Object.keys(patch).length) emit("savePlatform", platform.id, patch);
 }
 
@@ -283,6 +335,26 @@ function resetSchedule(): void {
               <span>{{ editActive ? "启用" : "已停用" }}</span>
             </label>
           </div>
+        </div>
+        <div class="cpf-field pf-schedule">
+          <span class="cpf-label">平台图标</span>
+          <div class="pf-icon-row">
+            <span class="pf-icon-preview">
+              <img v-if="iconPreview" :src="iconPreview" alt="" />
+              <span v-else class="pf-icon-empty">无</span>
+            </span>
+            <label class="btn btn--ghost pf-icon-pick">
+              选择图片
+              <input type="file" accept="image/png,image/jpeg,image/webp" hidden :disabled="saving"
+                @change="pickIcon" />
+            </label>
+            <button v-if="editIcon" class="btn btn--ghost" :disabled="saving" @click="resetIcon">
+              恢复内置图标
+            </button>
+          </div>
+          <span class="cpf-hint">
+            自动转成 96×96 PNG 存进平台数据（跟着平台走，换机器同步也会刷新）；不选则用内置图标
+          </span>
         </div>
         <div class="cpf-field pf-schedule">
           <span class="cpf-label">调度执行时间</span>
@@ -442,6 +514,40 @@ function resetSchedule(): void {
 
 .pf-schedule {
   margin-top: 16px;
+}
+
+.pf-icon-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.pf-icon-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.pf-icon-preview img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.pf-icon-empty {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
+
+.pf-icon-pick {
+  cursor: pointer;
 }
 
 .pf-reset {

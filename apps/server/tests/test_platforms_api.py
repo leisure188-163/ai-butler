@@ -194,6 +194,33 @@ def test_patch_platform_name_生效且同步不覆盖(tmp_path):
         assert reset["name_is_default"] is True
 
 
+def test_patch_platform_icon_写入与校验(tmp_path):
+    """平台图标（2026-11-19）：png data URI 可写、随列表返回；非 png / 超长 400；空串清空。"""
+    with _client(tmp_path) as client:
+        row = next(r for r in client.get("/api/v1/platforms").json() if r["id"] == "agentrouter")
+        assert row["icon"] == ""  # 默认无图标 → 前端回落内置图标/身份色点
+
+        uri = "data:image/png;base64,AAAA"
+        patched = client.patch("/api/v1/platforms/agentrouter", json={"icon": uri}).json()
+        assert patched["icon"] == uri
+
+        listed = next(r for r in client.get("/api/v1/platforms").json() if r["id"] == "agentrouter")
+        assert listed["icon"] == uri  # 图标跟着平台数据走：列表即可拿到
+
+        # 只认 png data URI（前端上传前已转码），其他形态显式 400
+        assert (
+            client.patch("/api/v1/platforms/agentrouter", json={"icon": "https://x/y.png"}).status_code
+            == 400
+        )
+        oversized = "data:image/png;base64," + "A" * 200_001
+        assert (
+            client.patch("/api/v1/platforms/agentrouter", json={"icon": oversized}).status_code == 400
+        )
+
+        cleared = client.patch("/api/v1/platforms/agentrouter", json={"icon": ""}).json()
+        assert cleared["icon"] == ""  # 空串 = 清空（回落内置图标）
+
+
 def test_resync_platforms_从空名册回填(tmp_path):
     """「同步平台」运行期回填（ADR-031）：平台表被清空后不重启后端也能刷回名册。
 

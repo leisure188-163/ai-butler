@@ -25,6 +25,11 @@ PLATFORM_KINDS = ("web", "client")
 #: 调度时间格式（分钟粒度）
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
+#: 图标 data URI 前缀（2026-11-19 裁决）：只认 png，前端上传前统一转码
+_ICON_PREFIX = "data:image/png;base64,"
+#: 图标长度上限（≈200KB 字符）：96px PNG 实测 5–15KB，超限说明不是图标
+_ICON_MAX_CHARS = 200_000
+
 
 @dataclass(frozen=True)
 class PlatformEntry:
@@ -41,6 +46,9 @@ class PlatformEntry:
     created_at: datetime
     platform_kind: str = ""  # web=网页版 / client=本机客户端（PLATFORM_KINDS；"" = 历史行未申报）
     client_version: str = ""  # 本机客户端版本（同步时探测；"" = 探不到=未知，不猜）
+    #: 平台图标（2026-11-19 裁决）：96px PNG 的 data URI，跟着平台数据走——
+    #: 同步时从本机客户端探测写入，自定义平台可由用户上传；"" = 无图标（前端回落身份色点）
+    icon: str = ""
     capabilities: tuple[str, ...] = ()  # ActionKind.value 列表（core 词表）
     credential_kinds: tuple[str, ...] = ()
     schedule_times: tuple[str, ...] = ()  # HH:MM 触发时间并集（manifest 缺省）
@@ -65,3 +73,12 @@ class PlatformEntry:
             raise PlatformInvalid(
                 f"PlatformEntry platform_kind={self.platform_kind!r} 不在词表 {PLATFORM_KINDS}"
             )
+        if self.icon:
+            if not self.icon.startswith(_ICON_PREFIX):
+                raise PlatformInvalid(
+                    "PlatformEntry icon 必须是 png data URI（data:image/png;base64,…）"
+                )
+            if len(self.icon) > _ICON_MAX_CHARS:
+                raise PlatformInvalid(
+                    f"PlatformEntry icon 过长（{len(self.icon)} 字符 > {_ICON_MAX_CHARS}）"
+                )

@@ -660,6 +660,8 @@ export interface components {
             kind: string;
             /** Client Version */
             client_version: string;
+            /** Icon */
+            icon: string;
             /** Capabilities */
             capabilities: string[];
             /** Credential Kinds */
@@ -677,10 +679,11 @@ export interface components {
         };
         /**
          * PlatformPatchIn
-         * @description 平台信息编辑（2026-11-18）：只开放三项——平台名称、启用状态、调度执行时间。
+         * @description 平台信息编辑（2026-11-18）：开放四项——平台名称、启用状态、调度执行时间、图标。
          *
          *     `model_fields_set` 区分"没传"与"传了 null"：times=null 恢复默认，times=[] 不排班。
          *     `platform_name` 为空串 = 恢复连接器申报的名称（ADR-031）。
+         *     `icon`（2026-11-19）为 png data URI：空串 = 清空图标（回落身份色点），不传 = 不动。
          */
         PlatformPatchIn: {
             /** Platform Name */
@@ -689,6 +692,8 @@ export interface components {
             active?: boolean | null;
             /** Times */
             times?: string[] | null;
+            /** Icon */
+            icon?: string | null;
         };
         /**
          * RadarAccountOut

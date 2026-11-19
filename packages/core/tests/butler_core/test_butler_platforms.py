@@ -41,3 +41,19 @@ def test_schedule_override_默认None表示跟随manifest() -> None:
 def test_平台类型词表校验() -> None:
     with pytest.raises(PlatformInvalid):
         _entry(platform_kind="app")
+
+
+def test_图标_默认空串表示无图标() -> None:
+    assert _entry().icon == ""  # "" = 无图标（前端回落内置图标/身份色点）
+
+
+def test_图标_只接受png_data_uri且限长() -> None:
+    ok = _entry(icon="data:image/png;base64,AAAA")
+    assert ok.icon.startswith("data:image/png;base64,")
+    for bad in (
+        "https://example.com/icon.png",  # 外链不落库：图标要跟着平台数据走
+        "data:image/svg+xml;base64,AAAA",  # 只认 png（前端上传前统一转码）
+        "data:image/png;base64," + "A" * 200_001,  # 超长说明不是 96px 图标
+    ):
+        with pytest.raises(PlatformInvalid):
+            _entry(icon=bad)

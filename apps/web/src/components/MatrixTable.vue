@@ -179,7 +179,7 @@ function toggleDetail(accountId: string) {
                 <PlatformBadge
                   :name="appOf(account)?.platform_name ?? account.platform_code"
                   :color-index="faceOf(account.account_id)"
-                  :icon="platformIcon(account.platform_code)"
+                  :icon="platformIcon(appOf(account))"
                 />
               </td>
               <td>

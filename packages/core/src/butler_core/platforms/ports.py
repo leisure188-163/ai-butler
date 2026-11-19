@@ -26,11 +26,15 @@ class PlatformRepository(ABC):
         *,
         platform_name: str | None = None,
         is_active: bool | None = None,
+        icon: str | None = None,
     ) -> PlatformEntry | None:
-        """改可编辑项（None = 不动）：平台名称与启停。
+        """改可编辑项（None = 不动）：平台名称、启停与图标。
 
         名称归用户（ADR-031）：接入同步只在首次插入时写一次，之后 upsert 不再覆盖；
         平台编码（platform_code）是不可变锚点，本端口无改写入口。平台不存在返回 None。
+
+        icon（2026-11-19）：png data URI 原样落库，空串 = 清空（前端回落身份色点）；
+        同步探测到新图标时由 upsert 侧刷新，不走本方法。
         """
 
     @abstractmethod

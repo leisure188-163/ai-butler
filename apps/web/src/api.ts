@@ -103,11 +103,16 @@ export function resyncPlatforms(): Promise<PlatformItem[]> {
   return request<PlatformItem[]>(`${apiBase}/platforms/resync`, post());
 }
 
-/** 编辑平台信息（2026-11-18）：显示名 / 启用状态 / 调度执行时间三合一。
- * 只传要改的键；times=null 恢复默认、[] 不排班。写后调度即刻热替换。 */
+/** 编辑平台信息（2026-11-18 / 11-19）：显示名 / 启用状态 / 调度执行时间 / 平台图标。
+ * 只传要改的键；times=null 恢复默认、[] 不排班；icon="" 清空图标（回落身份色点）。 */
 export function patchPlatform(
   target: string,
-  body: { platform_name?: string | null; active?: boolean; times?: string[] | null },
+  body: {
+    platform_name?: string | null;
+    active?: boolean;
+    times?: string[] | null;
+    icon?: string | null;
+  },
 ): Promise<PlatformItem> {
   return request<PlatformItem>(`${apiBase}/platforms/${target}`, {
     method: "PATCH",

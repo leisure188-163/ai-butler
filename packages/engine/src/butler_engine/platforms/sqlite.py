@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS plat_platform (
     platform_name    TEXT NOT NULL,
     platform_kind    TEXT NOT NULL DEFAULT '',
     client_version   TEXT NOT NULL DEFAULT '',
+    icon             TEXT NOT NULL DEFAULT '',
     capabilities     TEXT NOT NULL DEFAULT '[]',
     credential_kinds TEXT NOT NULL DEFAULT '[]',
     schedule_times   TEXT NOT NULL DEFAULT '[]',
@@ -43,7 +44,7 @@ _SCHEMA = _TABLE_DDL + _INDEX_DDL
 
 #: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
 _DDL_COLS = (
-    "platform_code", "platform_name", "platform_kind", "client_version",
+    "platform_code", "platform_name", "platform_kind", "client_version", "icon",
     "capabilities", "credential_kinds", "schedule_times", "schedule_override",
     "is_active", "deprecated_at", "created_at", "updated_at",
 )
@@ -51,7 +52,7 @@ _COLS = ", ".join(_DDL_COLS)
 
 #: 重建时缺失列的落值（显式未知，不猜）
 _ADDED_DEFAULTS = {
-    "platform_kind": "''", "client_version": "''", "schedule_override": "''",
+    "platform_kind": "''", "client_version": "''", "icon": "''", "schedule_override": "''",
 }
 
 #: 重建整表时缺列的兜底值：必须与 DDL 默认一致（NOT NULL 列落 NULL 会直接炸）
@@ -130,6 +131,8 @@ class SqlitePlatformRepository(PlatformRepository):
         """接入/启动同步落库：INSERT 时写 platform_name，UPDATE 时**不写**（ADR-031）。
 
         名称一旦落库即归用户：连接器改名不再覆盖用户已经看过、可能已经改过的名字。
+        icon 相反：探测到新图标就刷新（客户端升级换图要跟得上），探测为空则保留原值——
+        这样用户给自定义平台上传的图标不会被一次"探不到"抹掉。
         """
         from butler_core.shared.time import now_utc
 
@@ -137,10 +140,11 @@ class SqlitePlatformRepository(PlatformRepository):
         with self._connect() as conn, conn:
             conn.execute(
                 f"INSERT INTO plat_platform ({_COLS}) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (platform_code) DO UPDATE SET "
                 "platform_kind=excluded.platform_kind, "
                 "client_version=excluded.client_version, "
+                "icon=CASE WHEN excluded.icon <> '' THEN excluded.icon ELSE icon END, "
                 "capabilities=excluded.capabilities, "
                 "credential_kinds=excluded.credential_kinds, schedule_times=excluded.schedule_times, "
                 "updated_at=excluded.updated_at",
@@ -149,6 +153,7 @@ class SqlitePlatformRepository(PlatformRepository):
                     entry.platform_name,
                     entry.platform_kind.strip(),
                     entry.client_version.strip(),
+                    entry.icon,
                     _dump(entry.capabilities),
                     _dump(entry.credential_kinds),
                     _dump(entry.schedule_times),
@@ -189,8 +194,9 @@ class SqlitePlatformRepository(PlatformRepository):
         *,
         platform_name: str | None = None,
         is_active: bool | None = None,
+        icon: str | None = None,
     ) -> PlatformEntry | None:
-        """改平台名 / 启停（None = 不动）。平台不存在 → None。
+        """改平台名 / 启停 / 图标（None = 不动）。平台不存在 → None。
 
         平台编码是锚点，本方法没有改写它的入口（ADR-031）。
         """
@@ -204,6 +210,9 @@ class SqlitePlatformRepository(PlatformRepository):
         if is_active is not None:
             sets.append("is_active = ?")
             args.append(1 if is_active else 0)
+        if icon is not None:
+            sets.append("icon = ?")
+            args.append(icon)
         if not sets:
             return self.get(platform_code)
         sets.append("updated_at = ?")
@@ -265,13 +274,14 @@ def _load(row) -> PlatformEntry | None:
         platform_name=row[1],
         platform_kind=row[2] or "",
         client_version=row[3] or "",
-        capabilities=_load_values(row[4]),
-        credential_kinds=_load_values(row[5]),
-        schedule_times=_load_values(row[6]),
-        schedule_override=_load_override(row[7]),
-        is_active=bool(row[8]),
-        deprecated_at=datetime.fromisoformat(row[9]) if row[9] else None,
-        created_at=datetime.fromisoformat(row[10]),
+        icon=row[4] or "",
+        capabilities=_load_values(row[5]),
+        credential_kinds=_load_values(row[6]),
+        schedule_times=_load_values(row[7]),
+        schedule_override=_load_override(row[8]),
+        is_active=bool(row[9]),
+        deprecated_at=datetime.fromisoformat(row[10]) if row[10] else None,
+        created_at=datetime.fromisoformat(row[11]),
     )
 
 

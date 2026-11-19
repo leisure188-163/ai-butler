@@ -32,8 +32,8 @@
 | `platform_name` | TEXT NOT NULL | 平台名（命名裁决 ADR-023：显示名列按业务命名，禁 display_name 通用名） |
 | `platform_kind` | TEXT NOT NULL DEFAULT '' | 平台类型词表（core `PLATFORM_KINDS`）：`web`=网页版 / `client`=本机客户端；manifest 侧必填，'' 仅历史行兼容（2026-11-18 裁决；列序在 client_version 之前） |
 | `client_version` | TEXT NOT NULL DEFAULT '' | 本机客户端版本（同步时经 provision 端口只读探测；'' = 探不到/网页平台=未知，2026-11-18 裁决；列序在 capabilities 之前）。事实源按连接器形态分两路：adapter 型实现 `read_client_version()`（豆包 = 卸载注册表 / Info.plist，WorkBuddy = `app_version`，Qoder = 版本目录 manifest），声明式型经 `version_probe` 按 conn_id 查表（Trae CN / WorkBuddy / Qoder）。通用口径见 `butler_connectors/app_version.py`：Windows 卸载注册表 `DisplayVersion`、mac `Info.plist CFBundleShortVersionString`，多版本并存取最新（2026-11-19） |
-| `capabilities` | TEXT JSON | ActionKind.value 列表（core 词表） |
-| `credential_kinds` | TEXT JSON | 凭据 kinds 声明 |
+| `icon` | TEXT NOT NULL DEFAULT '' | 平台图标（2026-11-19 裁决）：96px PNG 的 **data URI**，跟着平台数据走——同步时从本机客户端探测写入（`butler_connectors/app_icon.py`：卸载注册表 `DisplayIcon` → `PrivateExtractIcons` → 自绘 PNG，纯 ctypes 无图像库依赖；按 conn_id 分流的探针表 = `icon_probe.py`），自定义平台可由用户上传（前端 canvas 统一转 96×96 PNG）；'' = 无图标（前端回落内置 assets → 身份色点）。UPSERT 刷新语义：`excluded.icon <> ''` 才覆盖（探测到就刷新，探不到保留用户上传值）；列序在 client_version 与 capabilities 之间 |
+| `capabilities` | TEXT JSON | ActionKind.value 列表（core 词表） || `credential_kinds` | TEXT JSON | 凭据 kinds 声明 |
 | `schedule_times` | TEXT JSON | HH:MM 触发时间并集（manifest 缺省事实，只读；不被用户编辑覆盖） |
 | `schedule_override` | TEXT | 用户覆盖的调度执行时间：`''`=跟随 manifest，JSON 数组=覆盖（`[]`=不排班）；manifest 同步只更新事实列、**不覆盖本列** |
 | `is_active` | INTEGER DEFAULT 1 | 用户开关（非数据库关键字，ADR-019） |
@@ -77,12 +77,32 @@ DDL 权威单源 = `butler_engine/platforms/sqlite.py` `_SCHEMA`，生成视图
 - **前端**：平台管理页「调度执行时间」详情行内「修改」→ 时间列表编辑（增删 HH:MM）→ 保存 / 恢复默认；
   被覆盖的行在展示上带「自定义」标记。
 
+## 平台图标（2026-11-19 裁决）
+
+- **为什么落库**：图标原本是前端 `assets/platforms/` 的静态图，只有前端认这五个 code；
+  平台数据换个机器、加个自定义平台就没有图。"图标跟着平台走"= 图标成为平台行的一个事实列。
+- **写入口 1（同步探测）**：`sync_platform_facts` 调 `_read_client_icon(conn_id)` →
+  `butler_connectors.icon_probe.platform_icon(conn_id)`（表按 conn_id 分流：豆包/Qoder/Trae CN/
+  WorkBuddy 各自的 DisplayName 前缀 + DisplayIcon 文件名兜底；网页版平台未登记 = ''）。
+  提取链：卸载注册表 `DisplayIcon` → `PrivateExtractIcons(96px)` → `GetIconInfo/GetDIBits`
+  （32bpp 自顶向下 BGRA，alpha 全 0 的老图标按不透明处理）→ 标准库 zlib 手写 PNG → base64 data URI。
+  **口径**：只读、不拉起客户端；未安装/提取失败返回 ''（不造假，红线 5）。
+- **写入口 2（用户上传）**：`PATCH /platforms/{platform_code}` 的 `icon` 键（png data URI，
+  ≤200KB；非 png 前缀 = 400 显式拒绝）。空串 = 清空（回落内置 assets / 身份色点）。
+- **刷新语义**：UPSERT 时 `icon = CASE WHEN excluded.icon <> '' THEN excluded.icon ELSE icon END`
+  ——客户端升级换图标会跟得上，而"这台机器探不到"不会抹掉用户上传的图标。
+- **domain 校验**：`PlatformEntry.icon` 非空时必须 `data:image/png;base64,` 前缀且 ≤200,000 字符，
+  违反抛 `PlatformInvalid`（外链、svg、超大一律不收）。
+- **前端读取顺序**：`utils/platformIcons.ts` 的 `platformIcon(platform)` →
+  平台行 `icon` → `assets/platforms/` 内置兜底 → `null`（PlatformBadge 回落身份色点）。
+  编辑弹层「平台图标」提供「选择图片」（canvas 等比居中转 96×96 PNG）与「恢复内置图标」（提交 `icon=""`）。
+
 ## 平台信息编辑（2026-11-18 裁决）
 
 - **写入口**：`PATCH /platforms/{platform_code}`，body 只含要改的键：
   `platform_name`（显示名，空串 = 恢复 manifest 名，≤40 字）、`active`（启用状态）、
-  `times`（调度执行时间，`null` = 恢复默认、`[]` = 不排班）。用 `model_fields_set` 区分
-  "没传"与"传了 null"，未传的键一律不动。
+  `times`（调度执行时间，`null` = 恢复默认、`[]` = 不排班）、`icon`（平台图标，见上节，
+  `""` = 清空）。用 `model_fields_set` 区分"没传"与"传了 null"，未传的键一律不动。
 - **不可编辑**：`platform_code`、`platform_kind`、`client_version`、`capabilities`、
   `credential_kinds` —— 都来自连接器 manifest 声明或本机探测，改了会和协议脱节。
 - **生效**：写 DB 后重建调度条目并热替换 → 即刻生效；停用平台在 `compose_schedule_entries` 里被跳过。

@@ -75,6 +75,21 @@ def _read_client_version(port) -> str:
         return ""
 
 
+def _read_client_icon(conn_id: str) -> str:
+    """客户端图标探测（plat_platform.icon，2026-11-19）：按 conn_id 走 icon_probe 表。
+
+    图标缺失不是故障：未安装、提取失败、网页版平台都落空串，前端回落身份色点。
+    这里兜异常是为了让"一个平台取不到图标"不拖垮整次同步（红线 5：不静默造数据——
+    落的是空串而不是假图标）。
+    """
+    from butler_connectors.icon_probe import platform_icon
+
+    try:
+        return platform_icon(conn_id) or ""
+    except Exception:
+        return ""
+
+
 def sync_platform_facts(kit, registry, provisions) -> None:
     """平台册同步（ADR-021/022）：manifest 事实落 plat_platform，DB 为真相源；
     退役/删掉的连接器不进 facts（自动落 deprecated 不删行，审计可溯）。
@@ -104,6 +119,7 @@ def sync_platform_facts(kit, registry, provisions) -> None:
                 credential_kinds=tuple(m.credential.kinds) if m.credential else (),
                 schedule_times=tuple(sched.times) if sched else (),
                 client_version=_read_client_version(provisions.get(m.id)),
+                icon=_read_client_icon(m.id),
             )
         )
     kit.sync_platforms.execute(tuple(facts))
