@@ -456,17 +456,31 @@ const slotsOpen = ref(false);
 .health-dot--quiet { background: var(--color-quiet); }
 .anchor-line { display: flex; align-items: center; }
 .anchor-count { font-weight: 600; }
+/* 「查看账户」是下钻入口，不是装饰文字：做成描边胶囊（2026-11-19 用户要求
+   「一看就知道可以点开详情」）。纯文字 + hover 下划线的弱链接在表格里没人认得。 */
 .link-btn {
-  border: 0;
-  background: none;
-  padding: 0;
-  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: var(--space-1);
+  padding: 1px var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-2);
   color: var(--color-accent);
   font: inherit;
   font-size: var(--text-xs);
+  line-height: 1.7;
   cursor: pointer;
 }
-.link-btn:hover { text-decoration: underline; }
+.link-btn:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-weak);
+}
+.link-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
 .sched-times { font-size: var(--text-sm); }
 .sched-count { font-size: var(--text-xs); color: var(--color-text-faint); }
 .sched-count .tag { margin-left: var(--space-1); }
