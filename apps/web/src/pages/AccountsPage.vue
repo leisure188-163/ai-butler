@@ -29,6 +29,7 @@ const emit = defineEmits<{
   claimAll: [];
   scanSessions: [accountId: string];
   repair: [target: string, accountId: string];
+  rename: [accountId: string, alias: string];
 }>();
 
 /** 关联重设计 v1：默认平铺表格（一屏看全），按平台分组作为可切换的第二视图。
@@ -134,6 +135,7 @@ const claimableCount = computed(
       @claim-many="emit('claimMany', $event)"
       @scan-sessions="emit('scanSessions', $event)"
       @repair="(target, id) => emit('repair', target, id)"
+      @rename="(id, alias) => emit('rename', id, alias)"
     />
     <MatrixTable
       v-else
@@ -147,6 +149,7 @@ const claimableCount = computed(
       @health="emit('health', $event)"
       @claim-many="emit('claimMany', $event)"
       @scan-sessions="emit('scanSessions', $event)"
+      @rename="(id, alias) => emit('rename', id, alias)"
     />
   </section>
 </template>

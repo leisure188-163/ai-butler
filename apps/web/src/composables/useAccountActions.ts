@@ -343,6 +343,30 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     }
   }
 
+  /* 改账户别名（ADR-030）：只动显示名，不动账户 id / 平台归属；空串 = 清除 */
+  async function renameAccount(accountId: string, alias: string) {
+    busyTarget.value = accountId;
+    actionMsg.value = null;
+    try {
+      const updated = await api.setAccountAlias(accountId, alias);
+      actionMsg.value = {
+        text: updated.alias
+          ? `别名已改为「${updated.alias}」`
+          : "别名已清除，显示回连接器给的名称",
+        tone: "ok",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `保存别名失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
   return {
     busyTarget,
     actionMsg,
@@ -359,5 +383,6 @@ export function useAccountActions({ refresh }: { refresh: () => Promise<void> })
     claimAllApps,
     claimMany,
     scanSessions,
+    renameAccount,
   };
 }

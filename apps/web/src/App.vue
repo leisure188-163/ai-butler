@@ -73,6 +73,7 @@ const {
   claimAllApps,
   claimMany,
   scanSessions,
+  renameAccount,
 } = account;
 const { collecting, usageMsg, collectUsage } = usage;
 
@@ -182,6 +183,7 @@ onBeforeUnmount(() => {
         @claim-all="claimAllApps"
         @scan-sessions="scanSessions"
         @repair="repairAccount"
+        @rename="renameAccount"
       />
       <TrafficPage
         v-else-if="active === '用量管理'"

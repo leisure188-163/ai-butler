@@ -5,7 +5,7 @@
  * 动作按钮按能力矩阵渲染（AppOut.capabilities，端零映射）：
  * provision.run = 领取；health.check = 体检（R3 网页通道）。
  */
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import type { AccountItem, PlatformItem } from "../types";
 import { earliestExpiry, faceOf, fmtTime, signalText } from "../utils";
 import PlatformBadge from "./PlatformBadge.vue";
@@ -26,8 +26,27 @@ const emit = defineEmits<{
   claim: [target: string];
   health: [target: string];
   scanSessions: [accountId: string];
+  rename: [accountId: string, alias: string];
   close: [];
 }>();
+
+/* 别名草稿跟随当前账户；账户换人时重置，避免把上一张卡的输入带到下一张 */
+const aliasDraft = ref("");
+watch(
+  () => props.account?.account_id,
+  () => {
+    aliasDraft.value = props.account?.alias ?? "";
+  },
+  { immediate: true },
+);
+const aliasDirty = computed(
+  () => aliasDraft.value.trim() !== (props.account?.alias ?? ""),
+);
+
+function saveAlias() {
+  if (!props.account) return;
+  emit("rename", props.account.account_id, aliasDraft.value.trim());
+}
 
 const hasClaim = computed(() => props.platform?.capabilities.includes("provision.run") ?? false);
 const hasHealth = computed(() => props.platform?.capabilities.includes("health.check") ?? false);
@@ -46,6 +65,26 @@ const hasHealth = computed(() => props.platform?.capabilities.includes("health.c
       <span v-if="earliestExpiry(account)" class="row-sub num">
         凭据最早 {{ fmtTime(earliestExpiry(account)) }} 到期
       </span>
+    </p>
+
+    <p class="detail-label">别名</p>
+    <div class="alias-row">
+      <input
+        v-model="aliasDraft"
+        class="alias-input"
+        type="text"
+        maxlength="40"
+        :placeholder="account.account_name"
+        aria-label="账户别名"
+      />
+      <button
+        class="btn btn--ghost"
+        :disabled="busy || !aliasDirty"
+        @click="saveAlias"
+      >保存</button>
+    </div>
+    <p class="row-sub alias-hint">
+      别名用于对上号（如「Trae 主号」）；留空保存 = 清除，显示回连接器给的名称。账户 id 不变。
     </p>
 
     <p class="detail-label">凭据</p>
@@ -101,6 +140,27 @@ const hasHealth = computed(() => props.platform?.capabilities.includes("health.c
 
 <style scoped>
 .detail-empty { color: var(--color-text-faint); font-size: var(--text-sm); }
+
+/* 别名行：输入 + 保存（ADR-030）；只在有改动时可点，避免误触空提交 */
+.alias-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.alias-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.alias-input:focus { outline: 2px solid var(--color-accent-weak); border-color: var(--color-accent); }
+.alias-hint { margin: var(--space-2) 0 0; }
 
 .detail-head {
   display: flex;

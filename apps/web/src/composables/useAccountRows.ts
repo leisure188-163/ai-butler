@@ -44,8 +44,11 @@ export function useAccountRows({
     );
   }
 
-  /** 昵称优先、ID 为辅：account_name 是 core 出产的显示名，这里只去掉冗余平台前缀 */
+  /** 昵称优先、ID 为辅：别名（用户起的）> account_name（core 出产）> account_code。
+   * 别名存在的意义就是盖掉连接器给的泛名（如 Trae CN），所以放在最前。 */
   function accountLabel(account: AccountItem): string {
+    const alias = account.alias?.trim() || "";
+    if (alias) return alias;
     const platform = appOf(account);
     const name = account.account_name?.trim() || "";
     if (!name || (platform && name === platform.display)) return account.account_code;

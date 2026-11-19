@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS acc_account (
     platform_code    TEXT NOT NULL,
     account_code     TEXT NOT NULL DEFAULT 'main',
     account_name     TEXT NOT NULL,
+    alias            TEXT NOT NULL DEFAULT '',
     base_url         TEXT,
     device_ref       TEXT,
     sessions         TEXT NOT NULL DEFAULT '[]',
@@ -50,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platfor
 """
 
 _COLS = (
-    "account_id, platform_code, account_code, account_name, base_url, device_ref, sessions, "
+    "account_id, platform_code, account_code, account_name, alias, base_url, device_ref, sessions, "
     "entitlement_json, is_active, created_at, updated_at, deleted_at"
 )
 
@@ -68,6 +69,7 @@ _MISSING_COLS: dict[str, str] = {
     "device_ref": "device_ref TEXT",
     "entitlement_json": "entitlement_json TEXT",
     "is_active": "is_active INTEGER NOT NULL DEFAULT 1",
+    "alias": "alias TEXT NOT NULL DEFAULT ''",
     "updated_at": "updated_at TEXT NOT NULL DEFAULT ''",
     "deleted_at": "deleted_at TEXT",
 }
@@ -139,9 +141,9 @@ def _rebuild_from_legacy(conn, cols: set[str]) -> None:
             account_code = legacy_id[len(prefix):]
         conn.execute(
             f"INSERT OR IGNORE INTO acc_account ({_COLS}) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                legacy_id, platform_code, account_code, account_name, base_url,
+                legacy_id, platform_code, account_code, account_name, "", base_url,
                 device_ref, sessions_raw, entitlement_json, is_active,
                 created_at, updated_at, deleted_at,
             ),
@@ -166,10 +168,10 @@ class SqliteAccountRepository(AccountRepository):
 
         with self._connect() as conn, conn:
             conn.execute(
-                f"INSERT INTO acc_account ({_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                f"INSERT INTO acc_account ({_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (account_id) DO UPDATE SET "
                 "platform_code=excluded.platform_code, account_code=excluded.account_code, "
-                "account_name=excluded.account_name, base_url=excluded.base_url, "
+                "account_name=excluded.account_name, alias=excluded.alias, base_url=excluded.base_url, "
                 "device_ref=excluded.device_ref, sessions=excluded.sessions, "
                 "entitlement_json=excluded.entitlement_json, is_active=excluded.is_active, "
                 "updated_at=excluded.updated_at, deleted_at=excluded.deleted_at",
@@ -178,6 +180,7 @@ class SqliteAccountRepository(AccountRepository):
                     account.platform_code,
                     account.account_code,
                     account.account_name,
+                    account.alias,
                     account.base_url,
                     account.device_ref,
                     _dump_sessions(account.sessions),
@@ -270,11 +273,12 @@ def _load(row) -> Account | None:
         platform_code=row[1],
         account_code=row[2],
         account_name=row[3],
-        base_url=row[4] or "",
-        device_ref=row[5],
-        sessions=_load_sessions(row[6], row[0]),
-        entitlement=_load_entitlement(row[7], row[0]),
-        is_active=bool(row[8]),
-        created_at=datetime.fromisoformat(row[9]),
-        deleted_at=datetime.fromisoformat(row[11]) if row[11] else None,
+        alias=row[4] or "",
+        base_url=row[5] or "",
+        device_ref=row[6],
+        sessions=_load_sessions(row[7], row[0]),
+        entitlement=_load_entitlement(row[8], row[0]),
+        is_active=bool(row[9]),
+        created_at=datetime.fromisoformat(row[10]),
+        deleted_at=datetime.fromisoformat(row[12]) if row[12] else None,
     )

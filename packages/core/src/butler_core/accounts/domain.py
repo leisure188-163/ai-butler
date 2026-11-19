@@ -140,6 +140,7 @@ class Account:
     base_url: str = ""  # 账户级 API 基址（Qoder CN/Global 双 host 事实落库；空 = 用连接器缺省）
     device_ref: str | None = None  # 供应商侧账户标识绑定；绑定不可得 = 如实 None（A2-04 §4.1）
     is_active: bool = True  # 用户管理开关（不用 enabled——数据库关键字风险；停用是运营动作，健康熔断仍归 health 域，A2-04 §6）
+    alias: str = ""  # 用户别名（ADR-030）：连接器取不到真实身份时（如 trae_cn）人工命名，显示优先于 account_name
 
     def __post_init__(self) -> None:
         if not self.id.strip() or not self.platform_code.strip():

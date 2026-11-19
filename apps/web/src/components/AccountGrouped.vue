@@ -27,6 +27,7 @@ const emit = defineEmits<{
   claimMany: [targets: string[]];
   scanSessions: [accountId: string];
   repair: [target: string, accountId: string];
+  rename: [accountId: string, alias: string];
 }>();
 
 const {
@@ -283,6 +284,7 @@ function confirmRepair(account: AccountItem) {
                     @claim="emit('claim', $event)"
                     @health="emit('health', $event)"
                     @scan-sessions="emit('scanSessions', $event)"
+                    @rename="(id: string, alias: string) => emit('rename', id, alias)"
                     @close="toggleDetail(a.account_id)"
                   />
                 </td>

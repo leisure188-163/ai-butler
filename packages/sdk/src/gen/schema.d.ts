@@ -24,6 +24,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/accounts/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Account
+         * @description 改账户别名（落 DB 即刻生效）。
+         *
+         *     只动 alias 一列：account_id / account_code / 平台归属不可由用户改写——
+         *     改 id 会牵连 vault 凭据与台账外键，属迁移动作，不在本端点开放（ADR-030）。
+         */
+        patch: operations["patch_account_api_v1_accounts__account_id__patch"];
+        trace?: never;
+    };
     "/api/v1/accounts/{account_id}/sessions/scan": {
         parameters: {
             query?: never;
@@ -368,6 +391,8 @@ export interface components {
             platform_code: string;
             /** Account Name */
             account_name: string;
+            /** Alias */
+            alias: string;
             /** Level */
             level: string;
             /** Signal */
@@ -380,6 +405,14 @@ export interface components {
             credentials: components["schemas"]["CredentialOut"][];
             /** Sessions */
             sessions: components["schemas"]["SessionOut"][];
+        };
+        /**
+         * AliasIn
+         * @description 别名写入：空串 = 清除别名（显示回落到连接器给的名称）。
+         */
+        AliasIn: {
+            /** Alias */
+            alias?: string | null;
         };
         /** ClaimDraftIn */
         ClaimDraftIn: {
@@ -835,6 +868,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountOut"][];
+                };
+            };
+        };
+    };
+    patch_account_api_v1_accounts__account_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AliasIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

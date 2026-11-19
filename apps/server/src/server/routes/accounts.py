@@ -44,6 +44,7 @@ class AccountOut(BaseModel):
     account_code: str  # 平台内账号序（ADR-003：target = 平台 + 账号）
     platform_code: str  # 连接器 id（号册归属，A2-01 §1）
     account_name: str  # 平台名（账号册出产）
+    alias: str  # 用户别名（ADR-030）：非空时前端优先显示，取不到真实身份的平台靠它对上号
     level: str  # AssessAccountHealth 出产的五级字面量
     signal: str  # core 出产视觉分类（ok/notice/attention/danger）
     evidence: list[str]
@@ -65,6 +66,29 @@ def _credential_out(hp: CredentialHealth) -> CredentialOut:
     )
 
 
+def _account_out(account_id: str, account: object, kit) -> AccountOut:
+    """单账户投影：健康现场评估 + 凭据/会话并账（读取端点与改名端点共用）。"""
+    health = kit.assess_account_health.execute(account_id)  # 先评估/撤销，再投影
+    creds = [hp for hp in kit.vault.health() if hp.account_id == account_id]
+    return AccountOut(
+        account_id=account_id,
+        account_code=getattr(account, "account_code", None)
+        or account_id.split(":", 1)[-1],
+        platform_code=getattr(account, "platform_code", "") or "",
+        account_name=getattr(account, "account_name", "") or account_id,
+        alias=getattr(account, "alias", "") or "",
+        level=health.level.value,
+        signal=health.level.signal,
+        evidence=list(health.evidence),
+        repair_hint=health.repair_hint,
+        credentials=[_credential_out(hp) for hp in creds],
+        sessions=[
+            SessionOut(location=s.location, kind=s.kind.value, level=s.level.value)
+            for s in (getattr(account, "sessions", None) or ())
+        ],
+    )
+
+
 # --- 端点（读 = 评估最新健康，事件变更检测保证不重复通知）---
 
 
@@ -75,30 +99,39 @@ def list_accounts(request: Request) -> list[AccountOut]:
     known: dict[str, object] = {a.id: a for a in kit.accounts.list_all()}
     for hp in kit.vault.health():
         known.setdefault(hp.account_id, None)
-    out: list[AccountOut] = []
-    for account_id in sorted(known):
-        account = known[account_id]
-        health = kit.assess_account_health.execute(account_id)  # 先评估/撤销，再投影
-        creds = [hp for hp in kit.vault.health() if hp.account_id == account_id]
-        out.append(
-            AccountOut(
-                account_id=account_id,
-                account_code=getattr(account, "account_code", None)
-                or account_id.split(":", 1)[-1],
-                platform_code=getattr(account, "platform_code", "") or "",
-                account_name=getattr(account, "account_name", "") or account_id,
-                level=health.level.value,
-                signal=health.level.signal,
-                evidence=list(health.evidence),
-                repair_hint=health.repair_hint,
-                credentials=[_credential_out(hp) for hp in creds],
-                sessions=[
-                    SessionOut(location=s.location, kind=s.kind.value, level=s.level.value)
-                    for s in (getattr(account, "sessions", None) or ())
-                ],
-            )
-        )
-    return out
+    return [_account_out(account_id, known[account_id], kit) for account_id in sorted(known)]
+
+
+# --- 别名（ADR-030）：连接器取不到真实身份时人工命名，绑定到真实账户 ---
+
+ALIAS_MAX = 40
+
+
+class AliasIn(BaseModel):
+    """别名写入：空串 = 清除别名（显示回落到连接器给的名称）。"""
+
+    alias: str | None = None
+
+
+@router.patch("/accounts/{account_id}", response_model=AccountOut)
+def patch_account(account_id: str, body: AliasIn, request: Request):
+    """改账户别名（落 DB 即刻生效）。
+
+    只动 alias 一列：account_id / account_code / 平台归属不可由用户改写——
+    改 id 会牵连 vault 凭据与台账外键，属迁移动作，不在本端点开放（ADR-030）。
+    """
+    from dataclasses import replace
+
+    kit = request.app.state.kit
+    account = kit.accounts.get(account_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail=f"账户不存在：{account_id}")
+    alias = (body.alias or "").strip()
+    if len(alias) > ALIAS_MAX:
+        raise HTTPException(status_code=400, detail=f"别名过长（≤{ALIAS_MAX}）")
+    updated = replace(account, alias=alias)
+    kit.accounts.save(updated)
+    return _account_out(account_id, updated, kit)
 
 
 # --- 会话扫描（R5-S1，ADR-013）：只读枚举 + 绑定 + 幂等入库 ---

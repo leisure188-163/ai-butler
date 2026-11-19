@@ -71,6 +71,16 @@ export function getAccounts(): Promise<AccountItem[]> {
   return request<AccountItem[]>(`${apiBase}/accounts`);
 }
 
+/** 改账户别名（ADR-030）：空串 = 清除，显示回落到连接器给的名称。
+ * account_id 含冒号（platform:code），必须 encode 后再进路径。 */
+export function setAccountAlias(accountId: string, alias: string): Promise<AccountItem> {
+  return request<AccountItem>(`${apiBase}/accounts/${encodeURIComponent(accountId)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ alias }),
+  });
+}
+
 /* ---- 平台域 ---- */
 
 export function getPlatforms(): Promise<PlatformItem[]> {

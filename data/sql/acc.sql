@@ -10,6 +10,7 @@ CREATE TABLE acc_account (
     platform_code    TEXT NOT NULL,
     account_code     TEXT NOT NULL DEFAULT 'main',
     account_name     TEXT NOT NULL,
+    alias            TEXT NOT NULL DEFAULT '',
     base_url         TEXT,
     device_ref       TEXT,
     sessions         TEXT NOT NULL DEFAULT '[]',

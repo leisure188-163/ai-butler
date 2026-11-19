@@ -26,6 +26,7 @@ const emit = defineEmits<{
   health: [target: string];
   claimMany: [targets: string[]];
   scanSessions: [accountId: string];
+  rename: [accountId: string, alias: string];
 }>();
 
 /* 派生逻辑单源：与 AccountGrouped 共用 useAccountRows（红线 2：端零映射） */
@@ -247,6 +248,7 @@ function toggleDetail(accountId: string) {
                   @claim="emit('claim', $event)"
                   @health="emit('health', $event)"
                   @scan-sessions="emit('scanSessions', $event)"
+                  @rename="(id: string, alias: string) => emit('rename', id, alias)"
                   @close="toggleDetail(account.account_id)"
                 />
               </td>

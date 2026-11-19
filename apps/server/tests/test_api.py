@@ -79,6 +79,7 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
                 "account_code": "acc1",  # 多账号维度（ADR-003）
                 "platform_code": "",  # vault-only 账号：号册无记录，如实空串
                 "account_name": "acc1",  # 缺省回落 account_id
+                "alias": "",  # ADR-030：未起别名时如实空串（显示层再用 account_name 兜底）
                 "level": "healthy",  # core 出产字面量，server 原样传递
                 "signal": "ok",  # core 出产视觉分类（端零映射）
                 "evidence": [],
@@ -91,6 +92,38 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
                 "sessions": [],  # R5-S1：名册投影带会话清单（vault-only 账号如实空）
             }
         ]
+
+
+def test_patch_account_alias(tmp_path):
+    """别名（ADR-030）：只改显示名，account_id / account_code 不变；空串清除；超长 400。"""
+    with _client(tmp_path) as client:
+        from butler_core.accounts.domain import Account
+        from butler_core.shared.time import now_utc
+
+        kit = client.app.state.kit
+        kit.accounts.save(
+            Account(
+                id="demo_cn:main",
+                platform_code="demo_cn",
+                account_name="Demo CN",
+                created_at=now_utc(),
+            )
+        )
+        out = client.patch("/api/v1/accounts/demo_cn:main", json={"alias": "主号"}).json()
+        assert out["alias"] == "主号"
+        assert out["account_id"] == "demo_cn:main"  # 编址不动：别名只是显示层
+        assert out["account_code"] == "main"
+
+        reread = next(
+            r for r in client.get("/api/v1/accounts").json() if r["account_id"] == "demo_cn:main"
+        )
+        assert reread["alias"] == "主号"  # 落库生效
+
+        cleared = client.patch("/api/v1/accounts/demo_cn:main", json={"alias": ""}).json()
+        assert cleared["alias"] == ""  # 空串 = 清除，显示回落到 account_name
+
+        assert client.patch("/api/v1/accounts/demo_cn:main", json={"alias": "x" * 41}).status_code == 400
+        assert client.patch("/api/v1/accounts/ghost:main", json={"alias": "x"}).status_code == 404
 
 
 def test_accounts_reports_revoked_credentials(tmp_path):
