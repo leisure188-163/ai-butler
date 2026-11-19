@@ -40,9 +40,21 @@ export class ApiError extends Error {
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(url, init);
-  const body = (await resp.json()) as T & { detail?: string };
-  if (!resp.ok) throw new ApiError(resp.status, body.detail);
-  return body;
+  // 代理/网关在服务不可达时常回 HTML 或空响应：先读文本再解析，避免
+  // resp.json() 的 SyntaxError 冒充业务错误。非 JSON 显式抛 ApiError（红线 5 仍 throw）
+  const text = await resp.text();
+  let body: unknown = null;
+  if (text.trim()) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new ApiError(resp.status, `非 JSON 响应：${text.slice(0, 120)}`);
+    }
+  }
+  if (!resp.ok) {
+    throw new ApiError(resp.status, (body as { detail?: string } | null)?.detail);
+  }
+  return (body ?? {}) as T;
 }
 
 function post(body?: unknown): RequestInit {

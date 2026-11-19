@@ -374,8 +374,8 @@ const slotsOpen = ref(false);
     <p v-if="connectedPlatforms.length && !filteredPlatforms.length" class="quietline">
       没有匹配的平台——换个关键字，或点「清除筛选」。
     </p>
-    <p v-if="!platforms.length && loadError" class="quietline quietline--warn">
-      平台列表读取失败：{{ loadError }}——请确认后端服务在运行（默认 127.0.0.1:8000）。
+    <p v-if="!platforms.length && loadError" class="quietline">
+      服务未连接，平台数据暂时读不到——具体原因见顶部提示。
     </p>
     <p v-else-if="!connectedPlatforms.length && platforms.length" class="quietline">
       还没有平台接入——用右上角「接入全部」或下方「尚未接入的平台」把本机客户端接进来。
