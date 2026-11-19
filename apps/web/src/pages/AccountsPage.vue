@@ -76,10 +76,48 @@ const claimableCount = computed(
 
   <section class="section">
     <div class="view-bar">
-      <span class="view-label">视图</span>
       <div class="segmented" role="group" aria-label="账户视图切换">
-        <button :class="{ on: view === 'group' }" :aria-pressed="view === 'group'" @click="view = 'group'">按平台分组</button>
-        <button :class="{ on: view === 'flat' }" :aria-pressed="view === 'flat'" @click="view = 'flat'">平铺表格</button>
+        <button
+          :class="{ on: view === 'group' }"
+          :aria-pressed="view === 'group'"
+          aria-label="按平台分组"
+          title="按平台分组"
+          @click="view = 'group'"
+        >
+          <svg
+            class="seg-icon"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <rect x="2.5" y="2.5" width="4.8" height="4.8" rx="1.2" />
+            <rect x="8.7" y="2.5" width="4.8" height="4.8" rx="1.2" />
+            <rect x="2.5" y="8.7" width="4.8" height="4.8" rx="1.2" />
+            <rect x="8.7" y="8.7" width="4.8" height="4.8" rx="1.2" />
+          </svg>
+        </button>
+        <button
+          :class="{ on: view === 'flat' }"
+          :aria-pressed="view === 'flat'"
+          aria-label="平铺表格"
+          title="平铺表格"
+          @click="view = 'flat'"
+        >
+          <svg
+            class="seg-icon"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M2.5 4.2h11M2.5 8h11M2.5 11.8h11" />
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -124,17 +162,23 @@ const claimableCount = computed(
 }
 .section { margin-top: var(--space-6); }
 .view-bar { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
-.view-label { font-size: var(--text-xs); color: var(--color-text-muted); }
+/* 图标分段切换：灰底胶囊 + 选中项浅色块（参考知识库列表的视图切换器） */
 .segmented { display: inline-flex; gap: 2px; padding: 3px; background: var(--color-surface-2); border-radius: var(--radius-sm); }
 .segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 24px;
+  padding: 0;
   border: 0;
   background: none;
   color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--text-sm);
-  padding: 4px 14px;
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius-sm) - 1px);
   cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
 }
-.segmented button.on { background: var(--color-surface); color: var(--color-text); font-weight: 600; box-shadow: var(--shadow-soft); }
+.segmented button:hover { color: var(--color-text); }
+.segmented button.on { background: var(--color-surface); color: var(--color-text); box-shadow: var(--shadow-soft); }
+.seg-icon { width: 15px; height: 15px; }
 </style>
