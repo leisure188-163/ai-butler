@@ -260,7 +260,8 @@ const slotsOpen = ref(false);
       <table class="matrix">
         <thead>
           <tr>
-            <th class="col-identity">平台</th>
+            <th class="col-identity">平台名称</th>
+            <th class="col-code">平台编码</th>
             <th class="col-kindver">类型 · 版本</th>
             <th class="col-state">状态</th>
             <th class="col-caps">能力</th>
@@ -271,18 +272,20 @@ const slotsOpen = ref(false);
         </thead>
         <tbody>
           <tr v-if="!pagedPlatforms.length">
-            <td class="table-empty" colspan="7">暂无平台数据</td>
+            <td class="table-empty" colspan="8">暂无平台数据</td>
           </tr>
           <tr v-for="platform in pagedPlatforms" :key="platform.id">
-            <!-- 身份锚点：点击名称直接弹详情，不再展开表格行 -->
+            <!-- 身份锚点：名称与编码各占一列；点名称弹详情，不再展开表格行 -->
             <td class="identity-cell">
               <button class="platform-open" :aria-label="`查看 ${platform.display} 详情`" @click="openDetail(platform)">
                 <span class="identity-name">
                   <PlatformBadge :name="platform.display" :color-index="faceOf(platform.id)" />
                   <span v-if="isCustom(platform.id)" class="tag tag--notice">自定义</span>
                 </span>
-                <span class="mono identity-code">{{ platform.id }}</span>
               </button>
+            </td>
+            <td class="col-code">
+              <span class="mono identity-code">{{ platform.id }}</span>
             </td>
             <td class="col-kindver">
               <span class="tag tag--quiet">{{ platform.kind ? kindText(platform.kind) : "—" }}</span>
@@ -379,8 +382,11 @@ const slotsOpen = ref(false);
   </section>
 </template>
 <style scoped>
-.platform-wrap .matrix { min-width: 960px; }
-.identity-cell { min-width: 176px; }
+.platform-wrap .matrix { min-width: 1040px; }
+.identity-cell { min-width: 140px; }
+/* 编码独立成列（2026-11-19 用户裁决）：等宽小字、不换行，宽度不够时省略 */
+.col-code { white-space: nowrap; }
+.col-code .identity-code { display: block; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
 .col-state { width: 96px; min-width: 96px; max-width: 96px; }
 .platform-open {
   display: flex;
