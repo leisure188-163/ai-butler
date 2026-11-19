@@ -41,20 +41,22 @@ const { visible, text, tone } = useToast();
   gap: var(--space-2);
   max-width: min(560px, 78vw);
   padding: var(--space-3) var(--space-4);
-  background: var(--color-surface);
+  /* 底色走主题的弱色档（ok-weak），与页面同一色系；不再用纯纸白 + 粗绿边——
+     那套白底深绿在暖纸/晨雾/青岚里都显得像外来控件（2026-11-19 用户反馈）。 */
+  background: var(--color-ok-weak);
   border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-ok);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   font-size: var(--text-sm);
   pointer-events: auto;
+  backdrop-filter: blur(3px);
 }
 .toast--warn {
-  border-left-color: var(--color-attention);
+  background: var(--color-attention-weak);
 }
 .toast-mark {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: var(--radius-chip);
   background: var(--color-ok);
   flex: none;
@@ -63,9 +65,12 @@ const { visible, text, tone } = useToast();
   background: var(--color-attention);
 }
 .toast-text {
-  color: var(--color-text);
+  color: var(--color-ok-ink);
   line-height: 1.5;
   word-break: break-word;
+}
+.toast--warn .toast-text {
+  color: var(--color-attention-ink);
 }
 .toast-enter-active,
 .toast-leave-active {
