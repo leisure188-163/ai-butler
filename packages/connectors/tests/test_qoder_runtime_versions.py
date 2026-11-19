@@ -10,9 +10,17 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 from butler_connectors import qoder_runtime as qr
 
 from butler_connectors.manifest import AuthSpec
+
+
+@pytest.fixture(autouse=True)
+def _win_umid_shape(monkeypatch):
+    """平台无关：本文件造的是 Windows 束形状，固定按 win 相对路径解析。"""
+    monkeypatch.setattr(qr, "_umid_rel", lambda: qr.UMID_REL_WIN)
 
 
 def _touch_umid(root: Path, version: str | None = None) -> Path:

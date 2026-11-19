@@ -14,7 +14,8 @@ from butler_connectors import app_version, qoder_runtime
 
 _PROBES: dict[str, Callable[[], str]] = {
     # Qoder 空壳安装根 + .qoder-versions 多版本并存：探针取最新版本目录的 productVersion
-    "qoder_cn": qoder_runtime.installed_version,
+    # （lambda 延迟解析：测试/运行期替换 qoder_runtime.installed_version 才能生效）
+    "qoder_cn": lambda: qoder_runtime.installed_version(),
     # Trae CN（VS Code 家族 Electron）：卸载注册表 DisplayName「TRAE CN (User)」的
     # DisplayVersion（本机 3.4.20 实测）；mac 兜 Info.plist。
     "trae_cn": lambda: app_version.display_version(

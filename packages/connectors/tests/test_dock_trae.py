@@ -41,6 +41,9 @@ class MemAccounts(AccountRepository):
     def list_all(self):
         return list(self.rows.values())
 
+    def remove(self, account_id):
+        return self.rows.pop(account_id, None) is not None
+
 
 @pytest.fixture
 def storage_file(tmp_path):
