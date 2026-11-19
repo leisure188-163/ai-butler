@@ -44,16 +44,19 @@ packages/connectors/（三级扩展：声明式 YAML / Python / 独立进程）
 ```bash
 cp .env.example .env
 uv sync && pnpm install
-uv run uvicorn server.main:app --reload     # server
+bash scripts/start-server.sh --reload        # server（mac/Linux 首选：固化项目内 BUTLER_DB）
+uv run uvicorn server.main:app --reload     # server（备用；未设 BUTLER_DB 会回落平台默认根 → 空库）
 uv run butler cards list                     # CLI
 pnpm dev:web                                # Web
 cd apps/desktop && npm i && WEB_URL=http://localhost:5173 npm start   # Electron 壳
 ```
 
-> Windows 本机若遇 sqlite `disk I/O error`（home 目录伴生文件被文件虚拟化层
-> 拦截的机器）：请改用 `scripts\start-server.ps1` / `scripts\start-gateway.ps1`
-> 启动——两脚本固化同一 `BUTLER_DB`（项目内 `data\database\`，网关与主控必须
-> 同库），见 `docs/conventions/00-项目配置.md` `{data-root}`。
+> **数据根全平台统一**（2026-11-19 用户裁决）：唯一运行库 =
+> `<repo>/data/database/butler.db`。启动一律走 `scripts/start-server.sh`
+> （mac/Linux）或 `scripts\start-server.ps1`（Windows）——两脚本固化同一
+> `BUTLER_DB`（网关与主控必须同库），平台默认根（`~/Library/Application
+> Support/butler`、`%APPDATA%\butler`）不再作运行库。见
+> `docs/conventions/00-项目配置.md` `{data-root}`。
 
 架构自检（八项门禁，必须全绿）：
 
