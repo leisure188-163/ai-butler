@@ -444,13 +444,16 @@ def test_patch_provider_只改连接事实_用户源可改(tmp_path):
         out = client.patch(
             "/api/v1/platforms/my_relay",
             json={"base_url": "https://relay2.example.com/v1",
-                  "protocol": "anthropic", "models": ["claude-sonnet"]},
+                  "models": ["gpt-4o-mini", "gpt-4o"]},
         )
         assert out.status_code == 200, out.text
         row = out.json()
         assert row["base_url"] == "https://relay2.example.com/v1"
-        assert row["protocol"] == "anthropic"
-        assert row["models"] == ["claude-sonnet"]
+        assert row["protocol"] == "openai"
+        assert row["models"] == ["gpt-4o-mini", "gpt-4o"]
+        # 海外协议已下线：PATCH 显式拒绝
+        bad = client.patch("/api/v1/platforms/my_relay", json={"protocol": "anthropic"})
+        assert bad.status_code == 400
         # 用户接入源不能把名字清空（没有 manifest 默认名可回落）
         assert client.patch("/api/v1/platforms/my_relay", json={"platform_name": ""}).status_code == 400
 

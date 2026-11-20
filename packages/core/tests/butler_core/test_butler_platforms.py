@@ -166,16 +166,16 @@ def test_update_provider_只改用户接入源() -> None:
     uc = UpdateProvider(platforms=repo)
 
     updated = uc.execute("my_relay", base_url="https://relay2.example.com/v1",
-                         protocol="anthropic", models=("claude-sonnet",))
+                         models=("gpt-4o",))
     assert updated.base_url == "https://relay2.example.com/v1"
-    assert updated.protocol == "anthropic"
-    assert updated.models == ("claude-sonnet",)
+    assert updated.protocol == "openai"  # 上游协议仅 OpenAI 兼容，未被改动
+    assert updated.models == ("gpt-4o",)
 
     with pytest.raises(PlatformInvalid):
         uc.execute("doubao_cn", base_url="https://evil.example.com")  # manifest 申报，不许改
     with pytest.raises(PlatformInvalid):
         uc.execute("my_relay", base_url="ftp://relay.example.com")
     with pytest.raises(PlatformInvalid):
-        uc.execute("my_relay", protocol="unknown")
+        uc.execute("my_relay", protocol="anthropic")  # 海外协议不在范围
     with pytest.raises(PlatformInvalid):
         uc.execute("ghost", platform_name="x")

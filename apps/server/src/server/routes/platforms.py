@@ -17,7 +17,7 @@ class PlatformOut(BaseModel):
     kind: str  # 平台类型：web/client/relay/local/api（ADR-033；"" = 未申报）
     origin: str  # connector=连接器同步 / user=用户手建接入源
     base_url: str  # 接入源基址（connector 平台为空）
-    protocol: str  # openai/anthropic/gemini（connector 平台为空）
+    protocol: str  # openai（海外协议不接入；connector 平台为空）
     models: list[str]  # 接入源声明可用模型
     client_version: str  # 本机客户端版本（"" = 探不到/不适用）
     icon: str  # 平台图标（2026-11-19）：96px PNG 的 data URI；"" = 无图标（前端回落色点）
@@ -148,7 +148,7 @@ class ProviderIn(BaseModel):
     platform_name: str
     kind: str  # relay=OpenAI 兼容中转 / local=本地模型 / api=官方 API
     base_url: str
-    protocol: str  # openai / anthropic / gemini
+    protocol: str  # openai（只做国内可用/本地 OpenAI 兼容）
     models: list[str] = []
     credential_kinds: list[str] = []
 
@@ -303,7 +303,7 @@ class PlatformPatchIn(BaseModel):
     times: list[str] | None = None  # 调度执行时间
     icon: str | None = None  # 平台图标（png data URI，空串 = 清空）
     base_url: str | None = None  # 接入源基址（仅 origin=user 可改，ADR-033）
-    protocol: str | None = None  # openai/anthropic/gemini（仅 origin=user）
+    protocol: str | None = None  # openai（仅 origin=user）
     models: list[str] | None = None  # 接入源声明模型（仅 origin=user）
 
 
@@ -377,12 +377,17 @@ def patch_platform(platform_code: str, body: PlatformPatchIn, request: Request):
         platform_code, platform_name=new_name, is_active=active, icon=new_icon
     )
     if connection_fields:
-        updated = kit.update_provider.execute(
-            platform_code,
-            base_url=body.base_url.strip() if body.base_url is not None else None,
-            protocol=body.protocol.strip() if body.protocol is not None else None,
-            models=tuple(m.strip() for m in body.models) if body.models is not None else None,
-        )
+        from butler_core.platforms.domain import PlatformInvalid
+
+        try:
+            updated = kit.update_provider.execute(
+                platform_code,
+                base_url=body.base_url.strip() if body.base_url is not None else None,
+                protocol=body.protocol.strip() if body.protocol is not None else None,
+                models=tuple(m.strip() for m in body.models) if body.models is not None else None,
+            )
+        except PlatformInvalid as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
     if "times" in fields:

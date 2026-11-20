@@ -339,11 +339,10 @@ def test_update_profile_可改接入源连接事实(tmp_path) -> None:
     updated = repo.update_profile(
         "my_relay",
         base_url="https://relay2.example.com/v1",
-        protocol="anthropic",
-        models=("claude-sonnet",),
+        models=("gpt-4o",),
     )
     assert updated is not None
     assert updated.base_url == "https://relay2.example.com/v1"
-    assert updated.protocol == "anthropic"
-    assert updated.models == ("claude-sonnet",)
+    assert updated.protocol == "openai"
+    assert updated.models == ("gpt-4o",)
     assert updated.platform_name == "我的中转"  # 未传 = 不动

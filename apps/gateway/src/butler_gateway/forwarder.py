@@ -160,7 +160,7 @@ class Forwarder:
             return self._skipped(account_id, "skipped:account_missing", started)
         adapter = upstream_for(account.platform_code)
         if adapter is None:
-            adapter, skipped = await self._provider_adapter(account, started)
+            adapter, skipped = await self._provider_adapter(account, protocol, started)
             if skipped is not None:
                 return skipped
         if adapter is None:  # 静态/动态都取不到（防御；不会静默转成成功）
@@ -220,7 +220,7 @@ class Forwarder:
     # ── 动态接入源解析（ADR-033）──
 
     async def _provider_adapter(
-        self, account: Account, started: float
+        self, account: Account, protocol: str, started: float
     ) -> tuple[AppUpstream | None, AttemptRecord | None]:
         """静态适配器缺失时，按平台册解析用户接入源；不可用如实 skipped。"""
         if self.platforms is None:
@@ -232,12 +232,19 @@ class Forwarder:
             return None, self._skipped(
                 account.id, f"skipped:provider_deprecated:{platform.platform_code}", started
             )
-        if platform.protocol not in ("openai", "anthropic"):
+        if platform.protocol != "openai":
             return None, self._skipped(
                 account.id,
                 f"skipped:provider_protocol_unsupported:{platform.protocol}",
                 started,
-                detail="gemini 接入源暂未开工（ADR-033：协议互译后续阶段）",
+                detail="接入源只支持 OpenAI 兼容协议；海外协议不在范围（2026-11-20 裁决）",
+            )
+        if platform.protocol != protocol:
+            return None, self._skipped(
+                account.id,
+                f"skipped:provider_protocol_mismatch:{platform.protocol}->{protocol}",
+                started,
+                detail="接入源只接同协议请求；跨协议互译未开工（ADR-033）",
             )
         credential_kind = platform.credential_kinds[0] if platform.credential_kinds else "api_key"
         if credential_kind not in ("api_key", "token"):

@@ -50,22 +50,15 @@ def test_provider_url_拼接与完整路径() -> None:
     assert provider_url("https://relay.example.com/v1/chat/completions", "openai") == (
         "https://relay.example.com/v1/chat/completions"
     )
-    assert provider_url("https://api.anthropic.com/", "anthropic") == (
-        "https://api.anthropic.com/v1/messages"
-    )
-    assert provider_url("https://proxy.example.com/v1/messages", "anthropic") == (
-        "https://proxy.example.com/v1/messages"
-    )
     with pytest.raises(ValueError, match="不支持的接入源协议"):
-        provider_url("https://x.example.com", "gemini")
+        provider_url("https://x.example.com", "anthropic")
 
 
-def test_provider_headers_按协议() -> None:
+def test_provider_headers_openai_bearer() -> None:
     assert provider_headers("openai", Secret("sk-1")) == {"Authorization": "Bearer sk-1"}
-    headers = provider_headers("anthropic", Secret("ak-1"))
-    assert headers["x-api-key"] == "ak-1"
-    assert headers["anthropic-version"] == "2023-06-01"
-    assert supported_protocols() == ("openai", "anthropic")
+    assert supported_protocols() == ("openai",)
+    with pytest.raises(ValueError, match="不支持的接入源协议"):
+        provider_headers("gemini", Secret("sk-1"))
 
 
 def _client(handler) -> httpx.AsyncClient:
@@ -99,32 +92,6 @@ def test_openai_直通_地址鉴权与响应原话() -> None:
     assert seen["url"] == "https://relay.example.com/v1/chat/completions"
     assert seen["auth"] == "Bearer sk-1"
     assert '"model":"gpt-4o-mini"' in seen["body"].replace(" ", "")
-
-
-def test_anthropic_直通_用x_api_key与messages路径() -> None:
-    seen: dict = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen["url"] = str(request.url)
-        seen["key"] = request.headers.get("x-api-key")
-        return httpx.Response(200, json={"content": [], "usage": {"input_tokens": 1, "output_tokens": 2}})
-
-    async def scenario():
-        client = _client(handler)
-        try:
-            return await ProviderUpstream(
-                _provider(platform_code="my_anthropic", protocol="anthropic",
-                          base_url="https://api.anthropic.com"),
-                client,
-            ).forward("my_anthropic:key1", Secret("ak-1"),
-                      UpstreamCall(payload={"model": "claude"}, model="claude", protocol="anthropic"))
-        finally:
-            await client.aclose()
-
-    reply = asyncio.run(scenario())
-    assert reply.status == 200
-    assert seen["url"] == "https://api.anthropic.com/v1/messages"
-    assert seen["key"] == "ak-1"
 
 
 def test_上游401原样回传由forwarder失效凭据() -> None:
@@ -273,10 +240,9 @@ def test_forwarder_用户接入源同协议直通() -> None:
     assert pool.kinds == ["api_key"]  # 用接入源申报的第一种凭据
 
 
-def test_forwarder_协议不匹配与gemini显式跳过() -> None:
+def test_forwarder_协议不匹配与凭据类型显式跳过() -> None:
     for entry, protocol, reason in (
-        (_provider(platform_code="my_gemini", protocol="gemini"), "openai",
-         "provider_protocol_unsupported"),
+        (_provider(), "anthropic", "provider_protocol_mismatch"),
         (_provider(platform_code="my_cookie", credential_kinds=("cookie",)), "openai",
          "provider_credential_unsupported"),
     ):

@@ -30,8 +30,8 @@ PLATFORM_KINDS = ("web", "client", "relay", "local", "api")
 #: 接入源来源：connector=连接器 manifest 同步 / user=用户手建（不参与退役同步）。
 PLATFORM_ORIGINS = ("connector", "user")
 
-#: 上游协议（网关阶段消费；本阶段只做声明与展示）。
-PROTOCOLS = ("openai", "anthropic", "gemini")
+#: 上游协议（网关阶段消费；2026-11-20 用户裁决：海外模型不接入，只保留 OpenAI 兼容）。
+PROTOCOLS = ("openai",)
 
 #: 调度时间格式（分钟粒度）
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")

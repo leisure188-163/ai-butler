@@ -28,7 +28,7 @@
   `deprecate_missing` 只标记 `origin='connector'` 且编码不在 facts 里的行，
   用户手建的 relay/local/api 行永不被同步误标 deprecated
 - **不变量 5（ADR-033）**：用户接入源必须三件套齐备（`platform_kind` ∈ relay/local/api、
-  `base_url` http(s)、`protocol` ∈ openai/anthropic/gemini），域内构造即校验；
+  `base_url` http(s)、`protocol` ∈ openai），域内构造即校验；
   `capabilities`/`schedule_times` 为空（无连接器 = 不产生动作与排班）
 
 | 列 | 类型 | 语义 |
@@ -44,7 +44,7 @@
 | `schedule_override` | TEXT | 用户覆盖的调度执行时间：`''`=跟随 manifest，JSON 数组=覆盖（`[]`=不排班）；manifest 同步只更新事实列、**不覆盖本列** |
 | `is_active` | INTEGER DEFAULT 1 | 用户开关（非数据库关键字，ADR-019） |
 | `base_url` | TEXT NOT NULL DEFAULT '' | 接入源基址（仅 origin=user 有意义；连接器平台 = ''，ADR-033） |
-| `protocol` | TEXT NOT NULL DEFAULT '' | 上游协议（`PROTOCOLS`: openai/anthropic/gemini；仅 origin=user，ADR-033） |
+| `protocol` | TEXT NOT NULL DEFAULT '' | 上游协议（`PROTOCOLS`: openai；海外协议不接入，2026-11-20 裁决；仅 origin=user，ADR-033） |
 | `models_json` | TEXT JSON DEFAULT '[]' | 接入源声明可用模型（仅 origin=user，ADR-033） |
 | `origin` | TEXT NOT NULL DEFAULT 'connector' | `connector`=manifest 同步 / `user`=用户手建（ADR-033） |
 | `deprecated_at` | TEXT | manifest 缺失即落（不删行；用户接入源不受影响） |

@@ -50,14 +50,11 @@ Run = id / action / account_id / idempotency_key / started_at / budget
   `upstream.register_upstream` 注册）；未注册时回落平台册 `origin=user` 的接入源。
 - 接入源适配器 `provider_upstream.ProviderUpstream`：连接事实全部读平台册
   （`base_url/protocol/credential_kinds`），不复制配置；密钥走 vault 默认槽现取；
-  `provider_url` 按协议拼端点（已带 `/chat/completions` 或 `/messages` 则原样使用）。
-- 协议互译（`protocol_translate.py`）：OpenAI ↔ Anthropic 双向支持文本、system、
-  工具调用/结果、`max_tokens`、temperature/top_p/stop、tool_choice、usage 与
-  stop_reason；同协议直通不复制。图片/多模态、`n>1`、`top_k`、`thinking`、
-  `response_format` 等无法无损映射的字段显式抛 `TranslationError`，由上游适配器
-  按客户端协议回 400（请求形状问题）或 502（上游响应形状问题），不静默丢弃语义。
-- `gemini` 未开工：forwarder 记 `skipped:provider_protocol_unsupported`，不猜形状。
-- 凭据只支持 `api_key`/`token`（Bearer；anthropic 用 `x-api-key`）；
+  `provider_url` 拼 `/v1/chat/completions`（已带完整路径则原样使用）。
+- 只接 **OpenAI 兼容**（2026-11-20 裁决：海外模型/协议不接入，当前也无法连外网）：
+  `protocol` 词表仅 `openai`；非 `openai` 的存量接入源或跨协议请求记
+  `skipped:provider_protocol_unsupported` / `skipped:provider_protocol_mismatch`，不猜形状。
+- 凭据只支持 `api_key`/`token`（Bearer）；
   其他 kind 记 `skipped:provider_credential_unsupported`，不拿 cookie 冒充 Bearer。
 - 上游 4xx/5xx 仍以 `UpstreamReply` 原样回传，沿用既有转移规则（401/403 失效凭据、
   429/5xx 转下一候选）；connect/timeout 抛 `UpstreamFailure`。

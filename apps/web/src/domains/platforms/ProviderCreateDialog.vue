@@ -18,7 +18,6 @@ const code = ref("");
 const name = ref("");
 const kind = ref("relay");
 const baseUrl = ref("");
-const protocol = ref("openai");
 const models = ref("");
 const credentialKinds = ref("api_key");
 
@@ -27,8 +26,7 @@ const canSubmit = computed(
     !props.busy &&
     code.value.trim() !== "" &&
     name.value.trim() !== "" &&
-    baseUrl.value.trim() !== "" &&
-    protocol.value.trim() !== "",
+    baseUrl.value.trim() !== "",
 );
 
 function splitList(raw: string): string[] {
@@ -42,7 +40,7 @@ function submit(): void {
     platform_name: name.value.trim(),
     kind: kind.value,
     base_url: baseUrl.value.trim(),
-    protocol: protocol.value,
+    protocol: "openai",
     models: splitList(models.value),
     credential_kinds: splitList(credentialKinds.value),
   });
@@ -52,7 +50,7 @@ function submit(): void {
 <template>
   <ModalShell
     title="新建接入源"
-    subtitle="中转站 / 本地模型 / 官方 API：填地址与协议即可，账号与密钥在账户页绑定。"
+    subtitle="中转站 / 本地模型 / 国内 API：OpenAI 兼容地址填好，账号与密钥在账户页绑定。"
     :busy="busy"
     @close="emit('close')"
   >
@@ -71,14 +69,6 @@ function submit(): void {
           <option value="relay">中转（OpenAI 兼容）</option>
           <option value="local">本地模型</option>
           <option value="api">官方 API</option>
-        </select>
-      </label>
-      <label class="field">
-        <span class="field__label">上游协议</span>
-        <select v-model="protocol" class="input">
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="gemini">Gemini（互译未开工，暂不可转发）</option>
         </select>
       </label>
       <label class="field field--wide">
