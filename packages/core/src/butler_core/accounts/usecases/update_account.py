@@ -1,15 +1,20 @@
-"""账户编辑用例（ADR-033 裁决 1/5）：只改显示/运营字段，永不改编址。
+"""账户编辑用例（ADR-035）：显示/运营字段 + 人工后缀。
 
-可改：alias / account_name / is_active / base_url / identity。
-不可改：account_id / account_code / platform_code / origin（编址与来源是事实，
-        改它属于迁移动作，不提供入口）。
+可改：alias / account_name / account_code / is_active / base_url / identity。
+不可改：account_id / platform_code / origin（主键与来源是事实，改它属于迁移动作）。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from butler_core.accounts.domain import Account, AccountIdentity, AccountInvalid
+from butler_core.accounts.domain import (
+    Account,
+    AccountAlreadyExists,
+    AccountIdentity,
+    AccountInvalid,
+    validate_account_code,
+)
 from butler_core.accounts.ports import AccountRepository
 
 
@@ -23,6 +28,7 @@ class UpdateAccount:
         *,
         alias: str | None = None,
         account_name: str | None = None,
+        account_code: str | None = None,
         is_active: bool | None = None,
         base_url: str | None = None,
         identity: AccountIdentity | None = None,
@@ -38,6 +44,15 @@ class UpdateAccount:
             if not name:
                 raise AccountInvalid("account_name 不能改为空")
             changes["account_name"] = name
+        if account_code is not None:
+            code = validate_account_code(account_code)
+            if code:
+                for row in self.accounts.list_by_platform(account.platform_code):
+                    if row.id != account_id and row.account_code == code:
+                        raise AccountAlreadyExists(
+                            f"account_code={code!r} 已被账户 {row.id!r} 占用"
+                        )
+            changes["account_code"] = code
         if is_active is not None:
             changes["is_active"] = is_active
         if base_url is not None:

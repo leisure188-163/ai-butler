@@ -18,12 +18,15 @@ from butler_core.shared.errors import DomainError
 from butler_core.shared.health_level import HealthLevel, credential_level
 from butler_core.shared.time import now_utc
 
-DEFAULT_ACCOUNT_CODE = "main"
+DEFAULT_ACCOUNT_CODE = "main"  # 仅存量/兼容编址用；新账户不再自动生成 code
 DEFAULT_CREDENTIAL_SLOT = "default"
 EXPIRING_WINDOW_DAYS = 3  # CREDENTIAL_EXPIRING 预警窗（旧值不变，A2-07 §2）
 
 #: 账户来源（ADR-033）：connector=连接器扫描导入 / manual=用户在账户页手建。
 ACCOUNT_ORIGINS = ("connector", "manual")
+
+#: 人工后缀（ADR-035）：可空；非空时不含空白与冒号，长度 ≤32。
+_CODE_PATTERN = re.compile(r"^[^\s:]{1,32}$")
 
 #: 凭据槽位形状（ADR-033）：槽位进后端引用，禁止分隔符与空白。
 _SLOT_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,24}$")
@@ -44,6 +47,20 @@ class AccountConflict(AccountInvalid):
 
 class EmptySecret(DomainError):
     """空明文入库 = 拒绝执行（红线 5）。"""
+
+
+def validate_account_code(account_code: str) -> str:
+    """人工后缀校验（ADR-035）：空 = 尚未关联登录账户；非空才要求合法短标识。"""
+
+    code = account_code.strip()
+    if not code:
+        return ""
+    if not _CODE_PATTERN.match(code):
+        raise AccountInvalid(
+            f"account_code {code!r} 非法（人工后缀不能含空白或冒号，≤32 位；"
+            "空串表示尚未关联）"
+        )
+    return code
 
 
 def account_identity(platform: str, account_code: str = DEFAULT_ACCOUNT_CODE) -> str:
@@ -74,7 +91,7 @@ class Platform:
 class AccountIdentity:
     """账户的真实身份（ADR-033）：只做显示与匹配，**不参与编址**。
 
-    source_key 是连接器侧稳定身份键（抖音 sec_uid / Qoder user.id / Trae device 号）；
+    source_key 是连接器侧稳定身份键（抖音 sec_uid / Qoder user.id / Trae userId）；
     取不到时留空 = 如实未知，禁止用昵称兜底匹配。"""
 
     nickname: str = ""
@@ -187,14 +204,15 @@ class Account:
 
     account_id（ADR-034）：不透明、不可变的账户指针（新账户 ``acc_<8hex>``）；
     展示/匹配走 account_name/alias/identity，**不再从平台或昵称推导 id**。
-    存量 ``{platform}:{code}`` 仅作为历史主键保留，仍可按旧形状反推 code。
+    account_code（ADR-035）：人工维护的短后缀，可空；同步账户不生成，等用户
+    后续关联登录账户时再补。存量 ``{platform}:{code}`` 仅作为历史主键保留。
     """
 
     id: str
     platform_code: str
     account_name: str
     created_at: datetime
-    account_code: str = DEFAULT_ACCOUNT_CODE
+    account_code: str = ""
     credentials: tuple[Credential, ...] = ()
     entitlement: Entitlement | None = None
     sessions: tuple[Session, ...] = ()
@@ -231,6 +249,10 @@ class Account:
         for cred in self.credentials:
             if cred.account_id != self.id:
                 raise AccountInvalid("凭据必须绑定本平台账户，禁止跨平台共享")
+        if self.account_code:
+            object.__setattr__(
+                self, "account_code", validate_account_code(self.account_code)
+            )
 
     @property
     def address(self) -> tuple[str, str]:
@@ -240,10 +262,10 @@ class Account:
 
 
 def account_label(account: Account) -> str:
-    """账户显示标签（ADR-033 裁决 2，core 单源，不落库）。
+    """账户显示标签（ADR-035）：只显示账户自身信息，不拼平台名。
 
-    优先级：alias > identity.nickname > account_name 的「平台名 · 」后缀
-    > account_name > account_code。前端与端侧只消费本函数结果。
+    优先级：alias > identity.nickname > account_name > account_code > account_id。
+    account_type/平台名由列表分组展示，不进账户名。
     """
 
     if account.alias.strip():
@@ -251,11 +273,9 @@ def account_label(account: Account) -> str:
     if account.identity.nickname.strip():
         return account.identity.nickname.strip()
     name = account.account_name.strip()
-    if "·" in name:
-        tail = name.rsplit("·", 1)[1].strip()
-        if tail:
-            return tail
-    return name or account.account_code
+    if name:
+        return name
+    return account.account_code.strip() or account.id
 
 
 @dataclass(frozen=True)
@@ -357,5 +377,5 @@ class AccountDraft:
 
     platform: str
     account_name: str
-    account_code: str = DEFAULT_ACCOUNT_CODE
+    account_code: str = ""
     credentials: tuple[Credential, ...] = field(default_factory=tuple)

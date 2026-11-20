@@ -1,6 +1,6 @@
 ---
 name: adr-006-workbuddy-encrypted-credentials
-description: workbuddy 接入形状 = 端口实现 + 加密凭据解密链（native_helper 通用原语 + helper.js 契约搬运，2026-11-18 扩展 expect=field 解任意信封字段）；范围收敛为签到最小集（修订 A0-01/A2-02"全链路"字面）；凭据现用现取零 vault；dock = 体检 + 本地只读身份解密（ADR-025 扩展）。TRIGGER when 实现 workbuddy/评估加密凭据类连接器/裁决连接器首期范围时
+description: workbuddy 接入形状 = 端口实现 + 加密凭据解密链（native_helper 通用原语 + helper.js 契约搬运，2026-11-18 扩展 expect=field 解任意信封字段）；范围收敛为签到最小集（修订 A0-01/A2-02"全链路"字面）；凭据现用现取零 vault；dock = 体检 + 本地只读身份解密（ADR-034（原 ADR-025）扩展）。TRIGGER when 实现 workbuddy/评估加密凭据类连接器/裁决连接器首期范围时
 version: "1.1.0"
 level: must
 ---
@@ -43,7 +43,7 @@ AES-256-GCM + keyId 校验，2026-11-11 核实）——明文直读不可行，�
    `workbuddy_cn/helper.js` 自旧仓库 helper_js.py **原样搬运禁改**——
    JS/编排形状是协议契约不是代码搬运（与 trae SS_AES 常量、doubao 点击
    编排同性质），AES-GCM 细节在客户端 binding 里，重写即偏离实测契约。
-   **修订（2026-11-18，ADR-025 扩展）**：helper.js 增加可选
+   **修订（2026-11-18，ADR-034（原 ADR-025）扩展）**：helper.js 增加可选
    `expect:"field"` 分支——跳过明文 token 字符集校验，用于解任意信封字段
    （account.nickname）；缺省路径（无 expect）行为与旧契约逐字节一致，
    reply 形状 `{version,ok,accessToken}` 不变。Python 侧新增通用
@@ -59,9 +59,9 @@ AES-256-GCM + keyId 校验，2026-11-11 核实）——明文直读不可行，�
    不拉起客户端：解密用 `ELECTRON_RUN_AS_NODE` 离屏执行，**不需要客户端
    运行中**；登录是扫码/手机号交互行为，拉起也完不成闭环。缺凭据 →
    导入指引「打开 WorkBuddy 客户端登录」。
-   **修订（2026-11-18，ADR-025 扩展）**：体检四项之后追加一项**本地只读
+   **修订（2026-11-18，ADR-034（原 ADR-025）扩展）**：体检四项之后追加一项**本地只读
    身份解密**——解 `account.nickname` 信封得实际昵称作 account_code
-   （ADR-025 扩展到 workbuddy）；仍零网络零写零拉起，昵称解密失败不阻塞
+   （ADR-034（原 ADR-025）扩展到 workbuddy）；仍零网络零写零拉起，昵称解密失败不阻塞
    dock（默认 main 编址登记 + 如实记 note）。真机 mac 实测端到端通
    （2026-11-18，import → `workbuddy_cn:大海`，claim ALREADY）。
 5. **结果语义**：401→EXPIRED / 403→NO_AUTH（**不判登录过期**，旧仓库

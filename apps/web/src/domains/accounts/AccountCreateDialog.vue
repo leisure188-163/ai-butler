@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * 手建账户弹层（ADR-033）：API 型接入源、连接器没扫到的小号都从这里进。
+ * 手建账户弹层（ADR-035）：API 型接入源、连接器没扫到的小号都从这里进。
  *
- * 只收表单并直传契约（AccountCreateIn）；编码冻结、平台存在性、凭据槽位形状
+ * 只收表单并直传契约（AccountCreateIn）；人工后缀可空、平台存在性、凭据槽位形状
  * 全由 server/core 判定，端不做业务校验（红线 2）。
  */
 import { computed, ref, watch } from "vue";
@@ -66,7 +66,7 @@ function submit(): void {
 <template>
   <ModalShell
     title="新建账户"
-    subtitle="账户编码创建后冻结；之后改昵称/别名只影响显示，不影响凭据与台账。"
+    subtitle="账户名只显示账户本身；后缀可留空，等关联登录账户时再填。"
     :busy="busy"
     @close="emit('close')"
   >
@@ -88,8 +88,8 @@ function submit(): void {
         <input v-model="alias" class="input" type="text" maxlength="40" placeholder="盖掉连接器泛名" />
       </label>
       <label class="field">
-        <span class="field__label">账户编码（可选）</span>
-        <input v-model="code" class="input mono" type="text" placeholder="缺省 acc_xxxxxxxx（冻结）" />
+        <span class="field__label">账户后缀（人工，可选）</span>
+        <input v-model="code" class="input mono" type="text" placeholder="留空 = 尚未关联登录账户" />
       </label>
       <label class="field field--wide">
         <span class="field__label">账户级接入地址（可选）</span>

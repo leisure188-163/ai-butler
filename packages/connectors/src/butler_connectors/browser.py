@@ -84,12 +84,13 @@ def capture_cookies(
 
     accounts: list[str] = []
     for item in captured:
-        display = (
-            platform.display
-            if item.account_code == "main"
-            else f"{platform.display}（{item.profile_dir}）"
+        # 账户显示只取本机 profile 名，不拼平台名（ADR-035）。
+        display = item.profile_dir or "未命名账户"
+        account = ctx.register.execute(
+            platform.manifest.id,
+            display,
+            device_ref=item.profile_dir,
         )
-        account = ctx.register.execute(platform.manifest.id, display, account_code=item.account_code)
         _store_credentials(
             ctx, account.id, {"browser_cookie": item.envelope}, kinds, auth.kind,
             main_cookie_names=tuple(auth.cookies),

@@ -66,7 +66,7 @@ class Action:
     kind: ActionKind
     target: str
     params: Mapping[str, str] = field(default_factory=dict)
-    account_code: str = "main"
+    account_code: str = ""  # 人工后缀；空 = 同步账户尚未关联
 
     def __post_init__(self) -> None:
         if not self.target.strip():

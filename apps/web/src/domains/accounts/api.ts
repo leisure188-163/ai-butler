@@ -24,7 +24,7 @@ export type AccountIdentityPayload = {
   source_key?: string;
 };
 
-/** 手建账户：account_code 缺省由服务端生成并冻结；首份凭据可同请求写入。 */
+/** 手建账户：account_code 是可空人工后缀，不自动生成；首份凭据可同请求写入。 */
 export type AccountCreatePayload = {
   platform_code: string;
   account_code?: string;
@@ -39,10 +39,11 @@ export type AccountCreatePayload = {
   expires_at?: string | null;
 };
 
-/** 账户编辑：只改显示/运营字段；account_id/account_code 永不改。 */
+/** 账户编辑：显示/运营字段 + 人工后缀；account_id 永不改。 */
 export type AccountPatch = {
   alias?: string;
   account_name?: string;
+  account_code?: string;
   active?: boolean;
   base_url?: string;
   identity?: AccountIdentityPayload;

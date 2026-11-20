@@ -52,7 +52,7 @@ def test_provider_创建后账户可绑定(tmp_path):
             json={
                 "platform_code": "my_relay",
                 "account_code": "key1",
-                "account_name": "我的中转 · 主 key",
+                "account_name": "主 key",
                 "kind": "api_key",
                 "secret": "sk-1",
                 "label": "主 key",
@@ -63,7 +63,7 @@ def test_provider_创建后账户可绑定(tmp_path):
         assert row["account_id"].startswith("acc_")  # 不透明主键，不再由平台/编码拼接
         assert row["account_code"] == "key1"
         assert row["origin"] == "manual"
-        assert row["account_label"] == "主 key"  # 「平台名 · 后缀」自动去掉平台名
+        assert row["account_label"] == "主 key"  # 只显示账户自身，不拼平台名
         assert row["credentials"][0]["slot"] == "default"
         assert row["credentials"][0]["label"] == "主 key"
 

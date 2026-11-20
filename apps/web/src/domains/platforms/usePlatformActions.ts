@@ -156,7 +156,7 @@ export function usePlatformActions({
      2026-11-20 修复：原来调 import-all 默认只接「零账户」的平台，于是名册里平台都已有
      账户时 results 为空 → 提示「本机客户端账户均已接入」，而实际上一个平台都没扫，
      多账号客户端（豆包双账号）漏接的账号也永远补不上。改为 include_docked=true 全量
-     重扫（dock/注册均按 (platform, account_code) 幂等，只补新增、不动既有），
+     重扫（dock/注册按 source_key 认回、无 source_key 时按本机 device_ref 幂等，只补新增、不动既有），
      文案只报事实：名册数、扫到账户数、未发现登录态、异常。 */
   async function resyncPlatforms() {
     busyTarget.value = "resync";

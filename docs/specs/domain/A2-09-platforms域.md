@@ -15,7 +15,7 @@
 
 ## 2. 实体与不变量
 
-### 2.1 plat_platform 表（ADR-021/022）
+### 2.1 plat_platform 表（ADR-018/022）
 
 - **不变量 1**：DB 为真相源——启动时组合根从 manifest 抽纯数据 facts →
   `SyncPlatforms` 用例 → UPSERT 全量平台；manifest 里消失的平台落
@@ -24,10 +24,10 @@
   AUTOINCREMENT`（A4-01 §5），UPSERT（ON CONFLICT platform_code）保键不漂移
 - **不变量 3**：`is_active` = 用户侧开关；停用平台不出现在名册与一键导入
   （退役是 manifest 事实，deprecated 是生命周期，两者分开）
-- **不变量 4（ADR-033）**：`origin='user'` 的用户接入源不参与启动退役同步——
+- **不变量 4（ADR-034）**：`origin='user'` 的用户接入源不参与启动退役同步——
   `deprecate_missing` 只标记 `origin='connector'` 且编码不在 facts 里的行，
   用户手建的 relay/local/api 行永不被同步误标 deprecated
-- **不变量 5（ADR-033）**：用户接入源必须三件套齐备（`platform_kind` ∈ relay/local/api、
+- **不变量 5（ADR-034）**：用户接入源必须三件套齐备（`platform_kind` ∈ relay/local/api、
   `base_url` http(s)、`protocol` ∈ openai），域内构造即校验；
   `capabilities`/`schedule_times` 为空（无连接器 = 不产生动作与排班）
 
@@ -35,18 +35,18 @@
 |---|---|---|
 | `id` | INTEGER PK AUTOINCREMENT | 全库统一代理键 |
 | `platform_code` | TEXT NOT NULL UNIQUE | 平台 id（连接器 manifest.id；用户接入源 = 用户给定编码，创建后冻结） |
-| `platform_name` | TEXT NOT NULL | 平台名（命名裁决 ADR-023：显示名列按业务命名，禁 display_name 通用名） |
-| `platform_kind` | TEXT NOT NULL DEFAULT '' | 平台类型词表（core `PLATFORM_KINDS`）：`web`=网页版 / `client`=本机客户端 / `relay`=OpenAI 兼容中转 / `local`=本地模型 / `api`=官方 API；manifest 侧必填，'' 仅历史行兼容（ADR-033 扩词表；列序在 client_version 之前） |
+| `platform_name` | TEXT NOT NULL | 平台名（命名裁决 ADR-018：显示名列按业务命名，禁 display_name 通用名） |
+| `platform_kind` | TEXT NOT NULL DEFAULT '' | 平台类型词表（core `PLATFORM_KINDS`）：`web`=网页版 / `client`=本机客户端 / `relay`=OpenAI 兼容中转 / `local`=本地模型 / `api`=官方 API；manifest 侧必填，'' 仅历史行兼容（ADR-034 扩词表；列序在 client_version 之前） |
 | `client_version` | TEXT NOT NULL DEFAULT '' | 本机客户端版本（同步时经 provision 端口只读探测；'' = 探不到/网页平台=未知，2026-11-18 裁决；列序在 capabilities 之前）。事实源按连接器形态分两路：adapter 型实现 `read_client_version()`（豆包 = 卸载注册表 / Info.plist，WorkBuddy = `app_version`，Qoder = 版本目录 manifest），声明式型经 `version_probe` 按 conn_id 查表（Trae CN / WorkBuddy / Qoder）。通用口径见 `butler_connectors/app_version.py`：Windows 卸载注册表 `DisplayVersion`、mac `Info.plist CFBundleShortVersionString`，多版本并存取最新（2026-11-19） |
 | `icon` | TEXT NOT NULL DEFAULT '' | 平台图标（2026-11-19 裁决）：96px PNG 的 **data URI**，跟着平台数据走——同步时从本机客户端探测写入（`butler_connectors/app_icon.py`：卸载注册表 `DisplayIcon` → `PrivateExtractIcons` → 自绘 PNG，纯 ctypes 无图像库依赖；按 conn_id 分流的探针表 = `icon_probe.py`），自定义平台可由用户上传（前端 canvas 统一转 96×96 PNG）；'' = 无图标（前端回落内置 assets → 身份色点）。UPSERT 刷新语义：`excluded.icon <> ''` 才覆盖（探测到就刷新，探不到保留用户上传值）；列序在 client_version 与 capabilities 之间 |
 | `capabilities` | TEXT JSON | ActionKind.value 列表（core 词表） || `credential_kinds` | TEXT JSON | 凭据 kinds 声明 |
 | `schedule_times` | TEXT JSON | HH:MM 触发时间并集（manifest 缺省事实，只读；不被用户编辑覆盖） |
 | `schedule_override` | TEXT | 用户覆盖的调度执行时间：`''`=跟随 manifest，JSON 数组=覆盖（`[]`=不排班）；manifest 同步只更新事实列、**不覆盖本列** |
-| `is_active` | INTEGER DEFAULT 1 | 用户开关（非数据库关键字，ADR-019） |
-| `base_url` | TEXT NOT NULL DEFAULT '' | 接入源基址（仅 origin=user 有意义；连接器平台 = ''，ADR-033） |
-| `protocol` | TEXT NOT NULL DEFAULT '' | 上游协议（`PROTOCOLS`: openai；海外协议不接入，2026-11-20 裁决；仅 origin=user，ADR-033） |
-| `models_json` | TEXT JSON DEFAULT '[]' | 接入源声明可用模型（仅 origin=user，ADR-033） |
-| `origin` | TEXT NOT NULL DEFAULT 'connector' | `connector`=manifest 同步 / `user`=用户手建（ADR-033） |
+| `is_active` | INTEGER DEFAULT 1 | 用户开关（非数据库关键字，ADR-018） |
+| `base_url` | TEXT NOT NULL DEFAULT '' | 接入源基址（仅 origin=user 有意义；连接器平台 = ''，ADR-034） |
+| `protocol` | TEXT NOT NULL DEFAULT '' | 上游协议（`PROTOCOLS`: openai；海外协议不接入，2026-11-20 裁决；仅 origin=user，ADR-034） |
+| `models_json` | TEXT JSON DEFAULT '[]' | 接入源声明可用模型（仅 origin=user，ADR-034） |
+| `origin` | TEXT NOT NULL DEFAULT 'connector' | `connector`=manifest 同步 / `user`=用户手建（ADR-034） |
 | `deprecated_at` | TEXT | manifest 缺失即落（不删行；用户接入源不受影响） |
 | `created_at` / `updated_at` | TEXT NOT NULL | 统一审计列 |
 
@@ -62,18 +62,18 @@ DDL 权威单源 = `butler_engine/platforms/sqlite.py` `_SCHEMA`，生成视图
 | 用例 | 语义 |
 |---|---|
 | `sync_platforms` | manifest facts 全量 upsert + 缺失平台落 deprecated（返回本次新标记 code；只碰 origin=connector） |
-| `create_platform`（ADR-033） | 用户手建接入源：编码正则 `[a-z0-9][a-z0-9_-]{1,31}`（转小写）、origin=user、无 capabilities/schedule；重复编码抛 `PlatformAlreadyExists` |
-| `update_provider`（ADR-033） | 只允许 origin=user 改连接事实（platform_name/base_url/protocol/models/credential_kinds）；连接器平台显式拒绝 |
+| `create_platform`（ADR-034） | 用户手建接入源：编码正则 `[a-z0-9][a-z0-9_-]{1,31}`（转小写）、origin=user、无 capabilities/schedule；重复编码抛 `PlatformAlreadyExists` |
+| `update_provider`（ADR-034） | 只允许 origin=user 改连接事实（platform_name/base_url/protocol/models/credential_kinds）；连接器平台显式拒绝 |
 
 ## 5. 端侧投影
 
 - `GET /api/v1/platforms`：名册表 + 台账并账（account_ids 按账户域
   platform_code 归组）；deprecated / 停用平台不出现在响应
 - `POST /api/v1/platforms/resync`：运行期名册补偿——重扫连接器 manifest 落名册并重排调度，不导账户
-- `POST /api/v1/platforms/providers`（ADR-033）：手建接入源（relay/local/api）——body
+- `POST /api/v1/platforms/providers`（ADR-034）：手建接入源（relay/local/api）——body
   `platform_code/platform_name/kind/base_url/protocol/models/credential_kinds`；
   落库 `origin=user`，`name_is_default=False`；编码重复 409，形状非法 400
-- `PATCH /api/v1/platforms/{platform_code}`（ADR-033 扩展）：`base_url/protocol/models`
+- `PATCH /api/v1/platforms/{platform_code}`（ADR-034 扩展）：`base_url/protocol/models`
   只对 `origin=user` 开放（连接器平台 400「连接事实由 manifest 申报」）；
   用户接入源 `platform_name=""` 显式 400（没有默认名可回落）
 - `POST /api/v1/platforms/import-all`：一键导入**名册内未导入的本机客户端**（`kind=web` 不自动接，

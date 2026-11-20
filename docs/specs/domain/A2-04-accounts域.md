@@ -1,8 +1,8 @@
 # A2-04 · 账户域（accounts）
 
-> 状态：**生效 v3.0（2026-11-20，ADR-033）**　总纲：[A2-01](A2-01-领域模型与动作模型.md) ·
+> 状态：**生效 v3.1（2026-11-20，账户身份与编址合并归档 [ADR-034](../../adr/ADR-034-账户身份与编址.md)）**　总纲：[A2-01](A2-01-领域模型与动作模型.md) ·
 > 结构：[A1-05 §2](../architecture/A1-05-按业务域重写总设计.md)
-> 用户词：**账户**（Account）/ **应用**（App，2026-11-17 用户裁决，退役 Provider）/ **导入**（Import）/ **接入源**（Provider，ADR-033 仅指用户手建的上游）。
+> 用户词：**账户**（Account）/ **应用**（App，2026-11-17 用户裁决，退役 Provider）/ **导入**（Import）/ **接入源**（Provider，ADR-034 仅指用户手建的上游）。
 > 本域是全部业务标识的锚点。
 
 ## 1. 职责与边界
@@ -18,11 +18,12 @@
 App：Connector 的产品级身份（id + display + capabilities 申报源）
 Account（聚合根）：
   account_id = 不透明主键 acc_<8hex>，创建后不可变（ADR-034）
-  address = (platform_code, account_code)；account_code 是平台内连接器键，缺省 "main"
+  address = (platform_code, account_code)；account_code 是可空人工后缀（ADR-034），
+            同步账户留空，用户关联登录账户时再填
   identity = AccountIdentity(nickname/email/uid/org/source_key)：真实身份，只显示/匹配
   origin = connector(连接器导入) | manual(用户手建)
-  同一平台下 account_code 唯一；source_key 非空时同一平台内唯一；删除账户 = 软删除（deleted_at 落库，
-  台账/审计保留 account_id）
+  同一平台下非空 account_code 唯一；source_key 非空时同一平台内唯一；删除账户 = 软删除
+  （deleted_at 落库，台账/审计保留 account_id）
 Credential：kind(ss_aes/cookie/oauth/api-key) / slot(默认 default) / label /
   有效期 / 轮换历史
   ——凭据必须绑定 account，禁止按应用共享（ADR-003 §5）
@@ -33,59 +34,60 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 不变量：
 1. account_id 是全系统外键——Run/Event/Sample 一律挂它
 2. 凭据明文永不离开 vault 端口背后（core 只见句柄与元数据）
-3. `(platform_code, account_code)` 缺省落位规则：存量单账号数据迁移时
-   account_code = "main"，零信息丢失（迁移测试钉死，A1-05 §5 P4）
+3. `(platform_code, account_code)` 只用于人工关联/兼容旧编址：`account_code` 可空，
+   空值不占唯一位；非空时才要求平台内唯一（ADR-034）
 4. **主键不透明且冻结（ADR-034）**：`account_id` 是 `acc_<8hex>`，不由平台/昵称/编码推导，
-   创建后不可变；`account_code` 只是平台内连接器键，改昵称不改号
-5. **身份唯一锚点（ADR-034）**：`source_key` 独立列且 `UNIQUE(platform_code, source_key)`
-   （空串不占用）。注册先按 source_key 认回；code 命中但 source_key 不同 → `AccountConflict`，
-   绝不静默合并；存量 `legacy:<code>` 占位键在首次真实 dock 时就地吸收
+   创建后不可变；`account_code` 是可空人工后缀，改它不改 `account_id`
+5. **身份唯一锚点（ADR-034/035）**：`source_key` 独立列且 `UNIQUE(platform_code, source_key)`
+   （空串不占用）。注册先按 source_key 认回；无 source_key 时按 `device_ref` 兜底；
+   `account_code` 永不参与连接器幂等；存量 `legacy:<code>` 占位键在首次真实 dock 时就地吸收
 
-### 2.1 acc_account 表 v4（2026-11-20，ADR-034；v3 见 ADR-018/019/020/033）
+### 2.1 acc_account 表 v4（2026-11-20，ADR-034；v3 演进见 ADR-018）
 
 统一审计字段 `id / created_at / updated_at` 所有表必备（本表先行立范式，
 其余域分批跟进）；每表代理键 `id INTEGER PRIMARY KEY AUTOINCREMENT`（DDL
 约定见 A4-01 §5）。DDL 权威单源 = `butler_engine/accounts/sqlite.py`
 `_SCHEMA`，生成视图 `data/sql/acc.sql`（勿手改，文件名 = 表名域前缀）。表名带域前缀
-`acc_account`（ADR-021 表名纪律）。
+`acc_account`（ADR-018 表名纪律）。
 
 | 列 | 类型 | 语义 |
 |---|---|---|
-| `id` | INTEGER PK AUTOINCREMENT | 全库统一代理键（ADR-019） |
+| `id` | INTEGER PK AUTOINCREMENT | 全库统一代理键（ADR-018） |
 | `account_id` | TEXT NOT NULL UNIQUE | 不透明主键 `acc_<8hex>`，创建后不可变（ADR-034） |
-| `platform_code` | TEXT NOT NULL | 连接器/平台 id（provider→app→platform→platform_code，ADR-018/019/020） |
-| `account_code` | TEXT NOT NULL DEFAULT 'main' | 平台内连接器键（原 account_key，ADR-020）；`UNIQUE(platform_code, account_code)`；不参与主键 |
-| `source_key` | TEXT NOT NULL DEFAULT '' | 连接器稳定身份键（sec_uid / user.id / 设备号）；`UNIQUE(platform_code, source_key) WHERE source_key <> ''`（ADR-034） |
-| `account_name` | TEXT NOT NULL | 账户名（ADR-020 列名 code 化；ADR-023 显示列按业务命名） |
-| `alias` | TEXT NOT NULL DEFAULT '' | 用户别名（ADR-030）；显示优先级最高 |
+| `platform_code` | TEXT NOT NULL | 连接器/平台 id（provider→app→platform→platform_code，ADR-018） |
+| `account_code` | TEXT NOT NULL DEFAULT '' | **可空人工后缀**（ADR-034）：同步留空，用户关联登录账户时填；非空时 `UNIQUE(platform_code, account_code) WHERE account_code <> ''`；不参与主键，也不参与连接器幂等 |
+| `source_key` | TEXT NOT NULL DEFAULT '' | 连接器稳定身份键（sec_uid / user.id / Trae userId / WorkBuddy uid）；`UNIQUE(platform_code, source_key) WHERE source_key <> ''`（ADR-034） |
+| `account_name` | TEXT NOT NULL | 账户自身显示名（客户端昵称/用户名/邮箱；缺失 = `未命名账户`）；**不拼平台名**（ADR-034） |
+| `alias` | TEXT NOT NULL DEFAULT '' | 用户别名（ADR-034）；显示优先级最高 |
 | `base_url` | TEXT | 账户级 API 基址（Qoder CN/Global 双 host 与接入源账户覆盖；空 = 用接入源缺省） |
 | `device_ref` | TEXT | 供应商侧账户标识绑定；unbound 如实 NULL（§4.1） |
-| `identity_json` | TEXT | AccountIdentity 落库（nickname/email/uid/org；source_key 已独立列，不重复写入）；空身份 = NULL（ADR-033/034） |
-| `origin` | TEXT NOT NULL DEFAULT 'connector' | connector / manual（ADR-033） |
-| `last_seen_at` | TEXT | 最近一次连接器看到该账户（运营字段，ADR-033） |
+| `identity_json` | TEXT | AccountIdentity 落库（nickname/email/uid/org；source_key 已独立列，不重复写入）；空身份 = NULL（ADR-034） |
+| `origin` | TEXT NOT NULL DEFAULT 'connector' | connector / manual（ADR-034） |
+| `last_seen_at` | TEXT | 最近一次连接器看到该账户（运营字段，ADR-034） |
 | `sessions` | TEXT JSON DEFAULT '[]' | 会话清单（随聚合整体替换，§4.1） |
 | `entitlement_json` | TEXT | Entitlement 聚合落库（balance/streak/last_claim_window） |
-| `is_active` | INTEGER DEFAULT 1 | 用户管理开关（不用 enabled——数据库关键字风险，ADR-019）；调度 tick 跳过停用账户（停用是运营动作，≠健康熔断） |
+| `is_active` | INTEGER DEFAULT 1 | 用户管理开关（不用 enabled——数据库关键字风险，ADR-018）；调度 tick 跳过停用账户（停用是运营动作，≠健康熔断） |
 | `created_at` | TEXT NOT NULL | 创建时间 |
 | `updated_at` | TEXT NOT NULL | 统一审计列；save 时写当前时刻，老库回填 created_at |
 | `deleted_at` | TEXT | 软删除标记（不变量 3 落库） |
 
-索引：`uq_acc_account_platform_code_key (platform_code, account_code)` 唯一 + `idx_acc_account_platform_code (platform_code)` + `uq_acc_account_platform_source_key (platform_code, source_key) WHERE source_key <> ''` 唯一部分索引。
+索引：`uq_acc_account_platform_code_key (platform_code, account_code) WHERE account_code <> ''` 唯一 + `idx_acc_account_platform_code (platform_code)` + `uq_acc_account_platform_source_key (platform_code, source_key) WHERE source_key <> ''` 唯一部分索引。
 save = `INSERT … ON CONFLICT (account_id) DO UPDATE`（UPSERT 保代理键不漂移；
-ADR-033 起 UPSERT 不再改写 platform_code/account_code）。
+ADR-034 起 UPSERT 不再改写 platform_code，但允许人工改 account_code）。
 老库自迁移幂等：v1/v2 形状（TEXT 主键 + provider/app 列）走重建式迁移（Python 回填
 account_code/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形状缺列 ALTER 纯增量，
-物理列序按 `_DDL_COLS` 重建校正（ADR-033）。
+物理列序按 `_DDL_COLS` 重建校正（ADR-034）。
 
-### 2.2 显示标签单源（ADR-033）
+### 2.2 显示标签单源（ADR-034）
 
 `account_label(account)` 在 core 单源计算，端侧与前端只消费结果，不落库：
 
-`alias > identity.nickname > account_name 的「平台名 · 」后缀 > account_name > account_code`
+`alias > identity.nickname > account_name > account_code > account_id`
 
+只显示账户自身信息，不再去掉/拼接「平台名 · 」后缀；平台由列表分组与平台徽标表达。
 不新增 `display_name` 列（SQL 规范 06 禁止该列名）；重名不唯一，后续如需消歧再加短码。
 
-### 2.3 凭据槽位（ADR-033）
+### 2.3 凭据槽位（ADR-034）
 
 - 同一账户可有多份同 kind 凭据：`slot` 区分（`[A-Za-z0-9_-]{1,24}`），`label` 只做显示（≤40）。
 - `vault_ref` 保持兼容：默认槽 `{account}:{kind}`（存量秘密零迁移），
@@ -96,7 +98,7 @@ account_code/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形�
 ## 3. 端口（accounts/ports.py）
 
 - `VaultPort`：凭据存取/轮换/撤销（engine 实现；本地凭据解锁链，承袭 M1 收敛裁决 ADR-008）。
-  ADR-033 起 `store/load/rotate` 带 `slot`/`label`；`revoke_slot(account, kind, slot, reason)`
+  ADR-034 起 `store/load/rotate` 带 `slot`/`label`；`revoke_slot(account, kind, slot, reason)`
   撤销单槽（非抽象默认方法：老替身不实现即显式 NotImplementedError，不静默假成功）
 - `CredentialPool`：凭据池端口（ADR-012 裁决 3：现用现取 + 短 TTL 缓存，策略 =
   `CachePolicy` kind 数据；网关反代热路径唯一取凭据入口，任何 acquire 含缓存
@@ -111,10 +113,10 @@ account_code/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形�
 
 | 用例 | 语义 |
 |---|---|
-| `register_account` | 连接器扫描的幂等回放；`(platform_code, account_code)` 已存在 → 返回既有账户不改号；带 `identity.source_key` 时按稳定身份键认回旧账户，不新建卡（ADR-033） |
-| `create_account`（ADR-033） | 用户手建（API 型接入源/漏扫小号）：`account_code` 缺省由端侧生成后冻结；可带首份凭据（凭据先写、账户落库失败则 `purge` 回滚） |
-| `update_account`（ADR-033） | 只改 alias / account_name / is_active / base_url / identity；编址与 origin 无改写入口 |
-| `add_credential` / `revoke_credential`（ADR-033） | 追加/撤销单个凭据槽位；形状校验在 core，账户存在性由端侧先查 |
+| `register_account` | 连接器扫描的幂等回放；`(platform_code, account_code)` 已存在 → 返回既有账户不改号；带 `identity.source_key` 时按稳定身份键认回旧账户，不新建卡（ADR-034） |
+| `create_account`（ADR-034） | 用户手建（API 型接入源/漏扫小号）：`account_code` 可留空（人工后缀，关联登录账户时再填）；可带首份凭据（凭据先写、账户落库失败则 `purge` 回滚） |
+| `update_account`（ADR-034） | 只改 alias / account_name / account_code（人工后缀）/ is_active / base_url / identity；account_id 与 platform_code 无改写入口 |
+| `add_credential` / `revoke_credential`（ADR-034） | 追加/撤销单个凭据槽位；形状校验在 core，账户存在性由端侧先查 |
 | 导入多账号 | SessionSourcePort 枚举本机多 profile/多开，逐账号入库（ADR-003 §3；连接器侧逐家取证随 P5 落地，见 A2-02 §5 沙箱） |
 | `scan_sessions`（R5-S1，ADR-013） | 只读枚举 → device_ref 绑定（vault device 类凭据匹配）→ 组 Session 追加聚合（(location,kind,level) 去重幂等）→ repo 回写；绑定不可得 = 如实 unbound 分列不入库 |
 
@@ -145,7 +147,7 @@ account_code/updated_at 后旧表让位换 v3，行数据零丢失）；v3 形�
 - **不碰平台与台账**：平台名册、`exe_claim` 历史与审计保留；删除账户后重新导入本机客户端
   即可恢复（新凭据重新入库）。
 
-## 5.1 写入端点（ADR-033，2026-11-20）
+## 5.1 写入端点（ADR-034，2026-11-20）
 
 | 端点 | 语义 |
 |---|---|

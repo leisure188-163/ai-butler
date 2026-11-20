@@ -5,7 +5,6 @@
 """
 
 import base64
-import hashlib
 import json
 import sys
 from datetime import UTC, datetime
@@ -220,7 +219,8 @@ def test_dock_qoder_full_chain(data_dir, umid_ready):
     outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.platform*")), vault, accounts)
     assert outcome.issues == [], outcome.issues
     acc = accounts.list_all()[0]
-    assert acc.account_code == "main"
+    assert acc.account_code == ""  # ADR-035：连接器不生成人工后缀
+    assert acc.account_name == "cn-user"  # 只显示账户自身，不拼 Qoder CN
     assert outcome.accounts == [acc.id]
 
     envelope, expires = vault.items[(acc.id, "dpapi_gcm_v10")]
@@ -244,7 +244,8 @@ def test_dock_qoder_switch_cn_account_keeps_main(data_dir, umid_ready):
     accounts = MemAccounts()
     first = _dock(spec, vault, accounts)
     main_acc = accounts.list_all()[0]
-    assert main_acc.account_code == "main"
+    assert main_acc.account_code == ""
+    assert main_acc.identity.source_key == "cn-user-id"
     assert first.accounts == [main_acc.id]
 
     b_envelope = seal_envelope(
@@ -262,10 +263,12 @@ def test_dock_qoder_switch_cn_account_keeps_main(data_dir, umid_ready):
     (data_dir / "auth.v1.dat").write_bytes(b_dat)
 
     second = _dock(spec, vault, accounts)
-    b_key = "cn-" + hashlib.sha1(b"cn-user-b").hexdigest()[:8]
-    b_acc = next(a for a in accounts.list_all() if a.account_code == b_key)
-    # 本次只扫到 B（旧 main 已存在、无需重扫）；B 必须用独立 hash key。
+    b_acc = next(
+        a for a in accounts.list_all() if a.identity.source_key == "cn-user-b"
+    )
+    # 本机同一目录换号：旧卡保留，新账号另建；B 的 code 仍为空。
     assert second.accounts == [b_acc.id]
+    assert b_acc.account_code == ""
     # 旧 main 的信封仍在；新账户是独立信封
     main_secret, _ = vault.items[(main_acc.id, "dpapi_gcm_v10")]
     assert unlock.session_from_dpapi_gcm_v10(main_secret.expose())["user"]["id"] == "cn-user-id"
@@ -284,15 +287,16 @@ def test_dock_qoder_two_profiles_same_app(dual_data_dirs, umid_ready):
     )
     outcome = _dock(spec, vault, accounts)
     assert outcome.issues == [], outcome.issues
-    global_key = "global-" + hashlib.sha1(b"global-user-id").hexdigest()[:8]
-    by_code = {a.account_code: a.id for a in accounts.list_all()}
-    assert set(by_code) == {"main", global_key}
-    assert outcome.accounts == [by_code["main"], by_code[global_key]]
+    by_key = {a.identity.source_key: a.id for a in accounts.list_all()}
+    assert set(by_key) == {"cn-user-id", "global-user-id"}
+    assert outcome.accounts == [by_key["cn-user-id"], by_key["global-user-id"]]
+    assert {a.account_code for a in accounts.list_all()} == {""}
+    assert {a.account_name for a in accounts.list_all()} == {"cn-user", "global-user"}
 
-    assert vault.items[(by_code["main"], "dpapi_gcm_v10")][1] is not None
-    assert vault.items[(by_code[global_key], "dpapi_gcm_v10")][1] is not None
-    assert (by_code["main"], "umid_cosy") in vault.items
-    assert (by_code[global_key], "umid_cosy") in vault.items
+    assert vault.items[(by_key["cn-user-id"], "dpapi_gcm_v10")][1] is not None
+    assert vault.items[(by_key["global-user-id"], "dpapi_gcm_v10")][1] is not None
+    assert (by_key["cn-user-id"], "umid_cosy") in vault.items
+    assert (by_key["global-user-id"], "umid_cosy") in vault.items
 
 
 def test_dock_qoder_duplicate_user_id_skipped(dual_data_dirs, umid_ready):
@@ -310,7 +314,7 @@ def test_dock_qoder_duplicate_user_id_skipped(dual_data_dirs, umid_ready):
     accounts = MemAccounts()
     outcome = _dock(spec, MemVault(), accounts)
     assert len(outcome.accounts) == 1
-    assert accounts.list_all()[0].account_code == "main"
+    assert accounts.list_all()[0].account_code == ""
     assert outcome.issues and "同一 user id" in outcome.issues[0]
 
 
@@ -378,7 +382,8 @@ def test_dock_qoder_mac_full_chain(mac_data_dir, umid_ready):
     outcome = _dock(make_qoder_spec(str(mac_data_dir.parent / "com.qoder.platform*")), vault, accounts)
     assert outcome.issues == [], outcome.issues
     acc = accounts.list_all()[0]
-    assert acc.account_code == "main"
+    assert acc.account_code == ""
+    assert acc.account_name == "未命名账户"  # mac 信封无 user 元数据，不拿平台名兜底
     assert outcome.accounts == [acc.id]
 
     stored, expires = vault.items[(acc.id, "dpapi_gcm_v10")]

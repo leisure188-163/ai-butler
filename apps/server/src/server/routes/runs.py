@@ -38,8 +38,8 @@ class RunIn(BaseModel):
 
     target: str
     kind: str = "provision.run"
-    account_id: str | None = None  # 显式账号规范 id（优先于 account_code）
-    account_code: str = "main"  # ADR-003：target = 平台 + 账号；裸平台 id 兼容首账号
+    account_id: str | None = None  # 显式账户 id（优先）
+    account_code: str = ""  # 人工后缀；空 = 平台下唯一账户
     dry_run: bool = False
 
 
@@ -70,7 +70,7 @@ def _run_out(run: Run) -> RunOut:
         kind=run.action.kind.value,
         target=run.action.target,
         account_id=run.account_id,
-        account_code=run.account_id.split(":", 1)[-1],
+        account_code=run.action.account_code,  # 人工后缀；空 = 同步账户尚未关联
         started_at=run.started_at,
         finished_at=run.finished_at,
         status=result.status.value if result else None,
@@ -95,20 +95,41 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
     kind ∈ ActionKind 词表校验；health.check 免窗口（非领取类写动作，无幂等键），
     预算取连接器 health.check 能力申报的 budget_seconds。
     """
-    from butler_core.accounts.domain import account_identity
     from butler_core.execution.usecases.execute_action import RunRequest
     from butler_core.execution.domain import Action, ActionKind
     from butler_core.scheduling.domain import claim_window
 
-    resolved_account = payload.account_id or account_identity(
-        payload.target, payload.account_code
-    )
     registry = request.app.state.registry
     kit = request.app.state.kit
     try:
         platform = registry.get(payload.target)  # 未接入连接器 → 404（显式不静默）
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if payload.account_id:
+        account = kit.accounts.get(payload.account_id)
+        if account is None:
+            raise HTTPException(status_code=404, detail=f"账户不存在: {payload.account_id}")
+    else:
+        rows = kit.accounts.list_by_platform(payload.target)
+        if payload.account_code:
+            account = next(
+                (r for r in rows if r.account_code == payload.account_code), None
+            )
+            if account is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"{payload.target} 下没有 account_code={payload.account_code!r} 的账户",
+                )
+        elif len(rows) == 1:
+            account = rows[0]
+        elif not rows:
+            raise HTTPException(status_code=404, detail=f"{payload.target} 下没有账户")
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{payload.target} 下有 {len(rows)} 个账户，请显式传 account_id",
+            )
+    resolved_account = account.id
     try:
         kind = ActionKind(payload.kind)
     except ValueError as exc:
@@ -121,7 +142,11 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
             )
         run = kit.execute_action.execute(
             RunRequest(
-                action=Action(kind=kind, target=payload.target),
+                action=Action(
+                    kind=kind,
+                    target=payload.target,
+                    account_code=account.account_code,
+                ),
                 account_id=resolved_account,
                 budget=timedelta(seconds=platform.provision_budget("health.check")),
             )
@@ -141,7 +166,11 @@ def create_run(payload: RunIn, request: Request) -> RunOut:
     window = claim_window(datetime.now(), refresh_at)
     run = kit.execute_action.execute(
         RunRequest(
-            action=Action(kind=ActionKind.PROVISION_RUN, target=payload.target),
+            action=Action(
+                kind=ActionKind.PROVISION_RUN,
+                target=payload.target,
+                account_code=account.account_code,
+            ),
             account_id=resolved_account,
             window=window,
             dry_run=payload.dry_run,
@@ -165,9 +194,9 @@ def claim_all_runs(request: Request) -> list[RunOut]:
     registry = request.app.state.registry
     kit = request.app.state.kit
     # 多账号（ADR-003）：同一平台下每个账户各自发起，幂等键按账号粒度
-    docked: dict[str, list[str]] = {}
+    docked: dict[str, list] = {}
     for account in kit.accounts.list_all():
-        docked.setdefault(account.platform_code, []).append(account.id)
+        docked.setdefault(account.platform_code, []).append(account)
     refresh = {e["target"]: e["refresh_at"] for e in registry.schedule_entries()}
     out: list[RunOut] = []
     # 选哪些平台参与领取 = 名册表裁决（ADR-021/022）：活跃且未退役、
@@ -183,18 +212,22 @@ def claim_all_runs(request: Request) -> list[RunOut]:
     for code, connector in runtime.items():
         if connector.manifest.capabilities.get("provision.run") is None:
             continue
-        for account_id in docked.get(code, []):
+        for account in docked.get(code, []):
             window = claim_window(datetime.now(), refresh.get(code, "00:00"))
             run = kit.execute_action.execute(
                 RunRequest(
-                    action=Action(kind=ActionKind.PROVISION_RUN, target=code),
-                    account_id=account_id,
+                    action=Action(
+                        kind=ActionKind.PROVISION_RUN,
+                        target=code,
+                        account_code=account.account_code,
+                    ),
+                    account_id=account.id,
                     window=window,
                     budget=timedelta(seconds=connector.provision_budget("provision.run")),
                 )
             )
             out.append(_run_out(run))
-            _assess_after_run(kit, account_id)
+            _assess_after_run(kit, account.id)
     return out
 
 

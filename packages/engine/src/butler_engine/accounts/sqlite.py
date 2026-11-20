@@ -39,10 +39,10 @@ from butler_engine.db.conn import connect
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS acc_account (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    account_id       TEXT NOT NULL UNIQUE,
     platform_code    TEXT NOT NULL,
-    account_code     TEXT NOT NULL DEFAULT 'main',
     source_key       TEXT NOT NULL DEFAULT '',
+    account_id       TEXT NOT NULL UNIQUE,
+    account_code     TEXT NOT NULL DEFAULT '',
     account_name     TEXT NOT NULL,
     alias            TEXT NOT NULL DEFAULT '',
     base_url         TEXT,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS acc_account (
     deleted_at       TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_code_key
-    ON acc_account (platform_code, account_code);
+    ON acc_account (platform_code, account_code) WHERE account_code <> '';
 CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_source_key
     ON acc_account (platform_code, source_key) WHERE source_key <> '';
 CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platform_code);
@@ -66,7 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platfor
 
 #: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
 _DDL_COLS = (
-    "account_id, platform_code, account_code, source_key, account_name, alias, base_url, "
+    "platform_code, source_key, account_id, account_code, account_name, alias, base_url, "
     "device_ref, identity_json, origin, last_seen_at, sessions, entitlement_json, is_active, "
     "created_at, updated_at, deleted_at"
 )
@@ -74,7 +74,7 @@ _COLS = _DDL_COLS
 
 #: 重建整表时缺列的兜底值（NOT NULL 列不能落 NULL）
 _DDL_DEFAULTS = {
-    "account_code": "'main'",
+    "account_code": "''",
     "source_key": "''",
     "account_name": "'unknown'",
     "sessions": "'[]'",
@@ -93,7 +93,7 @@ _RENAME_COLS: tuple[tuple[str, str], ...] = (
 
 # 现行形状缺列补丁（幂等；v1/v2 走重建不走这里）
 _MISSING_COLS: dict[str, str] = {
-    "account_code": "account_code TEXT NOT NULL DEFAULT 'main'",
+    "account_code": "account_code TEXT NOT NULL DEFAULT ''",
     "source_key": "source_key TEXT NOT NULL DEFAULT ''",
     "base_url": "base_url TEXT",
     "device_ref": "device_ref TEXT",
@@ -170,7 +170,7 @@ def _recreate_indexes(conn) -> None:
         conn.execute(f"DROP INDEX IF EXISTS {idx}")
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_code_key"
-        " ON acc_account (platform_code, account_code)"
+        " ON acc_account (platform_code, account_code) WHERE account_code <> ''"
     )
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_source_key"
@@ -205,7 +205,7 @@ def _rebuild_from_legacy(conn, cols: set[str]) -> None:
             f"INSERT OR IGNORE INTO acc_account ({_COLS}) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                legacy_id, platform_code, account_code, "", account_name, "", base_url,
+                platform_code, "", legacy_id, account_code, account_name, "", base_url,
                 device_ref, None, "connector", None, sessions_raw, entitlement_json, is_active,
                 created_at, updated_at, deleted_at,
             ),
@@ -230,21 +230,19 @@ class SqliteAccountRepository(AccountRepository):
 
         with self._connect() as conn, conn:
             row = conn.execute(
-                "SELECT platform_code, account_code FROM acc_account WHERE account_id = ?",
+                "SELECT platform_code FROM acc_account WHERE account_id = ?",
                 (account.id,),
             ).fetchone()
-            if row is not None and (row[0], row[1]) != (
-                account.platform_code,
-                account.account_code,
-            ):
+            if row is not None and row[0] != account.platform_code:
                 raise AccountInvalid(
-                    f"账户编址冻结：{account.id!r} 已登记为 ({row[0]}, {row[1]})，"
-                    f"拒绝改写为 ({account.platform_code}, {account.account_code})"
+                    f"账户平台冻结：{account.id!r} 已登记为 {row[0]!r}，"
+                    f"拒绝改写为 {account.platform_code!r}"
                 )
             conn.execute(
                 f"INSERT INTO acc_account ({_COLS}) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (account_id) DO UPDATE SET "
+                "account_code=excluded.account_code, "
                 "account_name=excluded.account_name, alias=excluded.alias, "
                 "base_url=excluded.base_url, device_ref=excluded.device_ref, "
                 "source_key=excluded.source_key, "
@@ -253,10 +251,10 @@ class SqliteAccountRepository(AccountRepository):
                 "entitlement_json=excluded.entitlement_json, is_active=excluded.is_active, "
                 "updated_at=excluded.updated_at, deleted_at=excluded.deleted_at",
                 (
-                    account.id,
                     account.platform_code,
-                    account.account_code,
                     account.identity.source_key,
+                    account.id,
+                    account.account_code,
                     account.account_name,
                     account.alias,
                     account.base_url,
@@ -388,19 +386,20 @@ def _load_entitlement(raw: str | None, account_id: str) -> Entitlement | None:
 def _load(row) -> Account | None:
     if row is None:
         return None
+    # SELECT {_COLS} 不含 id 列：row[2]=account_id 即聚合 id（不透明主键，ADR-034）
     return Account(
-        id=row[0],  # account_id：不透明主键（ADR-034；存量保留旧复合形状）
-        platform_code=row[1],
-        account_code=row[2],
+        id=row[2],
+        platform_code=row[0],
+        account_code=row[3],
         account_name=row[4],
         alias=row[5] or "",
         base_url=row[6] or "",
         device_ref=row[7],
-        identity=_load_identity(row[8], row[3]),
+        identity=_load_identity(row[8], row[1]),
         origin=row[9] or "connector",
         last_seen_at=datetime.fromisoformat(row[10]) if row[10] else None,
-        sessions=_load_sessions(row[11], row[0]),
-        entitlement=_load_entitlement(row[12], row[0]),
+        sessions=_load_sessions(row[11], row[2]),
+        entitlement=_load_entitlement(row[12], row[2]),
         is_active=bool(row[13]),
         created_at=datetime.fromisoformat(row[14]),
         deleted_at=datetime.fromisoformat(row[16]) if row[16] else None,

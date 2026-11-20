@@ -227,6 +227,7 @@ def test_post_runs_manual_supply(tmp_path):
     """POST /runs 冒烟（2026-11-11 真机验收抓到 timedelta 漏 import 后补防回归）。"""
     with _client(tmp_path) as client:
         kit = client.app.state.kit
+        kit.register_account.execute("trae_cn", "Trae")
         kit.execute_action.ports = routing_ports(
             {ActionKind.PROVISION_RUN: FakePort(RunResult(status=Status.CLAIMED))}, {}
         )
@@ -250,7 +251,8 @@ def test_no_auth_run_enters_pending_with_relogin_hint(tmp_path):
     """登录态失效 → 待办可见 + 带修复动作（ADR-015 端到端契约）。"""
     with _client(tmp_path) as client:
         kit = client.app.state.kit
-        kit.vault.store("acc1", "cookie", Secret("x"), expires_at=None)
+        account = kit.register_account.execute("trae_cn", "Trae")
+        kit.vault.store(account.id, "cookie", Secret("x"), expires_at=None)
         kit.execute_action.ports = routing_ports(
             {
                 ActionKind.PROVISION_RUN: FakePort(
@@ -272,13 +274,13 @@ def test_no_auth_run_enters_pending_with_relogin_hint(tmp_path):
             {},
         )
         row = client.post(
-            "/api/v1/runs", json={"target": "trae_cn", "account_id": "acc1"}
+            "/api/v1/runs", json={"target": "trae_cn", "account_id": account.id}
         ).json()
         assert row["status"] == "NO_AUTH"
         assert row["signal"] == "attention"
         assert row["repair_action_id"] == "relogin"
         pending = client.get("/api/v1/pending").json()
-        assert [p["account_id"] for p in pending] == ["acc1"]
+        assert [p["account_id"] for p in pending] == [account.id]
 
 
 # --- R3 体检探针（health.check 走 /runs 通道，A2-03）---
@@ -296,6 +298,8 @@ def test_post_runs_health_check_window_free(tmp_path):
     """体检免窗口（非领取类写动作，无幂等键）；预算读能力 budget_seconds。"""
     with _client(tmp_path) as client:
         kit = client.app.state.kit
+        kit.register_account.execute("chatgpt_web", "Default")
+        kit.register_account.execute("trae_cn", "Trae")
         kit.execute_action.ports = routing_ports(
             {}, {"chatgpt_web": FakePort(RunResult(status=Status.ALREADY))}
         )

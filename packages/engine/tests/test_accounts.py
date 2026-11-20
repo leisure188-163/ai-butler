@@ -74,27 +74,28 @@ def test_空身份落NULL且读回空对象(tmp_path):
     assert repo.get("trae_cn:main").identity.is_empty
 
 
-def test_编址冻结_已登记code不一致时显式拒绝(tmp_path):
-    import sqlite3
-
-    db = tmp_path / "butler.db"
-    repo = SqliteAccountRepository(db)  # 建表
-    # 模拟历史脏行：account_id 与 account_code 不一致（旧迁移遗留）
-    conn = sqlite3.connect(db)
-    conn.execute(
-        "INSERT INTO acc_account (account_id, platform_code, account_code, account_name,"
-        " created_at, updated_at) VALUES ('x:main','x','legacy','旧行',"
-        " '2026-11-11T08:00:00+00:00','2026-11-11T08:00:00+00:00')"
+def test_平台冻结_人工code可改(tmp_path):
+    repo = SqliteAccountRepository(tmp_path / "butler.db")
+    base = Account(
+        id="acc_00000001", platform_code="trae_cn", account_name="Trae",
+        created_at=datetime(2026, 11, 11, 8, 0, tzinfo=UTC),
     )
-    conn.commit()
-    conn.close()
+    repo.save(base)
 
-    # 按规范 id 写回 = 想把 legacy 改成 main → 编址冻结，拒绝
-    acc = acct("x:main", "x", "新名")
+    # account_id 的平台事实冻结：换成另一个平台显式拒绝
     with pytest.raises(AccountInvalid):
-        repo.save(acc)
+        repo.save(
+            Account(
+                id="acc_00000001", platform_code="qoder_cn", account_name="Trae",
+                created_at=datetime(2026, 11, 11, 8, 0, tzinfo=UTC),
+            )
+        )
 
-    # 同编址改名/改状态照常允许
-    repo.save(acct("trae_cn:main", "trae_cn", "改名"))
-    repo.save(acct("trae_cn:main", "trae_cn", "再改名"))
-    assert repo.get("trae_cn:main").account_name == "再改名"
+    # ADR-035：人工后缀允许后续补/改，不动 account_id
+    repo.save(
+        Account(
+            id="acc_00000001", platform_code="trae_cn", account_name="Trae",
+            account_code="work", created_at=datetime(2026, 11, 11, 8, 0, tzinfo=UTC),
+        )
+    )
+    assert repo.get("acc_00000001").account_code == "work"

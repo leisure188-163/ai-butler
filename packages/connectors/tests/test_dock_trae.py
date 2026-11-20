@@ -71,8 +71,8 @@ def test_dock_registers_account_and_stores_credentials(ctx):
     assert outcome.issues == []
 
     account = ctx.register.accounts.get(outcome.accounts[0])
-    assert account.account_code == "main"
-    assert account.account_name == "Trae CN"
+    assert account.account_code == ""  # ADR-035：同步不生成人工后缀
+    assert account.account_name == "未命名账户"  # 信封没有 account 资料时如实留空
     assert account.identity.source_key == "u-1"  # 账号级 userId，不是设备号
 
     import sys

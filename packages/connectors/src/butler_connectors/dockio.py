@@ -17,7 +17,7 @@ from butler_core.accounts.domain import AccountIdentity, Secret
 from butler_connectors.dock_storage import dpapi_envelope, glob_dirs, mac_envelope
 from butler_connectors.manifest import AuthSpec, DeclarativeSpec, ManifestInvalid
 from butler_connectors.paths import expand_storage_path
-from butler_connectors.qoder_identity import qoder_display, qoder_main_identity, qoder_region
+from butler_connectors.qoder_identity import qoder_display, qoder_region
 from butler_connectors.qoder_runtime import (
     MAC_APP_NAMES as _MAC_APP_NAMES,
     MAC_APP_ROOTS as _MAC_APP_ROOTS,
@@ -56,7 +56,6 @@ def scan_storage(
             platform.manifest.id,
             candidates,
             kinds,
-            existing_main_identity=qoder_main_identity(ctx, platform.manifest.id),
         )
     except StorageNotFound as exc:
         return DockOutcome(target=platform.manifest.id, issues=[str(exc)])
@@ -73,9 +72,13 @@ def scan_storage(
             continue
         account = ctx.register.execute(
             platform.manifest.id,
-            facts.get("_display") or platform.display,
-            account_code=facts.get("_account_key", "main"),
+            facts.get("_display") or "未命名账户",
             identity=AccountIdentity(source_key=facts.get("_source_key", "")),
+            device_ref=(
+                facts.get("_device_ref")
+                or facts.get("_auth_dir")
+                or facts.get("device_dn")
+            ),
         )
         _store_credentials(
             ctx, account.id, facts, kinds, auth.kind,
@@ -94,8 +97,6 @@ def _scan_kind(
     conn_id: str,
     candidates: list[str],
     kinds: tuple[str, ...],
-    *,
-    existing_main_identity: str | None = None,
 ) -> list[dict[str, str]]:
     """kind 分发扫认证事实。返回每个 profile 的 kind → Secret 源值（还没进 vault）。
 
@@ -105,9 +106,7 @@ def _scan_kind(
     if auth.kind == "ss_aes":
         return [_scan_ss_aes(auth, conn_id, candidates)]
     if auth.kind == "dpapi_gcm_v10":
-        profiles = _scan_dpapi_gcm_v10(
-            conn_id, candidates, existing_main_identity=existing_main_identity
-        )
+        profiles = _scan_dpapi_gcm_v10(conn_id, candidates)
         good = [facts for facts in profiles if "_issue" not in facts]
         if good:
             # 机器身份是同一台机器的共享头组：只采集一次，再复制给其余 profile。
@@ -126,8 +125,6 @@ def _scan_kind(
 def _scan_dpapi_gcm_v10(
     conn_id: str,
     candidates: list[str],
-    *,
-    existing_main_identity: str | None = None,
 ) -> list[dict[str, str]]:
     """Qoder 数据目录（glob）：逐目录扫描 auth.v1.dat，返回每账户一份 facts。
 
@@ -136,13 +133,10 @@ def _scan_dpapi_gcm_v10(
     （"Qoder Platform Safe Storage"），解锁时现取（ADR-008 决策 3：现用现取，密钥不入 vault）。
     解码一次只为验形 + 取 expiresAt/user 元数据，明文即刻丢弃，入库的是信封原文。
 
-    多账户身份锚点：同一 user id 只保留首份登录态；Qoder CN 首账户沿用
-    account_code=main 兼容存量卡。已有 :main 卡时，只有同一 user id 才能继续
-    使用 main；切换后的新 CN 账户用 cn-<hash> 新增，绝不覆盖旧主卡。Qoder
-    Global 与额外 CN profile 用稳定 hash key。同一产品域内多个 CN profile 仍
-    以数据目录为单位，不解析 auth-profile-overlays。
+    多账户身份锚点：同一 user id 只保留首份登录态；account_code 不再由
+    连接器生成（ADR-035），账户以 source_key 认回，本机数据目录作为
+    device_ref 兜底幂等。同一产品域内多个 profile 仍以数据目录为单位。
     """
-    import hashlib
     import sys
 
     from butler_connectors.unlock import session_from_dpapi_gcm_v10
@@ -150,7 +144,6 @@ def _scan_dpapi_gcm_v10(
     profiles: list[dict[str, str]] = []
     seen_dirs: set[Path] = set()
     seen_users: dict[str, Path] = {}
-    used_main = False
     for pattern in candidates:
         base = expand_storage_path(pattern)
         if base is None:
@@ -202,22 +195,11 @@ def _scan_dpapi_gcm_v10(
                 seen_users[identity] = data_dir
 
             region = qoder_region(session, data_dir, sys.platform)
-            if region == "cn" and (
-                (identity and identity == existing_main_identity)
-                or (existing_main_identity is None and not used_main)
-            ):
-                account_code = "main"  # 兼容存量 qoder_cn:main
-                used_main = True
-            else:
-                suffix = hashlib.sha1(
-                    (identity or str(resolved)).encode("utf-8")
-                ).hexdigest()[:8]
-                account_code = f"{region}-{suffix}"
 
             facts = {
                 "dpapi_gcm_v10": envelope,
                 "_auth_dir": str(data_dir),
-                "_account_key": account_code,
+                "_device_ref": str(data_dir),
                 "_source_key": identity,
                 "_display": qoder_display(region, user),
                 "_region": region,
@@ -361,6 +343,14 @@ def _scan_ss_aes(auth: AuthSpec, conn_id: str, candidates: list[str]) -> dict[st
         facts["ss_aes"] = compact_envelope(
             envelope, ("token", "version", "userId", "expiredAt", "refreshExpiredAt")
         )
+        facts["_auth_dir"] = str(path.parent)
+        facts["_device_ref"] = str(path.parent)
+        account_info = (
+            session.get("account") if isinstance(session.get("account"), dict) else {}
+        )
+        facts["_display"] = str(
+            account_info.get("username") or account_info.get("email") or ""
+        ).strip()
         if device_dn:
             facts["device_dn"] = device_dn
         user_id = str(session.get("userId") or "").strip()

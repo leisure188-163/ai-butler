@@ -513,11 +513,15 @@ def test_dock_registers_b_account_when_active(tmp_path, monkeypatch):
     @dataclass
     class RegisterSpy:
         calls: list = field(default_factory=list)
+        ids: dict = field(default_factory=dict)
 
-        def execute(self, platform, account_name, *, account_code="main", account_id=None, identity=None):
+        def execute(self, platform, account_name, *, account_code="", account_id=None, identity=None):
             self.calls.append((platform, account_name, account_code))
             from types import SimpleNamespace
-            return SimpleNamespace(id=f"{platform}:{account_code}")
+            sid = getattr(identity, "source_key", "") or account_name
+            if sid not in self.ids:
+                self.ids[sid] = f"acc_{len(self.ids) + 1:08x}"
+            return SimpleNamespace(id=self.ids[sid])
 
     @dataclass
     class Ctx:
@@ -526,9 +530,9 @@ def test_dock_registers_b_account_when_active(tmp_path, monkeypatch):
     channel = FakeChannel(identity={"sec_uid": B_SEC_UID, "nickname": "小号"})
     spy = RegisterSpy()
     outcome = adapter.butler.dock(Ctx(register=spy), env=FakeEnv(), channel=channel)
-    assert outcome.accounts == ["doubao_cn:逍遥酒鬼", "doubao_cn:小号"]
-    assert spy.calls[0] == ("doubao_cn", "Doubao CN · 逍遥酒鬼", "逍遥酒鬼")
-    assert spy.calls[1] == ("doubao_cn", "小号", "小号")
+    assert len(outcome.accounts) == 2
+    assert spy.calls[0] == ("doubao_cn", "逍遥酒鬼", "")
+    assert spy.calls[1] == ("doubao_cn", "小号", "")
 
 
 def test_dock_registers_registered_other_when_channel_only_has_main(tmp_path, monkeypatch):
@@ -544,11 +548,15 @@ def test_dock_registers_registered_other_when_channel_only_has_main(tmp_path, mo
     @dataclass
     class RegisterSpy:
         calls: list = field(default_factory=list)
+        ids: dict = field(default_factory=dict)
 
-        def execute(self, platform, account_name, *, account_code="main", account_id=None, identity=None):
+        def execute(self, platform, account_name, *, account_code="", account_id=None, identity=None):
             self.calls.append((platform, account_name, account_code))
             from types import SimpleNamespace
-            return SimpleNamespace(id=f"{platform}:{account_code}")
+            sid = getattr(identity, "source_key", "") or account_name
+            if sid not in self.ids:
+                self.ids[sid] = f"acc_{len(self.ids) + 1:08x}"
+            return SimpleNamespace(id=self.ids[sid])
 
     @dataclass
     class Ctx:
@@ -557,9 +565,9 @@ def test_dock_registers_registered_other_when_channel_only_has_main(tmp_path, mo
     channel = FakeChannel(identity={"sec_uid": MAIN_SEC_UID, "nickname": "逍遥酒鬼"})
     spy = RegisterSpy()
     outcome = adapter.butler.dock(Ctx(register=spy), env=FakeEnv(), channel=channel)
-    assert outcome.accounts == ["doubao_cn:逍遥酒鬼", "doubao_cn:小号"]
-    assert spy.calls[0] == ("doubao_cn", "Doubao CN · 逍遥酒鬼", "逍遥酒鬼")
-    assert spy.calls[1] == ("doubao_cn", "小号", "小号")
+    assert len(outcome.accounts) == 2
+    assert spy.calls[0] == ("doubao_cn", "逍遥酒鬼", "")
+    assert spy.calls[1] == ("doubao_cn", "小号", "")
 
 
 def test_dock_first_visit_saves_main_baseline(tmp_path, monkeypatch, request_ctx=None):

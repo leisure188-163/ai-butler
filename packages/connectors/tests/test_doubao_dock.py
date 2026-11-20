@@ -26,11 +26,11 @@ class FakeRegister:
         platform: str,
         account_name: str,
         *,
-        account_code: str = "main",
+        account_code: str = "",
         account_id: str | None = None,
     ):
         self.calls.append((platform, account_name, account_code))
-        return SimpleNamespace(id=f"{platform}:{account_code}")
+        return SimpleNamespace(id=f"{platform}:{account_code or 'main'}")
 
 
 @dataclass
@@ -96,7 +96,7 @@ def test_probe_ok_registers_account_without_vault():
     assert outcome.issues == []
     assert outcome.accounts == ["doubao_cn:main"]
     assert env.spawned == [] and env.killed == []  # 可达即过，不动进程
-    assert ctx.register.calls == [("doubao_cn", "Doubao CN", "main")]
+    assert ctx.register.calls == [("doubao_cn", "未命名账户", "")]
 
 
 def test_probe_fail_relaunches_and_registers():

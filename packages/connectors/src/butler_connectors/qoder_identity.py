@@ -78,8 +78,8 @@ def qoder_region(session: dict, data_dir: Path, platform: str) -> str:
 
 
 def qoder_display(region: str, user: dict) -> str:
-    """账户显示名：区域 + 客户端里的 name/email（没有就交给 platform.display）。"""
-    label = next(
+    """账户显示名：只取客户端里的 name/email/phone/id，不拼平台名（ADR-035）。"""
+    return next(
         (
             str(user.get(key))
             for key in ("name", "email", "phone", "id")
@@ -87,6 +87,3 @@ def qoder_display(region: str, user: dict) -> str:
         ),
         "",
     )
-    if not label:
-        return ""
-    return f"Qoder {'CN' if region == 'cn' else 'Global'} · {label}"

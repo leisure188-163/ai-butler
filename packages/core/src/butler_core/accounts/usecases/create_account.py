@@ -4,7 +4,8 @@
 用户在账户页显式创建（API 型接入源、连接器没扫到的小号）。
 
 不变式：
-- `account_code` 由调用方给定后即冻结；本用例不接受后续改写。
+- `account_code` 是可空的人工后缀（ADR-035）：空 = 尚未关联登录账户；非空时
+  平台内唯一。本用例不接受后续改写（改写走 UpdateAccount）。
 - 首份凭据与账户同一用例写入：凭据写失败则账户行不落库；账户行写失败则回滚凭据。
 """
 
@@ -20,6 +21,7 @@ from butler_core.accounts.domain import (
     AccountInvalid,
     Credential,
     Secret,
+    validate_account_code,
 )
 from butler_core.accounts.ports import AccountRepository, VaultPort
 from butler_core.accounts.usecases.register_account import new_account_id
@@ -47,16 +49,14 @@ class CreateAccount:
         expires_at: datetime | None = None,
     ) -> Account:
         platform = platform.strip()
-        code = account_code.strip()
+        code = validate_account_code(account_code)
         identity = identity or AccountIdentity()
-        if not code:
-            raise AccountInvalid("account_code 不能为空")
         for row in self.accounts.list_by_platform(platform):
             if identity.source_key and row.identity.source_key == identity.source_key:
                 raise AccountAlreadyExists(
                     f"账户已存在：{row.id}（platform={platform}, source_key 相同）"
                 )
-            if row.account_code == code:
+            if code and row.account_code == code:
                 raise AccountAlreadyExists(
                     f"账户已存在：{row.id}（platform={platform}, code={code!r}）"
                 )

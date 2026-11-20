@@ -36,11 +36,13 @@ const emit = defineEmits<{
 
 /* 别名草稿跟随当前账户；账户换人时重置，避免把上一张卡的输入带到下一张 */
 const aliasDraft = ref("");
+const codeDraft = ref("");
 const baseUrlDraft = ref("");
 watch(
   () => props.account?.account_id,
   () => {
     aliasDraft.value = props.account?.alias ?? "";
+    codeDraft.value = props.account?.account_code ?? "";
     baseUrlDraft.value = props.account?.base_url ?? "";
     keyFormOpen.value = false;
     keySecret.value = "";
@@ -50,6 +52,9 @@ watch(
 const aliasDirty = computed(
   () => aliasDraft.value.trim() !== (props.account?.alias ?? ""),
 );
+const codeDirty = computed(
+  () => codeDraft.value.trim() !== (props.account?.account_code ?? ""),
+);
 const baseUrlDirty = computed(
   () => baseUrlDraft.value.trim() !== (props.account?.base_url ?? ""),
 );
@@ -57,6 +62,11 @@ const baseUrlDirty = computed(
 function saveAlias() {
   if (!props.account) return;
   emit("rename", props.account.account_id, aliasDraft.value.trim());
+}
+
+function saveCode() {
+  if (!props.account) return;
+  emit("update", props.account.account_id, { account_code: codeDraft.value.trim() });
 }
 
 function saveBaseUrl() {
@@ -147,6 +157,24 @@ const hasHealth = computed(() => props.platform?.capabilities.includes("health.c
     </div>
     <p class="row-sub alias-hint">
       别名用于对上号（如「Trae 主号」）；留空保存 = 清除，显示回 core 计算的标签。账户 id 不变。
+    </p>
+
+    <p class="detail-label">账户后缀（人工）</p>
+    <div class="alias-row">
+      <input
+        v-model="codeDraft"
+        class="alias-input mono"
+        type="text"
+        maxlength="32"
+        placeholder="留空 = 尚未关联登录账户"
+        aria-label="账户人工后缀"
+      />
+      <button class="btn btn--ghost" :disabled="busy || !codeDirty" @click="saveCode">
+        保存
+      </button>
+    </div>
+    <p class="row-sub alias-hint">
+      同步账户默认留空；关联登录账户时手动填一个平台内唯一的后缀（≤32 位，不含空格/冒号）。
     </p>
 
     <template v-if="platform.origin === 'user'">

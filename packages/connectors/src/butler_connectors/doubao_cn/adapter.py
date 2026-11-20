@@ -558,12 +558,11 @@ class _Butler:
         if baseline is not None:
             account = ctx.register.execute(
                 CONN_ID,
-                f"{DISPLAY} · {baseline.nickname}" if baseline.nickname else DISPLAY,
-                account_code=resolve_account_key(baseline),
+                baseline.nickname or "未命名账户",
                 identity=register_identity(baseline),
             )
         else:
-            account = ctx.register.execute(CONN_ID, DISPLAY)
+            account = ctx.register.execute(CONN_ID, "未命名账户")
         accounts = [account.id]
         # 当前客户端可能只有一条活跃 chat target（会话级单活跃），但登记簿里
         # 仍保留已见过的其它账户；dock 要把这些账户也登记成卡，否则用户在
@@ -579,11 +578,9 @@ class _Butler:
             if baseline is None:
                 continue  # 无基线无法定编址（save_identity_registry 已把首个身份立为基线）
             if identity.sec_uid != baseline.sec_uid:
-                key = resolve_account_key(identity)
                 extra = ctx.register.execute(
                     CONN_ID,
-                    identity.nickname or DISPLAY,
-                    account_code=key,
+                    identity.nickname or "未命名账户",
                     identity=register_identity(identity),
                 )
                 if extra.id not in accounts:

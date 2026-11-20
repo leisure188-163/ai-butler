@@ -38,14 +38,15 @@ def test_main_account_id_policy():
         main_account_id(" ")
 
 
-def test_register_is_idempotent_same_id():
+def test_register_is_idempotent_same_device():
     repo = MemAccounts()
     uc = RegisterAccount(accounts=repo)
-    first = uc.execute("trae_cn", "Trae CN")
-    again = uc.execute("trae_cn", "Trae CN 改名也不应覆盖")
-    assert first is again  # 同一平台位已存在 → 既有账号原样返回（display 冻结）
-    assert first.account_code == "main"
-    assert repo.get(first.id).account_name == "Trae CN"
+    first = uc.execute("trae_cn", "Trae CN", device_ref="install-1")
+    again = uc.execute("trae_cn", "Trae 改了个显示名", device_ref="install-1")
+    assert first.id == again.id  # 同一本机绑定认回，不新建
+    assert again.account_name == "Trae 改了个显示名"  # 显示名随客户端刷新
+    assert first.account_code == ""  # ADR-035：同步不生成人工后缀
+    assert repo.get(first.id).account_name == "Trae 改了个显示名"
 
 
 def test_register_invalid_display():

@@ -8,7 +8,7 @@ level: must
 # 06 · SQL 规范（全库表结构约束）
 
 > **唯一源**：SQL 只存在于 `butler_engine/<域>/sqlite.py` 的 `_SCHEMA` 常量（A4-01 §5）；
-> 本文是**命名与结构约束**的唯一入口。裁决溯源：ADR-019/020/021/022/023。
+> 本文是**命名与结构约束**的唯一入口。裁决溯源：ADR-018（命名与表结构演进）、ADR-022。
 > 冲突时：本文 > 域分册（A2-04..A2-09）> ADR。
 
 ## 1. 总原则（❌ 禁止违反）
@@ -21,12 +21,12 @@ level: must
    `usage_snapshot` / `usage_aggregate` / `usage_quota_ledger` / `usage_sample` /
    `health_state` / `vault_item` / `vault_history` / `audit_log`。
    ❌ 禁止裸实体名（`accounts`/`runs`/`audit` 这种）——业务扩展后难辨域。
-3. **禁用数据库关键字作列名**：`enabled` → `is_active`（ADR-019）。
+3. **禁用数据库关键字作列名**：`enabled` → `is_active`（ADR-018）。
    新列起名先对照 SQLite 关键字表。
 4. **显示名称列按业务命名**：一律 `XXX_name`（账户 = `account_name`、
-   平台 = `platform_name`），❌ 禁止 `display_name` / `name` 裸通用名（ADR-023）。
+   平台 = `platform_name`），❌ 禁止 `display_name` / `name` 裸通用名（ADR-018）。
 5. **身份/引用列 code 化**：`account_code`（非 account_key）、`platform_code`
-   （非 platform）（ADR-020）；对外引用恒等式 = 其它域只持 code 字符串。
+   （非 platform）（ADR-018）；对外引用恒等式 = 其它域只持 code 字符串。
 6. **表结构变更 = 幂等自迁移**：适配器 `__init__` 里 `ALTER TABLE RENAME` /
    `RENAME COLUMN` / `DROP INDEX IF EXISTS` 一轮改齐，老库启动自动升级，
    ❌ 禁止要求用户手工跑迁移脚本、❌ 禁止删行迁数据（零数据丢失）。
@@ -53,12 +53,12 @@ level: must
 
 | 废弃 | 现行 | 裁决 |
 |------|------|------|
-| 裸表名 accounts/runs/usage_snapshots/… | acc_account / exe_claim / usage_snapshot / … | ADR-021 |
-| `provider` 列 | `app` → `platform_code` | ADR-018/019 |
-| `account_key` / `display_name` | `account_code` / `account_name` | ADR-020/023 |
-| `enabled` 列 | `is_active` | ADR-019 |
+| 裸表名 accounts/runs/usage_snapshots/… | acc_account / exe_claim / usage_snapshot / … | ADR-018 |
+| `provider` 列 | `app` → `platform_code` | ADR-018 |
+| `account_key` / `display_name` | `account_code` / `account_name` | ADR-018 |
+| `enabled` 列 | `is_active` | ADR-018 |
 | 平台册 acc_platform（寄居账户域） | plat_platform（platforms 域，第六业务域） | ADR-022 |
-| exe_run（泛化 run 命名 + TEXT 主键无审计列） | exe_claim（领取记录，代理键 + run_id 业务键 + 审计三件） | ADR-024 |
+| exe_run（泛化 run 命名 + TEXT 主键无审计列） | exe_claim（领取记录，代理键 + run_id 业务键 + 审计三件） | ADR-018 |
 
 ## 4. 检查清单（建表/改表 PR 自查）
 

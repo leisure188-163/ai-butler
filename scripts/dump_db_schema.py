@@ -26,6 +26,7 @@ _SECTIONS: dict[str, str] = {
     # 账户域（accounts/sqlite.py；ADR-021 域前缀表名）
     "acc_account": "acc",
     "uq_acc_account_platform_code_key": "acc",
+    "uq_acc_account_platform_source_key": "acc",
     "idx_acc_account_platform_code": "acc",
     # 平台域（platforms/sqlite.py；ADR-022 第六业务域）
     "plat_platform": "plat",

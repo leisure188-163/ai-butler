@@ -117,7 +117,9 @@ def _state() -> WebPageState:
 
 
 def _display_for(state: WebPageState) -> str:
-    return f"{DISPLAY}（{state.username}）" if state.username else DISPLAY
+    """账户显示名只取站点用户名，不拼平台名（ADR-035）。"""
+
+    return state.username or "未命名账户"
 
 
 def _relogin(*, force_login: bool = False) -> WebPageState:
@@ -320,7 +322,6 @@ def dock(ctx: DockContext) -> DockOutcome:
     account = ctx.register.execute(
         CONN_ID,
         _display_for(state),
-        account_code="main",
         identity=AccountIdentity(
             nickname=_display_for(state),
             source_key=f"github_{state.user_id}" if getattr(state, "user_id", None) else "",

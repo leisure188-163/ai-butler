@@ -44,11 +44,10 @@ export function useAccountRows({
     );
   }
 
-  /** 显示标签（ADR-033）：core 单源出产 `account_label`，前端不再自己拼。
-   * 优先级由 core 定：alias > 真实昵称 > 「平台名 · 」后缀 > account_name > account_code。 */
+  /** 显示标签（ADR-035）：core 单源出产 `account_label`，只显示账户自身信息。 */
   function accountLabel(account: AccountItem): string {
     const label = account.account_label?.trim() || "";
-    return label || account.account_code;
+    return label || account.account_name?.trim() || account.account_id;
   }
 
   const todayRunsByAccount = computed(() => {

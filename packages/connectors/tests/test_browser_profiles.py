@@ -71,16 +71,17 @@ def test_two_slots_full_chain_via_registry(tmp_path, mac_env, registry):
     )
     assert outcome.issues == [], outcome.issues
     assert len(outcome.accounts) == 2
-    ids = {a.account_code: a.id for a in accounts.list_by_platform("chatgpt_web")}
-    assert set(ids) == {"main", "profile-1"}
-    assert accounts.rows[ids["main"]].account_name == "ChatGPT"
-    assert accounts.rows[ids["profile-1"]].account_name == "ChatGPT（Profile 1）"
+    rows = accounts.list_by_platform("chatgpt_web")
+    ids = {a.device_ref: a.id for a in rows}
+    assert set(ids) == {"Default", "Profile 1"}
+    assert {a.account_name for a in rows} == {"Default", "Profile 1"}
+    assert all(a.account_code == "" for a in rows)
     assert (
-        json.loads(vault.items[(ids["main"], "browser_cookie")][0].expose())["cookies"][0]["value"]
+        json.loads(vault.items[(ids["Default"], "browser_cookie")][0].expose())["cookies"][0]["value"]
         == "v-d-0"
     )
     assert (
-        json.loads(vault.items[(ids["profile-1"], "browser_cookie")][0].expose())["cookies"][0]["value"]
+        json.loads(vault.items[(ids["Profile 1"], "browser_cookie")][0].expose())["cookies"][0]["value"]
         == "v-p-0"
     )
 

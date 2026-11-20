@@ -8,7 +8,6 @@ level / signal / repair_hint 等**语义字面量由 core 出产并原样传递*
 from __future__ import annotations
 
 from datetime import datetime
-from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -61,9 +60,9 @@ class SessionOut(BaseModel):
 
 class AccountOut(BaseModel):
     account_id: str
-    account_code: str  # 平台内账号序（ADR-003：target = 平台 + 账号）
+    account_code: str  # 人工维护的后缀（可空 = 尚未关联登录账户，ADR-034 §5）
     platform_code: str  # 连接器 id（号册归属，A2-01 §1）
-    account_name: str  # 平台名（账号册出产）
+    account_name: str  # 账户自己的显示信息（不含平台名，ADR-034 §5）
     account_label: str  # 显示标签：core 单源计算（ADR-033；前端不再自行拼装）
     alias: str  # 用户别名（ADR-030）：非空时前端优先显示，取不到真实身份的平台靠它对上号
     identity: IdentityOut  # 真实身份（ADR-033）：昵称/邮箱/uid/source_key
@@ -112,8 +111,7 @@ def _account_out(account_id: str, account: object, kit) -> AccountOut:
     creds = [hp for hp in kit.vault.health() if hp.account_id == account_id]
     return AccountOut(
         account_id=account_id,
-        account_code=getattr(account, "account_code", None)
-        or account_id.split(":", 1)[-1],
+        account_code=getattr(account, "account_code", "") or "",
         platform_code=getattr(account, "platform_code", "") or "",
         account_name=getattr(account, "account_name", "") or account_id,
         account_label=account_label(account),
@@ -193,7 +191,7 @@ class IdentityIn(BaseModel):
 
 
 class AccountCreateIn(BaseModel):
-    """手建账户（ADR-033）：可带首份凭据；account_code 缺省由端侧生成并冻结。"""
+    """手建账户（ADR-035）：account_code 是可空人工后缀，不再自动生成。"""
 
     platform_code: str
     account_code: str | None = None
@@ -209,10 +207,11 @@ class AccountCreateIn(BaseModel):
 
 
 class AccountPatchIn(BaseModel):
-    """账户编辑（ADR-033）：只改显示/运营字段，永不改编址。"""
+    """账户编辑（ADR-035）：显示/运营字段 + 人工后缀；account_id 不可改写。"""
 
     alias: str | None = None  # 空串 = 清除别名
     account_name: str | None = None
+    account_code: str | None = None  # 空串 = 清空人工后缀（回到未关联）
     active: bool | None = None
     base_url: str | None = None  # 空串 = 回落接入源缺省
     identity: IdentityIn | None = None
@@ -287,9 +286,9 @@ def _validate_base_url(base_url: str) -> str:
 
 @router.post("/accounts", response_model=AccountOut)
 def create_account(body: AccountCreateIn, request: Request) -> AccountOut:
-    """手建账户（ADR-033）：API 型接入源、连接器没扫到的小号都从这里进。
+    """手建账户（ADR-035）：API 型接入源、连接器没扫到的小号都从这里进。
 
-    account_code 缺省生成 `acc_<8hex>` 并立即冻结；平台必须存在且未退役。
+    account_code 是可空的人工后缀：空 = 尚未关联登录账户；非空时平台内唯一。
     首份凭据同请求写入（kind/secret 必须成对）；凭据写失败不产生半成品账户。
     """
     kit = request.app.state.kit
@@ -301,7 +300,7 @@ def create_account(body: AccountCreateIn, request: Request) -> AccountOut:
         raise HTTPException(status_code=400, detail=f"account_name 过长（≤{ACCOUNT_NAME_MAX}）")
     alias = _validate_alias(body.alias)
     base_url = _validate_base_url(body.base_url)
-    code = (body.account_code or f"acc_{uuid4().hex[:8]}").strip()
+    code = (body.account_code or "").strip()
     kind = (body.kind or "").strip()
     secret = None
     if body.secret is not None:
@@ -343,10 +342,10 @@ def create_account(body: AccountCreateIn, request: Request) -> AccountOut:
 
 @router.patch("/accounts/{account_id}", response_model=AccountOut)
 def patch_account(account_id: str, body: AccountPatchIn, request: Request):
-    """编辑账户（ADR-033）：别名 / 显示名 / 启停 / 账户级地址 / 真实身份。
+    """编辑账户（ADR-035）：别名 / 显示名 / 人工后缀 / 启停 / 地址 / 真实身份。
 
-    只动显示与运营列：account_id / account_code / platform_code / origin 不可改写——
-    改编址会牵连 vault 凭据与台账外键，属迁移动作（ADR-033 裁决 1）。
+    只改显示与运营列：account_id / platform_code / origin 不可改写；
+    account_code 是可空人工后缀，允许后续关联登录账户时补齐或清空。
     """
     kit = request.app.state.kit
     account = _account_or_404(kit, account_id)
@@ -372,6 +371,8 @@ def patch_account(account_id: str, body: AccountPatchIn, request: Request):
         kwargs["is_active"] = kwargs.pop("active")
     try:
         updated = kit.update_account.execute(account_id, **kwargs)
+    except AccountAlreadyExists as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except AccountInvalid as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _account_out(account_id, updated, kit)

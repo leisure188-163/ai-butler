@@ -61,7 +61,7 @@ def test_all_pass_registers_account(tmp_path, monkeypatch):
     outcome = adapter.butler.dock(ctx, env=env_with(list))
     assert outcome.issues == []
     assert outcome.accounts == ["workbuddy_cn:main"]
-    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN", None)]
+    assert ctx.register.calls == [("workbuddy_cn", "未命名账户", None)]
 
 
 def test_missing_file_issue_without_register(tmp_path, monkeypatch):
@@ -140,7 +140,7 @@ def test_dock_idempotent_on_registry_side(tmp_path, monkeypatch):
     assert first.accounts == second.accounts == ["workbuddy_cn:main"]
 
 
-# --- ADR-025 扩展：account_code = account.nickname 实际昵称 ---
+# --- ADR-035 扩展：account_name = account.nickname；code 留空 ---
 
 
 def test_plaintext_nickname_registers_with_code(tmp_path, monkeypatch):
@@ -153,8 +153,8 @@ def test_plaintext_nickname_registers_with_code(tmp_path, monkeypatch):
     ctx = FakeCtx()
     outcome = adapter.butler.dock(ctx, env=env_with(list))
     assert outcome.issues == []
-    assert outcome.accounts == ["workbuddy_cn:逍遥酒鬼"]
-    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN · 逍遥酒鬼", "逍遥酒鬼")]
+    assert outcome.accounts == ["workbuddy_cn:main"]
+    assert ctx.register.calls == [("workbuddy_cn", "逍遥酒鬼", None)]
 
 
 def test_envelope_nickname_decrypts_to_code(tmp_path, monkeypatch):
@@ -175,8 +175,8 @@ def test_envelope_nickname_decrypts_to_code(tmp_path, monkeypatch):
     ctx = FakeCtx()
     outcome = adapter.butler.dock(ctx, env=env_with(["exe"]))
     assert outcome.issues == []
-    assert outcome.accounts == ["workbuddy_cn:Leisure520"]
-    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN · Leisure520", "Leisure520")]
+    assert outcome.accounts == ["workbuddy_cn:main"]
+    assert ctx.register.calls == [("workbuddy_cn", "Leisure520", None)]
     assert seen["candidates"] == ["exe"]
 
 
@@ -199,7 +199,7 @@ def test_envelope_nickname_decrypt_failure_falls_back_to_main(tmp_path, monkeypa
     outcome = adapter.butler.dock(ctx, env=env_with(["exe"]))
     assert outcome.accounts == ["workbuddy_cn:main"]
     assert any("昵称" in issue for issue in outcome.issues)
-    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN", None)]
+    assert ctx.register.calls == [("workbuddy_cn", "未命名账户", None)]
 
 
 def test_missing_nickname_registers_default(tmp_path, monkeypatch):
@@ -208,4 +208,4 @@ def test_missing_nickname_registers_default(tmp_path, monkeypatch):
     outcome = adapter.butler.dock(ctx, env=env_with(list))
     assert outcome.issues == []
     assert outcome.accounts == ["workbuddy_cn:main"]
-    assert ctx.register.calls == [("workbuddy_cn", "WorkBuddy CN", None)]
+    assert ctx.register.calls == [("workbuddy_cn", "未命名账户", None)]

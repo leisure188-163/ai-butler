@@ -22,9 +22,9 @@ export interface paths {
         put?: never;
         /**
          * Create Account
-         * @description 手建账户（ADR-033）：API 型接入源、连接器没扫到的小号都从这里进。
+         * @description 手建账户（ADR-035）：API 型接入源、连接器没扫到的小号都从这里进。
          *
-         *     account_code 缺省生成 `acc_<8hex>` 并立即冻结；平台必须存在且未退役。
+         *     account_code 是可空的人工后缀：空 = 尚未关联登录账户；非空时平台内唯一。
          *     首份凭据同请求写入（kind/secret 必须成对）；凭据写失败不产生半成品账户。
          */
         post: operations["create_account_api_v1_accounts_post"];
@@ -56,10 +56,10 @@ export interface paths {
         head?: never;
         /**
          * Patch Account
-         * @description 编辑账户（ADR-033）：别名 / 显示名 / 启停 / 账户级地址 / 真实身份。
+         * @description 编辑账户（ADR-035）：别名 / 显示名 / 人工后缀 / 启停 / 地址 / 真实身份。
          *
-         *     只动显示与运营列：account_id / account_code / platform_code / origin 不可改写——
-         *     改编址会牵连 vault 凭据与台账外键，属迁移动作（ADR-033 裁决 1）。
+         *     只改显示与运营列：account_id / platform_code / origin 不可改写；
+         *     account_code 是可空人工后缀，允许后续关联登录账户时补齐或清空。
          */
         patch: operations["patch_account_api_v1_accounts__account_id__patch"];
         trace?: never;
@@ -555,7 +555,7 @@ export interface components {
     schemas: {
         /**
          * AccountCreateIn
-         * @description 手建账户（ADR-033）：可带首份凭据；account_code 缺省由端侧生成并冻结。
+         * @description 手建账户（ADR-035）：account_code 是可空人工后缀，不再自动生成。
          */
         AccountCreateIn: {
             /** Platform Code */
@@ -642,13 +642,15 @@ export interface components {
         };
         /**
          * AccountPatchIn
-         * @description 账户编辑（ADR-033）：只改显示/运营字段，永不改编址。
+         * @description 账户编辑（ADR-035）：显示/运营字段 + 人工后缀；account_id 不可改写。
          */
         AccountPatchIn: {
             /** Alias */
             alias?: string | null;
             /** Account Name */
             account_name?: string | null;
+            /** Account Code */
+            account_code?: string | null;
             /** Active */
             active?: boolean | null;
             /** Base Url */
@@ -1137,7 +1139,7 @@ export interface components {
             account_id?: string | null;
             /**
              * Account Code
-             * @default main
+             * @default
              */
             account_code: string;
             /**

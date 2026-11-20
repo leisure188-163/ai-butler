@@ -66,7 +66,7 @@ def test_account_id_legacy_shape_must_be_valid_or_opaque():
     # 不透明 id（acc_xxx）合法；旧复合 id 仍允许，但空 code / 多冒号显式拒绝
     opaque = Account(id="acc_1234abcd", platform_code="trae_cn", account_name="x",
                      created_at=datetime.now(timezone.utc))
-    assert opaque.account_code == "main"
+    assert opaque.account_code == ""  # ADR-035：新账户不再默认 main
     with pytest.raises(AccountInvalid):
         Account(id="trae_cn:", platform_code="trae_cn", account_name="x",
                 created_at=datetime.now(timezone.utc))

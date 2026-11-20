@@ -86,33 +86,21 @@ class MemoryVault(VaultPort):
 
 def test_account_label_优先级_alias到code():
     base = dict(platform_code="doubao_cn", created_at=datetime(2026, 11, 20, tzinfo=UTC))
-    assert (
-        account_label(
-            Account(id="doubao_cn:u1", account_code="u1", account_name="豆包 · 小号",
-                    alias="小号 A", identity=AccountIdentity(nickname="逍遥酒鬼"), **base)
-        )
-        == "小号 A"
+    account = Account(
+        id="doubao_cn:u1", account_code="u1", account_name="小号",
+        alias="小号 A", identity=AccountIdentity(nickname="逍遥酒鬼"), **base
     )
-    assert (
-        account_label(
-            Account(id="doubao_cn:u1", account_code="u1", account_name="豆包 · 小号",
-                    identity=AccountIdentity(nickname="逍遥酒鬼"), **base)
-        )
-        == "逍遥酒鬼"
+    assert account_label(account) == "小号 A"
+    account = Account(
+        id="doubao_cn:u1", account_code="u1", account_name="小号",
+        identity=AccountIdentity(nickname="逍遥酒鬼"), **base
     )
-    assert (
-        account_label(
-            Account(id="doubao_cn:u1", account_code="u1", account_name="豆包 · 小号", **base)
-        )
-        == "小号"
-    )
-    # 无「·」后缀 = 原名；原名空（构造禁止）时退回 code
-    assert (
-        account_label(
-            Account(id="doubao_cn:u1", account_code="u1", account_name="豆包主号", **base)
-        )
-        == "豆包主号"
-    )
+    assert account_label(account) == "逍遥酒鬼"
+    account = Account(id="doubao_cn:u1", account_code="u1", account_name="小号", **base)
+    assert account_label(account) == "小号"  # 名称即显示名，不拼平台前缀
+    account = Account(id="acc_0badf00d", platform_code="x", account_name="未命名账户",
+                      created_at=datetime(2026, 11, 20, tzinfo=UTC))
+    assert account_label(account) == "未命名账户"
 
 
 def test_credential_slot形状与标签限长():

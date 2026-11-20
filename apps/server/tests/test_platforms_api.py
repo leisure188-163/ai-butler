@@ -121,7 +121,13 @@ class _StubRegistry:
         ids = []
         for acc in self._accounts:
             platform, _, code = acc.partition(":")
-            ids.append(ctx.register.execute(platform, platform, account_code=code or "main").id)
+            ids.append(
+                ctx.register.execute(
+                    platform,
+                    platform,
+                    device_ref=f"{platform}:{code or 'main'}",
+                ).id
+            )
         return [DockOutcome(target=target, accounts=ids)]
 
 
@@ -143,7 +149,7 @@ class _BatchRegistry:
     def dock(self, ctx, *, target):
         from butler_connectors.registry import DockOutcome
 
-        account = ctx.register.execute(target, target)
+        account = ctx.register.execute(target, target, device_ref=f"{target}:stub")
         return [DockOutcome(target=target, accounts=[account.id])]
 
 
@@ -300,7 +306,9 @@ def test_import_triggers_usage_collect_and_reports_errors(tmp_path):
     """R2-F dock 顺带采集：导入成功即产第一帧；采集失败如实进 issues，不打断导入。"""
     with _client(tmp_path) as client:
         kit = client.app.state.kit
-        account = kit.register_account.execute("trae_cn", "Trae CN")
+        account = kit.register_account.execute(
+            "trae_cn", "Trae CN", device_ref="trae_cn:main"
+        )
         client.app.state.registry = _StubRegistry(["trae_cn:main"])
         kit.collect_usage.ports = {
             "trae_cn": _UsagePort([_usage_result(2000, account_id=account.id)])
@@ -329,7 +337,7 @@ def test_import_all_skips_docked_and_reports_collect_errors(tmp_path):
         kit = client.app.state.kit
         client.app.state.registry = _BatchRegistry(["trae_cn", "qoder_cn", "doubao_cn"])
         _sync_registry(client)  # 名册随 stub 重建（ADR-021/022：DB 为真相源）
-        kit.register_account.execute("trae_cn", "Trae CN")  # 已导入 → 跳过
+        kit.register_account.execute("trae_cn", "Trae CN", device_ref="trae_cn:stub")  # 已导入 → 跳过
         kit.collect_usage.ports = {}  # 显式接管端口面：全部采集失败 → issues
 
         rows = client.post("/api/v1/platforms/import-all").json()
@@ -337,7 +345,7 @@ def test_import_all_skips_docked_and_reports_collect_errors(tmp_path):
         for row in rows:
             assert len(row["accounts"]) == 1
             assert row["accounts"][0].startswith("acc_")
-            assert kit.accounts.get(row["accounts"][0]).account_code == "main"
+            assert kit.accounts.get(row["accounts"][0]).account_code == ""
             assert any("用量采集" in i for i in row["issues"])
 
 
@@ -371,7 +379,7 @@ def test_import_all_include_docked_rescans_all_client_platforms(tmp_path):
         kit = client.app.state.kit
         client.app.state.registry = _BatchRegistry(["trae_cn", "qoder_cn"])
         _sync_registry(client)
-        kit.register_account.execute("trae_cn", "Trae CN")  # 已导入 → 默认批量跳过
+        kit.register_account.execute("trae_cn", "Trae CN", device_ref="trae_cn:stub")  # 已导入 → 默认批量跳过
         kit.collect_usage.ports = {}  # 采集端口全失败 → issues，不影响账户落册
 
         default_rows = client.post("/api/v1/platforms/import-all").json()
