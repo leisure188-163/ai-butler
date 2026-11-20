@@ -73,12 +73,14 @@ def test_dock_registers_account_and_stores_credentials(ctx):
     account = ctx.register.accounts.get(outcome.accounts[0])
     assert account.account_code == "main"
     assert account.account_name == "Trae CN"
+    assert account.identity.source_key == "u-1"  # 账号级 userId，不是设备号
 
     import sys
 
     from butler_connectors.ssaes import decode_stored, open_envelope
 
     envelope, expires = ctx.vault.items[(account.id, "ss_aes")]
+    assert len(envelope.expose()) <= 2560  # Windows Credential Manager blob 上限
     info = open_envelope(decode_stored(envelope.expose()))
     assert info["token"].startswith("ey")  # 解码形态耦合最小化：JWT 形状
     device, _ = ctx.vault.items[(account.id, "device_dn")]

@@ -14,7 +14,8 @@ import base64
 import binascii
 import hashlib
 import json
-from typing import Any
+import secrets
+from typing import Any, Iterable
 
 HEADER = bytes([116, 99, 5, 16, 0, 0])
 MASTER_KEY_LEN = 32
@@ -70,6 +71,39 @@ def open_envelope(raw: bytes) -> dict[str, Any]:
     return data
 
 
+def compact_envelope(value: str, keep: Iterable[str]) -> str:
+    """把登录态信封压成只含 keep 字段的同协议信封（Windows 凭据槽 2560B 上限）。
+
+    桌面端信封会随账号资料增长（2026-11-20 实测 2656 字符，已超过
+    Credential Manager 的 CRED_MAX_CREDENTIAL_BLOB_SIZE=2560）。信封内的
+    AES 主密钥本来就随信封同行，重封不改变安全边界；解锁侧只依赖
+    token/version，账号名等字段在停靠时已落号册，无需长期留在凭据里。
+    """
+    raw = decode_stored(value)
+    payload = open_envelope(raw)
+    if len(raw) < 6 + MASTER_KEY_LEN:
+        raise EnvelopeInvalid(f"SS_AES 信封长度不足（{len(raw)}B）")
+    master = raw[6 : 6 + MASTER_KEY_LEN]
+    slim = {k: payload[k] for k in keep if k in payload}
+    if "token" not in slim:
+        raise EnvelopeInvalid("SS_AES 登录态缺 token，无法压缩重封")
+    return seal_envelope(slim, master)
+
+
+def seal_envelope(payload: dict[str, Any], master: bytes | None = None) -> str:
+    """按 SS_AES 协议重封一个登录态 JSON（master 缺省则随机生成）。"""
+    if master is None:
+        master = secrets.token_bytes(MASTER_KEY_LEN)
+    if len(master) != MASTER_KEY_LEN:
+        raise EnvelopeInvalid(f"SS_AES 主密钥长度应为 {MASTER_KEY_LEN}B")
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
+    plain = hashlib.sha512(body).digest() + body
+    digest = hashlib.sha512(hashlib.sha512(master).digest() + SALT).digest()
+    key, iv = digest[:KEY_LEN], digest[KEY_LEN : 2 * KEY_LEN]
+    ciphertext = _encrypt_cbc(key, iv, plain)
+    return base64.b64encode(HEADER + master + ciphertext).decode("ascii")
+
+
 def decode_stored(value: str) -> bytes:
     """storage.json 里的值是 base64 字符串；严格校验可逆性（防双向漂移）。"""
     try:
@@ -79,6 +113,16 @@ def decode_stored(value: str) -> bytes:
     if base64.b64encode(decoded).decode("ascii") != value:
         raise EnvelopeInvalid("登录态 base64 编码不可逆归一——信封已损坏")
     return decoded
+
+
+def _encrypt_cbc(key: bytes, iv: bytes, plain: bytes) -> bytes:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives.padding import PKCS7
+
+    padder = PKCS7(KEY_LEN * 8).padder()
+    padded = padder.update(plain) + padder.finalize()
+    encryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
+    return encryptor.update(padded) + encryptor.finalize()
 
 
 def _decrypt_cbc(key: bytes, iv: bytes, ciphertext: bytes) -> bytes:

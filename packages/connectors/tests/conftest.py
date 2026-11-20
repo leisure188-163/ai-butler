@@ -36,7 +36,7 @@ def make_login_state(exp_epoch: int, master: bytes = bytes(range(32))) -> dict:
 
     from butler_connectors.ssaes import HEADER, SALT
 
-    info = {"token": make_jwt(exp_epoch), "uid": "u-1"}
+    info = {"token": make_jwt(exp_epoch), "userId": "u-1"}
     body = json.dumps(info, separators=(",", ":")).encode()
     digest = hashlib.sha512(hashlib.sha512(master).digest() + SALT).digest()
     key, iv = digest[:16], digest[16:32]

@@ -339,7 +339,7 @@ def _read_machine_id(facts: dict[str, str], candidates: list[str]) -> str:
 
 def _scan_ss_aes(auth: AuthSpec, conn_id: str, candidates: list[str]) -> dict[str, str]:
     """Trae CN storage.json：信封(base64) + 键名里的 Aha 数字设备号。"""
-    from butler_connectors.ssaes import decode_stored, open_envelope
+    from butler_connectors.ssaes import compact_envelope, decode_stored, open_envelope
 
     facts: dict[str, str] = {}
     for raw in candidates:
@@ -354,14 +354,18 @@ def _scan_ss_aes(auth: AuthSpec, conn_id: str, candidates: list[str]) -> dict[st
         if envelope is None:
             continue
         try:
-            open_envelope(decode_stored(envelope))  # 形状校验（明文即丢）
+            session = open_envelope(decode_stored(envelope))  # 形状校验（明文即丢）
         except (ValueError, RuntimeError) as exc:
             facts["_issue"] = f"登录态信封解不开（{exc}）——请在桌面端重新登录后重扫"
             return facts
-        facts["ss_aes"] = envelope
+        facts["ss_aes"] = compact_envelope(
+            envelope, ("token", "version", "userId", "expiredAt", "refreshExpiredAt")
+        )
         if device_dn:
             facts["device_dn"] = device_dn
-            facts["_source_key"] = device_dn  # Aha 数字设备号：稳定账户身份锚点
+        user_id = str(session.get("userId") or "").strip()
+        if user_id:
+            facts["_source_key"] = user_id  # 账号级唯一值（设备号不是身份）
         return facts
     if not facts:
         raise StorageNotFound(
