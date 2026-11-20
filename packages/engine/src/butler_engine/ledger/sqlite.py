@@ -8,6 +8,9 @@
   （线程安全，M0 量级足够；性能要求出现时再池化）
 - 幂等查询语义：同键存在已成功（core ResultKind.is_pass 谓词判定）的 Run
   → 返回它（重复触发不重复领取）；否则返回最新一条（失败可重试）
+
+表结构真相源 = `butler_engine/db/migrations/`（ADR-036）：本模块零 DDL，
+构造经 `open_db` 迁移链保证 schema 最新；改表 = 新增编号迁移文件。
 """
 
 from __future__ import annotations
@@ -25,26 +28,7 @@ from butler_core.shared.results import Status
 from butler_core.execution.domain import Evidence, RepairHint, Run, RunResult
 
 from butler_engine.db.conn import connect
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS exe_claim (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL UNIQUE,
-    kind TEXT NOT NULL,
-    target TEXT NOT NULL,
-    params_json TEXT NOT NULL,
-    account_id TEXT NOT NULL,
-    idempotency_key TEXT NOT NULL,
-    started_at TEXT NOT NULL,
-    budget_seconds REAL NOT NULL,
-    finished_at TEXT,
-    status TEXT,
-    result_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_exe_claim_idempotency ON exe_claim(idempotency_key);
-"""
+from butler_engine.db.migrations import open_db
 
 _COLUMNS = (
     "run_id, kind, target, params_json, account_id, idempotency_key, "
@@ -55,36 +39,7 @@ _COLUMNS = (
 class SqliteRunLedger(RunLedger):
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = str(db_path)
-        with closing(self._connect()) as conn, conn:
-            # 迁移链（ADR-021/024，幂等）：runs → exe_run（域前缀）→ exe_claim（领取记录）
-            if conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'"
-            ).fetchone():
-                conn.execute("ALTER TABLE runs RENAME TO exe_run")
-            conn.execute("DROP INDEX IF EXISTS idx_runs_idempotency")
-            conn.execute("DROP INDEX IF EXISTS idx_exe_run_idempotency")
-            conn.executescript(_SCHEMA)  # 先建 exe_claim（幂等）
-            if conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='exe_run'"
-            ).fetchone():
-                # 领取记录改名 + 补审计三件（ADR-024）：旧行原样搬入，零数据丢失；
-                # WHERE 防中断重入重复插入
-                conn.execute(
-                    """
-                    INSERT INTO exe_claim (
-                        run_id, kind, target, params_json, account_id,
-                        idempotency_key, started_at, budget_seconds,
-                        finished_at, status, result_json, created_at, updated_at
-                    )
-                    SELECT id, kind, target, params_json, account_id,
-                           idempotency_key, started_at, budget_seconds,
-                           finished_at, status, result_json,
-                           started_at, COALESCE(finished_at, started_at)
-                    FROM exe_run
-                    WHERE id NOT IN (SELECT run_id FROM exe_claim)
-                    """
-                )
-                conn.execute("DROP TABLE exe_run")
+        open_db(self._db_path)  # 构造即 schema 最新（迁移链保证，ADR-036）
 
     # --- core RunLedger 端口 ---
 

@@ -203,50 +203,6 @@ def test_多槽位_purge清空全部槽(tmp_path):
         vault.load("acc1", ["token"], slot="backup")
 
 
-def test_旧表迁移_全部行落默认槽且秘密引用不变(tmp_path):
-    """ADR-033：老库 vault_item（PK account_id, kind）重建后零迁移。"""
-    import sqlite3
-
-    db = tmp_path / "legacy.db"
-    conn = sqlite3.connect(db)
-    conn.executescript(
-        """
-        CREATE TABLE vault_item (
-            account_id TEXT NOT NULL, kind TEXT NOT NULL, backend TEXT NOT NULL,
-            expires_at TEXT, created_at TEXT, rotated_at TEXT,
-            revoked_at TEXT, revoked_reason TEXT,
-            PRIMARY KEY (account_id, kind)
-        );
-        CREATE TABLE vault_history (
-            seq INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL,
-            kind TEXT NOT NULL, archived_ref TEXT NOT NULL, rotated_at TEXT NOT NULL
-        );
-        """
-    )
-    conn.execute(
-        "INSERT INTO vault_item VALUES ('acc1','token','memory',NULL,"
-        "'2026-11-10T12:00:00+00:00',NULL,NULL,'')"
-    )
-    conn.execute(
-        "INSERT INTO vault_history (account_id, kind, archived_ref, rotated_at)"
-        " VALUES ('acc1','token','acc1:token#0','2026-11-10T12:00:00+00:00')"
-    )
-    conn.commit()
-    conn.close()
-
-    legacy = LayeredVault(
-        db, {"memory": MemoryVaultBackend()}, default_backend="memory",
-        audit=SqliteAuditLog(tmp_path / "a2.db"),
-    )
-    cols = {r[1] for r in legacy._connect().execute("PRAGMA table_info(vault_item)")}
-    assert {"slot", "id", "label", "updated_at"} <= cols
-    rows = legacy.health()
-    assert [(h.account_id, h.kind, h.slot) for h in rows] == [("acc1", "token", "default")]
-    hist = legacy.history("acc1", "token", slot="default")
-    assert hist[0][0] == "acc1:token#0"  # 历史槽位回填 default，归档引用不变
-
-
-
 def test_memory_backend_missing_is_explicit(tmp_path):
     with pytest.raises(VaultCredentialMissing):
         MemoryVaultBackend().get("nope")

@@ -116,7 +116,7 @@ schema 外字段直接报错（`extra=forbid`，继承旧仓库"显式报错不�
   不申报；连接器申报后才启用该判定，禁止引擎对任意 401/403 自行猜测。
 - 运行时命中申报码 → `NO_AUTH` + 证据「鉴权被拒（HTTP xxx）——登录态已失效」+
   `RepairHint(action_id="relogin")`；未申报的 4xx/5xx 仍 `FAILED`。
-- 健康判定 `invalid/expired` 后，butler 自动撤销自己的本地副本（ADR-016）；
+- 健康判定 `invalid/expired` 后，butler 自动撤销自己的本地副本（ADR-015）；
   `load` 命中撤销 → `CredentialRevoked`，连接器仍按 `NO_AUTH` 处理，
   不感知"撤销/缺失"差异。
 - 新接入应用必须在 PROTOCOL.md §2「认证与凭据」写明失效码，再回填本字段。
@@ -191,8 +191,8 @@ core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_code`、
 | qoder_cn | **多账号（CN `main` + Global `global-<hash>`，目录级 profile）** | **已取证（2026-11-17 Windows）**：`com.qodercn.app.stable`（CN，`openapi.qoder.com.cn`）与 `com.qoder.app.stable`（Global，`openapi.qoder.sh`）双数据目录、双 user id；token 跨 host 均 401，只有各自 host 200；dock 逐目录注册，2026-11-17 Global claim 写入 + status 复查通过（PROTOCOL §8.2） |
 | doubao_cn | 单账号（CDP 单实例，端口单值 9222） | **已取证（2026-11-14 mac 运行态）**：app 级单实例锁——第二实例秒退 exit=0（独立 `--user-data-dir` 被客户端吞、端口不落地），多开不可行 → 多账号无据（PROTOCOL §8） |
 | workbuddy_cn | 单账号（现用现取零申报） | **已取证（2026-11-14 mac）**：凭据 = 单文件 `workbuddy-desktop.info`——单会话文件即单账号，无多 profile 形状 |
-| chatgpt_web | **多账户（ADR-011，每 profile 一槽）** | **已取证（2026-11-14 mac）**：Chrome 双 profile 均实存名单内会话令牌——多 profile 布局实证；账号同一性未验（不解密）；裁决 = 每 profile 一账户槽已接入 dock（browser.py，首个凑齐 = main 存量卡位，后续 = 目录名 slug） |
-| claude_web | **多账户（同 ADR-011 通道）** | 本机无登录态（双 profile 均无 claude.ai cookie）——通道语义已就绪，名单补证维持挂账 |
+| chatgpt_web | **多账户（ADR-003，每 profile 一槽）** | **已取证（2026-11-14 mac）**：Chrome 双 profile 均实存名单内会话令牌——多 profile 布局实证；账号同一性未验（不解密）；裁决 = 每 profile 一账户槽已接入 dock（browser.py，首个凑齐 = main 存量卡位，后续 = 目录名 slug） |
+| claude_web | **多账户（同 ADR-003 通道）** | 本机无登录态（双 profile 均无 claude.ai cookie）——通道语义已就绪，名单补证维持挂账 |
 
 **扩展点已落地**：`butler_core.accounts.ports.SessionSourcePort.enumerate_accounts()`
 产出 `(account_code, account_name)`，`RegisterAccount.import_from_source()` 逐账号
@@ -211,7 +211,7 @@ core/engine/server 已按 ADR-003 支持"一应用 N 账户"（`account_code`、
 - 端口按连接器 env 覆盖（首个采用：agentrouter `AGENTROUTER_CDP_PORT`，缺省
   9222 仅为兼容旧契约）；非法值显式报错，不静默回缺省（红线 5）。
 
-## 11. 只读采集不产生界面动作（2026-11-18，ADR-028）
+## 11. 只读采集不产生界面动作（2026-11-18，ADR-026）
 
 - 用量/额度等只读采集的会话凭据走**浏览器级** `CdpChannel.storage_cookies(domain)`
   （`Storage.getCookies` + `/json/version` 的 `webSocketDebuggerUrl`）：不 `attach`

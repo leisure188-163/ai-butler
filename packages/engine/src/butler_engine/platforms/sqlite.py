@@ -5,6 +5,9 @@
 + 台账并账，不再每次装配穿连接器包拼装（端零映射）。
 
 表名带域前缀（ADR-021 全库表名纪律）：plat_platform。
+
+表结构真相源 = `butler_engine/db/migrations/`（ADR-036）：本模块零 DDL，
+构造经 `open_db` 迁移链保证 schema 最新；改表 = 新增编号迁移文件。
 """
 
 from __future__ import annotations
@@ -16,59 +19,15 @@ from butler_core.platforms.ports import PlatformRepository
 from butler_core.platforms.domain import PlatformEntry
 
 from butler_engine.db.conn import connect
+from butler_engine.db.migrations import open_db
 
-_TABLE_DDL = """
-CREATE TABLE IF NOT EXISTS plat_platform (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    platform_code    TEXT NOT NULL UNIQUE,
-    platform_name    TEXT NOT NULL,
-    platform_kind    TEXT NOT NULL DEFAULT '',
-    client_version   TEXT NOT NULL DEFAULT '',
-    icon             TEXT NOT NULL DEFAULT '',
-    capabilities     TEXT NOT NULL DEFAULT '[]',
-    credential_kinds TEXT NOT NULL DEFAULT '[]',
-    schedule_times   TEXT NOT NULL DEFAULT '[]',
-    schedule_override TEXT NOT NULL DEFAULT '',
-    base_url         TEXT NOT NULL DEFAULT '',
-    protocol         TEXT NOT NULL DEFAULT '',
-    models_json      TEXT NOT NULL DEFAULT '[]',
-    origin           TEXT NOT NULL DEFAULT 'connector',
-    is_active        INTEGER NOT NULL DEFAULT 1,
-    deprecated_at    TEXT,
-    created_at       TEXT NOT NULL,
-    updated_at       TEXT NOT NULL
-);
-"""
-
-_INDEX_DDL = """
-CREATE INDEX IF NOT EXISTS idx_plat_platform_active ON plat_platform (is_active);
-"""
-
-_SCHEMA = _TABLE_DDL + _INDEX_DDL
-
-#: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
-_DDL_COLS = (
-    "platform_code", "platform_name", "platform_kind", "client_version", "icon",
-    "capabilities", "credential_kinds", "schedule_times", "schedule_override",
-    "base_url", "protocol", "models_json", "origin",
-    "is_active", "deprecated_at", "created_at", "updated_at",
+#: 列清单（与 001_initial.sql 列序一致；upsert/get 按 this 顺序读写，id 不在内）
+_COLS = (
+    "platform_code, platform_name, platform_kind, client_version, icon, "
+    "capabilities, credential_kinds, schedule_times, schedule_override, "
+    "base_url, protocol, models_json, origin, "
+    "is_active, deprecated_at, created_at, updated_at"
 )
-_COLS = ", ".join(_DDL_COLS)
-
-#: 重建时缺失列的落值（显式未知，不猜）
-_ADDED_DEFAULTS = {
-    "platform_kind": "''", "client_version": "''", "icon": "''", "schedule_override": "''",
-    "base_url": "''", "protocol": "''", "models_json": "'[]'", "origin": "'connector'",
-}
-
-#: 重建整表时缺列的兜底值：必须与 DDL 默认一致（NOT NULL 列落 NULL 会直接炸）
-_DDL_DEFAULTS = {
-    **_ADDED_DEFAULTS,
-    "capabilities": "'[]'",
-    "credential_kinds": "'[]'",
-    "schedule_times": "'[]'",
-    "is_active": "1",
-}
 
 
 def _dump(values: tuple[str, ...]) -> str:
@@ -96,42 +55,10 @@ def _load_override(raw: str | None) -> tuple[str, ...] | None:
 class SqlitePlatformRepository(PlatformRepository):
     def __init__(self, db_path: str | Path) -> None:
         self._db = str(db_path)
-        with self._connect() as conn, conn:
-            # 表名迁移（ADR-022）：独立平台域后 acc_platform → plat_platform（幂等）
-            if conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='acc_platform'"
-            ).fetchone():
-                conn.execute("ALTER TABLE acc_platform RENAME TO plat_platform")
-            conn.execute("DROP INDEX IF EXISTS idx_acc_platform_active")
-            # 列名收编（ADR-023 命名裁决）：display_name → platform_name（幂等）
-            plat_cols = {
-                r[1] for r in conn.execute("PRAGMA table_info(plat_platform)").fetchall()
-            }
-            if "platform_name" not in plat_cols and "display_name" in plat_cols:
-                conn.execute(
-                    "ALTER TABLE plat_platform RENAME COLUMN display_name TO platform_name"
-                )
-            if plat_cols:
-                # 列合并（ADR-031）：name_override 并入 platform_name 后丢弃该列。
-                # 用户改过的名就是他要的名字——原 platform_name 只是 manifest 申报值，
-                # 未改过（'' ）的行保持 manifest 名不变。
-                if "name_override" in plat_cols:
-                    conn.execute(
-                        "UPDATE plat_platform SET platform_name = name_override "
-                        "WHERE TRIM(IFNULL(name_override, '')) <> ''"
-                    )
-                    plat_cols.discard("name_override")
-                for name, default in _ADDED_DEFAULTS.items():
-                    if name not in plat_cols:
-                        # 新增列（2026-11-18 裁决）：老库补列，存量行落显式未知
-                        conn.execute(
-                            f"ALTER TABLE plat_platform ADD COLUMN {name} TEXT NOT NULL DEFAULT {default}"
-                        )
-                _reorder_columns(conn)
-            conn.executescript(_SCHEMA)
+        open_db(self._db)  # 构造即 schema 最新（迁移链保证，ADR-036）
 
     def _connect(self):
-        return connect(self._db)
+        return connect(self._db)  # 迁移已在 __init__ 完成，操作期直连
 
     def upsert(self, entry: PlatformEntry) -> None:
         """接入/启动同步落库：INSERT 时写 platform_name，UPDATE 时**不写**（ADR-031）。
@@ -325,24 +252,3 @@ def _load(row) -> PlatformEntry | None:
         created_at=datetime.fromisoformat(row[15]),
     )
 
-
-def _reorder_columns(conn) -> None:
-    """物理列序校正（幂等·零丢失）：SQLite 的 ADD COLUMN 只能追加到末尾，
-    老库补列后列序与 DDL 权威序不符——按 _DDL_COLS 重建表并整表拷回。
-
-    id 保持首位（代理键不漂移）；缺失列按 _ADDED_DEFAULTS 落显式未知。
-    """
-    actual = [r[1] for r in conn.execute("PRAGMA table_info(plat_platform)").fetchall()]
-    if actual == ["id", *_DDL_COLS]:
-        return
-    conn.execute("DROP INDEX IF EXISTS idx_plat_platform_active")
-    conn.execute("ALTER TABLE plat_platform RENAME TO plat_platform__reorder")
-    conn.executescript(_TABLE_DDL)
-    select = ", ".join(
-        col if col in actual else _DDL_DEFAULTS.get(col, "NULL") for col in _DDL_COLS
-    )
-    conn.execute(
-        f"INSERT INTO plat_platform (id, {_COLS}) "
-        f"SELECT id, {select} FROM plat_platform__reorder"
-    )
-    conn.execute("DROP TABLE plat_platform__reorder")

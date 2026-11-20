@@ -5,6 +5,8 @@
   订阅者自动覆盖，session.import M4 加入 IDEMPOTENT_KINDS 即自动生效）、
   连接器安装与升级（M1 接线）
 - 反代上线（M3）前审计必须就位——这是 L3 的安全底线，不是可选件
+
+表结构真相源 = `butler_engine/db/migrations/`（ADR-036）：本模块零 DDL。
 """
 
 from __future__ import annotations
@@ -20,32 +22,15 @@ from butler_core.shared.events import Event, EventType
 from butler_core.execution.domain import now_utc
 
 from butler_engine.db.conn import connect
+from butler_engine.db.migrations import open_db
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS audit_log (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts TEXT NOT NULL,
-    actor TEXT NOT NULL,
-    account_id TEXT,
-    credential_ref TEXT,
-    action TEXT NOT NULL,
-    outcome TEXT NOT NULL
-);
-"""
-
-_COLUMNS = "seq, ts, actor, account_id, credential_ref, action, outcome"
+_COLUMNS = "id, ts, actor, account_id, credential_ref, action, outcome"
 
 
 class SqliteAuditLog:
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = str(db_path)
-        with closing(self._connect()) as conn, conn:
-            # 表名迁移（ADR-021 域前缀纪律）：老表 RENAME 幂等，旧索引随行清理
-            if conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit'"
-            ).fetchone():
-                conn.execute("ALTER TABLE audit RENAME TO audit_log")
-            conn.executescript(_SCHEMA)
+        open_db(self._db_path)  # 构造即 schema 最新（迁移链保证，ADR-036）
 
     def record(
         self,
@@ -58,6 +43,7 @@ class SqliteAuditLog:
         ts: datetime | None = None,
     ) -> None:
         """追加一条审计。credential_ref 入库前强制哈希（哈希非明文，A4-01 §4）。"""
+        iso_ts = (ts if ts is not None else now_utc()).isoformat()
         ref = (
             hashlib.sha256(credential_ref.encode("utf-8")).hexdigest()
             if credential_ref
@@ -65,26 +51,29 @@ class SqliteAuditLog:
         )
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT INTO audit_log (ts, actor, account_id, credential_ref, action, outcome)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO audit_log"
+                " (ts, actor, account_id, credential_ref, action, outcome, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    (ts if ts is not None else now_utc()).isoformat(),
+                    iso_ts,
                     actor,
                     account_id,
                     ref,
                     action,
                     outcome,
+                    iso_ts,
+                    iso_ts,
                 ),
             )
 
     def export_json(self) -> str:
         """排障导出（JSON）。只读，不脱敏结构——credential_ref 本就是哈希。"""
         with closing(self._connect()) as conn, conn:
-            rows = conn.execute(f"SELECT {_COLUMNS} FROM audit_log ORDER BY seq").fetchall()
+            rows = conn.execute(f"SELECT {_COLUMNS} FROM audit_log ORDER BY id").fetchall()
         return json.dumps(
             [
                 {
-                    "seq": seq,
+                    "id": audit_id,
                     "ts": ts,
                     "actor": actor,
                     "account_id": account_id,
@@ -92,7 +81,7 @@ class SqliteAuditLog:
                     "action": action,
                     "outcome": outcome,
                 }
-                for seq, ts, actor, account_id, ref, action, outcome in rows
+                for audit_id, ts, actor, account_id, ref, action, outcome in rows
             ],
             ensure_ascii=False,
             indent=2,

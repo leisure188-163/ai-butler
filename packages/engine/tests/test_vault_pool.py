@@ -47,7 +47,7 @@ def _pool_rows(db: Path) -> list[tuple]:
     conn = sqlite3.connect(str(db))
     rows = conn.execute(
         "SELECT action, outcome, account_id, credential_ref FROM audit_log "
-        "WHERE actor = 'gateway-pool' ORDER BY seq"
+        "WHERE actor = 'gateway-pool' ORDER BY id"
     ).fetchall()
     conn.close()
     return rows

@@ -1,4 +1,8 @@
-"""健康扫描状态存储（core HealthStateStore 落地）：记录已通知级别，变更才产事件。"""
+"""健康扫描状态存储（core HealthStateStore 落地）：记录已通知级别，变更才产事件。
+
+表结构真相源 = `butler_engine/db/migrations/`（ADR-036）：本模块零 DDL，
+构造经 `open_db` 迁移链保证 schema 最新；改表 = 新增编号迁移文件。
+"""
 
 from __future__ import annotations
 
@@ -11,14 +15,7 @@ from butler_core.health.domain import HealthLevel
 from butler_core.shared.errors import DomainError
 
 from butler_engine.db.conn import connect
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS health_state (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-"""
+from butler_engine.db.migrations import open_db
 
 
 def credential_key(account_id: str, kind: str) -> str:
@@ -32,8 +29,7 @@ def account_key(account_id: str) -> str:
 class SqliteHealthStateStore(HealthStateStore):
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = str(db_path)
-        with closing(self._connect()) as conn, conn:
-            conn.executescript(_SCHEMA)
+        open_db(self._db_path)  # 构造即 schema 最新（迁移链保证，ADR-036）
 
     def get_credential_notified_level(self, account_id: str, kind: str) -> str | None:
         return self._get(credential_key(account_id, kind))
@@ -64,8 +60,8 @@ class SqliteHealthStateStore(HealthStateStore):
             raise DomainError(f"健康级别必须是 HealthLevel，收到 {type(level).__name__}")
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT INTO health_state (key, value, updated_at)"
-                " VALUES (?, ?, datetime('now'))"
+                "INSERT INTO health_state (key, value, created_at, updated_at)"
+                " VALUES (?, ?, datetime('now'), datetime('now'))"
                 " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
                 " updated_at = excluded.updated_at",
                 (key, level.value),

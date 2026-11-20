@@ -202,7 +202,7 @@ checkin」~~——ADR-017 起连接器零自组请求，两者已同源同栈，
 - **身份登记簿**：dock 采集后持久化 `~/.butler/doubao_identity.json`
   （`DOUBAO_IDENTITY_PATH` 可覆盖）：`main_sec_uid`/`main_nickname` +
   `others[{sec_uid, nickname, account_code}]`——其他账户的切号定位依据
-  （**account_code = 实际昵称**，2026-11-18 用户裁决 [ADR-025]：账户编址用
+  （**account_code = 实际昵称**，2026-11-18 用户裁决 [ADR-003]：账户编址用
   实际信息区分，不用 main 占位；昵称缺失才 sec_uid 派生兜底 `u` + SHA256
   前 8 位，单向不可逆）；采集为空不覆盖旧簿，**单会话采集只返回当前账户时
   也合并保留既有 others**（2026-11-17 修：原实现会把 others 重写空，导致
@@ -301,7 +301,7 @@ checkin」~~——ADR-017 起连接器零自组请求，两者已同源同栈，
   **周一 400**（11-02/11-09 两个周一双实证），断签无补登记录
 - cursor 为 base64 JSON `{"create_time", "id"}`
 
-**Cookie 来源（2026-11-18 修订，ADR-028）**：会话 Cookie 走**浏览器级**
+**Cookie 来源（2026-11-18 修订，ADR-026）**：会话 Cookie 走**浏览器级**
 `Storage.getCookies`（经 `/json/version` 的 `webSocketDebuggerUrl`，按
 `doubao.com` 域过滤），**不依附活动页、不新建页面**。旧实现无活动页时
 `open_activity`（`Target.createTarget`）会在客户端新开页面，导致客户端窗口被拉到

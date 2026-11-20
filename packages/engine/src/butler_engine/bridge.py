@@ -46,6 +46,8 @@ from butler_core.accounts.domain import CachePolicy
 from butler_core.execution.domain import Action, ActionKind
 
 from butler_engine.accounts.sqlite import SqliteAccountRepository
+from butler_engine.db.conn import connect
+from butler_engine.db.migrations import ensure_migrated, migration_status
 from butler_engine.platforms.sqlite import SqlitePlatformRepository
 from butler_engine.audit.sqlite import AuditSubscriber, SqliteAuditLog
 from butler_engine.db.migrate import migrate_legacy_db, migrate_legacy_vault
@@ -63,6 +65,24 @@ from butler_engine.vault.keychain_macos import KeychainBackend
 from butler_engine.vault.layered import LayeredVault
 
 DEFAULT_DB = "butler.db"
+
+
+def ensure_db_migrated(db_path: str | Path) -> list[int]:
+    """主库显式迁移入口（ADR-036）：幂等追跑迁移链到最新。
+
+    端层唯一触达点（规约 R4：端不直接 import butler_engine.db.*）；装配链各
+    适配器构造还会各自幂等追跑一次，双保险零成本（已最新时零动作）。
+    """
+    return ensure_migrated(db_path)
+
+
+def db_migration_status(db_path: str | Path) -> dict:
+    """主库迁移状态只读快照（ADR-036）：current/latest/applied 记账行。"""
+    conn = connect(db_path)
+    try:
+        return migration_status(conn)
+    finally:
+        conn.close()
 
 
 def default_db_path() -> Path:

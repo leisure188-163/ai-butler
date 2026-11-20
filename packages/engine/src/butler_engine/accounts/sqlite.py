@@ -10,11 +10,8 @@ accounts v3（2026-11-17 用户裁决，ADR-019/ADR-020）：
   `is_active` 用户管理开关（不用 enabled——数据库关键字风险）。
 - 聚合事实落全：base_url / device_ref / entitlement_json / deleted_at。
 
-老库自迁移（幂等，纯增量不破坏）：
-- v1/v2 形状（id TEXT 主键 + provider/app 列）→ 重建式迁移：Python 侧回填
-  （account_code 按规范 id 反推、updated_at=created_at 兜底）→ 旧表让位换 v3。
-- v3 早期形状（列名 platform/account_key/display_name）→ RENAME COLUMN 一轮改齐。
-- v3 现行形状只补缺列/索引。
+表结构真相源 = `butler_engine/db/migrations/`（ADR-036）：本模块零 DDL，
+构造经 `open_db` 迁移链保证 schema 最新；改表 = 新增编号迁移文件。
 """
 
 from __future__ import annotations
@@ -35,195 +32,23 @@ from butler_core.accounts.domain import (
 )
 
 from butler_engine.db.conn import connect
+from butler_engine.db.migrations import open_db
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS acc_account (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    platform_code    TEXT NOT NULL,
-    source_key       TEXT NOT NULL DEFAULT '',
-    account_id       TEXT NOT NULL UNIQUE,
-    account_code     TEXT NOT NULL DEFAULT '',
-    account_name     TEXT NOT NULL,
-    alias            TEXT NOT NULL DEFAULT '',
-    base_url         TEXT,
-    device_ref       TEXT,
-    identity_json    TEXT,
-    origin           TEXT NOT NULL DEFAULT 'connector',
-    last_seen_at     TEXT,
-    sessions         TEXT NOT NULL DEFAULT '[]',
-    entitlement_json TEXT,
-    is_active        INTEGER NOT NULL DEFAULT 1,
-    created_at       TEXT NOT NULL,
-    updated_at       TEXT NOT NULL,
-    deleted_at       TEXT
-);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_code_key
-    ON acc_account (platform_code, account_code) WHERE account_code <> '';
-CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_source_key
-    ON acc_account (platform_code, source_key) WHERE source_key <> '';
-CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platform_code);
-"""
-
-#: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
-_DDL_COLS = (
+#: 列清单（与 001_initial.sql 列序一致；save/get 按 this 顺序读写，id 不在内）
+_COLS = (
     "platform_code, source_key, account_id, account_code, account_name, alias, base_url, "
     "device_ref, identity_json, origin, last_seen_at, sessions, entitlement_json, is_active, "
     "created_at, updated_at, deleted_at"
 )
-_COLS = _DDL_COLS
-
-#: 重建整表时缺列的兜底值（NOT NULL 列不能落 NULL）
-_DDL_DEFAULTS = {
-    "account_code": "''",
-    "source_key": "''",
-    "account_name": "'unknown'",
-    "sessions": "'[]'",
-    "is_active": "1",
-    "origin": "'connector'",
-    "created_at": "datetime('now')",
-    "updated_at": "datetime('now')",
-}
-
-# v3 早期列名 → 现行列名（RENAME 一轮改齐；仅认旧名存在且新名缺失时执行）
-_RENAME_COLS: tuple[tuple[str, str], ...] = (
-    ("platform", "platform_code"),
-    ("account_key", "account_code"),
-    ("display_name", "account_name"),
-)
-
-# 现行形状缺列补丁（幂等；v1/v2 走重建不走这里）
-_MISSING_COLS: dict[str, str] = {
-    "account_code": "account_code TEXT NOT NULL DEFAULT ''",
-    "source_key": "source_key TEXT NOT NULL DEFAULT ''",
-    "base_url": "base_url TEXT",
-    "device_ref": "device_ref TEXT",
-    "entitlement_json": "entitlement_json TEXT",
-    "is_active": "is_active INTEGER NOT NULL DEFAULT 1",
-    "alias": "alias TEXT NOT NULL DEFAULT ''",
-    "updated_at": "updated_at TEXT NOT NULL DEFAULT ''",
-    "deleted_at": "deleted_at TEXT",
-    "identity_json": "identity_json TEXT",
-    "origin": "origin TEXT NOT NULL DEFAULT 'connector'",
-    "last_seen_at": "last_seen_at TEXT",
-}
-
-# 历史/旧索引名（重建/补索引时一律 DROP）
-_LEGACY_INDEXES = (
-    "idx_accounts_provider", "idx_accounts_app", "uq_accounts_app_key",
-    "uq_accounts_platform_key", "idx_accounts_platform",
-    "uq_accounts_platform_code_key", "idx_accounts_platform_code",
-)
-
-
-def _ensure_columns(conn) -> None:
-    """老库自迁移（幂等）：v1/v2 重建、v3 早期列名 RENAME、现行只补缺列/索引。"""
-    # 表名迁移（ADR-021）：老表名 accounts → acc_account（RENAME 幂等，索引随表走）
-    has_old = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='accounts'"
-    ).fetchone()
-    if has_old:
-        conn.execute("ALTER TABLE accounts RENAME TO acc_account")
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(acc_account)")}
-    if not cols:
-        return  # 表由 _SCHEMA 新建，无需迁移
-    if "account_id" not in cols:
-        _rebuild_from_legacy(conn, cols)
-        return
-    for old, new in _RENAME_COLS:
-        if old in cols and new not in cols:
-            conn.execute(f"ALTER TABLE acc_account RENAME COLUMN {old} TO {new}")
-            cols.discard(old); cols.add(new)
-    for name, ddl in _MISSING_COLS.items():
-        if name not in cols:
-            conn.execute(f"ALTER TABLE acc_account ADD COLUMN {ddl}")
-    conn.execute("UPDATE acc_account SET updated_at = created_at WHERE updated_at = ''")
-    _reorder_columns(conn)
-    _recreate_indexes(conn)
-
-
-def _reorder_columns(conn) -> None:
-    """物理列序校正（幂等·零丢失）：ADD COLUMN 只能追加，按 _DDL_COLS 重建。
-
-    重叠执行安全：列序已对齐直接返回；id 保持首位（代理键不漂移），
-    缺失列按 _DDL_DEFAULTS 落值（NOT NULL 列不落 NULL）。
-    """
-    actual = [r[1] for r in conn.execute("PRAGMA table_info(acc_account)").fetchall()]
-    if actual == ["id", *_DDL_COLS.split(", ")]:
-        return
-    conn.execute("DROP INDEX IF EXISTS uq_acc_account_platform_code_key")
-    conn.execute("DROP INDEX IF EXISTS uq_acc_account_platform_source_key")
-    conn.execute("DROP INDEX IF EXISTS idx_acc_account_platform_code")
-    conn.execute("ALTER TABLE acc_account RENAME TO acc_account__reorder")
-    conn.executescript(_SCHEMA)
-    select = ", ".join(
-        col if col in actual else _DDL_DEFAULTS.get(col, "NULL") for col in _DDL_COLS.split(", ")
-    )
-    conn.execute(
-        f"INSERT INTO acc_account (id, {_COLS}) "
-        f"SELECT id, {select} FROM acc_account__reorder"
-    )
-    conn.execute("DROP TABLE acc_account__reorder")
-
-
-def _recreate_indexes(conn) -> None:
-    for idx in _LEGACY_INDEXES:
-        conn.execute(f"DROP INDEX IF EXISTS {idx}")
-    conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_code_key"
-        " ON acc_account (platform_code, account_code) WHERE account_code <> ''"
-    )
-    conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_source_key"
-        " ON acc_account (platform_code, source_key) WHERE source_key <> ''"
-    )
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platform_code)")
-
-
-def _rebuild_from_legacy(conn, cols: set[str]) -> None:
-    """v1/v2（id TEXT 主键 + provider/app 列）→ v3 重建：行数据零丢失。"""
-    platform_col = "app" if "app" in cols else "provider"
-    name_col = "account_name" if "account_name" in cols else "display_name"
-    select = ["id", platform_col, name_col, "sessions", "created_at"]
-    for optional in ("base_url", "device_ref", "entitlement_json", "is_active", "updated_at", "deleted_at"):
-        select.append(optional if optional in cols else "NULL")
-    rows = conn.execute(f"SELECT {', '.join(select)} FROM acc_account").fetchall()
-    conn.execute("DROP TABLE acc_account")
-    conn.executescript(_SCHEMA)
-    for row in rows:
-        legacy_id, platform_code, account_name, sessions_raw, created_at = row[:5]
-        base_url = row[5] if row[5] is not None else ""
-        device_ref = row[6]
-        entitlement_json = row[7]
-        is_active = 1 if row[8] is None else int(row[8])
-        updated_at = row[9] if row[9] else created_at
-        deleted_at = row[10]
-        account_code = "main"
-        prefix = f"{platform_code}:"
-        if legacy_id.startswith(prefix) and ":" not in legacy_id[len(prefix):]:
-            account_code = legacy_id[len(prefix):]
-        conn.execute(
-            f"INSERT OR IGNORE INTO acc_account ({_COLS}) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                platform_code, "", legacy_id, account_code, account_name, "", base_url,
-                device_ref, None, "connector", None, sessions_raw, entitlement_json, is_active,
-                created_at, updated_at, deleted_at,
-            ),
-        )
-    _recreate_indexes(conn)
 
 
 class SqliteAccountRepository(AccountRepository):
     def __init__(self, db_path: str | Path) -> None:
         self._db = str(db_path)
-        with self._connect() as conn, conn:
-            # 迁移先行、建表在后：老库先 RENAME accounts → acc_account，
-            # 再 executescript(_SCHEMA)——顺序反了会先建空 acc_account 撞名（真库首启修复）
-            _ensure_columns(conn)
-            conn.executescript(_SCHEMA)
+        open_db(self._db)  # 构造即 schema 最新（迁移链保证，ADR-036）
 
     def _connect(self):
-        return connect(self._db)
+        return connect(self._db)  # 迁移已在 __init__ 完成，操作期直连
 
     def save(self, account: Account) -> None:
         from butler_core.shared.time import now_utc

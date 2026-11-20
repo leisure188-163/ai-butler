@@ -25,6 +25,8 @@ if sys.platform == "win32":
 platform = typer.Typer(help="Butler · 你的 AI 卡包（执行器/排障）")
 cards = typer.Typer(help="卡（账号）管理")
 platform.add_typer(cards, name="cards")
+db = typer.Typer(help="数据库迁移链（ADR-036）")
+platform.add_typer(db, name="db")
 console = Console()
 
 
@@ -55,6 +57,42 @@ def _unknown_target(target: str) -> None:
         f"[red]连接器未接入: {target!r}[/red]（可用: {', '.join(load_registry().ids())}）"
     )
     raise typer.Exit(code=2)
+
+
+def _db_path() -> str:
+    from butler_engine.bridge import default_db_path
+
+    return os.environ.get("BUTLER_DB") or default_db_path()
+
+
+@db.command("migrate")
+def db_migrate() -> None:
+    """追跑迁移链到最新（幂等；存量旧库走 baseline 记账，ADR-036）。"""
+    from butler_engine.bridge import ensure_db_migrated
+
+    applied = ensure_db_migrated(_db_path())
+    if applied:
+        console.print("[green]✔ 已应用迁移[/green] " + "、".join(f"{v:03d}" for v in applied))
+    else:
+        console.print("[green]已是最新[/green]，无需迁移")
+
+
+@db.command("status")
+def db_status() -> None:
+    """查看库路径、当前迁移版本与已应用记录。"""
+    from butler_engine.bridge import db_migration_status
+
+    path = _db_path()
+    status = db_migration_status(path)
+    current, latest = status["current"], status["latest"]
+    console.print(f"库：{path}")
+    console.print(f"版本：{current:03d} / 最新 {latest:03d}（{status['latest_name']}）"
+                  + ("[green]· 已是最新[/green]" if current >= latest else "[yellow]· 待迁移[/yellow]"))
+    if status["applied"]:
+        table = Table("版本", "迁移", "记账时间")
+        for version, name, applied_at in status["applied"]:
+            table.add_row(f"{version:03d}", name, applied_at)
+        console.print(table)
 
 
 @platform.command("platforms")

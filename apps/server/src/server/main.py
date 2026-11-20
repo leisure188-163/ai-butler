@@ -171,9 +171,10 @@ def reload_connectors(app) -> None:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    from butler_engine.bridge import EngineKit, build_engine, default_db_path
+    from butler_engine.bridge import EngineKit, build_engine, default_db_path, ensure_db_migrated
 
     db_path = os.environ.get("BUTLER_DB") or default_db_path()
+    ensure_db_migrated(db_path)  # 主库显式迁移先行（ADR-036），装配链再隐式幂等追跑
     kit: EngineKit = build_engine(
         db_path,
         system_notifications=os.environ.get("BUTLER_SYSTEM_NOTIFY", "1") != "0",

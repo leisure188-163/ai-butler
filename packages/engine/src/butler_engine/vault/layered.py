@@ -8,6 +8,9 @@
   版本递增记录在 vault_history
 - 存/取/轮换同步写审计（A4-01 §4 触发点：凭据存取/轮换）——不走事件总线：
   审计是 L3 反代上线的安全底线，必须同步落账，不依赖异步分发存活
+
+表结构真相源 = `butler_engine/db/migrations/`（ADR-036）：本模块零 DDL，
+构造经 `open_db` 迁移链保证 schema 最新；改表 = 新增编号迁移文件。
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ from butler_core.accounts.domain import CredentialHealth, Secret, vault_ref
 
 from butler_engine.audit.sqlite import SqliteAuditLog
 from butler_engine.db.conn import connect
+from butler_engine.db.migrations import open_db
 from butler_engine.vault.backends import SecretBackend
 from butler_engine.vault.errors import (
     VaultCredentialMissing,
@@ -29,32 +33,6 @@ from butler_engine.vault.errors import (
     VaultError,
     VaultLayerUnavailable,
 )
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS vault_item (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    account_id     TEXT NOT NULL,
-    kind           TEXT NOT NULL,
-    slot           TEXT NOT NULL DEFAULT 'default',
-    label          TEXT NOT NULL DEFAULT '',
-    backend        TEXT NOT NULL,
-    expires_at     TEXT,
-    created_at     TEXT NOT NULL,
-    updated_at     TEXT NOT NULL,
-    rotated_at     TEXT,
-    revoked_at     TEXT,
-    revoked_reason TEXT NOT NULL DEFAULT '',
-    UNIQUE (account_id, kind, slot)
-);
-CREATE TABLE IF NOT EXISTS vault_history (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    account_id TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    slot TEXT NOT NULL DEFAULT 'default',
-    archived_ref TEXT NOT NULL,
-    rotated_at TEXT NOT NULL
-);
-"""
 
 _COLUMNS = (
     "account_id, kind, slot, label, backend, expires_at, created_at, updated_at,"
@@ -83,14 +61,7 @@ class LayeredVault(VaultPort):
         self._default = default_backend
         self._db_path = str(db_path)
         self._audit = audit
-        with closing(self._connect()) as conn, conn:
-            # 表名迁移（ADR-021 域前缀纪律）：老表 RENAME 幂等，旧索引随行清理
-            if conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='vault_items'"
-            ).fetchone():
-                conn.execute("ALTER TABLE vault_items RENAME TO vault_item")
-            conn.executescript(_SCHEMA)
-            _ensure_schema(conn)
+        open_db(self._db_path)  # 构造即 schema 最新（迁移链保证，ADR-036）
 
     # --- VaultPort ---
 
@@ -197,7 +168,7 @@ class LayeredVault(VaultPort):
 
         with closing(self._connect()) as conn, conn:
             seq = conn.execute(
-                "SELECT COALESCE(MAX(seq), 0) + 1 FROM vault_history"
+                "SELECT COALESCE(MAX(id), 0) + 1 FROM vault_history"
             ).fetchone()[0]
             archived_ref = f"{ref}#{seq}"
         backend.put(archived_ref, backend.get(ref))  # 旧值先归档——失败即停，不换新
@@ -206,8 +177,9 @@ class LayeredVault(VaultPort):
 
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT INTO vault_history (account_id, kind, slot, archived_ref, rotated_at)"
-                " VALUES (?, ?, ?, ?, datetime('now'))",
+                "INSERT INTO vault_history"
+                " (account_id, kind, slot, archived_ref, rotated_at, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))",
                 (account_id, kind, slot, archived_ref),
             )
             conn.execute(
@@ -324,13 +296,13 @@ class LayeredVault(VaultPort):
             if slot is None:
                 rows = conn.execute(
                     "SELECT archived_ref, rotated_at FROM vault_history"
-                    " WHERE account_id = ? AND kind = ? ORDER BY seq DESC",
+                    " WHERE account_id = ? AND kind = ? ORDER BY id DESC",
                     (account_id, kind),
                 ).fetchall()
             else:
                 rows = conn.execute(
                     "SELECT archived_ref, rotated_at FROM vault_history"
-                    " WHERE account_id = ? AND kind = ? AND slot = ? ORDER BY seq DESC",
+                    " WHERE account_id = ? AND kind = ? AND slot = ? ORDER BY id DESC",
                     (account_id, kind, slot),
                 ).fetchall()
         return [(ref, ts) for ref, ts in rows]
@@ -359,7 +331,7 @@ class LayeredVault(VaultPort):
         backend = self._backend(backend_name)
         with closing(self._connect()) as conn, conn:
             seq = conn.execute(
-                "SELECT COALESCE(MAX(seq), 0) + 1 FROM vault_history"
+                "SELECT COALESCE(MAX(id), 0) + 1 FROM vault_history"
             ).fetchone()[0]
             archived_ref = f"{ref}#{seq}"
         try:
@@ -370,8 +342,9 @@ class LayeredVault(VaultPort):
             pass
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT INTO vault_history (account_id, kind, slot, archived_ref, rotated_at)"
-                " VALUES (?, ?, ?, ?, datetime('now'))",
+                "INSERT INTO vault_history"
+                " (account_id, kind, slot, archived_ref, rotated_at, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))",
                 (account_id, kind, slot, archived_ref),
             )
             conn.execute(
@@ -406,57 +379,7 @@ class LayeredVault(VaultPort):
         return [(kind, slot, backend, revoked_at) for kind, slot, backend, revoked_at in rows]
 
     def _connect(self) -> sqlite3.Connection:
-        return connect(self._db_path)
-
-
-def _ensure_schema(conn: sqlite3.Connection) -> None:
-    """老库自迁移（ADR-033）：vault_item 补槽位需要改主键，SQLite 只能重建表。
-
-    - 旧形状（PK account_id, kind）→ 重建：全部行落 `slot=default`，后端引用
-      不变，秘密零迁移；
-    - 已新形状只补 label/updated_at（幂等）；
-    - vault_history 补 slot 列（旧行 default）。
-    """
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(vault_item)")}
-    if "slot" not in cols or "id" not in cols:
-        _rebuild_items(conn, cols)
-    else:
-        if "label" not in cols:
-            conn.execute("ALTER TABLE vault_item ADD COLUMN label TEXT NOT NULL DEFAULT ''")
-        if "updated_at" not in cols:
-            conn.execute("ALTER TABLE vault_item ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''")
-            conn.execute(
-                "UPDATE vault_item SET updated_at = COALESCE(rotated_at, created_at)"
-                " WHERE updated_at = ''"
-            )
-    history_cols = {row[1] for row in conn.execute("PRAGMA table_info(vault_history)")}
-    if "slot" not in history_cols:
-        conn.execute(
-            "ALTER TABLE vault_history ADD COLUMN slot TEXT NOT NULL DEFAULT 'default'"
-        )
-
-
-def _rebuild_items(conn: sqlite3.Connection, old_cols: set[str]) -> None:
-    """旧 vault_item → 新三列主键表：行数据零丢失，秘密引用不变。"""
-    conn.execute("ALTER TABLE vault_item RENAME TO vault_item__rebuild")
-    conn.executescript(_SCHEMA)
-    label = "label" if "label" in old_cols else "''"
-    updated = (
-        "COALESCE(updated_at, rotated_at, created_at)"
-        if "updated_at" in old_cols
-        else "COALESCE(rotated_at, created_at)"
-    )
-    revoked_reason = "COALESCE(revoked_reason, '')" if "revoked_reason" in old_cols else "''"
-    revoked_at = "revoked_at" if "revoked_at" in old_cols else "NULL"
-    conn.execute(
-        "INSERT INTO vault_item"
-        " (account_id, kind, slot, label, backend, expires_at, created_at,"
-        "  updated_at, rotated_at, revoked_at, revoked_reason)"
-        f" SELECT account_id, kind, 'default', {label}, backend, expires_at, created_at,"
-        f" {updated}, rotated_at, {revoked_at}, {revoked_reason}"
-        " FROM vault_item__rebuild"
-    )
-    conn.execute("DROP TABLE vault_item__rebuild")
+        return connect(self._db_path)  # 迁移已在 __init__ 完成，操作期直连
 
 
 def _iso(dt: datetime | None) -> str | None:

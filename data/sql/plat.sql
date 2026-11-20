@@ -1,8 +1,8 @@
--- butler.db · 平台域 · platforms/sqlite.py（生成视图 · 1 张表 / 1 个索引）
+-- butler.db · 平台域（基线快照 · 1 张表 / 1 个索引）
 --
--- 权威单源 = 域适配器 DDL 常量（A4-01 §5：SQL 只存在于 butler_engine 适配器层，
--- 表按域分置）；本文件由 scripts/dump_db_schema.py 生成，**勿手改**。
--- 重新生成：uv run python scripts/dump_db_schema.py
+-- 权威单源 = 迁移链 butler_engine/db/migrations/*.sql（ADR-036）；本文件由
+-- scripts/dump_db_schema.py 生成，**勿手改**——改表 = 新增迁移文件 + 重跑本脚本。
+-- 校验快照未漂移：uv run python scripts/dump_db_schema.py --check
 -- 运行库落项目内 data/database/butler.db（BUTLER_DB 可覆盖）。
 CREATE TABLE plat_platform (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,

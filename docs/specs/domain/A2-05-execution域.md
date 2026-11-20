@@ -44,7 +44,7 @@ Run = id / action / account_id / idempotency_key / started_at / budget
   端口，原子写防半截文件）；server 管理面写（PUT /gateway/routes）、网关
   进程只读装载（M1 启动时装载一次，变更重启生效）
 
-## 3.2 网关上游解析（apps/gateway，ADR-034 后续）
+## 3.2 网关上游解析（apps/gateway，ADR-003 后续）
 
 - 解析顺序：`upstream_for(platform_code)` 静态适配器优先（连接器申报的推理通道，
   `upstream.register_upstream` 注册）；未注册时回落平台册 `origin=user` 的接入源。

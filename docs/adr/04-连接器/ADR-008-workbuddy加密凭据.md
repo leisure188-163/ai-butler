@@ -43,7 +43,7 @@ AES-256-GCM + keyId 校验，2026-11-11 核实）——明文直读不可行，�
    `workbuddy_cn/helper.js` 自旧仓库 helper_js.py **原样搬运禁改**——
    JS/编排形状是协议契约不是代码搬运（与 trae SS_AES 常量、doubao 点击
    编排同性质），AES-GCM 细节在客户端 binding 里，重写即偏离实测契约。
-   **修订（2026-11-18，ADR-003（原 ADR-003）扩展）**：helper.js 增加可选
+   **修订（2026-11-18，ADR-003 扩展）**：helper.js 增加可选
    `expect:"field"` 分支——跳过明文 token 字符集校验，用于解任意信封字段
    （account.nickname）；缺省路径（无 expect）行为与旧契约逐字节一致，
    reply 形状 `{version,ok,accessToken}` 不变。Python 侧新增通用

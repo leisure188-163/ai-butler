@@ -5,6 +5,9 @@
 - usage_aggregates：服务端聚合原话（summary_json 不派生不重算）
 - usage_quota_ledger：(account_id, record_id) 主键 = record_id 幂等去重（INSERT OR IGNORE）
 - 排序契约：collected_at/occurred_at 新→旧，同刻按入库 rowid 决胜（不赌 uuid 字典序）
+
+表结构真相源 = `butler_engine/db/migrations/`（ADR-036）：本模块零 DDL，
+构造经 `open_db` 迁移链保证 schema 最新；改表 = 新增编号迁移文件。
 """
 
 from __future__ import annotations
@@ -26,93 +29,27 @@ from butler_core.usage.domain import (
 )
 
 from butler_engine.db.conn import connect
+from butler_engine.db.migrations import open_db
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS usage_snapshot (
-    id TEXT PRIMARY KEY,
-    account_id TEXT NOT NULL,
-    target TEXT NOT NULL,
-    collected_at TEXT NOT NULL,
-    packages_json TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_usage_snapshot_account
-    ON usage_snapshot(account_id, collected_at);
-
-CREATE TABLE IF NOT EXISTS usage_aggregate (
-    id TEXT PRIMARY KEY,
-    account_id TEXT NOT NULL,
-    target TEXT NOT NULL,
-    collected_at TEXT NOT NULL,
-    summary_json TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_usage_aggregate_account
-    ON usage_aggregate(account_id, collected_at);
-
-CREATE TABLE IF NOT EXISTS usage_quota_ledger (
-    account_id TEXT NOT NULL,
-    record_id TEXT NOT NULL,
-    target TEXT NOT NULL,
-    occurred_at TEXT,
-    amount REAL NOT NULL,
-    unit TEXT NOT NULL,
-    kind TEXT,
-    raw_json TEXT,
-    PRIMARY KEY (account_id, record_id)
-);
-CREATE INDEX IF NOT EXISTS idx_usage_quota_ledger_account
-    ON usage_quota_ledger(account_id, occurred_at);
-
-CREATE TABLE IF NOT EXISTS usage_sample (
-    id TEXT PRIMARY KEY,
-    account_id TEXT NOT NULL,
-    tokens_in INTEGER NOT NULL,
-    tokens_out INTEGER NOT NULL,
-    model TEXT NOT NULL,
-    ts TEXT NOT NULL,
-    source TEXT NOT NULL,
-    duration_ms REAL
-);
-CREATE INDEX IF NOT EXISTS idx_usage_sample_account
-    ON usage_sample(account_id, ts);
-"""
-
-_SNAPSHOT_COLUMNS = "id, account_id, target, collected_at, packages_json"
+_SNAPSHOT_COLUMNS = "snapshot_id, account_id, target, collected_at, packages_json"
 
 
 class SqliteUsageStore(UsageStore):
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = str(db_path)
-        with closing(self._connect()) as conn, conn:
-            # 表名迁移（ADR-021 域前缀纪律）：老表 RENAME 幂等，旧索引随行清理
-            if conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='usage_snapshots'"
-            ).fetchone():
-                conn.execute("ALTER TABLE usage_snapshots RENAME TO usage_snapshot")
-            if conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='usage_aggregates'"
-            ).fetchone():
-                conn.execute("ALTER TABLE usage_aggregates RENAME TO usage_aggregate")
-            if conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='quota_ledger'"
-            ).fetchone():
-                conn.execute("ALTER TABLE quota_ledger RENAME TO usage_quota_ledger")
-            if conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='usage_samples'"
-            ).fetchone():
-                conn.execute("ALTER TABLE usage_samples RENAME TO usage_sample")
-            conn.execute("DROP INDEX IF EXISTS idx_usage_snapshots_account")
-            conn.execute("DROP INDEX IF EXISTS idx_usage_aggregates_account")
-            conn.execute("DROP INDEX IF EXISTS idx_quota_ledger_account")
-            conn.execute("DROP INDEX IF EXISTS idx_usage_samples_account")
-            conn.executescript(_SCHEMA)
+        open_db(self._db_path)  # 构造即 schema 最新（迁移链保证，ADR-036）
 
     # --- UsageStore 端口 ---
 
     def save_snapshot(self, snapshot: UsageSnapshot) -> None:
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                f"INSERT OR REPLACE INTO usage_snapshot ({_SNAPSHOT_COLUMNS}) "
-                "VALUES (?, ?, ?, ?, ?)",
+                f"INSERT INTO usage_snapshot ({_SNAPSHOT_COLUMNS}, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
+                " ON CONFLICT(snapshot_id) DO UPDATE SET"
+                " account_id = excluded.account_id, target = excluded.target,"
+                " collected_at = excluded.collected_at,"
+                " packages_json = excluded.packages_json, updated_at = excluded.updated_at",
                 (
                     snapshot.id,
                     snapshot.account_id,
@@ -131,7 +68,7 @@ class SqliteUsageStore(UsageStore):
         with closing(self._connect()) as conn, conn:
             rows = conn.execute(
                 f"SELECT {_SNAPSHOT_COLUMNS} FROM usage_snapshot WHERE account_id = ? "
-                "ORDER BY collected_at DESC, rowid DESC LIMIT ?",
+                "ORDER BY collected_at DESC, id DESC LIMIT ?",
                 (account_id, limit),
             ).fetchall()
         return [_load_snapshot(row) for row in rows]
@@ -139,8 +76,14 @@ class SqliteUsageStore(UsageStore):
     def save_aggregate(self, aggregate: UsageAggregate) -> None:
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT OR REPLACE INTO usage_aggregate "
-                "(id, account_id, target, collected_at, summary_json) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO usage_aggregate"
+                " (aggregate_id, account_id, target, collected_at, summary_json,"
+                "  created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
+                " ON CONFLICT(aggregate_id) DO UPDATE SET"
+                " account_id = excluded.account_id, target = excluded.target,"
+                " collected_at = excluded.collected_at,"
+                " summary_json = excluded.summary_json, updated_at = excluded.updated_at",
                 (
                     aggregate.id,
                     aggregate.account_id,
@@ -153,9 +96,9 @@ class SqliteUsageStore(UsageStore):
     def latest_aggregate(self, account_id: str) -> UsageAggregate | None:
         with closing(self._connect()) as conn, conn:
             row = conn.execute(
-                "SELECT id, account_id, target, collected_at, summary_json "
+                "SELECT aggregate_id, account_id, target, collected_at, summary_json "
                 "FROM usage_aggregate WHERE account_id = ? "
-                "ORDER BY collected_at DESC, rowid DESC LIMIT 1",
+                "ORDER BY collected_at DESC, id DESC LIMIT 1",
                 (account_id,),
             ).fetchone()
         return _load_aggregate(row) if row is not None else None
@@ -164,19 +107,23 @@ class SqliteUsageStore(UsageStore):
         added = 0
         with closing(self._connect()) as conn, conn:
             for e in entries:
+                occurred = e.occurred_at.isoformat() if e.occurred_at else None
                 cur = conn.execute(
                     "INSERT OR IGNORE INTO usage_quota_ledger "
-                    "(account_id, record_id, target, occurred_at, amount, unit, kind, raw_json) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "(account_id, record_id, target, occurred_at, amount, unit, kind, raw_json,"
+                    " created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), COALESCE(?, datetime('now')))",
                     (
                         e.account_id,
                         e.record_id,
                         e.target,
-                        e.occurred_at.isoformat() if e.occurred_at else None,
+                        occurred,
                         e.amount,
                         e.unit,
                         e.kind,
                         json.dumps(dict(e.raw), ensure_ascii=False) if e.raw else None,
+                        occurred,
+                        occurred,
                     ),
                 )
                 added += cur.rowcount if cur.rowcount > 0 else 0
@@ -189,7 +136,7 @@ class SqliteUsageStore(UsageStore):
             rows = conn.execute(
                 "SELECT account_id, record_id, target, occurred_at, amount, unit, kind, raw_json "
                 "FROM usage_quota_ledger WHERE account_id = ? "
-                "ORDER BY occurred_at DESC, rowid DESC LIMIT ?",
+                "ORDER BY occurred_at DESC, id DESC LIMIT ?",
                 (account_id, limit),
             ).fetchall()
         return [_load_entry(row) for row in rows]
@@ -200,8 +147,9 @@ class SqliteUsageStore(UsageStore):
         with closing(self._connect()) as conn, conn:
             conn.execute(
                 "INSERT INTO usage_sample "
-                "(id, account_id, tokens_in, tokens_out, model, ts, source, duration_ms)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "(sample_id, account_id, tokens_in, tokens_out, model, ts, source, duration_ms,"
+                " created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     sample.id,
                     sample.account_id,
@@ -211,6 +159,8 @@ class SqliteUsageStore(UsageStore):
                     sample.ts.isoformat(),
                     sample.source,
                     sample.duration_ms,
+                    sample.ts.isoformat(),
+                    sample.ts.isoformat(),
                 ),
             )
 
@@ -223,15 +173,15 @@ class SqliteUsageStore(UsageStore):
         with closing(self._connect()) as conn, conn:
             if account_id is None:
                 rows = conn.execute(
-                    "SELECT id, account_id, tokens_in, tokens_out, model, ts, source, duration_ms "
-                    "FROM usage_sample ORDER BY ts DESC, rowid DESC LIMIT ?",
+                    "SELECT sample_id, account_id, tokens_in, tokens_out, model, ts, source, duration_ms "
+                    "FROM usage_sample ORDER BY ts DESC, id DESC LIMIT ?",
                     (limit,),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT id, account_id, tokens_in, tokens_out, model, ts, source, duration_ms "
+                    "SELECT sample_id, account_id, tokens_in, tokens_out, model, ts, source, duration_ms "
                     "FROM usage_sample WHERE account_id = ? "
-                    "ORDER BY ts DESC, rowid DESC LIMIT ?",
+                    "ORDER BY ts DESC, id DESC LIMIT ?",
                     (account_id, limit),
                 ).fetchall()
         return [_load_sample(row) for row in rows]

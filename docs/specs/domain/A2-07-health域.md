@@ -45,7 +45,7 @@ HealthGrade：账户健康分级（正常 / 注意 / 异常，承袭 health.py �
 - **登录态失效语义**：连接器申报的 401/403 → `NO_AUTH`；有 NO_AUTH 证据但
   未连续 3 次 → `invalid`，`repair_hint` 指向「在客户端退出并重新登录后重试」
   （`action_id=relogin`）；连续 ≥3 次 NO_AUTH → `risk`。
-- **失效自动撤销本地副本（ADR-016）**：有 NO_AUTH 连败（含由此判出的
+- **失效自动撤销本地副本（ADR-015）**：有 NO_AUTH 连败（含由此判出的
   `invalid/risk`）或凭据 `expired` 时调用 `vault.revoke`（旧值归档、主引用删除、
   行标记 revoked）；`risk` 若来自其它信号不触发。**连败只算最近一次停靠/轮换
   （`stored_at`）之后的失败——重新导入的新凭据不被旧凭据时代的失败连坐**。

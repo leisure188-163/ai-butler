@@ -6,7 +6,7 @@
 **Butler（AI 智能助手管家）**：本地优先的智能助手管家——统一管理各家 AI 助手的
 账户、凭据、权益、用量，并做调度与迁移。架构 = 一核多端 + **按业务域分包**：
 `packages/core`（butler_core）唯一业务规则出处，内部按六个业务域 + shared 内核分包
-（域图见 A1-05；platforms 域 = ADR-022），apps/* 全是薄壳，OpenAPI 契约生成 TS SDK。
+（域图见 A1-05；platforms 域 = ADR-001 第六域节），apps/* 全是薄壳，OpenAPI 契约生成 TS SDK。
 
 写代码或改文档前：
 
@@ -27,8 +27,8 @@
    起名/写文案 → `docs/conventions/02-命名与文案规范.md`；
    新增/改路由端点、新建代码文件 → `docs/conventions/03-代码文件组织与长度约束.md`
    （一业务域一模块，600 行硬上限门禁机检）；
-   建表/改列/写 engine 域适配器 → `docs/conventions/06-SQL规范.md`
-   （表名列名/审计字段/自迁移/分域产物纪律）
+   建表/改列/写 engine 域适配器 SQL → `docs/conventions/06-SQL规范.md`
+   （表名列名/审计字段/迁移文件/分域产物纪律；改表 = 新增 migrations/NNN_描述.sql，ADR-018）
 9. **生成任何 git 提交信息前**：读 `docs/conventions/04-提交信息规范.md`
    （格式 `<type>:[<需求单号>]: <中文主题>`，钩子 `.githooks/commit-msg` 强制校验）
 10. **环境与命令**：读 `docs/guides/01-环境与命令.md`
@@ -39,6 +39,6 @@
 ## 会话纪律
 
 - 完成一个里程碑/步骤 → **更新 `docs/STATUS.md`**（这是多终端同步进度的唯一机制）
-- 架构裁决 → 追加 `docs/adr/`（`ADR-编号-结论式标题.md`），**同一提交内回收受影响的
+- 架构裁决 → 追加 `docs/adr/<业务域目录>/ADR-编号-结论式标题.md`（域目录见 `docs/adr/README.md`），**同一提交内回收受影响的
   spec**（红线 8）；审美裁决 → `docs/DESIGN-DECISIONS.md`
 - 新文档放哪 / 文档体系规则 → `docs/README.md`
