@@ -514,7 +514,7 @@ def test_dock_registers_b_account_when_active(tmp_path, monkeypatch):
     class RegisterSpy:
         calls: list = field(default_factory=list)
 
-        def execute(self, platform, account_name, *, account_code="main", account_id=None):
+        def execute(self, platform, account_name, *, account_code="main", account_id=None, identity=None):
             self.calls.append((platform, account_name, account_code))
             from types import SimpleNamespace
             return SimpleNamespace(id=f"{platform}:{account_code}")
@@ -545,7 +545,7 @@ def test_dock_registers_registered_other_when_channel_only_has_main(tmp_path, mo
     class RegisterSpy:
         calls: list = field(default_factory=list)
 
-        def execute(self, platform, account_name, *, account_code="main", account_id=None):
+        def execute(self, platform, account_name, *, account_code="main", account_id=None, identity=None):
             self.calls.append((platform, account_name, account_code))
             from types import SimpleNamespace
             return SimpleNamespace(id=f"{platform}:{account_code}")
@@ -568,7 +568,7 @@ def test_dock_first_visit_saves_main_baseline(tmp_path, monkeypatch, request_ctx
 
     @dataclass
     class RegisterOk:
-        def execute(self, platform, account_name, *, account_code="main", account_id=None):
+        def execute(self, platform, account_name, *, account_code="main", account_id=None, identity=None):
             from types import SimpleNamespace
             return SimpleNamespace(id=f"{platform}:{account_code}")
 
@@ -580,4 +580,5 @@ def test_dock_first_visit_saves_main_baseline(tmp_path, monkeypatch, request_ctx
     adapter.butler.dock(Ctx(register=RegisterOk()), env=FakeEnv(), channel=channel)
     baseline = doubao_identity.load_main_baseline()
     assert baseline is not None and baseline.sec_uid == MAIN_SEC_UID
+
 

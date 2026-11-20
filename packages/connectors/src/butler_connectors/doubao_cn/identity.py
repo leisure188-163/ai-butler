@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from butler_connectors.cdp import CdpChannel, CdpConnection, CdpError
+from butler_core.accounts.domain import AccountIdentity
 
 _IDENTITY_JS = (
     "(() => {"
@@ -226,3 +227,10 @@ def resolve_account_key(identity: ActiveIdentity) -> str:
         if other.sec_uid == identity.sec_uid:
             return other.nickname or other.account_code or derive_key(identity.sec_uid)
     return identity.nickname or derive_key(identity.sec_uid)
+
+
+def register_identity(identity: ActiveIdentity) -> AccountIdentity:
+    """活跃身份 → 注册身份（sec_uid 是唯一身份锚点，昵称只作展示）。"""
+    return AccountIdentity(
+        nickname=identity.nickname or "", source_key=identity.sec_uid or ""
+    )

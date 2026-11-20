@@ -70,15 +70,17 @@ def test_two_slots_full_chain_via_registry(tmp_path, mac_env, registry):
         ),
     )
     assert outcome.issues == [], outcome.issues
-    assert outcome.accounts == ["chatgpt_web:main", "chatgpt_web:profile-1"]
-    assert accounts.rows["chatgpt_web:main"].account_name == "ChatGPT"
-    assert accounts.rows["chatgpt_web:profile-1"].account_name == "ChatGPT（Profile 1）"
+    assert len(outcome.accounts) == 2
+    ids = {a.account_code: a.id for a in accounts.list_by_platform("chatgpt_web")}
+    assert set(ids) == {"main", "profile-1"}
+    assert accounts.rows[ids["main"]].account_name == "ChatGPT"
+    assert accounts.rows[ids["profile-1"]].account_name == "ChatGPT（Profile 1）"
     assert (
-        json.loads(vault.items[("chatgpt_web:main", "browser_cookie")][0].expose())["cookies"][0]["value"]
+        json.loads(vault.items[(ids["main"], "browser_cookie")][0].expose())["cookies"][0]["value"]
         == "v-d-0"
     )
     assert (
-        json.loads(vault.items[("chatgpt_web:profile-1", "browser_cookie")][0].expose())["cookies"][0]["value"]
+        json.loads(vault.items[(ids["profile-1"], "browser_cookie")][0].expose())["cookies"][0]["value"]
         == "v-p-0"
     )
 
@@ -110,7 +112,8 @@ def test_rescan_replays_existing_slots(tmp_path, mac_env, registry):
 
     first = dock_once()
     second = dock_once()
-    assert first.accounts == second.accounts == ["chatgpt_web:main", "chatgpt_web:profile-1"]
+    assert first.accounts == second.accounts
+    assert len(first.accounts) == 2
 
 
 def test_same_profile_dual_layout_dedup(tmp_path, mac_env):

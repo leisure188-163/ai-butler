@@ -17,10 +17,11 @@
 ```
 App：Connector 的产品级身份（id + display + capabilities 申报源）
 Account（聚合根）：
-  address = (platform_code, account_code)；account_code 缺省 "main"，创建后冻结
+  account_id = 不透明主键 acc_<8hex>，创建后不可变（ADR-034）
+  address = (platform_code, account_code)；account_code 是平台内连接器键，缺省 "main"
   identity = AccountIdentity(nickname/email/uid/org/source_key)：真实身份，只显示/匹配
   origin = connector(连接器导入) | manual(用户手建)
-  同一平台下 account_code 唯一；删除账户 = 软删除（deleted_at 落库，
+  同一平台下 account_code 唯一；source_key 非空时同一平台内唯一；删除账户 = 软删除（deleted_at 落库，
   台账/审计保留 account_id）
 Credential：kind(ss_aes/cookie/oauth/api-key) / slot(默认 default) / label /
   有效期 / 轮换历史
@@ -34,13 +35,13 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 2. 凭据明文永不离开 vault 端口背后（core 只见句柄与元数据）
 3. `(platform_code, account_code)` 缺省落位规则：存量单账号数据迁移时
    account_code = "main"，零信息丢失（迁移测试钉死，A1-05 §5 P4）
-4. **编址冻结（ADR-033）**：`account_code` 创建后不再跟随昵称/身份变化；
-   `save()` 在适配器侧守卫生效（库中 platform_code/account_code 与传入不一致 → `AccountInvalid`）
-5. **身份与来源分离（ADR-033）**：昵称/邮箱/uid 只进 `identity`，编址只用
-   `(platform_code, account_code)`；连接器侧可用 `identity.source_key` 认回旧账户，
-   取不到就不猜
+4. **主键不透明且冻结（ADR-034）**：`account_id` 是 `acc_<8hex>`，不由平台/昵称/编码推导，
+   创建后不可变；`account_code` 只是平台内连接器键，改昵称不改号
+5. **身份唯一锚点（ADR-034）**：`source_key` 独立列且 `UNIQUE(platform_code, source_key)`
+   （空串不占用）。注册先按 source_key 认回；code 命中但 source_key 不同 → `AccountConflict`，
+   绝不静默合并；存量 `legacy:<code>` 占位键在首次真实 dock 时就地吸收
 
-### 2.1 acc_account 表 v3（2026-11-17，ADR-018/019/020；表名纪律 ADR-021）
+### 2.1 acc_account 表 v4（2026-11-20，ADR-034；v3 见 ADR-018/019/020/033）
 
 统一审计字段 `id / created_at / updated_at` 所有表必备（本表先行立范式，
 其余域分批跟进）；每表代理键 `id INTEGER PRIMARY KEY AUTOINCREMENT`（DDL
@@ -51,14 +52,15 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 | 列 | 类型 | 语义 |
 |---|---|---|
 | `id` | INTEGER PK AUTOINCREMENT | 全库统一代理键（ADR-019） |
-| `account_id` | TEXT NOT NULL UNIQUE | 规范 id `{platform}:{account_code}`（原表主键，降级为业务键；编址不变） |
+| `account_id` | TEXT NOT NULL UNIQUE | 不透明主键 `acc_<8hex>`，创建后不可变（ADR-034） |
 | `platform_code` | TEXT NOT NULL | 连接器/平台 id（provider→app→platform→platform_code，ADR-018/019/020） |
-| `account_code` | TEXT NOT NULL DEFAULT 'main' | 平台内账号序（原 account_key，ADR-020）；`UNIQUE(platform_code, account_code)` 数据库级兜底不变量；ADR-033 起创建后冻结 |
+| `account_code` | TEXT NOT NULL DEFAULT 'main' | 平台内连接器键（原 account_key，ADR-020）；`UNIQUE(platform_code, account_code)`；不参与主键 |
+| `source_key` | TEXT NOT NULL DEFAULT '' | 连接器稳定身份键（sec_uid / user.id / 设备号）；`UNIQUE(platform_code, source_key) WHERE source_key <> ''`（ADR-034） |
 | `account_name` | TEXT NOT NULL | 账户名（ADR-020 列名 code 化；ADR-023 显示列按业务命名） |
 | `alias` | TEXT NOT NULL DEFAULT '' | 用户别名（ADR-030）；显示优先级最高 |
 | `base_url` | TEXT | 账户级 API 基址（Qoder CN/Global 双 host 与接入源账户覆盖；空 = 用接入源缺省） |
 | `device_ref` | TEXT | 供应商侧账户标识绑定；unbound 如实 NULL（§4.1） |
-| `identity_json` | TEXT | AccountIdentity 落库（nickname/email/uid/org/source_key）；空身份 = NULL（ADR-033） |
+| `identity_json` | TEXT | AccountIdentity 落库（nickname/email/uid/org；source_key 已独立列，不重复写入）；空身份 = NULL（ADR-033/034） |
 | `origin` | TEXT NOT NULL DEFAULT 'connector' | connector / manual（ADR-033） |
 | `last_seen_at` | TEXT | 最近一次连接器看到该账户（运营字段，ADR-033） |
 | `sessions` | TEXT JSON DEFAULT '[]' | 会话清单（随聚合整体替换，§4.1） |
@@ -68,7 +70,7 @@ Session：存储位置 / 可迁移级别(local|inject|server)
 | `updated_at` | TEXT NOT NULL | 统一审计列；save 时写当前时刻，老库回填 created_at |
 | `deleted_at` | TEXT | 软删除标记（不变量 3 落库） |
 
-索引：`uq_acc_account_platform_code_key (platform_code, account_code)` 唯一 + `idx_acc_account_platform_code (platform_code)`。
+索引：`uq_acc_account_platform_code_key (platform_code, account_code)` 唯一 + `idx_acc_account_platform_code (platform_code)` + `uq_acc_account_platform_source_key (platform_code, source_key) WHERE source_key <> ''` 唯一部分索引。
 save = `INSERT … ON CONFLICT (account_id) DO UPDATE`（UPSERT 保代理键不漂移；
 ADR-033 起 UPSERT 不再改写 platform_code/account_code）。
 老库自迁移幂等：v1/v2 形状（TEXT 主键 + provider/app 列）走重建式迁移（Python 回填

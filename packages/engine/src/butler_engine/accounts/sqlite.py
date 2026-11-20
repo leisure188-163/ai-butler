@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS acc_account (
     account_id       TEXT NOT NULL UNIQUE,
     platform_code    TEXT NOT NULL,
     account_code     TEXT NOT NULL DEFAULT 'main',
+    source_key       TEXT NOT NULL DEFAULT '',
     account_name     TEXT NOT NULL,
     alias            TEXT NOT NULL DEFAULT '',
     base_url         TEXT,
@@ -58,13 +59,15 @@ CREATE TABLE IF NOT EXISTS acc_account (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_code_key
     ON acc_account (platform_code, account_code);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_source_key
+    ON acc_account (platform_code, source_key) WHERE source_key <> '';
 CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platform_code);
 """
 
 #: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
 _DDL_COLS = (
-    "account_id, platform_code, account_code, account_name, alias, base_url, device_ref, "
-    "identity_json, origin, last_seen_at, sessions, entitlement_json, is_active, "
+    "account_id, platform_code, account_code, source_key, account_name, alias, base_url, "
+    "device_ref, identity_json, origin, last_seen_at, sessions, entitlement_json, is_active, "
     "created_at, updated_at, deleted_at"
 )
 _COLS = _DDL_COLS
@@ -72,6 +75,7 @@ _COLS = _DDL_COLS
 #: 重建整表时缺列的兜底值（NOT NULL 列不能落 NULL）
 _DDL_DEFAULTS = {
     "account_code": "'main'",
+    "source_key": "''",
     "account_name": "'unknown'",
     "sessions": "'[]'",
     "is_active": "1",
@@ -90,6 +94,7 @@ _RENAME_COLS: tuple[tuple[str, str], ...] = (
 # 现行形状缺列补丁（幂等；v1/v2 走重建不走这里）
 _MISSING_COLS: dict[str, str] = {
     "account_code": "account_code TEXT NOT NULL DEFAULT 'main'",
+    "source_key": "source_key TEXT NOT NULL DEFAULT ''",
     "base_url": "base_url TEXT",
     "device_ref": "device_ref TEXT",
     "entitlement_json": "entitlement_json TEXT",
@@ -146,6 +151,7 @@ def _reorder_columns(conn) -> None:
     if actual == ["id", *_DDL_COLS.split(", ")]:
         return
     conn.execute("DROP INDEX IF EXISTS uq_acc_account_platform_code_key")
+    conn.execute("DROP INDEX IF EXISTS uq_acc_account_platform_source_key")
     conn.execute("DROP INDEX IF EXISTS idx_acc_account_platform_code")
     conn.execute("ALTER TABLE acc_account RENAME TO acc_account__reorder")
     conn.executescript(_SCHEMA)
@@ -165,6 +171,10 @@ def _recreate_indexes(conn) -> None:
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_code_key"
         " ON acc_account (platform_code, account_code)"
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_source_key"
+        " ON acc_account (platform_code, source_key) WHERE source_key <> ''"
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platform_code)")
 
@@ -193,9 +203,9 @@ def _rebuild_from_legacy(conn, cols: set[str]) -> None:
             account_code = legacy_id[len(prefix):]
         conn.execute(
             f"INSERT OR IGNORE INTO acc_account ({_COLS}) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                legacy_id, platform_code, account_code, account_name, "", base_url,
+                legacy_id, platform_code, account_code, "", account_name, "", base_url,
                 device_ref, None, "connector", None, sessions_raw, entitlement_json, is_active,
                 created_at, updated_at, deleted_at,
             ),
@@ -233,10 +243,11 @@ class SqliteAccountRepository(AccountRepository):
                 )
             conn.execute(
                 f"INSERT INTO acc_account ({_COLS}) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (account_id) DO UPDATE SET "
                 "account_name=excluded.account_name, alias=excluded.alias, "
                 "base_url=excluded.base_url, device_ref=excluded.device_ref, "
+                "source_key=excluded.source_key, "
                 "identity_json=excluded.identity_json, origin=excluded.origin, "
                 "last_seen_at=excluded.last_seen_at, sessions=excluded.sessions, "
                 "entitlement_json=excluded.entitlement_json, is_active=excluded.is_active, "
@@ -245,6 +256,7 @@ class SqliteAccountRepository(AccountRepository):
                     account.id,
                     account.platform_code,
                     account.account_code,
+                    account.identity.source_key,
                     account.account_name,
                     account.alias,
                     account.base_url,
@@ -298,34 +310,36 @@ def _dump_sessions(sessions: tuple[Session, ...]) -> str:
     )
 
 
-_IDENTITY_FIELDS = ("nickname", "email", "uid", "org", "source_key")
+_IDENTITY_FIELDS = ("nickname", "email", "uid", "org")
 
 
 def _dump_identity(identity: AccountIdentity) -> str | None:
-    """空身份落 NULL（不写 "{}"），让「未知」在库里也只有一种形状。"""
-    if identity.is_empty:
+    """空身份落 NULL（不写 "{}"），让「未知」在库里也只有一种形状。
+
+    source_key 是身份锚点，单独落 ``source_key`` 列（唯一索引），不进 JSON 副本。
+    """
+    fields = {name: getattr(identity, name) for name in _IDENTITY_FIELDS if getattr(identity, name)}
+    if not fields:
         return None
-    return json.dumps(
-        {name: getattr(identity, name) for name in _IDENTITY_FIELDS if getattr(identity, name)},
-        ensure_ascii=False,
-    )
+    return json.dumps(fields, ensure_ascii=False)
 
 
-def _load_identity(raw: str | None) -> AccountIdentity:
+def _load_identity(raw: str | None, source_key: str = "") -> AccountIdentity:
     if not raw:
-        return AccountIdentity()
+        return AccountIdentity(source_key=source_key or "")
     try:
         data = json.loads(raw)
     except ValueError:
-        return AccountIdentity()  # 坏行如实未知，不炸名册
+        return AccountIdentity(source_key=source_key or "")  # 坏行如实未知，不炸名册
     if not isinstance(data, dict):
-        return AccountIdentity()
+        return AccountIdentity(source_key=source_key or "")
     return AccountIdentity(
         **{
             name: str(data.get(name) or "")
             for name in _IDENTITY_FIELDS
             if name in data
-        }
+        },
+        source_key=source_key or "",
     )
 
 
@@ -375,19 +389,19 @@ def _load(row) -> Account | None:
     if row is None:
         return None
     return Account(
-        id=row[0],  # account_id：规范 id {platform}:{account_code}
+        id=row[0],  # account_id：不透明主键（ADR-034；存量保留旧复合形状）
         platform_code=row[1],
         account_code=row[2],
-        account_name=row[3],
-        alias=row[4] or "",
-        base_url=row[5] or "",
-        device_ref=row[6],
-        identity=_load_identity(row[7]),
-        origin=row[8] or "connector",
-        last_seen_at=datetime.fromisoformat(row[9]) if row[9] else None,
-        sessions=_load_sessions(row[10], row[0]),
-        entitlement=_load_entitlement(row[11], row[0]),
-        is_active=bool(row[12]),
-        created_at=datetime.fromisoformat(row[13]),
-        deleted_at=datetime.fromisoformat(row[15]) if row[15] else None,
+        account_name=row[4],
+        alias=row[5] or "",
+        base_url=row[6] or "",
+        device_ref=row[7],
+        identity=_load_identity(row[8], row[3]),
+        origin=row[9] or "connector",
+        last_seen_at=datetime.fromisoformat(row[10]) if row[10] else None,
+        sessions=_load_sessions(row[11], row[0]),
+        entitlement=_load_entitlement(row[12], row[0]),
+        is_active=bool(row[13]),
+        created_at=datetime.fromisoformat(row[14]),
+        deleted_at=datetime.fromisoformat(row[16]) if row[16] else None,
     )

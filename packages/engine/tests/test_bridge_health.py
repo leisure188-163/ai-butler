@@ -62,11 +62,12 @@ def test_daily_health_scan_job(tmp_path):
     kit.register_account.execute("chatgpt_web", "ChatGPT")  # 名册账号：platform 有探针
     kit.register_account.execute("trae_cn", "Trae")  # platform 无探针端口 → 跳过
     kit.vault.store("acc-lonely", "cookie", Secret("x"), expires_at=None)  # vault-only → 跳过
+    chatgpt = kit.accounts.list_by_platform("chatgpt_web")[0]
     try:
         assert kit.health_job is None  # 默认不启动，由端显式 start
 
         kit._daily_health()  # 同步驱动一轮（start 的补扫跑同一 fn）
-        assert [req.account_id for req in fake.calls] == ["chatgpt_web:main"]
+        assert [req.account_id for req in fake.calls] == [chatgpt.id]
         assert fake.calls[0].kind is ActionKind.HEALTH_CHECK
 
         runs = kit.ledger.list_recent(limit=10)
@@ -90,9 +91,10 @@ def test_daily_health_isolates_account_failures(tmp_path):
     kit.register_health_ports(targets={"chatgpt_web": boom, "claude_web": ok})
     kit.register_account.execute("chatgpt_web", "ChatGPT")
     kit.register_account.execute("claude_web", "Claude")
+    claude = kit.accounts.list_by_platform("claude_web")[0]
     try:
         kit._daily_health()  # 不抛——boom 账号进 WARNING，ok 账号照常体检
-        assert [req.account_id for req in ok.calls] == ["claude_web:main"]
+        assert [req.account_id for req in ok.calls] == [claude.id]
         statuses = {r.action.target: r.result.status for r in kit.ledger.list_recent(limit=10)}
         assert statuses["claude_web"] is Status.ALREADY
         assert statuses["chatgpt_web"] is Status.FAILED  # 适配器异常如实落账

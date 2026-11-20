@@ -283,7 +283,7 @@ def test_gateway端到端_用户接入源直通(monkeypatch, tmp_path) -> None:
         base_url="https://relay.example.com/v1", protocol="openai",
         credential_kinds=("api_key",),
     )
-    kit.create_account.execute(
+    account = kit.create_account.execute(
         "my_relay", "key1", "我的中转 · 主 key",
         kind="api_key", secret=Secret("sk-live"), label="主 key",
     )
@@ -291,7 +291,7 @@ def test_gateway端到端_用户接入源直通(monkeypatch, tmp_path) -> None:
 
     routes = tmp_path / "gateway-routes.json"
     routes.write_text(
-        json.dumps({"routes": [{"model": "m1", "accounts": ["my_relay:key1"]}]}),
+        json.dumps({"routes": [{"model": "m1", "accounts": [account.id]}]}),
         encoding="utf-8",
     )
     monkeypatch.setenv("BUTLER_GATEWAY_KEY_FILE", str(tmp_path / "gateway-auth-key"))

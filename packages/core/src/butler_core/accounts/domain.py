@@ -35,7 +35,11 @@ class AccountInvalid(DomainError):
 
 
 class AccountAlreadyExists(AccountInvalid):
-    """(platform, account_code) 已存在且事实冲突——不静默改号。"""
+    """(platform, account_code) 或 (platform, source_key) 已存在——不静默改号。"""
+
+
+class AccountConflict(AccountInvalid):
+    """同一个平台内 code 命中但稳定身份不同——显式冲突，禁止把两个人并成一张卡。"""
 
 
 class EmptySecret(DomainError):
@@ -179,7 +183,12 @@ class SessionSighting:
 
 @dataclass(frozen=True)
 class Account:
-    """账户聚合根（集合语义）：Run / Event / Sample / 凭据全挂 account_id。"""
+    """账户聚合根（集合语义）：Run / Event / Sample / 凭据全挂 account_id。
+
+    account_id（ADR-034）：不透明、不可变的账户指针（新账户 ``acc_<8hex>``）；
+    展示/匹配走 account_name/alias/identity，**不再从平台或昵称推导 id**。
+    存量 ``{platform}:{code}`` 仅作为历史主键保留，仍可按旧形状反推 code。
+    """
 
     id: str
     platform_code: str
@@ -209,14 +218,14 @@ class Account:
             raise AccountInvalid(
                 f"Account origin={self.origin!r} 不在词表 {ACCOUNT_ORIGINS}"
             )
-        if self.id != account_identity(self.platform_code, self.account_code):
-            # 存量行/适配器只带 id 时，从规范 id 反推 account_code（多账号兼容）：
-            # 形状不对就显式拒绝，绝不静默改号。
-            prefix = f"{self.platform_code.strip()}:"
-            suffix = self.id[len(prefix):] if self.id.startswith(prefix) else ""
+        prefix = f"{self.platform_code.strip()}:"
+        if self.id.startswith(prefix):
+            # 存量行/旧适配器只带复合 id 时，从 ``{platform}:{code}`` 反推 code；
+            # 新账户 id 不透明（acc_xxx），不做任何推导。
+            suffix = self.id[len(prefix):]
             if not suffix or ":" in suffix:
                 raise AccountInvalid(
-                    f"Account id {self.id!r} 与 (platform, account_code) 编址不一致"
+                    f"Account id {self.id!r} 形状非法：{self.platform_code} 后的 code 为空或含冒号"
                 )
             object.__setattr__(self, "account_code", suffix)
         for cred in self.credentials:

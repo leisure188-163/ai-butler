@@ -210,9 +210,9 @@ def test_capture_full_chain_expired_cookie_still_imports(tmp_path, mac_env, regi
     vault = MemVault()
     outcome = _capture_via_registry(registry, str(tmp_path / "Chrome/*/Cookies"), vault)
     assert outcome.issues == [], outcome.issues
-    assert outcome.accounts == ["chatgpt_web:main"]
+    assert len(outcome.accounts) == 1 and outcome.accounts[0].startswith("acc_")
 
-    stored, expires_at = vault.items[("chatgpt_web:main", "browser_cookie")]
+    stored, expires_at = vault.items[(outcome.accounts[0], "browser_cookie")]
     envelope = json.loads(stored.expose())
     assert envelope["browser"] == "chrome" and envelope["domain"] == DOMAIN
     assert [c["name"] for c in envelope["cookies"]] == list(COOKIES)  # 名单序 = 信封序
@@ -341,8 +341,8 @@ def test_capture_windows_gcm_chain(tmp_path, win_env, registry):
     vault = MemVault()
     outcome = _capture_via_registry(registry, str(tmp_path / "User Data/*/Cookies"), vault)
     assert outcome.issues == [], outcome.issues
-    assert outcome.accounts == ["chatgpt_web:main"]
-    stored, expires_at = vault.items[("chatgpt_web:main", "browser_cookie")]
+    assert len(outcome.accounts) == 1 and outcome.accounts[0].startswith("acc_")
+    stored, expires_at = vault.items[(outcome.accounts[0], "browser_cookie")]
     envelope = json.loads(stored.expose())
     assert [c["value"] for c in envelope["cookies"]] == ["v-w-0", "v-w-1"]
     assert expires_at == FUTURE
@@ -460,8 +460,8 @@ def test_capture_windows_network_layout(tmp_path, win_env, registry):
         registry, str(tmp_path / "User Data/*/Network/Cookies"), vault
     )
     assert outcome.issues == [], outcome.issues
-    assert outcome.accounts == ["chatgpt_web:main"]
-    stored, _ = vault.items[("chatgpt_web:main", "browser_cookie")]
+    assert len(outcome.accounts) == 1 and outcome.accounts[0].startswith("acc_")
+    stored, _ = vault.items[(outcome.accounts[0], "browser_cookie")]
     assert [c["value"] for c in json.loads(stored.expose())["cookies"]] == ["v-net-0", "v-net-1"]
 
 
@@ -482,8 +482,8 @@ def test_locked_db_falls_back_to_immutable_read(tmp_path, mac_env, registry, mon
     vault = MemVault()
     outcome = _capture_via_registry(registry, str(tmp_path / "Chrome/*/Cookies"), vault)
     assert outcome.issues == [], outcome.issues
-    assert outcome.accounts == ["chatgpt_web:main"]
-    stored, _ = vault.items[("chatgpt_web:main", "browser_cookie")]
+    assert len(outcome.accounts) == 1 and outcome.accounts[0].startswith("acc_")
+    stored, _ = vault.items[(outcome.accounts[0], "browser_cookie")]
     assert [c["value"] for c in json.loads(stored.expose())["cookies"]] == ["v-lock-0", "v-lock-1"]
 
 
@@ -543,3 +543,5 @@ def test_decrypt_rejects_v20_with_shape_error():
         decrypt_chromium_cookie(b"v20" + bytes(40), WIN_KEY, gcm=True)
     with pytest.raises(ValueError, match="密文头未知"):
         decrypt_chromium_cookie(b"v11" + bytes(40), WIN_KEY, gcm=True)
+
+

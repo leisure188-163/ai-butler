@@ -188,8 +188,8 @@ def test_dock_registers_and_stores_marker(monkeypatch):
     calls: list[tuple] = []
 
     class Register:
-        def execute(self, platform: str, display: str, *, account_code: str):
-            calls.append(("register", platform, display, account_code))
+        def execute(self, platform: str, display: str, *, account_code: str, identity=None):
+            calls.append(("register", platform, display, account_code, identity))
             return SimpleNamespace(id="agentrouter:main")
 
     class Vault:
@@ -263,7 +263,7 @@ def test_dock_marker_records_effective_port(monkeypatch):
     stored: list[str] = []
 
     class Register:
-        def execute(self, platform: str, display: str, *, account_code: str):
+        def execute(self, platform: str, display: str, *, account_code: str, identity=None):
             return SimpleNamespace(id="agentrouter:main")
 
     class Vault:

@@ -21,7 +21,6 @@ from typing import Any
 from butler_core.execution.ports import Capabilities, ProvisionPort, ProvisionRequest
 from butler_core.shared.results import Status, from_engine
 from butler_core.execution.domain import Evidence, RepairHint, RunResult
-
 from butler_connectors.cdp import (
     CdpChannel,
     CdpConnection,
@@ -33,6 +32,7 @@ from butler_connectors.doubao_cn.identity import (
     load_identity_registry,
     load_main_baseline,
     read_all_identities,
+    register_identity,
     resolve_account_key,
     save_identity_registry,
 )
@@ -560,6 +560,7 @@ class _Butler:
                 CONN_ID,
                 f"{DISPLAY} · {baseline.nickname}" if baseline.nickname else DISPLAY,
                 account_code=resolve_account_key(baseline),
+                identity=register_identity(baseline),
             )
         else:
             account = ctx.register.execute(CONN_ID, DISPLAY)
@@ -580,7 +581,10 @@ class _Butler:
             if identity.sec_uid != baseline.sec_uid:
                 key = resolve_account_key(identity)
                 extra = ctx.register.execute(
-                    CONN_ID, identity.nickname or DISPLAY, account_code=key
+                    CONN_ID,
+                    identity.nickname or DISPLAY,
+                    account_code=key,
+                    identity=register_identity(identity),
                 )
                 if extra.id not in accounts:
                     accounts.append(extra.id)

@@ -204,26 +204,29 @@ def umid_ready(monkeypatch):
     monkeypatch.setattr(dockio, "_region_versions", lambda: {})
 
 
-def _dock(spec: DeclarativeSpec, vault: MemVault):
+def _dock(spec: DeclarativeSpec, vault: MemVault, accounts: MemAccounts | None = None):
     """按真实注册表装载的 qoder_cn 停靠一次（kinds 取 manifest 申报）。"""
     return scan_storage(
         load_registry().get("qoder_cn"),
         spec,
         ("dpapi_gcm_v10", "umid_cosy"),
-        DockContext(vault=vault, register=RegisterAccount(accounts=MemAccounts())),
+        DockContext(vault=vault, register=RegisterAccount(accounts=accounts or MemAccounts())),
     )
 
 
 def test_dock_qoder_full_chain(data_dir, umid_ready):
     vault = MemVault()
-    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.platform*")), vault)
+    accounts = MemAccounts()
+    outcome = _dock(make_qoder_spec(str(data_dir.parent / "com.qodercn.platform*")), vault, accounts)
     assert outcome.issues == [], outcome.issues
-    assert outcome.accounts == ["qoder_cn:main"]
+    acc = accounts.list_all()[0]
+    assert acc.account_code == "main"
+    assert outcome.accounts == [acc.id]
 
-    envelope, expires = vault.items[("qoder_cn:main", "dpapi_gcm_v10")]
+    envelope, expires = vault.items[(acc.id, "dpapi_gcm_v10")]
     assert expires is not None and expires.year == 2026  # 会话 expiresAt 元数据
     assert envelope.expose()  # 自包含信封（base64 文本）
-    umid, _ = vault.items[("qoder_cn:main", "umid_cosy")]
+    umid, _ = vault.items[(acc.id, "umid_cosy")]
     payload = json.loads(base64.b64decode(umid.expose()))
     assert payload["cosy_machine_id"] == MACHINE_ID
     assert payload["cosy_machine_token"] == "MT"
@@ -238,8 +241,11 @@ def test_dock_qoder_switch_cn_account_keeps_main(data_dir, umid_ready):
     """切换 CN 账户：已有 main(A) 不被覆盖，新账户 B 用 cn-<hash> 新增。"""
     spec = make_qoder_spec(str(data_dir.parent / "com.qodercn.platform*"))
     vault = MemVault()
-    first = _dock(spec, vault)
-    assert first.accounts == ["qoder_cn:main"]
+    accounts = MemAccounts()
+    first = _dock(spec, vault, accounts)
+    main_acc = accounts.list_all()[0]
+    assert main_acc.account_code == "main"
+    assert first.accounts == [main_acc.id]
 
     b_envelope = seal_envelope(
         {
@@ -255,34 +261,38 @@ def test_dock_qoder_switch_cn_account_keeps_main(data_dir, umid_ready):
     b_dat = base64.b64decode(json.loads(base64.b64decode(b_envelope))["dat"])
     (data_dir / "auth.v1.dat").write_bytes(b_dat)
 
-    second = _dock(spec, vault)
+    second = _dock(spec, vault, accounts)
     b_key = "cn-" + hashlib.sha1(b"cn-user-b").hexdigest()[:8]
+    b_acc = next(a for a in accounts.list_all() if a.account_code == b_key)
     # 本次只扫到 B（旧 main 已存在、无需重扫）；B 必须用独立 hash key。
-    assert second.accounts == [f"qoder_cn:{b_key}"]
+    assert second.accounts == [b_acc.id]
     # 旧 main 的信封仍在；新账户是独立信封
-    main_secret, _ = vault.items[("qoder_cn:main", "dpapi_gcm_v10")]
+    main_secret, _ = vault.items[(main_acc.id, "dpapi_gcm_v10")]
     assert unlock.session_from_dpapi_gcm_v10(main_secret.expose())["user"]["id"] == "cn-user-id"
-    assert (f"qoder_cn:{b_key}", "dpapi_gcm_v10") in vault.items
+    assert (b_acc.id, "dpapi_gcm_v10") in vault.items
 
 
 def test_dock_qoder_two_profiles_same_app(dual_data_dirs, umid_ready):
     """CN + Global 两数据目录 → 两个独立账户凭据， CN 首账户保留 main。"""
     vault = MemVault()
+    accounts = MemAccounts()
     spec = make_qoder_spec(
         [
             str(dual_data_dirs / "com.qodercn.platform*"),
             str(dual_data_dirs / "com.qoder.platform*"),
         ]
     )
-    outcome = _dock(spec, vault)
+    outcome = _dock(spec, vault, accounts)
     assert outcome.issues == [], outcome.issues
     global_key = "global-" + hashlib.sha1(b"global-user-id").hexdigest()[:8]
-    assert outcome.accounts == ["qoder_cn:main", f"qoder_cn:{global_key}"]
+    by_code = {a.account_code: a.id for a in accounts.list_all()}
+    assert set(by_code) == {"main", global_key}
+    assert outcome.accounts == [by_code["main"], by_code[global_key]]
 
-    assert vault.items[("qoder_cn:main", "dpapi_gcm_v10")][1] is not None
-    assert vault.items[(f"qoder_cn:{global_key}", "dpapi_gcm_v10")][1] is not None
-    assert ("qoder_cn:main", "umid_cosy") in vault.items
-    assert (f"qoder_cn:{global_key}", "umid_cosy") in vault.items
+    assert vault.items[(by_code["main"], "dpapi_gcm_v10")][1] is not None
+    assert vault.items[(by_code[global_key], "dpapi_gcm_v10")][1] is not None
+    assert (by_code["main"], "umid_cosy") in vault.items
+    assert (by_code[global_key], "umid_cosy") in vault.items
 
 
 def test_dock_qoder_duplicate_user_id_skipped(dual_data_dirs, umid_ready):
@@ -297,8 +307,10 @@ def test_dock_qoder_duplicate_user_id_skipped(dual_data_dirs, umid_ready):
             str(dual_data_dirs / "com.qoder.platform*"),
         ]
     )
-    outcome = _dock(spec, MemVault())
-    assert outcome.accounts == ["qoder_cn:main"]
+    accounts = MemAccounts()
+    outcome = _dock(spec, MemVault(), accounts)
+    assert len(outcome.accounts) == 1
+    assert accounts.list_all()[0].account_code == "main"
     assert outcome.issues and "同一 user id" in outcome.issues[0]
 
 
@@ -362,11 +374,14 @@ def test_dock_qoder_no_data_dir(tmp_path, umid_ready):
 
 def test_dock_qoder_mac_full_chain(mac_data_dir, umid_ready):
     vault = MemVault()
-    outcome = _dock(make_qoder_spec(str(mac_data_dir.parent / "com.qoder.platform*")), vault)
+    accounts = MemAccounts()
+    outcome = _dock(make_qoder_spec(str(mac_data_dir.parent / "com.qoder.platform*")), vault, accounts)
     assert outcome.issues == [], outcome.issues
-    assert outcome.accounts == ["qoder_cn:main"]
+    acc = accounts.list_all()[0]
+    assert acc.account_code == "main"
+    assert outcome.accounts == [acc.id]
 
-    stored, expires = vault.items[("qoder_cn:main", "dpapi_gcm_v10")]
+    stored, expires = vault.items[(acc.id, "dpapi_gcm_v10")]
     inner = json.loads(base64.b64decode(stored.expose()))
     assert set(inner) == {"dat"}  # 钥匙不进信封（Keychain 现取，密钥绝不入 vault）
     assert expires is not None and expires.year == 2026

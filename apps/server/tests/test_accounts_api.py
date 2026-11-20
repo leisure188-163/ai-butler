@@ -60,7 +60,8 @@ def test_provider_创建后账户可绑定(tmp_path):
         )
         assert created.status_code == 200, created.text
         row = created.json()
-        assert row["account_id"] == "my_relay:key1"
+        assert row["account_id"].startswith("acc_")  # 不透明主键，不再由平台/编码拼接
+        assert row["account_code"] == "key1"
         assert row["origin"] == "manual"
         assert row["account_label"] == "主 key"  # 「平台名 · 后缀」自动去掉平台名
         assert row["credentials"][0]["slot"] == "default"
@@ -102,13 +103,13 @@ def test_手建账户_编码重复409(tmp_path):
 def test_patch账户_别名启停与身份(tmp_path):
     with _client(tmp_path) as client:
         _create_provider(client)
-        client.post(
+        account_id = client.post(
             "/api/v1/accounts",
             json={"platform_code": "my_relay", "account_code": "key1",
                   "account_name": "我的中转 · 主 key"},
-        )
+        ).json()["account_id"]
         patched = client.patch(
-            "/api/v1/accounts/my_relay:key1",
+            f"/api/v1/accounts/{account_id}",
             json={"alias": "中转主号", "active": False,
                   "base_url": "https://relay2.example.com/v1",
                   "identity": {"nickname": "逍遥酒鬼", "source_key": "sk_uid_1"}},
@@ -123,23 +124,23 @@ def test_patch账户_别名启停与身份(tmp_path):
         assert row["account_code"] == "key1"  # 编址不动
 
         assert client.patch(
-            "/api/v1/accounts/my_relay:key1", json={"base_url": "ftp://x"}
+            f"/api/v1/accounts/{account_id}", json={"base_url": "ftp://x"}
         ).status_code == 400
         assert client.patch(
-            "/api/v1/accounts/my_relay:key1", json={"account_name": " "}
+            f"/api/v1/accounts/{account_id}", json={"account_name": " "}
         ).status_code == 400
 
 
 def test_凭据多槽位_追加与撤销(tmp_path):
     with _client(tmp_path) as client:
         _create_provider(client)
-        client.post(
+        account_id = client.post(
             "/api/v1/accounts",
             json={"platform_code": "my_relay", "account_code": "key1",
                   "account_name": "我的中转", "kind": "api_key", "secret": "sk-1"},
-        )
+        ).json()["account_id"]
         added = client.post(
-            "/api/v1/accounts/my_relay:key1/credentials",
+            f"/api/v1/accounts/{account_id}/credentials",
             json={"kind": "api_key", "secret": "sk-2", "slot": "backup", "label": "备用"},
         )
         assert added.status_code == 200, added.text
@@ -150,11 +151,11 @@ def test_凭据多槽位_追加与撤销(tmp_path):
         slots = {c["slot"] for c in rows[0]["credentials"]}
         assert slots == {"default", "backup"}
 
-        revoked = client.delete("/api/v1/accounts/my_relay:key1/credentials/api_key/backup")
+        revoked = client.delete(f"/api/v1/accounts/{account_id}/credentials/api_key/backup")
         assert revoked.status_code == 200
         assert revoked.json()["revoked"] is True
         assert client.delete(
-            "/api/v1/accounts/my_relay:key1/credentials/api_key/backup"
+            f"/api/v1/accounts/{account_id}/credentials/api_key/backup"
         ).status_code == 404  # 已撤销 = 幂等 404
         # 默认槽仍在，未被连坐（撤销行保留可见，revoked=true）
         creds = {c["slot"]: c for c in client.get("/api/v1/accounts").json()[0]["credentials"]}

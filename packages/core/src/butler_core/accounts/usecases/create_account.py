@@ -20,9 +20,9 @@ from butler_core.accounts.domain import (
     AccountInvalid,
     Credential,
     Secret,
-    account_identity,
 )
 from butler_core.accounts.ports import AccountRepository, VaultPort
+from butler_core.accounts.usecases.register_account import new_account_id
 from butler_core.shared.time import now_utc
 
 
@@ -46,9 +46,21 @@ class CreateAccount:
         label: str = "",
         expires_at: datetime | None = None,
     ) -> Account:
-        aid = account_identity(platform, account_code)
-        if self.accounts.get(aid) is not None:
-            raise AccountAlreadyExists(f"账户已存在：{aid}（编址冻结，不覆盖）")
+        platform = platform.strip()
+        code = account_code.strip()
+        identity = identity or AccountIdentity()
+        if not code:
+            raise AccountInvalid("account_code 不能为空")
+        for row in self.accounts.list_by_platform(platform):
+            if identity.source_key and row.identity.source_key == identity.source_key:
+                raise AccountAlreadyExists(
+                    f"账户已存在：{row.id}（platform={platform}, source_key 相同）"
+                )
+            if row.account_code == code:
+                raise AccountAlreadyExists(
+                    f"账户已存在：{row.id}（platform={platform}, code={code!r}）"
+                )
+        aid = new_account_id(self.accounts)
         if secret is None:
             if kind or label or expires_at is not None:
                 raise AccountInvalid("未提供明文时不能声明 kind/label/expires_at")
@@ -64,13 +76,13 @@ class CreateAccount:
 
         account = Account(
             id=aid,
-            platform_code=platform.strip(),
+            platform_code=platform,
             account_name=account_name.strip(),
             created_at=now_utc(),
-            account_code=account_code.strip(),
+            account_code=code,
             alias=alias.strip(),
             base_url=base_url.strip(),
-            identity=identity or AccountIdentity(),
+            identity=identity,
             origin="manual",
             last_seen_at=now_utc(),
         )

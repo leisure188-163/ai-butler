@@ -67,20 +67,21 @@ def ctx(storage_file):
 def test_dock_registers_account_and_stores_credentials(ctx):
     registry = load_registry()
     [outcome] = registry.dock(ctx, target="trae_cn")
-    assert outcome.accounts == ["trae_cn:main"]
+    assert len(outcome.accounts) == 1
     assert outcome.issues == []
 
-    account = ctx.register.accounts.get("trae_cn:main")
+    account = ctx.register.accounts.get(outcome.accounts[0])
+    assert account.account_code == "main"
     assert account.account_name == "Trae CN"
 
     import sys
 
     from butler_connectors.ssaes import decode_stored, open_envelope
 
-    envelope, expires = ctx.vault.items[("trae_cn:main", "ss_aes")]
+    envelope, expires = ctx.vault.items[(account.id, "ss_aes")]
     info = open_envelope(decode_stored(envelope.expose()))
     assert info["token"].startswith("ey")  # 解码形态耦合最小化：JWT 形状
-    device, _ = ctx.vault.items[("trae_cn:main", "device_dn")]
+    device, _ = ctx.vault.items[(account.id, "device_dn")]
     assert device.expose() == "1234567890123456"  # 键名里的 Aha 数字号
     assert expires is not None and expires.year == 2026  # JWT exp 元数据
 

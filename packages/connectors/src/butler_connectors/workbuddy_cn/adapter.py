@@ -17,6 +17,7 @@ import json
 from datetime import datetime
 from typing import Any
 
+from butler_core.accounts.domain import AccountIdentity
 from butler_core.execution.ports import Capabilities, ProvisionPort, ProvisionRequest
 from butler_core.shared.results import Status, from_engine
 from butler_core.execution.domain import Evidence, RepairHint, RunResult
@@ -347,38 +348,52 @@ class _Butler:
         issues = self._checkup(env)
         if issues:
             return DockOutcome(target=CONN_ID, issues=issues)
-        code, name, note = self._identity(env)
+        code, name, note, uid = self._identity(env)
         if note:
             issues.append(note)
         account = (
-            ctx.register.execute(CONN_ID, name, account_code=code)
+            ctx.register.execute(
+                CONN_ID,
+                name,
+                account_code=code,
+                identity=AccountIdentity(nickname=code or "", source_key=uid or ""),
+            )
             if code
-            else ctx.register.execute(CONN_ID, name)
+            else ctx.register.execute(
+                CONN_ID,
+                name,
+                identity=AccountIdentity(source_key=uid or ""),
+            )
         )
         return DockOutcome(target=CONN_ID, issues=issues, accounts=[account.id])
 
-    def _identity(self, env: WorkbuddyEnv) -> tuple[str | None, str, str | None]:
-        """ADR-025 extension: account_code = actual nickname (account.nickname, plaintext or envelope).
-        Returns (code, account_name, non-blocking note); nickname unavailability never blocks dock —
-        the card registers under the default main code and the reason is reported honestly."""
+    def _identity(self, env: WorkbuddyEnv) -> tuple[str | None, str, str | None, str | None]:
+        """ADR-025/034: account_code = actual nickname; source_key = account.uid (stable).
+
+        Returns (code, account_name, non-blocking note, uid); nickname/uid unavailability never
+        blocks dock — the card registers under the default main code and the reason is reported honestly.
+        """
         try:
             path, _ = find_auth_file()
             if path is None:
-                return None, DISPLAY, None
+                return None, DISPLAY, None, None
             data = load_session_retry(path)
         except (OSError, ValueError):
-            return None, DISPLAY, None  # checkup already reports file problems; identity is auxiliary
-        raw = data.get("account", {}).get("nickname")
+            return None, DISPLAY, None, None  # checkup already reports file problems; identity is auxiliary
+        account = data.get("account") if isinstance(data.get("account"), dict) else {}
+        uid = account.get("uid")
+        source_key = str(uid).strip() if uid not in (None, "") else None
+        raw = account.get("nickname")
         if isinstance(raw, str) and raw.strip():
             nickname = raw.strip()
-            return nickname, f"{DISPLAY} · {nickname}", None
+            return nickname, f"{DISPLAY} · {nickname}", None, source_key
         if not (isinstance(raw, dict) and raw.get("$wbEncrypted") == 1):
-            return None, DISPLAY, None
+            return None, DISPLAY, None, source_key
         try:
             nickname = decrypt_field(raw, candidates=env.locate_runtime_candidates())
         except (AuthError, InvalidOverride) as exc:
-            return None, DISPLAY, f"{CONN_ID}: 昵称信封解密失败（{exc}）——卡仍以 main 编址登记"
-        return nickname, f"{DISPLAY} · {nickname}", None
+            return None, DISPLAY, f"{CONN_ID}: 昵称信封解密失败（{exc}）——卡仍以 main 编址登记", source_key
+        return nickname, f"{DISPLAY} · {nickname}", None, source_key
 
     def _checkup(self, env: WorkbuddyEnv) -> list[str]:
         """Four health-check items (PROTOCOL §5 scenario 1): file → JSON → session shape → runtime (envelope form only)."""

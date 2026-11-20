@@ -60,7 +60,9 @@ class _BoomUsagePort:
         raise RuntimeError("本机客户端不在")
 
 
-def _usage_result(remaining: float, *, total: float = 3200, collected_at=None):
+def _usage_result(
+    remaining: float, *, total: float = 3200, collected_at=None, account_id: str = "trae_cn:main"
+):
     from datetime import datetime, timezone
 
     from butler_core.shared.ids import new_id
@@ -83,14 +85,14 @@ def _usage_result(remaining: float, *, total: float = 3200, collected_at=None):
     return UsageResult(
         snapshot=UsageSnapshot(
             id=new_id(),
-            account_id="trae_cn:main",
+            account_id=account_id,
             target="trae_cn",
             collected_at=now,
             packages=(pkg,),
         ),
         aggregate=UsageAggregate(
             id=new_id(),
-            account_id="trae_cn:main",
+            account_id=account_id,
             target="trae_cn",
             collected_at=now,
             summary={"consumed_amount": total - remaining},
@@ -116,10 +118,11 @@ class _StubRegistry:
     def dock(self, ctx, *, target):
         from butler_connectors.registry import DockOutcome
 
+        ids = []
         for acc in self._accounts:
-            platform = acc.split(":")[0]
-            ctx.register.execute(platform, platform)  # 真 dock 同款：身份落册
-        return [DockOutcome(target=target, accounts=list(self._accounts))]
+            platform, _, code = acc.partition(":")
+            ids.append(ctx.register.execute(platform, platform, account_code=code or "main").id)
+        return [DockOutcome(target=target, accounts=ids)]
 
 
 class _BatchRegistry:
@@ -140,8 +143,8 @@ class _BatchRegistry:
     def dock(self, ctx, *, target):
         from butler_connectors.registry import DockOutcome
 
-        ctx.register.execute(target, target)
-        return [DockOutcome(target=target, accounts=[f"{target}:main"])]
+        account = ctx.register.execute(target, target)
+        return [DockOutcome(target=target, accounts=[account.id])]
 
 
 def _sync_registry(client):
@@ -289,7 +292,7 @@ def test_import_skips_usage_error_for_checkin_only_connector(tmp_path):
         kit.collect_usage.ports = {}
 
         out = client.post("/api/v1/platforms/agentrouter/import").json()
-        assert out["accounts"] == ["agentrouter:main"]
+        assert len(out["accounts"]) == 1 and out["accounts"][0].startswith("acc_")
         assert out["issues"] == []
 
 
@@ -297,11 +300,14 @@ def test_import_triggers_usage_collect_and_reports_errors(tmp_path):
     """R2-F dock 顺带采集：导入成功即产第一帧；采集失败如实进 issues，不打断导入。"""
     with _client(tmp_path) as client:
         kit = client.app.state.kit
+        account = kit.register_account.execute("trae_cn", "Trae CN")
         client.app.state.registry = _StubRegistry(["trae_cn:main"])
-        kit.collect_usage.ports = {"trae_cn": _UsagePort([_usage_result(2000)])}
+        kit.collect_usage.ports = {
+            "trae_cn": _UsagePort([_usage_result(2000, account_id=account.id)])
+        }
 
         out = client.post("/api/v1/platforms/trae_cn/import").json()
-        assert out["accounts"] == ["trae_cn:main"]
+        assert out["accounts"] == [account.id]
         assert out["issues"] == []  # 采集成功：issues 无噪音
 
         radar = client.get("/api/v1/usage/radar").json()
@@ -310,7 +316,7 @@ def test_import_triggers_usage_collect_and_reports_errors(tmp_path):
         # 采集失败 → issues 如实上报（红线 5），导入本身不受累
         kit.collect_usage.ports = {"trae_cn": _BoomUsagePort()}
         out2 = client.post("/api/v1/platforms/trae_cn/import").json()
-        assert out2["accounts"] == ["trae_cn:main"]
+        assert out2["accounts"] == [account.id]
         assert any("用量采集" in i and "本机客户端不在" in i for i in out2["issues"])
 
 
@@ -329,7 +335,9 @@ def test_import_all_skips_docked_and_reports_collect_errors(tmp_path):
         rows = client.post("/api/v1/platforms/import-all").json()
         assert [r["target"] for r in rows] == ["doubao_cn", "qoder_cn"]  # 名册序：platform_code 排序
         for row in rows:
-            assert row["accounts"] == [f"{row['target']}:main"]
+            assert len(row["accounts"]) == 1
+            assert row["accounts"][0].startswith("acc_")
+            assert kit.accounts.get(row["accounts"][0]).account_code == "main"
             assert any("用量采集" in i for i in row["issues"])
 
 
@@ -382,11 +390,11 @@ def test_claim_all_claims_docked_and_replays(tmp_path):
         kit.execute_action.ports = routing_ports(
             {ActionKind.PROVISION_RUN: _FakePort(RunResult(status=Status.CLAIMED))}, {}
         )
-        kit.register_account.execute("trae_cn", "Trae CN")
-        kit.register_account.execute("doubao_cn", "Doubao CN")
+        trae = kit.register_account.execute("trae_cn", "Trae CN")
+        doubao = kit.register_account.execute("doubao_cn", "Doubao CN")
 
         rows = client.post("/api/v1/runs/claim-all").json()
-        assert {r["account_id"] for r in rows} == {"trae_cn:main", "doubao_cn:main"}
+        assert {r["account_id"] for r in rows} == {trae.id, doubao.id}
         assert all(r["status"] == "CLAIMED" for r in rows)
 
         again = client.post("/api/v1/runs/claim-all").json()

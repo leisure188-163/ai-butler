@@ -43,8 +43,9 @@ def test_register_is_idempotent_same_id():
     uc = RegisterAccount(accounts=repo)
     first = uc.execute("trae_cn", "Trae CN")
     again = uc.execute("trae_cn", "Trae CN 改名也不应覆盖")
-    assert first is again  # 同名册位已存在 → 既有账号原样返回（display 冻结）
-    assert repo.get("trae_cn:main").account_name == "Trae CN"
+    assert first is again  # 同一平台位已存在 → 既有账号原样返回（display 冻结）
+    assert first.account_code == "main"
+    assert repo.get(first.id).account_name == "Trae CN"
 
 
 def test_register_invalid_display():

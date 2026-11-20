@@ -43,7 +43,7 @@ from butler_connectors.web_ui import (
     state_digest,
     wait_for_page,
 )
-from butler_core.accounts.domain import Secret
+from butler_core.accounts.domain import AccountIdentity, Secret
 from butler_core.execution.domain import ActionKind, Evidence, RepairHint, RunResult
 from butler_core.execution.ports import Capabilities, ProvisionRequest
 from butler_core.shared.results import Status
@@ -317,7 +317,15 @@ def dock(ctx: DockContext) -> DockOutcome:
     except Exception as exc:
         return DockOutcome(target=CONN_ID, issues=[f"{CONN_ID}: 页面读取失败：{exc}"])
 
-    account = ctx.register.execute(CONN_ID, _display_for(state), account_code="main")
+    account = ctx.register.execute(
+        CONN_ID,
+        _display_for(state),
+        account_code="main",
+        identity=AccountIdentity(
+            nickname=_display_for(state),
+            source_key=f"github_{state.user_id}" if getattr(state, "user_id", None) else "",
+        ),
+    )
     if ctx.vault is not None:
         marker = json.dumps(
             {"domain": DOMAIN, "port": _debug_port(), "user_id": state.user_id},

@@ -326,7 +326,9 @@ class FakeUsagePort:
         return self._results.pop(0)
 
 
-def _usage_result(remaining: float, *, total: float = 3200, collected_at=None):
+def _usage_result(
+    remaining: float, *, total: float = 3200, collected_at=None, account_id: str = "trae_cn:main"
+):
     from datetime import datetime, timezone
 
     from butler_core.shared.ids import new_id
@@ -339,11 +341,11 @@ def _usage_result(remaining: float, *, total: float = 3200, collected_at=None):
     )
     return UsageResult(
         snapshot=UsageSnapshot(
-            id=new_id(), account_id="trae_cn:main", target="trae_cn", collected_at=now,
+            id=new_id(), account_id=account_id, target="trae_cn", collected_at=now,
             packages=(pkg,),
         ),
         aggregate=UsageAggregate(
-            id=new_id(), account_id="trae_cn:main", target="trae_cn",
+            id=new_id(), account_id=account_id, target="trae_cn",
             collected_at=now, summary={"consumed_amount": total - remaining},
         ),
         ledger=None,
@@ -365,8 +367,8 @@ def test_usage_collect_then_radar_roundtrip(tmp_path):
         # 接管用量端口（假件，同 _run_action 接管先例）：两帧差分 500/天（不触低额线）
         t1 = datetime.now(timezone.utc)
         port = FakeUsagePort([
-            _usage_result(2000, collected_at=t1),
-            _usage_result(1500, collected_at=t1 + timedelta(days=1)),
+            _usage_result(2000, collected_at=t1, account_id=account.id),
+            _usage_result(1500, collected_at=t1 + timedelta(days=1), account_id=account.id),
         ])
         kit.collect_usage.ports = {"trae_cn": port}
 
@@ -414,8 +416,8 @@ def test_usage_collect_low_quota_reports_core_predicate(tmp_path):
     """QUOTA_LOW：remaining/total ≤ 20%（core 谓词）→ outcome.quota_low 上报名。"""
     with _client(tmp_path) as client:
         kit = client.app.state.kit
-        kit.register_account.execute("trae_cn", "Trae CN")
-        kit.collect_usage.ports = {"trae_cn": FakeUsagePort([_usage_result(500)])}
+        account = kit.register_account.execute("trae_cn", "Trae CN")
+        kit.collect_usage.ports = {"trae_cn": FakeUsagePort([_usage_result(500, account_id=account.id)])}
         outcomes = client.post("/api/v1/usage/collect").json()
         assert outcomes[0]["quota_low"] == ["加量包"]  # 500/3200 ≈ 0.156 ≤ 0.2（core 谓词）
 

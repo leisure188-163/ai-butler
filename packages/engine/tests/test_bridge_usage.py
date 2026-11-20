@@ -77,15 +77,16 @@ def test_bridge_usage_wiring(tmp_path):
 def test_daily_usage_scan_job(tmp_path):
     """R2-F：每日用量调度 job——端显式启动（同到期扫描纪律），_daily_usage 全账号采集。"""
     kit = build_engine(tmp_path / "butler.db")
-    port = FakeUsagePort(UsageResult(snapshot=_snap("trae_cn:main", "trae_cn")))
-    kit.register_usage_ports(targets={"trae_cn": port})
     kit.register_account.execute("trae_cn", "Trae")  # 名册账号：platform=trae_cn
+    trae = kit.accounts.list_by_platform("trae_cn")[0]
+    port = FakeUsagePort(UsageResult(snapshot=_snap(trae.id, "trae_cn")))
+    kit.register_usage_ports(targets={"trae_cn": port})
     kit.vault.store("acc-lonely", "cookie", Secret("x"), expires_at=None)  # vault-only：无 platform
     try:
         assert kit.usage_job is None  # 默认不启动，由端显式 start
 
         kit._daily_usage()  # 同步驱动一轮（start 的补扫跑同一 fn）
-        assert [req.account_id for req in port.calls] == ["trae_cn:main"]
+        assert [req.account_id for req in port.calls] == [trae.id]
 
         kit.start_usage_scans()  # 启动即补扫一轮（IntervalJob 语义，异步）
         assert kit.usage_job is not None and kit.usage_job.running

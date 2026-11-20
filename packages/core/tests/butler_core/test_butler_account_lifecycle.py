@@ -136,11 +136,11 @@ def test_create_account_带首凭据落槽位():
         "my_relay", "key1", "我的中转 · 主 key",
         kind="api_key", secret=Secret("sk-1"), slot="primary", label="主 key",
     )
-    assert acc.id == "my_relay:key1"
+    assert acc.id.startswith("acc_") and len(acc.id) == 12
     assert acc.origin == "manual"
-    assert accounts.get("my_relay:key1") is not None
+    assert accounts.get(acc.id) is not None
     assert vault.stored == [
-        {"account_id": "my_relay:key1", "kind": "api_key", "slot": "primary", "label": "主 key"}
+        {"account_id": acc.id, "kind": "api_key", "slot": "primary", "label": "主 key"}
     ]
     with pytest.raises(AccountAlreadyExists):
         uc.execute("my_relay", "key1", "重复", kind="api_key", secret=Secret("sk-2"))
@@ -152,7 +152,7 @@ def test_create_account_落库失败回滚凭据():
     with pytest.raises(RuntimeError):
         uc.execute("my_relay", "key1", "我的中转", kind="api_key", secret=Secret("sk-1"))
     assert vault.stored  # 凭据先写
-    assert vault.purged == ["my_relay:key1"]  # 账户没落库 → 清掉无主秘密
+    assert vault.purged == [vault.stored[0]["account_id"]]  # 账户没落库 → 清掉无主秘密
     assert accounts.list_all() == []
 
 
@@ -198,9 +198,9 @@ def test_register_account_按source_key认回旧卡():
                        identity=AccountIdentity(source_key="sec_uid_1"))
     assert again.id == first.id
     assert len(accounts.list_by_platform("doubao_cn")) == 1
-    # 没有 source_key 就不猜：另一个 code 正常建新卡
+    # 没有 source_key 就不猜：另一个 code 正常建新卡（不透明主键）
     other = uc.execute("doubao_cn", "豆包 · 另一个人", account_code="u3")
-    assert other.id == "doubao_cn:u3"
+    assert other.id.startswith("acc_")
     assert len(accounts.list_by_platform("doubao_cn")) == 2
 
 

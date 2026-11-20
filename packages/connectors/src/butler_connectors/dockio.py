@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from butler_core.accounts.domain import Secret
+from butler_core.accounts.domain import AccountIdentity, Secret
 
 from butler_connectors.dock_storage import dpapi_envelope, glob_dirs, mac_envelope
 from butler_connectors.manifest import AuthSpec, DeclarativeSpec, ManifestInvalid
@@ -75,6 +75,7 @@ def scan_storage(
             platform.manifest.id,
             facts.get("_display") or platform.display,
             account_code=facts.get("_account_key", "main"),
+            identity=AccountIdentity(source_key=facts.get("_source_key", "")),
         )
         _store_credentials(
             ctx, account.id, facts, kinds, auth.kind,
@@ -217,6 +218,7 @@ def _scan_dpapi_gcm_v10(
                 "dpapi_gcm_v10": envelope,
                 "_auth_dir": str(data_dir),
                 "_account_key": account_code,
+                "_source_key": identity,
                 "_display": qoder_display(region, user),
                 "_region": region,
             }
@@ -359,6 +361,7 @@ def _scan_ss_aes(auth: AuthSpec, conn_id: str, candidates: list[str]) -> dict[st
         facts["ss_aes"] = envelope
         if device_dn:
             facts["device_dn"] = device_dn
+            facts["_source_key"] = device_dn  # Aha 数字设备号：稳定账户身份锚点
         return facts
     if not facts:
         raise StorageNotFound(

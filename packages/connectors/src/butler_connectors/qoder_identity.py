@@ -15,16 +15,29 @@ from butler_connectors.unlock import session_from_dpapi_gcm_v10
 
 
 def qoder_main_identity(ctx: Any, conn_id: str) -> str | None:
-    """已有 ``:main`` 卡的登录 user id；切换 CN 账户时用于避免覆盖旧主卡。
+    """已有 ``main`` 卡的登录 user id；切换 CN 账户时用于避免覆盖旧主卡。
 
-    返回 None = 还没有 :main（首账户可用 main）；返回空串 = 有 :main 但
-    当前无法解码（一律用 hash key，宁可新增也不覆盖旧卡）。
+    返回 None = 还没有 main（首账户可用 main）；返回空串 = 有 main 但
+    当前无法确认身份（一律用 hash key，宁可新增也不覆盖旧卡）。
     """
+    # 主键已是不透明 id，凭据按 account.id 存；先经名册找到 main 卡。
+    repo = getattr(getattr(ctx, "register", None), "accounts", None)
+    account_id = f"{conn_id}:main"  # 存量复合 id 兼容（未迁移的库）
+    if repo is not None:
+        for row in repo.list_by_platform(conn_id):
+            if row.account_code == "main":
+                if row.identity.source_key:
+                    return row.identity.source_key
+                account_id = row.id
+                break
+        else:
+            return None
+
     loader = getattr(ctx.vault, "load", None)
     if loader is None:
         return None
     try:
-        secret = loader(f"{conn_id}:main", ["dpapi_gcm_v10"])[0]
+        secret = loader(account_id, ["dpapi_gcm_v10"])[0]
     except CredentialRevoked:
         return ""
     except CredentialMissing:
