@@ -1,12 +1,11 @@
 """用户接入源上游（ADR-033 后续）：手建 relay/local/api 的通用 HTTP 适配。
 
-- 只接**同协议**：客户端命中 `/v1/chat/completions` 只发 protocol=openai 的接入源；
-  `/v1/messages` 只发 protocol=anthropic。跨协议互译与 gemini 按 ADR-033 留待下一阶段，
-  forwarder 侧显式记 skipped，不猜请求/响应形状。
+- 同协议直通；跨 OpenAI↔Anthropic 由 `protocol_translate` 互译请求/响应。
+- gemini 仍不接（ADR-033：协议互译后续阶段），forwarder 显式记 skipped。
 - 连接事实全部来自平台册（base_url/protocol/credential_kinds），不在网关里复制配置；
   密钥来自 vault（默认槽），请求时现取。
-- 仅账户级失败（connect/timeout）抛 ``UpstreamFailure``；上游 4xx/5xx 以
-  ``UpstreamReply`` 原样回传，由 forwarder 按既有转移规则裁决。
+- 仅账户级失败（connect/timeout）抛 ``UpstreamFailure``；上游 4xx/5xx 与
+  互译失败以 ``UpstreamReply`` 状态码回传，由 forwarder 按既有规则裁决。
 """
 
 from __future__ import annotations
@@ -15,6 +14,12 @@ import httpx
 
 from butler_core.accounts.domain import Secret
 from butler_core.platforms.domain import PlatformEntry
+from butler_gateway.protocol_translate import (
+    TranslationError,
+    error_body,
+    translate_request,
+    translate_response,
+)
 from butler_gateway.upstream import AppUpstream, UpstreamCall, UpstreamFailure, UpstreamReply
 
 #: 单次上游超时：本地/中转非流式推理，取 120s 上限；超时 = 账户级失败可转移
@@ -79,8 +84,15 @@ class ProviderUpstream:
         url = provider_url(self._entry.base_url, self._entry.protocol)
         headers = provider_headers(self._entry.protocol, credential)
         try:
+            request_payload = translate_request(
+                call.payload, call.protocol, self._entry.protocol
+            )
+        except TranslationError as exc:
+            # 请求形状问题：不转移账户，按客户端协议回 400
+            return UpstreamReply(status=400, body=error_body(call.protocol, str(exc)))
+        try:
             response = await self._client.post(
-                url, json=call.payload, headers=headers, timeout=_TIMEOUT
+                url, json=request_payload, headers=headers, timeout=_TIMEOUT
             )
         except httpx.TimeoutException as exc:
             raise UpstreamFailure("timeout", detail=f"接入源超时：{type(exc).__name__}") from exc
@@ -98,7 +110,36 @@ class ProviderUpstream:
             body = {}
         if not isinstance(body, dict):
             body = {}
+        if response.status_code >= 400:
+            return UpstreamReply(
+                status=response.status_code,
+                body=error_body(call.protocol, _upstream_error_message(body, response.status_code)),
+            )
+        try:
+            body = translate_response(
+                body, self._entry.protocol, call.protocol, model=call.model
+            )
+        except TranslationError as exc:
+            return UpstreamReply(
+                status=502,
+                body=error_body(call.protocol, f"上游响应互译失败：{exc}"),
+            )
         return UpstreamReply(status=response.status_code, body=body)
+
+
+def _upstream_error_message(body: dict, status: int) -> str:
+    """抽上游错误文案；无文案 = 只报 HTTP 状态，禁拼凭据。"""
+    error = body.get("error")
+    if isinstance(error, dict):
+        message = error.get("message")
+        if isinstance(message, str) and message:
+            return message
+    if isinstance(error, str) and error:
+        return error
+    message = body.get("message")
+    if isinstance(message, str) and message:
+        return message
+    return f"接入源返回 HTTP {status}"
 
 
 def supported_protocols() -> tuple[str, ...]:

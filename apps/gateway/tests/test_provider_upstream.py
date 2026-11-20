@@ -275,8 +275,6 @@ def test_forwarder_用户接入源同协议直通() -> None:
 
 def test_forwarder_协议不匹配与gemini显式跳过() -> None:
     for entry, protocol, reason in (
-        (_provider(platform_code="my_anthropic", protocol="anthropic"), "openai",
-         "provider_protocol_mismatch"),
         (_provider(platform_code="my_gemini", protocol="gemini"), "openai",
          "provider_protocol_unsupported"),
         (_provider(platform_code="my_cookie", credential_kinds=("cookie",)), "openai",
