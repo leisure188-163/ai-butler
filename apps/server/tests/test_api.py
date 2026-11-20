@@ -90,15 +90,21 @@ def test_accounts_report_core_semantics_unchanged(tmp_path):
                 "account_code": "acc1",  # 多账号维度（ADR-003）
                 "platform_code": "demo_cn",
                 "account_name": "Demo CN",
-                "alias": "",  # ADR-030：未起别名时如实空串（显示层再用 account_name 兜底）
+                "account_label": "Demo CN",  # ADR-033：core 单源显示标签
+                "alias": "",  # ADR-030：未起别名时如实空串
+                "identity": {"nickname": "", "email": "", "uid": "", "org": "", "source_key": ""},
+                "origin": "connector",
+                "base_url": "",
+                "active": True,
+                "last_seen_at": None,
                 "level": "healthy",  # core 出产字面量，server 原样传递
                 "signal": "ok",  # core 出产视觉分类（端零映射）
                 "evidence": [],
                 "repair_hint": None,
                 "credentials": [
-                    {"account_id": "demo_cn:acc1", "kind": "cookie", "level": "healthy",
-                     "signal": "ok", "expires_at": None, "revoked": False,
-                     "revoked_at": None, "revoked_reason": ""}
+                    {"account_id": "demo_cn:acc1", "kind": "cookie", "slot": "default",
+                     "label": "", "level": "healthy", "signal": "ok", "expires_at": None,
+                     "revoked": False, "revoked_at": None, "revoked_reason": ""}
                 ],
                 "sessions": [],  # R5-S1：名册投影带会话清单（vault-only 账号如实空）
             }
@@ -463,5 +469,3 @@ class _BoomUsagePort:
 
     def collect(self, req):
         raise RuntimeError("本机客户端不在")
-
-

@@ -28,11 +28,17 @@ from butler_core.usage.usecases.record_sample import RecordUsageSample
 from butler_core.execution.usecases.execute_action import ExecuteAction, RunRequest
 from butler_core.execution.usecases.manage_gateway_routes import ManageGatewayRoutes
 from butler_core.scheduling.usecases.list_pending import ListPending
+from butler_core.accounts.usecases.add_credential import AddCredential
+from butler_core.accounts.usecases.create_account import CreateAccount
 from butler_core.accounts.usecases.delete_account import DeleteAccount
 from butler_core.accounts.usecases.register_account import RegisterAccount
+from butler_core.accounts.usecases.revoke_credential import RevokeCredential
 from butler_core.accounts.usecases.scan_sessions import ScanSessions
+from butler_core.accounts.usecases.update_account import UpdateAccount
+from butler_core.platforms.usecases.create_platform import CreatePlatform
 from butler_core.platforms.usecases.remove_platform import RemovePlatform
 from butler_core.platforms.usecases.sync_platforms import SyncPlatforms
+from butler_core.platforms.usecases.update_provider import UpdateProvider
 from butler_core.bootstrap import execute_action as _assemble_execute_action
 from butler_core.bootstrap import list_pending as _assemble_list_pending
 from butler_core.bootstrap import register_account as _assemble_register_account
@@ -112,6 +118,12 @@ class EngineKit:
     execute_action: ExecuteAction
     register_account: RegisterAccount
     delete_account: DeleteAccount
+    create_account: CreateAccount
+    update_account: UpdateAccount
+    add_credential: AddCredential
+    revoke_credential: RevokeCredential
+    create_platform: CreatePlatform
+    update_provider: UpdateProvider
     list_pending: ListPending
     vault: LayeredVault
     credential_pool: VaultCredentialPool
@@ -434,6 +446,12 @@ def build_engine(
         execute_action=_assemble_execute_action(ledger=ledger, sink=bus),
         register_account=_assemble_register_account(accounts),
         delete_account=DeleteAccount(accounts=accounts, vault=vault),
+        create_account=CreateAccount(accounts=accounts, vault=vault),
+        update_account=UpdateAccount(accounts=accounts),
+        add_credential=AddCredential(vault=vault),
+        revoke_credential=RevokeCredential(vault=vault),
+        create_platform=CreatePlatform(platforms=platforms),
+        update_provider=UpdateProvider(platforms=platforms),
         list_pending=_assemble_list_pending(ledger=ledger),
         vault=vault,
         credential_pool=credential_pool,

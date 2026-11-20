@@ -150,6 +150,103 @@ def test_health_empty_expiry_is_healthy(tmp_path):
     assert vault.health()[0].level is HealthLevel.HEALTHY
 
 
+# --- 多槽位（ADR-033 裁决 3）：同账户同 kind 多 key ---
+
+
+def test_多槽位_同账户同kind互不覆盖且各自寻址(tmp_path):
+    vault, _ = _vault(tmp_path)
+    vault.store("acc1", "token", Secret("primary"), label="主 key")
+    vault.store("acc1", "token", Secret("backup"), slot="backup", label="备用 key")
+
+    assert vault.load("acc1", ["token"])[0].expose() == "primary"  # 默认槽不变
+    assert vault.load("acc1", ["token"], slot="backup")[0].expose() == "backup"
+
+    health = {(h.kind, h.slot): h for h in vault.health()}
+    assert set(health) == {("token", "default"), ("token", "backup")}
+    assert health[("token", "backup")].label == "备用 key"
+
+
+def test_多槽位_撤销单槽不动其它槽(tmp_path):
+    vault, _ = _vault(tmp_path)
+    vault.store("acc1", "token", Secret("primary"))
+    vault.store("acc1", "token", Secret("backup"), slot="backup")
+
+    assert vault.revoke_slot("acc1", "token", "backup", reason="备用 key 泄露") is True
+    assert vault.load("acc1", ["token"])[0].expose() == "primary"  # 主槽仍可用
+    with pytest.raises(VaultCredentialRevoked):
+        vault.load("acc1", ["token"], slot="backup")
+    assert vault.revoke_slot("acc1", "token", "backup", reason="重复") is False  # 幂等
+
+    # 撤销归档只落 backup 槽历史，default 槽无历史
+    assert vault.history("acc1", "token", slot="backup")
+    assert vault.history("acc1", "token", slot="default") == []
+
+
+def test_多槽位_轮换历史按槽隔离(tmp_path):
+    vault, _ = _vault(tmp_path)
+    vault.store("acc1", "token", Secret("b1"), slot="backup")
+    vault.rotate("acc1", "token", Secret("b2"), slot="backup")
+    history = vault.history("acc1", "token", slot="backup")
+    assert len(history) == 1
+    old_ref = history[0][0]
+    assert old_ref.startswith(vault_ref("acc1", "token", "backup") + "#")
+    assert vault._backend("memory").get(old_ref) == "b1"
+
+
+def test_多槽位_purge清空全部槽(tmp_path):
+    vault, _ = _vault(tmp_path)
+    vault.store("acc1", "token", Secret("primary"))
+    vault.store("acc1", "token", Secret("backup"), slot="backup")
+    assert vault.purge("acc1") == 2
+    assert vault.health() == []
+    with pytest.raises(VaultCredentialMissing):
+        vault.load("acc1", ["token"], slot="backup")
+
+
+def test_旧表迁移_全部行落默认槽且秘密引用不变(tmp_path):
+    """ADR-033：老库 vault_item（PK account_id, kind）重建后零迁移。"""
+    import sqlite3
+
+    db = tmp_path / "legacy.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE vault_item (
+            account_id TEXT NOT NULL, kind TEXT NOT NULL, backend TEXT NOT NULL,
+            expires_at TEXT, created_at TEXT, rotated_at TEXT,
+            revoked_at TEXT, revoked_reason TEXT,
+            PRIMARY KEY (account_id, kind)
+        );
+        CREATE TABLE vault_history (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL,
+            kind TEXT NOT NULL, archived_ref TEXT NOT NULL, rotated_at TEXT NOT NULL
+        );
+        """
+    )
+    conn.execute(
+        "INSERT INTO vault_item VALUES ('acc1','token','memory',NULL,"
+        "'2026-11-10T12:00:00+00:00',NULL,NULL,'')"
+    )
+    conn.execute(
+        "INSERT INTO vault_history (account_id, kind, archived_ref, rotated_at)"
+        " VALUES ('acc1','token','acc1:token#0','2026-11-10T12:00:00+00:00')"
+    )
+    conn.commit()
+    conn.close()
+
+    legacy = LayeredVault(
+        db, {"memory": MemoryVaultBackend()}, default_backend="memory",
+        audit=SqliteAuditLog(tmp_path / "a2.db"),
+    )
+    cols = {r[1] for r in legacy._connect().execute("PRAGMA table_info(vault_item)")}
+    assert {"slot", "id", "label", "updated_at"} <= cols
+    rows = legacy.health()
+    assert [(h.account_id, h.kind, h.slot) for h in rows] == [("acc1", "token", "default")]
+    hist = legacy.history("acc1", "token", slot="default")
+    assert hist[0][0] == "acc1:token#0"  # 历史槽位回填 default，归档引用不变
+
+
+
 def test_memory_backend_missing_is_explicit(tmp_path):
     with pytest.raises(VaultCredentialMissing):
         MemoryVaultBackend().get("nope")

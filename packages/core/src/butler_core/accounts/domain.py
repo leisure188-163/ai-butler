@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -18,7 +19,15 @@ from butler_core.shared.health_level import HealthLevel, credential_level
 from butler_core.shared.time import now_utc
 
 DEFAULT_ACCOUNT_CODE = "main"
+DEFAULT_CREDENTIAL_SLOT = "default"
 EXPIRING_WINDOW_DAYS = 3  # CREDENTIAL_EXPIRING 预警窗（旧值不变，A2-07 §2）
+
+#: 账户来源（ADR-033）：connector=连接器扫描导入 / manual=用户在账户页手建。
+ACCOUNT_ORIGINS = ("connector", "manual")
+
+#: 凭据槽位形状（ADR-033）：槽位进后端引用，禁止分隔符与空白。
+_SLOT_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,24}$")
+_LABEL_MAX = 40
 
 
 class AccountInvalid(DomainError):
@@ -58,17 +67,61 @@ class Platform:
 
 
 @dataclass(frozen=True)
+class AccountIdentity:
+    """账户的真实身份（ADR-033）：只做显示与匹配，**不参与编址**。
+
+    source_key 是连接器侧稳定身份键（抖音 sec_uid / Qoder user.id / Trae device 号）；
+    取不到时留空 = 如实未知，禁止用昵称兜底匹配。"""
+
+    nickname: str = ""
+    email: str = ""
+    uid: str = ""
+    org: str = ""
+    source_key: str = ""
+
+    def __post_init__(self) -> None:
+        for name in ("nickname", "email", "uid", "org", "source_key"):
+            value = getattr(self, name)
+            if len(value) > 200:
+                raise AccountInvalid(f"AccountIdentity.{name} 过长（≤200）")
+            if "\n" in value or "\r" in value:
+                raise AccountInvalid(f"AccountIdentity.{name} 不能含换行")
+
+    @property
+    def is_empty(self) -> bool:
+        return not any((self.nickname, self.email, self.uid, self.org, self.source_key))
+
+
+def _validate_slot(slot: str) -> str:
+    slot = slot.strip()
+    if not _SLOT_PATTERN.match(slot):
+        raise AccountInvalid(
+            f"凭据槽位 {slot!r} 非法（只允许字母/数字/下划线/连字符，1–24 位）"
+        )
+    return slot
+
+
+@dataclass(frozen=True)
 class Credential:
-    """凭据元数据（明文在 vault，core 只见句柄与有效期）。"""
+    """凭据元数据（明文在 vault，core 只见句柄与有效期）。
+
+    slot（ADR-033）：同账户同 kind 的多份凭据（主 key / 备用 key / 多租户）；
+    `default` 槽保持旧后端引用 `{account}:{kind}`，存量秘密零迁移。
+    label 只做显示，不参与寻址。"""
 
     account_id: str
     kind: str
+    slot: str = DEFAULT_CREDENTIAL_SLOT
+    label: str = ""
     expires_at: datetime | None = None
     rotated_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if not self.account_id.strip() or not self.kind.strip():
             raise AccountInvalid("Credential 必须绑定非空 account_id 与 kind")
+        object.__setattr__(self, "slot", _validate_slot(self.slot))
+        if len(self.label) > _LABEL_MAX or "\n" in self.label:
+            raise AccountInvalid(f"Credential.label 过长或含换行（≤{_LABEL_MAX}）")
 
 
 @dataclass(frozen=True)
@@ -141,12 +194,21 @@ class Account:
     device_ref: str | None = None  # 供应商侧账户标识绑定；绑定不可得 = 如实 None（A2-04 §4.1）
     is_active: bool = True  # 用户管理开关（不用 enabled——数据库关键字风险；停用是运营动作，健康熔断仍归 health 域，A2-04 §6）
     alias: str = ""  # 用户别名（ADR-030）：连接器取不到真实身份时（如 trae_cn）人工命名，显示优先于 account_name
+    identity: AccountIdentity = field(default_factory=AccountIdentity)  # 真实身份（ADR-033）：只显示/匹配，不进编址
+    origin: str = "connector"  # connector=连接器导入 / manual=用户手建（ACCOUNT_ORIGINS）
+    last_seen_at: datetime | None = None  # 最近一次连接器看到该账户（运营字段）
 
     def __post_init__(self) -> None:
         if not self.id.strip() or not self.platform_code.strip():
             raise AccountInvalid("Account 需要非空 id 与 platform")
         if not self.account_name.strip():
             raise AccountInvalid("Account 需要非空 account_name")
+        if len(self.alias) > 40 or "\n" in self.alias:
+            raise AccountInvalid("Account.alias 过长或含换行（≤40）")
+        if self.origin not in ACCOUNT_ORIGINS:
+            raise AccountInvalid(
+                f"Account origin={self.origin!r} 不在词表 {ACCOUNT_ORIGINS}"
+            )
         if self.id != account_identity(self.platform_code, self.account_code):
             # 存量行/适配器只带 id 时，从规范 id 反推 account_code（多账号兼容）：
             # 形状不对就显式拒绝，绝不静默改号。
@@ -162,8 +224,29 @@ class Account:
                 raise AccountInvalid("凭据必须绑定本平台账户，禁止跨平台共享")
 
     @property
-    def identity(self) -> tuple[str, str]:
+    def address(self) -> tuple[str, str]:
+        """编址（ADR-033 用语）：(platform_code, account_code)，创建后冻结。"""
+
         return (self.platform_code, self.account_code)
+
+
+def account_label(account: Account) -> str:
+    """账户显示标签（ADR-033 裁决 2，core 单源，不落库）。
+
+    优先级：alias > identity.nickname > account_name 的「平台名 · 」后缀
+    > account_name > account_code。前端与端侧只消费本函数结果。
+    """
+
+    if account.alias.strip():
+        return account.alias.strip()
+    if account.identity.nickname.strip():
+        return account.identity.nickname.strip()
+    name = account.account_name.strip()
+    if "·" in name:
+        tail = name.rsplit("·", 1)[1].strip()
+        if tail:
+            return tail
+    return name or account.account_code
 
 
 @dataclass(frozen=True)
@@ -186,12 +269,18 @@ class Secret:
         return "[REDACTED]"
 
 
-def vault_ref(account_id: str, kind: str) -> str:
-    """保险库引用 = (account_id, kind) 的规范串。"""
+def vault_ref(account_id: str, kind: str, slot: str = DEFAULT_CREDENTIAL_SLOT) -> str:
+    """保险库引用 = (account_id, kind, slot) 的规范串（ADR-033）。
+
+    默认槽保持旧形状 `{account}:{kind}`——存量秘密与旧归档引用零迁移；
+    非默认槽用 `{account}:{kind}@{slot}`，轮换归档再追加 `#{seq}`。
+    """
 
     if not account_id.strip() or kind.strip() == "":
         raise DomainError("vault ref 需要非空的 account_id 与 kind")
-    return f"{account_id}:{kind}"
+    slot = _validate_slot(slot)
+    base = f"{account_id}:{kind}"
+    return base if slot == DEFAULT_CREDENTIAL_SLOT else f"{base}@{slot}"
 
 
 @dataclass(frozen=True)
@@ -204,6 +293,8 @@ class CredentialHealth:
 
     account_id: str
     kind: str
+    slot: str = DEFAULT_CREDENTIAL_SLOT
+    label: str = ""
     expires_at: datetime | None = None
     level: HealthLevel = HealthLevel.HEALTHY
     revoked_at: datetime | None = None
@@ -222,12 +313,16 @@ class CredentialHealth:
         revoked_at: datetime | None = None,
         revoked_reason: str = "",
         stored_at: datetime | None = None,
+        slot: str = DEFAULT_CREDENTIAL_SLOT,
+        label: str = "",
     ) -> "CredentialHealth":
         """分级谓词在 shared 内核单源重算——适配器只交数据。"""
 
         return cls(
             account_id=account_id,
             kind=kind,
+            slot=_validate_slot(slot),
+            label=label,
             expires_at=expires_at,
             level=credential_level(expires_at, clock(), warn_window_days=warn_window_days),
             revoked_at=revoked_at,

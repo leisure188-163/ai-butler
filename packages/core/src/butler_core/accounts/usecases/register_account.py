@@ -13,6 +13,7 @@ from butler_core.accounts.domain import (
     Account,
     AccountAlreadyExists,
     AccountDraft,
+    AccountIdentity,
     account_identity,
 )
 from butler_core.accounts.ports import AccountRepository, SessionSourcePort
@@ -31,6 +32,8 @@ class RegisterAccount:
         *,
         account_code: str = "main",
         account_id: str | None = None,
+        identity: AccountIdentity | None = None,
+        origin: str = "connector",
     ) -> Account:
         computed = account_identity(platform, account_code)
         if account_id is not None and account_id != computed:
@@ -41,12 +44,21 @@ class RegisterAccount:
         existing = self.accounts.get(aid)
         if existing is not None:
             return existing  # 幂等回放：同一身份重复停靠，不覆盖不改号
+        if identity is not None and identity.source_key:
+            # 同一真实人换了昵称/换了 account_code：按稳定身份键认回旧账户，
+            # 绝不新建一张卡（ADR-033）。没有 source_key 就不猜。
+            for row in self.accounts.list_by_platform(platform.strip()):
+                if row.identity.source_key == identity.source_key:
+                    return row
         account = Account(
             id=aid,
             platform_code=platform.strip(),
             account_name=account_name,
             created_at=now_utc(),
             account_code=account_code,
+            identity=identity or AccountIdentity(),
+            origin=origin,
+            last_seen_at=now_utc(),
         )
         self.accounts.save(account)
         return account
@@ -59,6 +71,11 @@ class RegisterAccount:
         registered: list[Account] = []
         for key, display in self.source.enumerate_accounts(draft.platform_code):
             registered.append(
-                self.execute(draft.platform_code, display, account_code=key)
+                self.execute(
+                    draft.platform_code,
+                    display,
+                    account_code=key,
+                    identity=AccountIdentity(source_key=key),
+                )
             )
         return registered

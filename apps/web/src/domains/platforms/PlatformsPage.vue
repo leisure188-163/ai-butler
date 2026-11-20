@@ -9,6 +9,7 @@ import PlatformBadge from "@/domains/platforms/PlatformBadge.vue";
 import PlatformDetail from "@/domains/platforms/PlatformDetail.vue";
 import ModalShell from "@/shared/components/ModalShell.vue";
 import PlatformEditor from "@/domains/platforms/PlatformEditor.vue";
+import ProviderCreateDialog from "@/domains/platforms/ProviderCreateDialog.vue";
 import PlatformFilters from "@/domains/platforms/PlatformFilters.vue";
 import RowActionMenu from "@/domains/platforms/RowActionMenu.vue";
 import UnimportedPlatforms from "@/domains/platforms/UnimportedPlatforms.vue";
@@ -20,6 +21,7 @@ import type {
   PlatformCandidate,
   PlatformPatch,
   PlatformQuery,
+  ProviderDraft,
   RowAction,
   Signal,
 } from "@/shared/types";
@@ -43,6 +45,7 @@ const emit = defineEmits<{
   adopt: [target: string];
   savePlatform: [target: string, patch: PlatformPatch];
   saveCustom: [draft: CustomPlatformDraft];
+  createProvider: [draft: ProviderDraft];
   removeCustom: [code: string];
   removePlatform: [code: string];
   jump: [page: PageName, platformCode?: string];
@@ -51,6 +54,8 @@ const emit = defineEmits<{
 const detailTarget = ref<PlatformItem | null>(null);
 const editorMode = ref<"create" | "edit" | null>(null);
 const editorTarget = ref<PlatformItem | null>(null);
+/** 接入源创建（ADR-033）：与自定义平台（声明式网页连接器）分开，两个入口不混 */
+const providerOpen = ref(false);
 /** 移除确认弹层（2026-11-19）：内置平台 = 移出名册，自定义平台 = 删除 */
 const removeTarget = ref<PlatformItem | null>(null);
 const detailPlatform = computed(() =>
@@ -82,6 +87,10 @@ function openEdit(platform: PlatformItem): void {
 function closeEditor(): void {
   editorMode.value = null;
   editorTarget.value = null;
+}
+function submitProvider(draft: ProviderDraft): void {
+  providerOpen.value = false;
+  emit("createProvider", draft);
 }
 function onSaveCustom(draft: CustomPlatformDraft): void {
   emit("saveCustom", draft);
@@ -212,6 +221,9 @@ function goPage(next: number) {
         </p>
       </div>
       <div class="head-actions">
+        <button class="btn" :disabled="busyTarget !== null" @click="providerOpen = true">
+          ＋ 接入源
+        </button>
         <button class="btn" :disabled="busyTarget !== null" @click="openCreate">
           ＋ 自定义平台
         </button>
@@ -234,6 +246,12 @@ function goPage(next: number) {
     @close="closeEditor"
     @save-custom="onSaveCustom"
     @save-platform="onSavePlatform"
+  />
+  <ProviderCreateDialog
+    v-if="providerOpen"
+    :busy="busyTarget !== null"
+    @close="providerOpen = false"
+    @submit="submitProvider"
   />
   <ModalShell
     v-if="removeTarget"

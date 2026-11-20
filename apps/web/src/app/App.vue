@@ -77,6 +77,7 @@ const {
   loadCustomPlatforms,
   createCustomPlatform,
   removeCustomPlatform,
+  createProvider,
   removePlatform,
   removeAccount,
   importPlatform,
@@ -90,6 +91,10 @@ const {
   claimMany,
   scanSessions,
   renameAccount,
+  createAccount,
+  updateAccount,
+  addCredential,
+  revokeCredential,
 } = account;
 const { collecting, usageMsg, collectUsage } = usage;
 
@@ -193,6 +198,7 @@ onBeforeUnmount(() => {
         @adopt="adoptPlatform"
         @save-platform="savePlatform"
         @save-custom="createCustomPlatform"
+        @create-provider="createProvider"
         @remove-custom="removeCustomPlatform"
         @remove-platform="removePlatform"
         @jump="jumpToPage"
@@ -214,6 +220,10 @@ onBeforeUnmount(() => {
         @scan-sessions="scanSessions"
         @repair="repairAccount"
         @rename="renameAccount"
+        @update="updateAccount"
+        @add-key="addCredential"
+        @revoke-key="revokeCredential"
+        @create-account="createAccount"
         @remove-account="removeAccount"
       />
       <TrafficPage

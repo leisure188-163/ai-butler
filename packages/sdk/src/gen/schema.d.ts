@@ -20,7 +20,14 @@ export interface paths {
          */
         get: operations["list_accounts_api_v1_accounts_get"];
         put?: never;
-        post?: never;
+        /**
+         * Create Account
+         * @description 手建账户（ADR-033）：API 型接入源、连接器没扫到的小号都从这里进。
+         *
+         *     account_code 缺省生成 `acc_<8hex>` 并立即冻结；平台必须存在且未退役。
+         *     首份凭据同请求写入（kind/secret 必须成对）；凭据写失败不产生半成品账户。
+         */
+        post: operations["create_account_api_v1_accounts_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -49,12 +56,52 @@ export interface paths {
         head?: never;
         /**
          * Patch Account
-         * @description 改账户别名（落 DB 即刻生效）。
+         * @description 编辑账户（ADR-033）：别名 / 显示名 / 启停 / 账户级地址 / 真实身份。
          *
-         *     只动 alias 一列：account_id / account_code / 平台归属不可由用户改写——
-         *     改 id 会牵连 vault 凭据与台账外键，属迁移动作，不在本端点开放（ADR-030）。
+         *     只动显示与运营列：account_id / account_code / platform_code / origin 不可改写——
+         *     改编址会牵连 vault 凭据与台账外键，属迁移动作（ADR-033 裁决 1）。
          */
         patch: operations["patch_account_api_v1_accounts__account_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/accounts/{account_id}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Account Credential
+         * @description 追加一个凭据槽位（ADR-033）：同 kind 多份 key 用 slot 区分。
+         */
+        post: operations["add_account_credential_api_v1_accounts__account_id__credentials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounts/{account_id}/credentials/{kind}/{slot}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Account Credential
+         * @description 撤销单个凭据槽位（ADR-033）：归档旧值、清主引用，客户端会话不受影响。
+         */
+        delete: operations["revoke_account_credential_api_v1_accounts__account_id__credentials__kind___slot__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/accounts/{account_id}/sessions/scan": {
@@ -71,6 +118,28 @@ export interface paths {
          * @description 扫一次本机会话并入库（只读枚举；重复扫描幂等）。
          */
         post: operations["scan_account_sessions_api_v1_accounts__account_id__sessions_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platforms/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Provider
+         * @description 创建接入源（ADR-033）：编码即锚点，落库后不参与启动退役同步。
+         *
+         *     账号通过 `POST /accounts` 绑定本接入源，密钥走凭据槽位端点。
+         */
+        post: operations["create_provider_api_v1_platforms_providers_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -485,6 +554,45 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AccountCreateIn
+         * @description 手建账户（ADR-033）：可带首份凭据；account_code 缺省由端侧生成并冻结。
+         */
+        AccountCreateIn: {
+            /** Platform Code */
+            platform_code: string;
+            /** Account Code */
+            account_code?: string | null;
+            /** Account Name */
+            account_name: string;
+            /**
+             * Alias
+             * @default
+             */
+            alias: string;
+            /**
+             * Base Url
+             * @default
+             */
+            base_url: string;
+            identity?: components["schemas"]["IdentityIn"] | null;
+            /** Kind */
+            kind?: string | null;
+            /** Secret */
+            secret?: string | null;
+            /**
+             * Slot
+             * @default default
+             */
+            slot: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Expires At */
+            expires_at?: string | null;
+        };
+        /**
          * AccountDeletedOut
          * @description 删除账户结果（2026-11-19）：账户行 + 关联凭据一并清掉。
          */
@@ -506,8 +614,19 @@ export interface components {
             platform_code: string;
             /** Account Name */
             account_name: string;
+            /** Account Label */
+            account_label: string;
             /** Alias */
             alias: string;
+            identity: components["schemas"]["IdentityOut"];
+            /** Origin */
+            origin: string;
+            /** Base Url */
+            base_url: string;
+            /** Active */
+            active: boolean;
+            /** Last Seen At */
+            last_seen_at: string | null;
             /** Level */
             level: string;
             /** Signal */
@@ -522,12 +641,19 @@ export interface components {
             sessions: components["schemas"]["SessionOut"][];
         };
         /**
-         * AliasIn
-         * @description 别名写入：空串 = 清除别名（显示回落到连接器给的名称）。
+         * AccountPatchIn
+         * @description 账户编辑（ADR-033）：只改显示/运营字段，永不改编址。
          */
-        AliasIn: {
+        AccountPatchIn: {
             /** Alias */
             alias?: string | null;
+            /** Account Name */
+            account_name?: string | null;
+            /** Active */
+            active?: boolean | null;
+            /** Base Url */
+            base_url?: string | null;
+            identity?: components["schemas"]["IdentityIn"] | null;
         };
         /** ClaimDraftIn */
         ClaimDraftIn: {
@@ -565,12 +691,38 @@ export interface components {
             /** Error */
             error: string | null;
         };
+        /**
+         * CredentialIn
+         * @description 追加凭据槽位（ADR-033）：同账户同 kind 可多份，slot 缺省 = default。
+         */
+        CredentialIn: {
+            /** Kind */
+            kind: string;
+            /** Secret */
+            secret: string;
+            /**
+             * Slot
+             * @default default
+             */
+            slot: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Expires At */
+            expires_at?: string | null;
+        };
         /** CredentialOut */
         CredentialOut: {
             /** Account Id */
             account_id: string;
             /** Kind */
             kind: string;
+            /** Slot */
+            slot: string;
+            /** Label */
+            label: string;
             /** Level */
             level: string;
             /** Signal */
@@ -583,6 +735,17 @@ export interface components {
             revoked_at: string | null;
             /** Revoked Reason */
             revoked_reason: string;
+        };
+        /** CredentialRevokedOut */
+        CredentialRevokedOut: {
+            /** Account Id */
+            account_id: string;
+            /** Kind */
+            kind: string;
+            /** Slot */
+            slot: string;
+            /** Revoked */
+            revoked: boolean;
         };
         /** CustomPlatformDeleted */
         CustomPlatformDeleted: {
@@ -689,6 +852,53 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * IdentityIn
+         * @description 真实身份写入（ADR-033）：全部可选，空值 = 未知。
+         */
+        IdentityIn: {
+            /** Nickname */
+            nickname?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Uid */
+            uid?: string | null;
+            /** Org */
+            org?: string | null;
+            /** Source Key */
+            source_key?: string | null;
+        };
+        /**
+         * IdentityOut
+         * @description 真实身份投影（ADR-033）：只显示/匹配，不参与编址。
+         */
+        IdentityOut: {
+            /**
+             * Nickname
+             * @default
+             */
+            nickname: string;
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+            /**
+             * Uid
+             * @default
+             */
+            uid: string;
+            /**
+             * Org
+             * @default
+             */
+            org: string;
+            /**
+             * Source Key
+             * @default
+             */
+            source_key: string;
+        };
         /** ImportOut */
         ImportOut: {
             /** Target */
@@ -759,6 +969,14 @@ export interface components {
             name_is_default: boolean;
             /** Kind */
             kind: string;
+            /** Origin */
+            origin: string;
+            /** Base Url */
+            base_url: string;
+            /** Protocol */
+            protocol: string;
+            /** Models */
+            models: string[];
             /** Client Version */
             client_version: string;
             /** Icon */
@@ -795,6 +1013,12 @@ export interface components {
             times?: string[] | null;
             /** Icon */
             icon?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Protocol */
+            protocol?: string | null;
+            /** Models */
+            models?: string[] | null;
         };
         /**
          * PlatformRemovedOut
@@ -807,6 +1031,32 @@ export interface components {
             removed: boolean;
             /** Message */
             message: string;
+        };
+        /**
+         * ProviderIn
+         * @description 手建接入源（ADR-033）：relay/local/api 型上游，不依赖本机客户端连接器。
+         */
+        ProviderIn: {
+            /** Platform Code */
+            platform_code: string;
+            /** Platform Name */
+            platform_name: string;
+            /** Kind */
+            kind: string;
+            /** Base Url */
+            base_url: string;
+            /** Protocol */
+            protocol: string;
+            /**
+             * Models
+             * @default []
+             */
+            models: string[];
+            /**
+             * Credential Kinds
+             * @default []
+             */
+            credential_kinds: string[];
         };
         /**
          * RadarAccountOut
@@ -1023,6 +1273,39 @@ export interface operations {
             };
         };
     };
+    create_account_api_v1_accounts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_account_api_v1_accounts__account_id__delete: {
         parameters: {
             query?: never;
@@ -1065,7 +1348,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AliasIn"];
+                "application/json": components["schemas"]["AccountPatchIn"];
             };
         };
         responses: {
@@ -1076,6 +1359,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_account_credential_api_v1_accounts__account_id__credentials_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_account_credential_api_v1_accounts__account_id__credentials__kind___slot__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+                kind: string;
+                slot: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialRevokedOut"];
                 };
             };
             /** @description Validation Error */
@@ -1107,6 +1458,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionsScanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_provider_api_v1_platforms_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformOut"];
                 };
             };
             /** @description Validation Error */

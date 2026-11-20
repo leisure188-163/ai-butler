@@ -25,11 +25,15 @@ export function visibleCaps(platform: PlatformItem): string[] {
 export function kindText(kind: string): string {
   if (kind === "web") return "网页版";
   if (kind === "client") return "客户端";
+  if (kind === "relay") return "中转";
+  if (kind === "local") return "本地模型";
+  if (kind === "api") return "官方 API";
   return "—";
 }
 
 /** 接入前提：只按契约字段直译，不在这里判定能不能接 */
 export function accessHint(platform: PlatformItem): string {
+  if (platform.origin === "user") return "已配置接入地址；账户密钥在账户页维护";
   if (platform.kind === "client") return "需本机已安装并登录该客户端";
   if (platform.kind === "web") return "需先在浏览器里登录该平台";
   return "需先登录对应客户端或浏览器";

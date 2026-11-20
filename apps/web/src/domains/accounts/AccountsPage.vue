@@ -6,8 +6,10 @@
  */
 import { computed, ref, watch } from "vue";
 import DeleteAccountDialog from "@/domains/accounts/DeleteAccountDialog.vue";
+import AccountCreateDialog from "@/domains/accounts/AccountCreateDialog.vue";
 import MatrixTable from "@/domains/accounts/MatrixTable.vue";
 import AccountGrouped from "@/domains/accounts/AccountGrouped.vue";
+import type { AccountCreatePayload, AccountPatch } from "@/domains/accounts/api";
 import type { AccountItem, PlatformItem, RadarRow, RunItem } from "@/shared/types";
 
 const props = defineProps<{
@@ -30,6 +32,10 @@ const emit = defineEmits<{
   scanSessions: [accountId: string];
   repair: [target: string, accountId: string];
   rename: [accountId: string, alias: string];
+  update: [accountId: string, patch: AccountPatch];
+  addKey: [accountId: string, key: { kind: string; secret: string; slot: string; label: string }];
+  revokeKey: [accountId: string, kind: string, slot: string];
+  createAccount: [payload: AccountCreatePayload];
   removeAccount: [accountId: string];
 }>();
 
@@ -53,11 +59,21 @@ const removeTarget = ref<AccountItem | null>(null);
 function askRemove(accountId: string): void {
   removeTarget.value = props.accounts.find((a) => a.account_id === accountId) ?? null;
 }
-function doRemoveAccount(): void {
+const doRemoveAccount = (): void => {
   const account = removeTarget.value;
   if (!account) return;
   removeTarget.value = null;
   emit("removeAccount", account.account_id);
+};
+
+/* 手建账户（ADR-033）：平台/接入源必须已存在，编码由 server 生成并冻结 */
+const createOpen = ref(false);
+const createPlatforms = computed(() =>
+  props.platforms.filter((p) => p.active && p.kind !== ""),
+);
+function submitCreate(payload: AccountCreatePayload): void {
+  createOpen.value = false;
+  emit("createAccount", payload);
 }
 
 /* 一键领取计数：申报了 provision.run 且已导入的平台才计数（不虚报） */
@@ -73,11 +89,16 @@ const claimableCount = computed(
         <h1 class="page-title">账户管理</h1>
         <p class="page-sub">全部平台 × 账户一屏管理，默认平铺表格——切到分组视图可按平台看归属。</p>
       </div>
-      <button
-        class="btn btn--primary"
-        :disabled="busyTarget !== null || loading || !claimableCount"
-        @click="emit('claimAll')"
-      >一键领取{{ claimableCount ? `（${claimableCount}）` : "" }}</button>
+      <div class="head-actions">
+        <button class="btn" :disabled="busyTarget !== null || loading" @click="createOpen = true">
+          新建账户
+        </button>
+        <button
+          class="btn btn--primary"
+          :disabled="busyTarget !== null || loading || !claimableCount"
+          @click="emit('claimAll')"
+        >一键领取{{ claimableCount ? `（${claimableCount}）` : "" }}</button>
+      </div>
     </div>
   </header>
 
@@ -142,6 +163,9 @@ const claimableCount = computed(
       @scan-sessions="emit('scanSessions', $event)"
       @repair="(target, id) => emit('repair', target, id)"
       @rename="(id, alias) => emit('rename', id, alias)"
+      @update="(id, patch) => emit('update', id, patch)"
+      @add-key="(id, key) => emit('addKey', id, key)"
+      @revoke-key="(id, kind, slot) => emit('revokeKey', id, kind, slot)"
       @remove="askRemove"
     />
     <MatrixTable
@@ -157,6 +181,9 @@ const claimableCount = computed(
       @claim-many="emit('claimMany', $event)"
       @scan-sessions="emit('scanSessions', $event)"
       @rename="(id, alias) => emit('rename', id, alias)"
+      @update="(id, patch) => emit('update', id, patch)"
+      @add-key="(id, key) => emit('addKey', id, key)"
+      @revoke-key="(id, kind, slot) => emit('revokeKey', id, kind, slot)"
       @remove="askRemove"
     />
   </section>
@@ -166,6 +193,13 @@ const claimableCount = computed(
     :busy="busyTarget !== null"
     @close="removeTarget = null"
     @confirm="doRemoveAccount"
+  />
+  <AccountCreateDialog
+    v-if="createOpen"
+    :platforms="createPlatforms"
+    :busy="busyTarget !== null"
+    @close="createOpen = false"
+    @submit="submitCreate"
   />
 </template>
 
@@ -178,6 +212,7 @@ const claimableCount = computed(
   gap: var(--space-4);
   flex-wrap: wrap;
 }
+.head-actions { display: flex; align-items: center; gap: var(--space-2); }
 .section { margin-top: var(--space-6); }
 .view-bar { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
 /* 图标分段切换：灰底胶囊 + 选中项浅色块（参考知识库列表的视图切换器） */

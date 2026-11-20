@@ -60,6 +60,9 @@ function reset(): void {
       <option value="all">全部类型</option>
       <option value="web">网页版</option>
       <option value="client">客户端</option>
+      <option value="relay">中转</option>
+      <option value="local">本地模型</option>
+      <option value="api">官方 API</option>
     </select>
     <select
       class="input filters__select"

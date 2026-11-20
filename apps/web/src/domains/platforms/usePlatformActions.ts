@@ -10,6 +10,7 @@ import { ref } from "vue";
 import * as api from "@/shared/api";
 import type { ActionState } from "@/shared/composables/useActionState";
 import type { CustomPlatformDraft, CustomPlatformRow } from "@/shared/types";
+import type { PlatformPatch, ProviderDraft } from "@/domains/platforms/types";
 
 export function usePlatformActions({
   refresh,
@@ -227,7 +228,7 @@ export function usePlatformActions({
   /* 编辑平台（2026-11-18）：显示名 / 启停 / 调度三合一；失败按 ApiError 转提示 */
   async function savePlatform(
     target: string,
-    patch: { platform_name?: string | null; active?: boolean; times?: string[] | null },
+    patch: PlatformPatch,
   ) {
     busyTarget.value = target;
     try {
@@ -244,6 +245,9 @@ export function usePlatformActions({
             : "调度已清空（不排班）",
         );
       }
+      if (patch.base_url !== undefined) bits.push(`地址 ${updated.base_url}`);
+      if (patch.protocol !== undefined) bits.push(`协议 ${updated.protocol}`);
+      if (patch.models !== undefined) bits.push(`模型 ${updated.models.join("、") || "未声明"}`);
       actionMsg.value = {
         text: bits.length ? `已保存：${bits.join(" · ")}` : "没有改动",
         tone: "ok",
@@ -254,6 +258,28 @@ export function usePlatformActions({
           text: e.detail ?? `改调度失败（HTTP ${e.status}）`,
           tone: "warn",
         };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /* 新建接入源（ADR-033）：relay/local/api；编码即锚点，落库后不参与退役同步 */
+  async function createProvider(draft: ProviderDraft) {
+    busyTarget.value = draft.platform_code;
+    actionMsg.value = null;
+    try {
+      const created = await api.createProvider(draft);
+      actionMsg.value = {
+        text: `接入源「${created.platform_name}」已创建——去账户页新建账户并绑定密钥`,
+        tone: "ok",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `创建失败（HTTP ${e.status}）`, tone: "warn" };
       } else {
         throw e;
       }
@@ -274,5 +300,6 @@ export function usePlatformActions({
     removePlatform,
     createCustomPlatform,
     removeCustomPlatform,
+    createProvider,
   };
 }

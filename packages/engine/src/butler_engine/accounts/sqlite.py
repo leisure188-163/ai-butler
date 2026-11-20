@@ -24,7 +24,15 @@ from datetime import datetime
 from pathlib import Path
 
 from butler_core.accounts.ports import AccountRepository
-from butler_core.accounts.domain import Account, Entitlement, Session, SessionKind, SessionLevel
+from butler_core.accounts.domain import (
+    Account,
+    AccountIdentity,
+    AccountInvalid,
+    Entitlement,
+    Session,
+    SessionKind,
+    SessionLevel,
+)
 
 from butler_engine.db.conn import connect
 
@@ -38,6 +46,9 @@ CREATE TABLE IF NOT EXISTS acc_account (
     alias            TEXT NOT NULL DEFAULT '',
     base_url         TEXT,
     device_ref       TEXT,
+    identity_json    TEXT,
+    origin           TEXT NOT NULL DEFAULT 'connector',
+    last_seen_at     TEXT,
     sessions         TEXT NOT NULL DEFAULT '[]',
     entitlement_json TEXT,
     is_active        INTEGER NOT NULL DEFAULT 1,
@@ -50,10 +61,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_acc_account_platform_code_key
 CREATE INDEX IF NOT EXISTS idx_acc_account_platform_code ON acc_account (platform_code);
 """
 
-_COLS = (
-    "account_id, platform_code, account_code, account_name, alias, base_url, device_ref, sessions, "
-    "entitlement_json, is_active, created_at, updated_at, deleted_at"
+#: 权威列序（DDL 单源）：老库补列只能追加到物理末尾，重排走 _reorder_columns
+_DDL_COLS = (
+    "account_id, platform_code, account_code, account_name, alias, base_url, device_ref, "
+    "identity_json, origin, last_seen_at, sessions, entitlement_json, is_active, "
+    "created_at, updated_at, deleted_at"
 )
+_COLS = _DDL_COLS
+
+#: 重建整表时缺列的兜底值（NOT NULL 列不能落 NULL）
+_DDL_DEFAULTS = {
+    "account_code": "'main'",
+    "account_name": "'unknown'",
+    "sessions": "'[]'",
+    "is_active": "1",
+    "origin": "'connector'",
+    "created_at": "datetime('now')",
+    "updated_at": "datetime('now')",
+}
 
 # v3 早期列名 → 现行列名（RENAME 一轮改齐；仅认旧名存在且新名缺失时执行）
 _RENAME_COLS: tuple[tuple[str, str], ...] = (
@@ -72,6 +97,9 @@ _MISSING_COLS: dict[str, str] = {
     "alias": "alias TEXT NOT NULL DEFAULT ''",
     "updated_at": "updated_at TEXT NOT NULL DEFAULT ''",
     "deleted_at": "deleted_at TEXT",
+    "identity_json": "identity_json TEXT",
+    "origin": "origin TEXT NOT NULL DEFAULT 'connector'",
+    "last_seen_at": "last_seen_at TEXT",
 }
 
 # 历史/旧索引名（重建/补索引时一律 DROP）
@@ -104,7 +132,31 @@ def _ensure_columns(conn) -> None:
         if name not in cols:
             conn.execute(f"ALTER TABLE acc_account ADD COLUMN {ddl}")
     conn.execute("UPDATE acc_account SET updated_at = created_at WHERE updated_at = ''")
+    _reorder_columns(conn)
     _recreate_indexes(conn)
+
+
+def _reorder_columns(conn) -> None:
+    """物理列序校正（幂等·零丢失）：ADD COLUMN 只能追加，按 _DDL_COLS 重建。
+
+    重叠执行安全：列序已对齐直接返回；id 保持首位（代理键不漂移），
+    缺失列按 _DDL_DEFAULTS 落值（NOT NULL 列不落 NULL）。
+    """
+    actual = [r[1] for r in conn.execute("PRAGMA table_info(acc_account)").fetchall()]
+    if actual == ["id", *_DDL_COLS.split(", ")]:
+        return
+    conn.execute("DROP INDEX IF EXISTS uq_acc_account_platform_code_key")
+    conn.execute("DROP INDEX IF EXISTS idx_acc_account_platform_code")
+    conn.execute("ALTER TABLE acc_account RENAME TO acc_account__reorder")
+    conn.executescript(_SCHEMA)
+    select = ", ".join(
+        col if col in actual else _DDL_DEFAULTS.get(col, "NULL") for col in _DDL_COLS.split(", ")
+    )
+    conn.execute(
+        f"INSERT INTO acc_account (id, {_COLS}) "
+        f"SELECT id, {select} FROM acc_account__reorder"
+    )
+    conn.execute("DROP TABLE acc_account__reorder")
 
 
 def _recreate_indexes(conn) -> None:
@@ -141,10 +193,10 @@ def _rebuild_from_legacy(conn, cols: set[str]) -> None:
             account_code = legacy_id[len(prefix):]
         conn.execute(
             f"INSERT OR IGNORE INTO acc_account ({_COLS}) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 legacy_id, platform_code, account_code, account_name, "", base_url,
-                device_ref, sessions_raw, entitlement_json, is_active,
+                device_ref, None, "connector", None, sessions_raw, entitlement_json, is_active,
                 created_at, updated_at, deleted_at,
             ),
         )
@@ -167,12 +219,26 @@ class SqliteAccountRepository(AccountRepository):
         from butler_core.shared.time import now_utc
 
         with self._connect() as conn, conn:
+            row = conn.execute(
+                "SELECT platform_code, account_code FROM acc_account WHERE account_id = ?",
+                (account.id,),
+            ).fetchone()
+            if row is not None and (row[0], row[1]) != (
+                account.platform_code,
+                account.account_code,
+            ):
+                raise AccountInvalid(
+                    f"账户编址冻结：{account.id!r} 已登记为 ({row[0]}, {row[1]})，"
+                    f"拒绝改写为 ({account.platform_code}, {account.account_code})"
+                )
             conn.execute(
-                f"INSERT INTO acc_account ({_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                f"INSERT INTO acc_account ({_COLS}) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (account_id) DO UPDATE SET "
-                "platform_code=excluded.platform_code, account_code=excluded.account_code, "
-                "account_name=excluded.account_name, alias=excluded.alias, base_url=excluded.base_url, "
-                "device_ref=excluded.device_ref, sessions=excluded.sessions, "
+                "account_name=excluded.account_name, alias=excluded.alias, "
+                "base_url=excluded.base_url, device_ref=excluded.device_ref, "
+                "identity_json=excluded.identity_json, origin=excluded.origin, "
+                "last_seen_at=excluded.last_seen_at, sessions=excluded.sessions, "
                 "entitlement_json=excluded.entitlement_json, is_active=excluded.is_active, "
                 "updated_at=excluded.updated_at, deleted_at=excluded.deleted_at",
                 (
@@ -183,6 +249,9 @@ class SqliteAccountRepository(AccountRepository):
                     account.alias,
                     account.base_url,
                     account.device_ref,
+                    _dump_identity(account.identity),
+                    account.origin,
+                    account.last_seen_at.isoformat() if account.last_seen_at else None,
                     _dump_sessions(account.sessions),
                     _dump_entitlement(account.entitlement),
                     1 if account.is_active else 0,
@@ -226,6 +295,37 @@ def _dump_sessions(sessions: tuple[Session, ...]) -> str:
     return json.dumps(
         [[s.location, s.kind.value, s.level.value] for s in sessions],
         ensure_ascii=False,
+    )
+
+
+_IDENTITY_FIELDS = ("nickname", "email", "uid", "org", "source_key")
+
+
+def _dump_identity(identity: AccountIdentity) -> str | None:
+    """空身份落 NULL（不写 "{}"），让「未知」在库里也只有一种形状。"""
+    if identity.is_empty:
+        return None
+    return json.dumps(
+        {name: getattr(identity, name) for name in _IDENTITY_FIELDS if getattr(identity, name)},
+        ensure_ascii=False,
+    )
+
+
+def _load_identity(raw: str | None) -> AccountIdentity:
+    if not raw:
+        return AccountIdentity()
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return AccountIdentity()  # 坏行如实未知，不炸名册
+    if not isinstance(data, dict):
+        return AccountIdentity()
+    return AccountIdentity(
+        **{
+            name: str(data.get(name) or "")
+            for name in _IDENTITY_FIELDS
+            if name in data
+        }
     )
 
 
@@ -282,9 +382,12 @@ def _load(row) -> Account | None:
         alias=row[4] or "",
         base_url=row[5] or "",
         device_ref=row[6],
-        sessions=_load_sessions(row[7], row[0]),
-        entitlement=_load_entitlement(row[8], row[0]),
-        is_active=bool(row[9]),
-        created_at=datetime.fromisoformat(row[10]),
-        deleted_at=datetime.fromisoformat(row[12]) if row[12] else None,
+        identity=_load_identity(row[7]),
+        origin=row[8] or "connector",
+        last_seen_at=datetime.fromisoformat(row[9]) if row[9] else None,
+        sessions=_load_sessions(row[10], row[0]),
+        entitlement=_load_entitlement(row[11], row[0]),
+        is_active=bool(row[12]),
+        created_at=datetime.fromisoformat(row[13]),
+        deleted_at=datetime.fromisoformat(row[15]) if row[15] else None,
     )

@@ -14,7 +14,11 @@ class PlatformOut(BaseModel):
     id: str
     platform_name: str  # 平台名：接入时来自 manifest，之后归用户（ADR-031，可改名）
     name_is_default: bool  # 名字仍是连接器申报名（前端据此决定要不要显示「恢复默认名」）
-    kind: str  # 平台类型：web=网页版 / client=本机客户端（"" = 未申报）
+    kind: str  # 平台类型：web/client/relay/local/api（ADR-033；"" = 未申报）
+    origin: str  # connector=连接器同步 / user=用户手建接入源
+    base_url: str  # 接入源基址（connector 平台为空）
+    protocol: str  # openai/anthropic/gemini（connector 平台为空）
+    models: list[str]  # 接入源声明可用模型
     client_version: str  # 本机客户端版本（"" = 探不到/不适用）
     icon: str  # 平台图标（2026-11-19）：96px PNG 的 data URI；"" = 无图标（前端回落色点）
     capabilities: list[str]  # ActionKind.value 列表（core 词表）
@@ -107,11 +111,20 @@ def _platform_out(platform, ids: list[str], registry=None) -> PlatformOut:
     连接器已下线（取不到 manifest）时按"非默认"处理，不误报可恢复。
     """
     display = _manifest_display(registry, platform.platform_code) if registry else None
+    is_default_name = (
+        False
+        if getattr(platform, "origin", "connector") == "user"
+        else (display is None or display == platform.platform_name)
+    )
     return PlatformOut(
         id=platform.platform_code,
         platform_name=platform.platform_name,
-        name_is_default=display is None or display == platform.platform_name,
+        name_is_default=is_default_name,
         kind=platform.platform_kind,
+        origin=getattr(platform, "origin", "connector"),
+        base_url=getattr(platform, "base_url", ""),
+        protocol=getattr(platform, "protocol", ""),
+        models=list(getattr(platform, "models", ()) or ()),
         client_version=platform.client_version,
         icon=platform.icon,
         capabilities=sorted(platform.capabilities),
@@ -126,6 +139,47 @@ def _platform_out(platform, ids: list[str], registry=None) -> PlatformOut:
         account_id=ids[0] if ids else None,
         account_ids=ids,
     )
+
+
+class ProviderIn(BaseModel):
+    """手建接入源（ADR-033）：relay/local/api 型上游，不依赖本机客户端连接器。"""
+
+    platform_code: str
+    platform_name: str
+    kind: str  # relay=OpenAI 兼容中转 / local=本地模型 / api=官方 API
+    base_url: str
+    protocol: str  # openai / anthropic / gemini
+    models: list[str] = []
+    credential_kinds: list[str] = []
+
+
+@router.post("/platforms/providers", response_model=PlatformOut)
+def create_provider(body: ProviderIn, request: Request) -> PlatformOut:
+    """创建接入源（ADR-033）：编码即锚点，落库后不参与启动退役同步。
+
+    账号通过 `POST /accounts` 绑定本接入源，密钥走凭据槽位端点。
+    """
+    from fastapi import HTTPException
+
+    from butler_core.platforms.domain import PlatformAlreadyExists, PlatformInvalid
+
+    kit = request.app.state.kit
+    registry = request.app.state.registry
+    try:
+        entry = kit.create_platform.execute(
+            body.platform_code,
+            body.platform_name,
+            kind=body.kind,
+            base_url=body.base_url,
+            protocol=body.protocol,
+            models=tuple(body.models),
+            credential_kinds=tuple(body.credential_kinds),
+        )
+    except PlatformAlreadyExists as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except PlatformInvalid as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _platform_out(entry, [], registry)
 
 
 @router.get("/platforms", response_model=list[PlatformOut])
@@ -248,6 +302,9 @@ class PlatformPatchIn(BaseModel):
     active: bool | None = None  # 启用状态
     times: list[str] | None = None  # 调度执行时间
     icon: str | None = None  # 平台图标（png data URI，空串 = 清空）
+    base_url: str | None = None  # 接入源基址（仅 origin=user 可改，ADR-033）
+    protocol: str | None = None  # openai/anthropic/gemini（仅 origin=user）
+    models: list[str] | None = None  # 接入源声明模型（仅 origin=user）
 
 
 _HHMM_RE = r"^([01]\d|2[0-3]):[0-5]\d$"
@@ -277,12 +334,17 @@ def patch_platform(platform_code: str, body: PlatformPatchIn, request: Request):
 
     kit = request.app.state.kit
     registry = request.app.state.registry
+    existing = kit.platforms.get(platform_code)
+    if existing is None:
+        raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
     fields = body.model_fields_set
     new_name: str | None = None
     active: bool | None = None
     if "platform_name" in fields and body.platform_name is not None:
         new_name = body.platform_name.strip()
         if not new_name:
+            if existing.origin == "user":
+                raise HTTPException(status_code=400, detail="用户接入源没有默认名，请直接填写名称")
             # 空串 = 恢复连接器申报的名称（不保留第二列，运行时向 manifest 取）
             new_name = _manifest_display(registry, platform_code)
             if new_name is None:
@@ -304,9 +366,23 @@ def patch_platform(platform_code: str, body: PlatformPatchIn, request: Request):
             )
         if len(new_icon) > 200_000:
             raise HTTPException(status_code=400, detail="图标过大（上限约 200KB）")
+    connection_fields = {"base_url", "protocol", "models"} & fields
+    if connection_fields and existing.origin != "user":
+        raise HTTPException(
+            status_code=400,
+            detail="连接事实（base_url/protocol/models）只对用户接入源开放；"
+                    "连接器平台由 manifest 申报",
+        )
     updated = kit.platforms.update_profile(
         platform_code, platform_name=new_name, is_active=active, icon=new_icon
     )
+    if connection_fields:
+        updated = kit.update_provider.execute(
+            platform_code,
+            base_url=body.base_url.strip() if body.base_url is not None else None,
+            protocol=body.protocol.strip() if body.protocol is not None else None,
+            models=tuple(m.strip() for m in body.models) if body.models is not None else None,
+        )
     if updated is None:
         raise HTTPException(status_code=404, detail=f"平台不存在：{platform_code}")
     if "times" in fields:

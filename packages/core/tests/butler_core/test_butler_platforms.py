@@ -6,7 +6,11 @@ from datetime import datetime, UTC
 
 import pytest
 
-from butler_core.platforms.domain import PlatformEntry, PlatformInvalid
+from butler_core.platforms.domain import (
+    PlatformAlreadyExists,
+    PlatformEntry,
+    PlatformInvalid,
+)
 
 
 def _entry(**kw) -> PlatformEntry:
@@ -57,3 +61,121 @@ def test_图标_只接受png_data_uri且限长() -> None:
     ):
         with pytest.raises(PlatformInvalid):
             _entry(icon=bad)
+
+
+# --- 接入源（ADR-033）---
+
+
+def _provider(**kw) -> PlatformEntry:
+    base = dict(
+        platform_code="my_relay",
+        platform_name="我的中转",
+        created_at=datetime(2026, 11, 20, tzinfo=UTC),
+        platform_kind="relay",
+        base_url="https://relay.example.com/v1",
+        protocol="openai",
+        models=("gpt-4o-mini",),
+        credential_kinds=("api_key",),
+        origin="user",
+        capabilities=(),
+        schedule_times=(),
+    )
+    base.update(kw)
+    return PlatformEntry(**base)
+
+
+class MemoryPlatforms:
+    def __init__(self):
+        self.rows: dict[str, PlatformEntry] = {}
+
+    def upsert(self, entry):
+        self.rows[entry.platform_code] = entry
+
+    def get(self, code):
+        return self.rows.get(code)
+
+    def list_all(self):
+        return list(self.rows.values())
+
+    def update_profile(self, code, *, platform_name=None, is_active=None, icon=None,
+                       base_url=None, protocol=None, models=None, credential_kinds=None):
+        import dataclasses
+
+        row = self.rows.get(code)
+        if row is None:
+            return None
+        changes = {
+            k: v
+            for k, v in dict(
+                platform_name=platform_name, is_active=is_active, icon=icon,
+                base_url=base_url, protocol=protocol, models=models,
+                credential_kinds=credential_kinds,
+            ).items()
+            if v is not None
+        }
+        row = dataclasses.replace(row, **changes)
+        self.rows[code] = row
+        return row
+
+
+def test_用户接入源必须三件套() -> None:
+    assert _provider().origin == "user"
+    for missing in ({"platform_kind": ""}, {"base_url": ""}, {"protocol": ""}):
+        with pytest.raises(PlatformInvalid):
+            _provider(**missing)
+
+
+def test_接入源协议与地址形状校验() -> None:
+    with pytest.raises(PlatformInvalid):
+        _provider(protocol="openai-compatible")
+    with pytest.raises(PlatformInvalid):
+        _provider(base_url="relay.example.com/v1")
+    with pytest.raises(PlatformInvalid):
+        _provider(platform_kind="app")  # 不在 PLATFORM_KINDS
+
+
+def test_create_platform_编码校验与无连接器事实() -> None:
+    from butler_core.platforms.usecases.create_platform import CreatePlatform
+
+    repo = MemoryPlatforms()
+    uc = CreatePlatform(platforms=repo)
+    created = uc.execute(
+        "My-Relay", "我的中转", kind="relay",
+        base_url="https://relay.example.com/v1", protocol="openai",
+        models=(" gpt-4o-mini ",), credential_kinds=("api_key", ""),
+    )
+    assert created.platform_code == "my-relay"  # 编码转小写
+    assert created.origin == "user"
+    assert created.capabilities == () and created.schedule_times == ()  # 接入源不排班
+    assert created.models == ("gpt-4o-mini",)
+    assert created.credential_kinds == ("api_key",)
+    with pytest.raises(PlatformInvalid):
+        uc.execute("bad:code", "x", kind="relay",
+                   base_url="https://x.example.com", protocol="openai")
+    with pytest.raises(PlatformAlreadyExists):
+        uc.execute("my-relay", "重复", kind="relay",
+                   base_url="https://x.example.com", protocol="openai")
+
+
+def test_update_provider_只改用户接入源() -> None:
+    from butler_core.platforms.usecases.update_provider import UpdateProvider
+
+    repo = MemoryPlatforms()
+    repo.upsert(_provider())
+    repo.upsert(_entry())  # connector 平台
+    uc = UpdateProvider(platforms=repo)
+
+    updated = uc.execute("my_relay", base_url="https://relay2.example.com/v1",
+                         protocol="anthropic", models=("claude-sonnet",))
+    assert updated.base_url == "https://relay2.example.com/v1"
+    assert updated.protocol == "anthropic"
+    assert updated.models == ("claude-sonnet",)
+
+    with pytest.raises(PlatformInvalid):
+        uc.execute("doubao_cn", base_url="https://evil.example.com")  # manifest 申报，不许改
+    with pytest.raises(PlatformInvalid):
+        uc.execute("my_relay", base_url="ftp://relay.example.com")
+    with pytest.raises(PlatformInvalid):
+        uc.execute("my_relay", protocol="unknown")
+    with pytest.raises(PlatformInvalid):
+        uc.execute("ghost", platform_name="x")

@@ -18,9 +18,20 @@ class PlatformInvalid(DomainError):
     """平台事实形状非法——显式拒绝（红线 5）。"""
 
 
-#: 平台类型词表（2026-11-18 裁决）：web=网页版 / client=本机客户端。
-#: "" 仅老库历史行/未申报兼容，新申报必须显式二选一（manifest 侧必填）。
-PLATFORM_KINDS = ("web", "client")
+class PlatformAlreadyExists(PlatformInvalid):
+    """平台编码已存在（编码是锚点，不覆盖）。"""
+
+
+#: 平台类型词表（ADR-033）：语义是「怎么连」。
+#: web=网页版 / client=本机客户端 / relay=OpenAI 兼容中转 / local=本地模型 /
+#: api=官方 API。"" 仅老库历史行/未申报兼容，新申报必须显式。
+PLATFORM_KINDS = ("web", "client", "relay", "local", "api")
+
+#: 接入源来源：connector=连接器 manifest 同步 / user=用户手建（不参与退役同步）。
+PLATFORM_ORIGINS = ("connector", "user")
+
+#: 上游协议（网关阶段消费；本阶段只做声明与展示）。
+PROTOCOLS = ("openai", "anthropic", "gemini")
 
 #: 调度时间格式（分钟粒度）
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -57,10 +68,17 @@ class PlatformEntry:
     schedule_override: tuple[str, ...] | None = None
     is_active: bool = True
     deprecated_at: datetime | None = None
+    #: 接入源事实（ADR-033）：连接器平台为空；用户手建的 relay/local/api 必填。
+    base_url: str = ""
+    protocol: str = ""  # PROTOCOLS；"" = 连接器平台不声明
+    models: tuple[str, ...] = ()  # 该接入源声明可用模型
+    origin: str = "connector"  # PLATFORM_ORIGINS
 
     def __post_init__(self) -> None:
         if not self.platform_code.strip():
             raise PlatformInvalid("PlatformEntry 需要非空 platform_code")
+        if ":" in self.platform_code or any(c.isspace() for c in self.platform_code):
+            raise PlatformInvalid("platform_code 不能含冒号或空白（账户编址分隔符）")
         if not self.platform_name.strip():
             raise PlatformInvalid("PlatformEntry 需要非空 platform_name")
         if self.schedule_override is not None:
@@ -73,6 +91,28 @@ class PlatformEntry:
             raise PlatformInvalid(
                 f"PlatformEntry platform_kind={self.platform_kind!r} 不在词表 {PLATFORM_KINDS}"
             )
+        if self.origin not in PLATFORM_ORIGINS:
+            raise PlatformInvalid(
+                f"PlatformEntry origin={self.origin!r} 不在词表 {PLATFORM_ORIGINS}"
+            )
+        if self.protocol and self.protocol not in PROTOCOLS:
+            raise PlatformInvalid(
+                f"PlatformEntry protocol={self.protocol!r} 不在词表 {PROTOCOLS}"
+            )
+        if self.base_url.strip():
+            if not self.base_url.startswith(("http://", "https://")):
+                raise PlatformInvalid("PlatformEntry.base_url 必须以 http:// 或 https:// 开头")
+        for model in self.models:
+            if not model.strip():
+                raise PlatformInvalid("PlatformEntry.models 不能含空项")
+        if self.origin == "user":
+            # 用户接入源必须能直连：kind/base_url/protocol 三件套缺一不可
+            if not self.platform_kind:
+                raise PlatformInvalid("用户接入源必须声明 platform_kind")
+            if not self.base_url.strip():
+                raise PlatformInvalid("用户接入源必须声明 base_url")
+            if not self.protocol:
+                raise PlatformInvalid("用户接入源必须声明 protocol")
         if self.icon:
             if not self.icon.startswith(_ICON_PREFIX):
                 raise PlatformInvalid(

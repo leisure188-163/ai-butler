@@ -62,8 +62,9 @@ export function removePlatform(code: string): Promise<PlatformRemoved> {
   });
 }
 
-/** 编辑平台信息（2026-11-18 / 11-19）：显示名 / 启用状态 / 调度执行时间 / 平台图标。
- * 只传要改的键；times=null 恢复默认、[] 不排班；icon="" 清空图标（回落身份色点）。 */
+/** 编辑平台信息（2026-11-18 / 11-19 / ADR-033）：显示名 / 启用状态 / 调度执行时间 / 图标，
+ * 用户接入源另可改 base_url/protocol/models。只传要改的键；times=null 恢复默认、[] 不排班；
+ * icon="" 清空图标（回落身份色点）。 */
 export function patchPlatform(
   target: string,
   body: {
@@ -71,6 +72,9 @@ export function patchPlatform(
     active?: boolean;
     times?: string[] | null;
     icon?: string | null;
+    base_url?: string;
+    protocol?: string;
+    models?: string[];
   },
 ): Promise<PlatformItem> {
   return request<PlatformItem>(`${apiBase}/platforms/${target}`, {
@@ -78,6 +82,20 @@ export function patchPlatform(
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+/** 创建接入源（ADR-033）：relay/local/api 型上游，不依赖本机客户端连接器。
+ * 编码即锚点；落库后不参与启动退役同步。 */
+export function createProvider(body: {
+  platform_code: string;
+  platform_name: string;
+  kind: string;
+  base_url: string;
+  protocol: string;
+  models?: string[];
+  credential_kinds?: string[];
+}): Promise<PlatformItem> {
+  return request<PlatformItem>(`${apiBase}/platforms/providers`, post(body));
 }
 
 /** 改调度执行时间（2026-11-18）：times=null 恢复平台默认；[] = 该平台不排班。

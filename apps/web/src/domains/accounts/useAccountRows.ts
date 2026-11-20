@@ -44,18 +44,11 @@ export function useAccountRows({
     );
   }
 
-  /** 昵称优先、ID 为辅：别名（用户起的）> account_name（core 出产）> account_code。
-   * 别名存在的意义就是盖掉连接器给的泛名（如 Trae CN），所以放在最前。 */
+  /** 显示标签（ADR-033）：core 单源出产 `account_label`，前端不再自己拼。
+   * 优先级由 core 定：alias > 真实昵称 > 「平台名 · 」后缀 > account_name > account_code。 */
   function accountLabel(account: AccountItem): string {
-    const alias = account.alias?.trim() || "";
-    if (alias) return alias;
-    const platform = appOf(account);
-    const name = account.account_name?.trim() || "";
-    if (!name || (platform && name === platform.platform_name)) return account.account_code;
-    if (platform && name.startsWith(`${platform.platform_name} · `)) {
-      return name.slice(platform.platform_name.length + 3).trim();
-    }
-    return name;
+    const label = account.account_label?.trim() || "";
+    return label || account.account_code;
   }
 
   const todayRunsByAccount = computed(() => {

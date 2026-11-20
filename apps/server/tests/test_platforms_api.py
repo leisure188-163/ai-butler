@@ -227,8 +227,9 @@ def test_patch_platform_name_生效且同步不覆盖(tmp_path):
 def test_patch_platform_icon_写入与校验(tmp_path):
     """平台图标（2026-11-19）：png data URI 可写、随列表返回；非 png / 超长 400；空串清空。"""
     with _client(tmp_path) as client:
-        row = next(r for r in client.get("/api/v1/platforms").json() if r["id"] == "trae_cn")
-        assert row["icon"] == ""  # 默认无图标 → 前端回落内置图标/身份色点
+        # 先显式清空：本机装了对应客户端时启动探测会写图标，不能假设库里一定为空
+        cleared_first = client.patch("/api/v1/platforms/trae_cn", json={"icon": ""}).json()
+        assert cleared_first["icon"] == ""
 
         uri = "data:image/png;base64,AAAA"
         patched = client.patch("/api/v1/platforms/trae_cn", json={"icon": uri}).json()
@@ -395,3 +396,81 @@ def test_claim_all_claims_docked_and_replays(tmp_path):
 def test_claim_all_empty_when_no_accounts(tmp_path):
     with _client(tmp_path) as client:
         assert client.post("/api/v1/runs/claim-all").json() == []
+
+
+# --- 接入源（ADR-033）---
+
+
+_PROVIDER = {
+    "platform_code": "my_relay",
+    "platform_name": "我的中转",
+    "kind": "relay",
+    "base_url": "https://relay.example.com/v1",
+    "protocol": "openai",
+    "models": ["gpt-4o-mini"],
+    "credential_kinds": ["api_key"],
+}
+
+
+def test_create_provider_落名册且不参与退役同步(tmp_path):
+    with _client(tmp_path) as client:
+        resp = client.post("/api/v1/platforms/providers", json=_PROVIDER)
+        assert resp.status_code == 200, resp.text
+        row = resp.json()
+        assert row["origin"] == "user"
+        assert row["name_is_default"] is False  # 用户接入源没有默认名
+        assert row["account_ids"] == []
+        assert {p["id"] for p in client.get("/api/v1/platforms").json()} >= {"my_relay"}
+
+        # 重复编码 = 409（编码是锚点，不覆盖）
+        assert client.post("/api/v1/platforms/providers", json=_PROVIDER).status_code == 409
+
+
+def test_create_provider_形状校验(tmp_path):
+    with _client(tmp_path) as client:
+        bad_code = {**_PROVIDER, "platform_code": "Bad:Code"}
+        assert client.post("/api/v1/platforms/providers", json=bad_code).status_code == 400
+        bad_protocol = {**_PROVIDER, "protocol": "openai-compatible"}
+        assert client.post("/api/v1/platforms/providers", json=bad_protocol).status_code == 400
+        no_url = {**_PROVIDER, "base_url": ""}
+        assert client.post("/api/v1/platforms/providers", json=no_url).status_code == 400
+        bad_kind = {**_PROVIDER, "kind": "app"}
+        assert client.post("/api/v1/platforms/providers", json=bad_kind).status_code == 400
+
+
+def test_patch_provider_只改连接事实_用户源可改(tmp_path):
+    with _client(tmp_path) as client:
+        client.post("/api/v1/platforms/providers", json=_PROVIDER)
+        out = client.patch(
+            "/api/v1/platforms/my_relay",
+            json={"base_url": "https://relay2.example.com/v1",
+                  "protocol": "anthropic", "models": ["claude-sonnet"]},
+        )
+        assert out.status_code == 200, out.text
+        row = out.json()
+        assert row["base_url"] == "https://relay2.example.com/v1"
+        assert row["protocol"] == "anthropic"
+        assert row["models"] == ["claude-sonnet"]
+        # 用户接入源不能把名字清空（没有 manifest 默认名可回落）
+        assert client.patch("/api/v1/platforms/my_relay", json={"platform_name": ""}).status_code == 400
+
+
+def test_patch_connector_platform_拒绝改连接事实(tmp_path):
+    with _client(tmp_path) as client:
+        kit = client.app.state.kit
+        from butler_core.platforms.domain import PlatformEntry
+        from butler_core.shared.time import now_utc
+
+        kit.platforms.upsert(
+            PlatformEntry(
+                platform_code="doubao_cn", platform_name="豆包", created_at=now_utc(),
+                platform_kind="client", capabilities=("provision.run",),
+                credential_kinds=("cookie",),
+            )
+        )
+        resp = client.patch(
+            "/api/v1/platforms/doubao_cn",
+            json={"base_url": "https://evil.example.com"},
+        )
+        assert resp.status_code == 400
+        assert "连接事实" in resp.json()["detail"]

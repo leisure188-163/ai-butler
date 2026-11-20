@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS plat_platform (
     credential_kinds TEXT NOT NULL DEFAULT '[]',
     schedule_times   TEXT NOT NULL DEFAULT '[]',
     schedule_override TEXT NOT NULL DEFAULT '',
+    base_url         TEXT NOT NULL DEFAULT '',
+    protocol         TEXT NOT NULL DEFAULT '',
+    models_json      TEXT NOT NULL DEFAULT '[]',
+    origin           TEXT NOT NULL DEFAULT 'connector',
     is_active        INTEGER NOT NULL DEFAULT 1,
     deprecated_at    TEXT,
     created_at       TEXT NOT NULL,
@@ -46,6 +50,7 @@ _SCHEMA = _TABLE_DDL + _INDEX_DDL
 _DDL_COLS = (
     "platform_code", "platform_name", "platform_kind", "client_version", "icon",
     "capabilities", "credential_kinds", "schedule_times", "schedule_override",
+    "base_url", "protocol", "models_json", "origin",
     "is_active", "deprecated_at", "created_at", "updated_at",
 )
 _COLS = ", ".join(_DDL_COLS)
@@ -53,6 +58,7 @@ _COLS = ", ".join(_DDL_COLS)
 #: 重建时缺失列的落值（显式未知，不猜）
 _ADDED_DEFAULTS = {
     "platform_kind": "''", "client_version": "''", "icon": "''", "schedule_override": "''",
+    "base_url": "''", "protocol": "''", "models_json": "'[]'", "origin": "'connector'",
 }
 
 #: 重建整表时缺列的兜底值：必须与 DDL 默认一致（NOT NULL 列落 NULL 会直接炸）
@@ -140,13 +146,15 @@ class SqlitePlatformRepository(PlatformRepository):
         with self._connect() as conn, conn:
             conn.execute(
                 f"INSERT INTO plat_platform ({_COLS}) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (platform_code) DO UPDATE SET "
                 "platform_kind=excluded.platform_kind, "
                 "client_version=excluded.client_version, "
                 "icon=CASE WHEN excluded.icon <> '' THEN excluded.icon ELSE icon END, "
                 "capabilities=excluded.capabilities, "
                 "credential_kinds=excluded.credential_kinds, schedule_times=excluded.schedule_times, "
+                "base_url=excluded.base_url, protocol=excluded.protocol, "
+                "models_json=excluded.models_json, origin=excluded.origin, "
                 "updated_at=excluded.updated_at",
                 (
                     entry.platform_code,
@@ -158,6 +166,10 @@ class SqlitePlatformRepository(PlatformRepository):
                     _dump(entry.credential_kinds),
                     _dump(entry.schedule_times),
                     _dump(entry.schedule_override) if entry.schedule_override is not None else "",
+                    entry.base_url.strip(),
+                    entry.protocol.strip(),
+                    _dump(entry.models),
+                    entry.origin,
                     1 if entry.is_active else 0,
                     entry.deprecated_at.isoformat() if entry.deprecated_at else None,
                     created,
@@ -180,7 +192,7 @@ class SqlitePlatformRepository(PlatformRepository):
         with self._connect() as conn, conn:
             rows = conn.execute(
                 "SELECT platform_code FROM plat_platform "
-                "WHERE deprecated_at IS NULL AND platform_code NOT IN "
+                "WHERE deprecated_at IS NULL AND origin = 'connector' AND platform_code NOT IN "
                 f"({', '.join('?' * len(platform_codes)) or "''"})",
                 tuple(platform_codes),
             ).fetchall()
@@ -203,10 +215,15 @@ class SqlitePlatformRepository(PlatformRepository):
         platform_name: str | None = None,
         is_active: bool | None = None,
         icon: str | None = None,
+        base_url: str | None = None,
+        protocol: str | None = None,
+        models: tuple[str, ...] | None = None,
+        credential_kinds: tuple[str, ...] | None = None,
     ) -> PlatformEntry | None:
-        """改平台名 / 启停 / 图标（None = 不动）。平台不存在 → None。
+        """改平台名 / 启停 / 图标 / 接入源连接事实（None = 不动）。不存在 → None。
 
-        平台编码是锚点，本方法没有改写它的入口（ADR-031）。
+        平台编码是锚点，本方法没有改写它的入口（ADR-031）；origin 也不可改。
+        base_url/protocol/models（ADR-033）只应作用于用户接入源，调用方负责拒绝越权。
         """
         from butler_core.shared.time import now_utc
 
@@ -221,6 +238,18 @@ class SqlitePlatformRepository(PlatformRepository):
         if icon is not None:
             sets.append("icon = ?")
             args.append(icon)
+        if base_url is not None:
+            sets.append("base_url = ?")
+            args.append(base_url)
+        if protocol is not None:
+            sets.append("protocol = ?")
+            args.append(protocol)
+        if models is not None:
+            sets.append("models_json = ?")
+            args.append(_dump(models))
+        if credential_kinds is not None:
+            sets.append("credential_kinds = ?")
+            args.append(_dump(credential_kinds))
         if not sets:
             return self.get(platform_code)
         sets.append("updated_at = ?")
@@ -287,9 +316,13 @@ def _load(row) -> PlatformEntry | None:
         credential_kinds=_load_values(row[6]),
         schedule_times=_load_values(row[7]),
         schedule_override=_load_override(row[8]),
-        is_active=bool(row[9]),
-        deprecated_at=datetime.fromisoformat(row[10]) if row[10] else None,
-        created_at=datetime.fromisoformat(row[11]),
+        base_url=row[9] or "",
+        protocol=row[10] or "",
+        models=_load_values(row[11]),
+        origin=row[12] or "connector",
+        is_active=bool(row[13]),
+        deprecated_at=datetime.fromisoformat(row[14]) if row[14] else None,
+        created_at=datetime.fromisoformat(row[15]),
     )
 
 

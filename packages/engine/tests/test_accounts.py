@@ -2,7 +2,9 @@
 
 from datetime import UTC, datetime
 
-from butler_core.accounts.domain import Account
+import pytest
+
+from butler_core.accounts.domain import Account, AccountInvalid, AccountIdentity
 from butler_engine.accounts.sqlite import SqliteAccountRepository
 
 
@@ -44,3 +46,55 @@ def test_persistence_across_instances(tmp_path):
     db = tmp_path / "butler.db"
     SqliteAccountRepository(db).save(acct("trae_cn:main", "trae_cn", "Trae CN"))
     assert SqliteAccountRepository(db).get("trae_cn:main") is not None
+
+
+def test_identity_origin_last_seen_roundtrip(tmp_path):
+    repo = SqliteAccountRepository(tmp_path / "butler.db")
+    a = Account(
+        id="doubao_cn:u1",
+        platform_code="doubao_cn",
+        account_code="u1",
+        account_name="豆包 · 小号",
+        created_at=datetime(2026, 11, 11, 8, 0, tzinfo=UTC),
+        identity=AccountIdentity(nickname="逍遥酒鬼", source_key="sec_uid_1"),
+        origin="manual",
+        last_seen_at=datetime(2026, 11, 20, 2, 0, tzinfo=UTC),
+    )
+    repo.save(a)
+    loaded = repo.get("doubao_cn:u1")
+    assert loaded.identity.nickname == "逍遥酒鬼"
+    assert loaded.identity.source_key == "sec_uid_1"
+    assert loaded.origin == "manual"
+    assert loaded.last_seen_at.isoformat() == a.last_seen_at.isoformat()
+
+
+def test_空身份落NULL且读回空对象(tmp_path):
+    repo = SqliteAccountRepository(tmp_path / "butler.db")
+    repo.save(acct("trae_cn:main", "trae_cn", "Trae CN"))
+    assert repo.get("trae_cn:main").identity.is_empty
+
+
+def test_编址冻结_已登记code不一致时显式拒绝(tmp_path):
+    import sqlite3
+
+    db = tmp_path / "butler.db"
+    repo = SqliteAccountRepository(db)  # 建表
+    # 模拟历史脏行：account_id 与 account_code 不一致（旧迁移遗留）
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "INSERT INTO acc_account (account_id, platform_code, account_code, account_name,"
+        " created_at, updated_at) VALUES ('x:main','x','legacy','旧行',"
+        " '2026-11-11T08:00:00+00:00','2026-11-11T08:00:00+00:00')"
+    )
+    conn.commit()
+    conn.close()
+
+    # 按规范 id 写回 = 想把 legacy 改成 main → 编址冻结，拒绝
+    acc = acct("x:main", "x", "新名")
+    with pytest.raises(AccountInvalid):
+        repo.save(acc)
+
+    # 同编址改名/改状态照常允许
+    repo.save(acct("trae_cn:main", "trae_cn", "改名"))
+    repo.save(acct("trae_cn:main", "trae_cn", "再改名"))
+    assert repo.get("trae_cn:main").account_name == "再改名"

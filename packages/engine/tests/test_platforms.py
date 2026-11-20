@@ -171,6 +171,7 @@ def test_老库补列后物理列序按DDL重建(tmp_path) -> None:
     assert cols == [
         "id", "platform_code", "platform_name", "platform_kind", "client_version", "icon",
         "capabilities", "credential_kinds", "schedule_times", "schedule_override",
+        "base_url", "protocol", "models_json", "origin",
         "is_active", "deprecated_at", "created_at", "updated_at",
     ]
     loaded = repo.get("doubao_cn")  # 行数据零丢失（含原 client_version）
@@ -285,3 +286,64 @@ def test_icon_用户上传与清空(tmp_path) -> None:
     assert cleared is not None and cleared.icon == ""
 
     assert repo.update_profile("nope", icon=_png_uri("x")) is None  # 不存在 → None（端 404）
+
+
+def _provider(code: str, created_at: datetime) -> PlatformEntry:
+    return PlatformEntry(
+        platform_code=code,
+        platform_name="我的中转",
+        created_at=created_at,
+        platform_kind="relay",
+        base_url="https://relay.example.com/v1",
+        protocol="openai",
+        models=("gpt-4o-mini",),
+        credential_kinds=("api_key",),
+        origin="user",
+        capabilities=(),
+        schedule_times=(),
+    )
+
+
+def test_接入源连接事实roundtrip(tmp_path) -> None:
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    created = datetime(2026, 11, 20, tzinfo=UTC)
+    repo.upsert(_provider("my_relay", created))
+    loaded = repo.get("my_relay")
+    assert loaded is not None
+    assert loaded.origin == "user"
+    assert loaded.platform_kind == "relay"
+    assert loaded.base_url == "https://relay.example.com/v1"
+    assert loaded.protocol == "openai"
+    assert loaded.models == ("gpt-4o-mini",)
+    assert loaded.credential_kinds == ("api_key",)
+
+
+def test_同步退役不碰用户接入源(tmp_path) -> None:
+    """ADR-033：deprecate_missing 只标 connector 源；用户手建接入源不因失踪而退役。"""
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    sync = SyncPlatforms(platforms=repo)
+    created = datetime(2026, 11, 20, tzinfo=UTC)
+    repo.upsert(_provider("my_relay", created))
+    repo.upsert(_entry("doubao_cn", "豆包", created))
+
+    deprecated = sync.execute((_entry("doubao_cn", "豆包", created),))
+    assert "my_relay" not in deprecated
+    assert repo.get("my_relay").deprecated_at is None
+    assert repo.get("my_relay").is_active
+
+
+def test_update_profile_可改接入源连接事实(tmp_path) -> None:
+    repo = SqlitePlatformRepository(tmp_path / "butler.db")
+    created = datetime(2026, 11, 20, tzinfo=UTC)
+    repo.upsert(_provider("my_relay", created))
+    updated = repo.update_profile(
+        "my_relay",
+        base_url="https://relay2.example.com/v1",
+        protocol="anthropic",
+        models=("claude-sonnet",),
+    )
+    assert updated is not None
+    assert updated.base_url == "https://relay2.example.com/v1"
+    assert updated.protocol == "anthropic"
+    assert updated.models == ("claude-sonnet",)
+    assert updated.platform_name == "我的中转"  # 未传 = 不动

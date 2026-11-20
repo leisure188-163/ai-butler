@@ -9,6 +9,7 @@
  */
 import * as api from "@/shared/api";
 import type { ActionState } from "@/shared/composables/useActionState";
+import type { AccountCreatePayload, AccountPatch } from "@/domains/accounts/api";
 
 export function useAccountActions({
   refresh,
@@ -126,5 +127,107 @@ export function useAccountActions({
     }
   }
 
-  return { removeAccount, repairAccount, scanSessions, renameAccount };
+  /* 手建账户（ADR-033）：编码由 server 生成并冻结；错误 detail 直显 */
+  async function createAccount(payload: AccountCreatePayload) {
+    busyTarget.value = "__create__";
+    actionMsg.value = null;
+    try {
+      const created = await api.createAccount(payload);
+      actionMsg.value = {
+        text: `已创建账户「${created.account_label}」（${created.account_id}）`,
+        tone: "ok",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `创建失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /* 账户编辑（ADR-033）：别名/显示名/启停/账户级地址/真实身份，永不改编址 */
+  async function updateAccount(accountId: string, patch: AccountPatch) {
+    busyTarget.value = accountId;
+    actionMsg.value = null;
+    try {
+      const updated = await api.patchAccount(accountId, patch);
+      const messages: string[] = [];
+      if ("alias" in patch) {
+        messages.push(updated.alias ? `别名已改为「${updated.alias}」` : "别名已清除");
+      }
+      if ("account_name" in patch) messages.push("显示名已更新");
+      if ("active" in patch) messages.push(updated.active ? "账户已启用" : "账户已停用");
+      if ("base_url" in patch) messages.push("接入地址已更新");
+      if ("identity" in patch) messages.push("身份信息已更新");
+      actionMsg.value = { text: messages.join("；") || "账户已更新", tone: "ok" };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `更新失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /* 追加密钥槽位（ADR-033）：明文只上行一次，页面不回显 */
+  async function addCredential(
+    accountId: string,
+    key: { kind: string; secret: string; slot: string; label: string },
+  ) {
+    busyTarget.value = accountId;
+    actionMsg.value = null;
+    try {
+      const credential = await api.addAccountCredential(accountId, key);
+      actionMsg.value = {
+        text: `已写入 ${credential.kind} 槽位「${credential.label || credential.slot}」`,
+        tone: "ok",
+      };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `写入凭据失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  /* 撤销单槽位（ADR-033）：归档旧值、清主引用，客户端会话不受影响 */
+  async function revokeCredential(accountId: string, kind: string, slot: string) {
+    busyTarget.value = accountId;
+    actionMsg.value = null;
+    try {
+      await api.revokeAccountCredential(accountId, kind, slot);
+      actionMsg.value = { text: `已撤销凭据槽位 ${kind}@${slot}`, tone: "ok" };
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        actionMsg.value = { text: e.detail ?? `撤销失败（HTTP ${e.status}）`, tone: "warn" };
+      } else {
+        throw e;
+      }
+    } finally {
+      busyTarget.value = null;
+      await refresh();
+    }
+  }
+
+  return {
+    removeAccount,
+    repairAccount,
+    scanSessions,
+    renameAccount,
+    createAccount,
+    updateAccount,
+    addCredential,
+    revokeCredential,
+  };
 }

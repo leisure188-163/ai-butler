@@ -9,6 +9,7 @@ import ActionIcon from "@/shared/components/ActionIcon.vue";
 import PlatformBadge from "@/domains/platforms/PlatformBadge.vue";
 import AccountDetail from "@/domains/accounts/AccountDetail.vue";
 import { useAccountRows } from "@/domains/accounts/useAccountRows";
+import type { AccountPatch } from "@/domains/accounts/api";
 import type { AccountItem, PlatformItem, RadarRow, RunItem } from "@/shared/types";
 import { faceOf, fmtTime, signalText } from "@/shared/utils/format";
 import { platformIcon } from "@/domains/platforms/platformIcons";
@@ -29,6 +30,9 @@ const emit = defineEmits<{
   claimMany: [targets: string[]];
   scanSessions: [accountId: string];
   rename: [accountId: string, alias: string];
+  update: [accountId: string, patch: AccountPatch];
+  addKey: [accountId: string, key: { kind: string; secret: string; slot: string; label: string }];
+  revokeKey: [accountId: string, kind: string, slot: string];
   remove: [accountId: string];
 }>();
 
@@ -275,6 +279,9 @@ function toggleDetail(accountId: string) {
                   @health="emit('health', $event)"
                   @scan-sessions="emit('scanSessions', $event)"
                   @rename="(id: string, alias: string) => emit('rename', id, alias)"
+                  @update="(id, patch) => emit('update', id, patch)"
+                  @add-key="(id, key) => emit('addKey', id, key)"
+                  @revoke-key="(id, kind, slot) => emit('revokeKey', id, kind, slot)"
                   @close="toggleDetail(account.account_id)"
                 />
               </td>

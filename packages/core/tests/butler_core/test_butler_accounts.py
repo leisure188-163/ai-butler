@@ -58,7 +58,7 @@ def test_identity_default_key_and_collection():
         created_at=datetime.now(timezone.utc),
         account_code="personal",
     )
-    assert a.identity != b.identity
+    assert a.address != b.address  # ADR-033：identity 归真实身份，编址看 address
     assert a.account_code == "work"
 
 

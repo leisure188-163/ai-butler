@@ -48,15 +48,16 @@ class VaultCredentialPool:
         self._audit = audit
         self._policies = dict(policies or {})
         self._clock = clock
-        self._cache: dict[tuple[str, str], tuple[Secret, float]] = {}
+        self._cache: dict[tuple[str, str, str], tuple[Secret, float]] = {}
 
-    def acquire(self, account_id: str, kind: str) -> Secret:
+    def acquire(self, account_id: str, kind: str, slot: str = "default") -> Secret:
         """取凭据：命中缓存不触 vault（池级审计 hit）；否则现用现取（miss）。
 
+        槽位（ADR-033）：默认只取 default 槽；多 key 场景由调用方显式指定 slot。
         缺凭据等 vault 异常原样上抛（红线 5，端零映射），调用方决定协议面语义。
         """
-        ref = vault_ref(account_id, kind)
-        key = (account_id, kind)
+        ref = vault_ref(account_id, kind, slot)
+        key = (account_id, kind, slot)
         now = self._clock()
         cached = self._cache.get(key)
         if cached is not None and now < cached[1]:
@@ -69,7 +70,7 @@ class VaultCredentialPool:
             )
             return cached[0]
         try:
-            (secret,) = self._vault.load(account_id, [kind])  # 最小授权：只解密申报项
+            (secret,) = self._vault.load(account_id, [kind], slot=slot)  # 最小授权
         except Exception as exc:  # 审计后原样上抛
             self._audit.record(
                 actor="gateway-pool",
@@ -92,5 +93,5 @@ class VaultCredentialPool:
         )
         return secret
 
-    def invalidate(self, account_id: str, kind: str) -> None:
-        self._cache.pop((account_id, kind), None)
+    def invalidate(self, account_id: str, kind: str, slot: str = "default") -> None:
+        self._cache.pop((account_id, kind, slot), None)

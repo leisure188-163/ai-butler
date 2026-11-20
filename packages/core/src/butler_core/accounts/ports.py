@@ -52,11 +52,15 @@ class VaultPort(ABC):
         kind: str,
         secret: Secret,
         *,
+        slot: str = "default",
+        label: str = "",
         expires_at: datetime | None = None,
     ) -> None: ...
 
     @abstractmethod
-    def load(self, account_id: str, kinds: list[str]) -> list[Secret]: ...
+    def load(
+        self, account_id: str, kinds: list[str], *, slot: str = "default"
+    ) -> list[Secret]: ...
 
     @abstractmethod
     def rotate(
@@ -65,16 +69,26 @@ class VaultPort(ABC):
         kind: str,
         new_secret: Secret,
         *,
+        slot: str = "default",
         expires_at: datetime | None = None,
     ) -> None: ...
 
     @abstractmethod
     def revoke(self, account_id: str, *, reason: str) -> int:
-        """撤销该账户全部本地凭据副本：归档旧值、删主引用、标记 revoked。
+        """撤销该账户全部本地凭据副本（所有槽位）：归档旧值、删主引用、标记 revoked。
 
         只动 butler 自己的库，不触碰客户端会话；返回本次新撤销的条目数
-        （已撤销条目幂等跳过）。重新 store 同 (account_id, kind) 会清掉标记。
+        （已撤销条目幂等跳过）。重新 store 同 (account_id, kind, slot) 会清掉标记。
         """
+
+    def revoke_slot(self, account_id: str, kind: str, slot: str, *, reason: str) -> bool:
+        """撤销单个槽位（ADR-033）：不存在或已撤销 = False。
+
+        默认实现显式报未实现——老适配器/测试替身不必被迫实现，但调用到就是
+        配置错误（红线 5：不静默假成功）。
+        """
+
+        raise NotImplementedError("该 VaultPort 实现未支持单槽位撤销（ADR-033）")
 
     @abstractmethod
     def health(self) -> list[CredentialHealth]: ...
@@ -95,11 +109,11 @@ class CredentialPool(Protocol):
     都有审计留痕（plans/02 §0 红线级）。缺凭据显式抛（承 VaultPort.load
     语义，不静默给空）。"""
 
-    def acquire(self, account_id: str, kind: str) -> Secret:
-        """取一个最小授权凭据（一次只解密申报的一个 kind）。"""
+    def acquire(self, account_id: str, kind: str, slot: str = "default") -> Secret:
+        """取一个最小授权凭据（一次只解密申报的一个 kind/槽位）。"""
         ...
 
-    def invalidate(self, account_id: str, kind: str) -> None:
+    def invalidate(self, account_id: str, kind: str, slot: str = "default") -> None:
         """失效指定缓存项（凭据轮换/健康降级时由调用方触发）。"""
         ...
 
