@@ -27,6 +27,8 @@ from typing import Protocol
 
 from butler_core.accounts.domain import Account
 from butler_core.accounts.ports import AccountRepository, CredentialMissing, CredentialPool
+from butler_core.platforms.domain import PlatformEntry
+from butler_core.platforms.ports import PlatformRepository
 
 from butler_gateway.limiter import AccountLimiter
 from butler_gateway.routing import RouteTable
@@ -101,9 +103,16 @@ class Forwarder:
     pool: CredentialPool
     limiter: AccountLimiter
     meter: MeterSink
+    platforms: PlatformRepository | None = None
+    provider_factory: Callable[[PlatformEntry], AppUpstream] | None = None
 
     async def forward(
-        self, model: str, payload: dict, *, usage_parser: UsageParser
+        self,
+        model: str,
+        payload: dict,
+        *,
+        usage_parser: UsageParser,
+        protocol: str = "openai",
     ) -> ForwardOutcome:
         """按优先级逐候选转发；语义见模块 docstring（三段 + 转移规则）。"""
         candidates = self.routes.route(model)
@@ -112,7 +121,11 @@ class Forwarder:
         attempts: list[AttemptRecord] = []
         for account_id in candidates:
             record = await self._attempt(
-                account_id, model=model, payload=payload, usage_parser=usage_parser
+                account_id,
+                model=model,
+                payload=payload,
+                usage_parser=usage_parser,
+                protocol=protocol,
             )
             attempts.append(record)
             if record.outcome == "ok":
@@ -132,7 +145,13 @@ class Forwarder:
         raise AllAttemptsFailedError(tuple(attempts))
 
     async def _attempt(
-        self, account_id: str, *, model: str, payload: dict, usage_parser: UsageParser
+        self,
+        account_id: str,
+        *,
+        model: str,
+        payload: dict,
+        usage_parser: UsageParser,
+        protocol: str,
     ) -> AttemptRecord:
         started = time.perf_counter()
         # 阻塞调用一律 to_thread（模块 docstring 末条）：不让同步 I/O 停在事件循环
@@ -141,6 +160,10 @@ class Forwarder:
             return self._skipped(account_id, "skipped:account_missing", started)
         adapter = upstream_for(account.platform_code)
         if adapter is None:
+            adapter, skipped = await self._provider_adapter(account, protocol, started)
+            if skipped is not None:
+                return skipped
+        if adapter is None:  # 静态/动态都取不到（防御；不会静默转成成功）
             return self._skipped(
                 account_id,
                 f"skipped:upstream_not_ready:{account.platform_code}",
@@ -158,7 +181,9 @@ class Forwarder:
         async with self.limiter.slot(account_id):
             try:
                 reply = await adapter.forward(
-                    account_id, credential, UpstreamCall(payload=payload, model=model)
+                    account_id,
+                    credential,
+                    UpstreamCall(payload=payload, model=model, protocol=protocol),
                 )
             except UpstreamFailure as exc:
                 return await self._failure(account_id, model, exc, started, usage_parser)
@@ -191,6 +216,49 @@ class Forwarder:
             return self._record(
                 account_id, "passthrough", reply.status, tokens_in, tokens_out, started, body=reply.body
             )
+
+    # ── 动态接入源解析（ADR-033）──
+
+    async def _provider_adapter(
+        self, account: Account, protocol: str, started: float
+    ) -> tuple[AppUpstream | None, AttemptRecord | None]:
+        """静态适配器缺失时，按平台册解析用户接入源；不可用如实 skipped。"""
+        if self.platforms is None:
+            return None, None
+        platform = await asyncio.to_thread(self.platforms.get, account.platform_code)
+        if platform is None or platform.origin != "user":
+            return None, None
+        if platform.deprecated_at is not None:
+            return None, self._skipped(
+                account.id, f"skipped:provider_deprecated:{platform.platform_code}", started
+            )
+        if platform.protocol not in ("openai", "anthropic"):
+            return None, self._skipped(
+                account.id,
+                f"skipped:provider_protocol_unsupported:{platform.protocol}",
+                started,
+                detail="gemini 接入源暂未开工（ADR-033：协议互译留待下一阶段）",
+            )
+        if platform.protocol != protocol:
+            return None, self._skipped(
+                account.id,
+                f"skipped:provider_protocol_mismatch:{platform.protocol}->{protocol}",
+                started,
+                detail="接入源只接同协议请求；跨协议互译未开工（ADR-033）",
+            )
+        credential_kind = platform.credential_kinds[0] if platform.credential_kinds else "api_key"
+        if credential_kind not in ("api_key", "token"):
+            return None, self._skipped(
+                account.id,
+                f"skipped:provider_credential_unsupported:{credential_kind}",
+                started,
+                detail="接入源上游目前只支持 api_key/token（Bearer）凭据",
+            )
+        if self.provider_factory is None:
+            return None, self._skipped(
+                account.id, "skipped:provider_upstream_unavailable", started
+            )
+        return self.provider_factory(platform), None
 
     # ── 台账行构造 ──
 

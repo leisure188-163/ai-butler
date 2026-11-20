@@ -21,10 +21,15 @@ from butler_core.accounts.domain import Secret
 
 @dataclass(frozen=True)
 class UpstreamCall:
-    """一次上游调用：兼容面已解析的请求体原话（不派生、不改写）。"""
+    """一次上游调用：兼容面已解析的请求体原话（不派生、不改写）。
+
+    protocol（ADR-033 后续）：客户端命中的协议面（openai/anthropic），
+    动态接入源据此只接同协议上游；静态适配器可忽略。
+    """
 
     payload: dict
     model: str
+    protocol: str = "openai"
 
 
 @dataclass(frozen=True)

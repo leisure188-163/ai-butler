@@ -34,6 +34,7 @@ from butler_gateway import auth, config, proxy, routing
 from butler_gateway.control import ControlClient
 from butler_gateway.forwarder import Forwarder
 from butler_gateway.limiter import AccountLimiter
+from butler_gateway.provider_upstream import ProviderUpstream, supported_protocols
 from butler_gateway.routes_source import RoutesSource
 from butler_gateway.upstream import registered_apps
 
@@ -92,17 +93,21 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.limiter = AccountLimiter()
     app.state.kit = _build_kit()
+    app.state.provider_client = httpx.AsyncClient(transport=_transport_factory())
     app.state.forwarder = Forwarder(
         routes=app.state.routes_source.table(),
         accounts=app.state.kit.accounts,  # type: ignore[attr-defined]  # kit 形状由 build_engine 保证
         pool=app.state.kit.credential_pool,
         limiter=app.state.limiter,
         meter=app.state.kit.record_usage_sample,
+        platforms=getattr(app.state.kit, "platforms", None),
+        provider_factory=lambda entry: ProviderUpstream(entry, app.state.provider_client),
     )
     refresh_task = asyncio.create_task(_refresh_routes_loop(app))
     yield
     refresh_task.cancel()
     await app.state.control.aclose()
+    await app.state.provider_client.aclose()
     app.state.kit.close()  # 排空事件后关总线（关闭路径不丢账）
 
 
@@ -139,6 +144,10 @@ def create_app() -> FastAPI:
             "proxy": {
                 "surfaces": list(proxy.PROTOCOL_SURFACES),
                 "app_adapters": list(registered_apps()),
+                "provider_upstream": {
+                    "enabled": app.state.forwarder.provider_factory is not None,
+                    "protocols": list(supported_protocols()),
+                },
                 "limiter_in_use": app.state.limiter.in_use,
             },
             "control": {

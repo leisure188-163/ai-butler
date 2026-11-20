@@ -89,7 +89,10 @@ async def _handle(request: Request, protocol: str) -> JSONResponse:
     forwarder = request.app.state.forwarder
     try:
         outcome: ForwardOutcome = await forwarder.forward(
-            model=model, payload=payload, usage_parser=_usage_parser(protocol)
+            model=model,
+            payload=payload,
+            usage_parser=_usage_parser(protocol),
+            protocol=protocol,
         )
     except NoRouteError as exc:
         return JSONResponse(_error_body(protocol, str(exc)), status_code=404)

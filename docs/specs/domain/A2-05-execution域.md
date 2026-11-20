@@ -44,6 +44,23 @@ Run = id / action / account_id / idempotency_key / started_at / budget
   端口，原子写防半截文件）；server 管理面写（PUT /gateway/routes）、网关
   进程只读装载（M1 启动时装载一次，变更重启生效）
 
+## 3.2 网关上游解析（apps/gateway，ADR-033 后续）
+
+- 解析顺序：`upstream_for(platform_code)` 静态适配器优先（连接器申报的推理通道，
+  `upstream.register_upstream` 注册）；未注册时回落平台册 `origin=user` 的接入源。
+- 接入源适配器 `provider_upstream.ProviderUpstream`：连接事实全部读平台册
+  （`base_url/protocol/credential_kinds`），不复制配置；密钥走 vault 默认槽现取；
+  `provider_url` 按协议拼端点（已带 `/chat/completions` 或 `/messages` 则原样使用）。
+- 只接**同协议**：OpenAI 协议面 → `protocol=openai` 接入源，Anthropic 协议面 →
+  `protocol=anthropic`；跨协议互译与 `gemini` 未开工，forwarder 记
+  `skipped:provider_protocol_mismatch` / `skipped:provider_protocol_unsupported`，不猜形状。
+- 凭据只支持 `api_key`/`token`（Bearer；anthropic 用 `x-api-key`）；
+  其他 kind 记 `skipped:provider_credential_unsupported`，不拿 cookie 冒充 Bearer。
+- 上游 4xx/5xx 仍以 `UpstreamReply` 原样回传，沿用既有转移规则（401/403 失效凭据、
+  429/5xx 转下一候选）；connect/timeout 抛 `UpstreamFailure`。
+- HTTP 客户端由网关 lifespan 建一个 `httpx.AsyncClient` 注入，关闭时统一 `aclose()`；
+  测试经 `_transport_factory` 注入 MockTransport，不碰真网络。
+
 ## 4. 用例
 
 | 用例 | 语义 |
