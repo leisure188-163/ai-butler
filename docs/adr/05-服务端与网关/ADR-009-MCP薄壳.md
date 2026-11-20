@@ -1,5 +1,5 @@
 ---
-name: butler-adr-002
+name: butler-adr-009
 description: MCP stdio 薄壳宿主形态——零 core/engine import，纯 HTTP 走 server 契约 API；工具集三件不扩。TRIGGER when 讨论 MCP 工具、LLM 客户端接入、apps/mcp 时
 version: "0.1.0"
 level: must
@@ -36,7 +36,7 @@ R2 收尾需要把卡包能力暴露给 LLM 客户端（Claude Desktop / Cline �
    - `query_quota` 查额度 = GET /usage/radar 的 packages + forecasts + quota_low 投影；
    - `query_usage` 查用量 = 同一雷达响应的 aggregate_summary + recent_ledger 投影；
    - `claim_now` 触发领取 = POST /runs（target 必填，结果字段直传）。
-   两查询工具可选 `provider` 过滤（选取不是映射）；status/signal/字面量
+   两查询工具可选 `platform` 过滤（选取不是映射）；status/signal/字面量
    core 出产直传，端零映射（红线 2）。
 4. server 端**零改动**（现有端点已够用）→ 无契约再生成。
 

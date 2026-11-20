@@ -1,5 +1,5 @@
 ---
-name: adr-005-doubao-cdp
+name: butler-adr-007
 description: doubao 接入形状 = CDP 界面通道端口实现 + cdp_probe dock kind + 零凭据 vault；裸 HTTP 写操作禁令。TRIGGER when 实现 doubao/评估 CDP 类连接器/dock 形态裁决时
 version: "1.0.0"
 level: must
@@ -8,7 +8,7 @@ level: must
 # ADR-007 · doubao 接入形状 = CDP 界面通道端口实现，dock = cdp_probe 体检
 
 - **状态**：Accepted
-- **日期**：2026-11-11（2026-11-16/17 两次修订并入本篇；原 ADR-017 已并入决策 9）
+- **日期**：2026-11-11（2026-11-16/17 两次修订并入本篇）
 - **决策者**：架构会话（用户三项裁决：dock 体检 / 自动拉起 / 首期不做清扫）
 - **关联**：A2-02 §3（端口实现合法形态）、§8（CDP 测试边界）、ADR-006（排除项
   "doubao dock 形态届时另裁"的落定）、doubao_cn PROTOCOL.md、旧仓库 NOTE-04
@@ -64,8 +64,9 @@ detail 只读 code=0。
    ——全自动切号不可行且不猜（用户确认非飞书账号）。裁决：**只监控不切号**——
    identity.py 只读身份判定（`sec_user_id` + chip 昵称），run/dock/usage 三处
    守卫，目标账户非活跃即 PENDING 提示人工切号，**绝不签错账户**；第二账户由
-   dock 如实登记（account_key = sec_uid 派生）。双会话并存下 main 命中任一
-   chat target 即放行（cookie 会话实证口径），B 在 main 在场时保守 PENDING。
+   dock 如实登记（`source_key` = `sec_uid`，`account_code` 留空）。双会话并存下
+   以活跃 `sec_user_id` 命中任一 chat target 即放行（cookie 会话实证口径），
+   B 在 A 在场时保守 PENDING。
 8. **会话级自动切号放行，登录仍人工**（2026-11-17 用户裁决，真机取证 PROTOCOL §9
    修订）：双账户注册后头像菜单**存在切换列表**——决策 7 的「无一键切换列表」
    取证只在单账户时期成立，前提已变化；切换 = 单会话存活（用户确认：切号后旧
@@ -77,7 +78,7 @@ detail 只读 code=0。
    adapter 复核活跃身份 →
    **旧活动页关净**（Target.closeTarget；残留旧账户 Cookie 的活动页附着即
    签错账户）→ 正常编排。切号失败/复核不符/旧页关不动 → PENDING 绝不盲签；
-   切号留痕进台账 evidence。身份登记簿（main 基线 + others）持久化作切号
+   切号留痕进台账 evidence。身份登记簿（按 `source_key` 记各账户身份）持久化作切号
    定位依据，dock 采集维护（空采集不覆盖）。**硬边界**：登录态过期重登与
    「添加账号」直通登录页仍人工（扫码/手机号），ADR-015 失效可见可修不变。
 9. **detail 改页面上下文 fetch，全链路零裸请求**（2026-11-17 用户裁决，原
