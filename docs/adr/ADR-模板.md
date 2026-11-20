@@ -1,5 +1,5 @@
 ---
-name: kabao-adr-{number}
+name: butler-adr-{number}
 description: {一句话决策}。TRIGGER when <讨论相关主题时>
 version: "0.1.0"
 level: must

@@ -87,7 +87,7 @@ HTTP 层判定**不进方言**。旧仓库 result 码映射对照：`CLAIMED/ALR
 
 ## 5. 真机行为验收（2026-11-11，Windows / WorkBuddy AI 5.9.4）
 
-验收实录（server :8010，`KABAO_DB=workbuddy-acceptance.db KABAO_SCHEDULE=0`；
+验收实录（server :8010，`BUTLER_DB=workbuddy-acceptance.db BUTLER_SCHEDULE=0`；
 NO_AUTH 演练走 :8011 第二实例 + `WORKBUDDY_AUTH_FILE` 覆盖，真凭据未碰）：
 
 | # | 场景 | 预期 | 实测 | oracle 对照 |

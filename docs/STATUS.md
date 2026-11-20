@@ -3,6 +3,8 @@
 > 更新纪律：完成一步就改这张卡。格式固定，方便任何终端的 AI 秒懂现状。
 > 最后更新：2026-11-20
 
+**前代品牌 kabao 残留清零（2026-11-20 用户裁决）**：用户要求「没有用的、关于 kabao 的东西都删掉，项目已经没有这块信息了」，并选定「彻底清零」（代码 + 测试 + 文档引用与历史日志）。落地：①engine `db/migrate.py` 旧库源收窄为 `ai-marina` 单源，删 `kabao` 目录候选与 `LEGACY_DB_SOURCES`；`bridge.py`、`db/migrations/__init__.py` docstring 同步改述；`test_migrate.py` 重写为 marina 单源（删「kabao 优先于 marina」用例，CWD 反例改用中性文件名），`test_schema_migrate.py` 注释同步。②web `useSettings` 删 `kabao.settings.v1` 旧键回退，只读写 `butler.settings.v1`。③文档活引用全部改指现行名：A1-03（仓库名/存储键/§7 迁移链与验收）、A1-05（包袱表 + DoD 措辞）、A1-01、A4-01（`KABAO_DB` → `BUTLER_DB`）、A2-03（`KABAO_SCHEDULE` → `BUTLER_SCHEDULE`）、ADR-009（`KABAO_SERVER_URL` → `BUTLER_SERVER_URL`）、ADR-029 front-matter `name` 与 ADR 模板、conventions/02 §1/§4、A0-01 §2.1 路径、workbuddy `PROTOCOL.md` 验收命令、plans/02 历史计划里的包名与 grep 口径、STATUS 三条历史日志与远端说明。④DESIGN-DECISIONS 删设置键兼容说明。验证：全库 `grep -i kabao|卡宝` **0 命中**；engine 迁移 10 passed（`test_migrate` + `test_data_root`）；门禁九项 PASS、`vue-tsc + vite build` 通过。
+
 **账户显示名去平台前缀 + code 降为人工后缀（2026-11-20 用户裁决 B，[ADR-034](adr/ADR-034-账户身份与编址.md) §5）**：用户纠正字段语义——「`account_name` 只是这个账户的显示信息，不要带平台信息；`account_code` 不是账户维度，是手动维护的短后缀，同步过来的账户没有关联登录账户，后续由用户人工关联」。落地：①`Account.account_code` 默认空串，新增 `validate_account_code`（空合法；非空不得含空白/冒号且 ≤32 位）；`account_label` 回退链改为 `alias > identity.nickname > account_name > account_code > account_id`，不再拼「平台名 · 」后缀；`DEFAULT_ACCOUNT_CODE="main"` 仅留给 legacy 编址兼容。②`RegisterAccount` 新账户 code 一律为空，参数增 `device_ref`；认回顺序 `source_key` → `device_ref` → 显式非空 code；`source_key` 命中只刷新显示名/身份/本机绑定，**绝不改写人工 code**；同 `device_ref` 换了 `source_key` 视为本机换号（旧卡保留、新卡另建），不再抛 `AccountConflict`。③`CreateAccount`/`UpdateAccount` 支持人工补/改/清空 code，非空时平台内查重；`account_id`/`platform_code` 仍冻结。④engine DDL 改 `account_code TEXT NOT NULL DEFAULT ''`，唯一索引改 `UNIQUE(platform_code, account_code) WHERE account_code <> ''`（空 code 不参与唯一），UPSERT 写回 code。⑤server 创建账户不再用 `acc_<uuid>` 兜底 code，`AccountPatchIn` 增 `account_code`（冲突 409）；`RunIn.account_code` 默认空，`POST /runs` 先校验连接器是否接入（未知 target 先 404），再按 `account_id` / 人工 code / 平台唯一账户解析（0 账户 404、1 账户自动选、多账户 422）。⑥连接器全部停发 code：豆包/Qoder/Trae/WorkBuddy/浏览器/AgentRouter 只回客户端昵称·邮箱·用户名，缺失统一「未命名账户」；Trae 显示名取 `storage.json` 的 `account.username/email`，本机路径作 `device_ref`。⑦web 账户详情增「账户后缀（人工）」编辑框、新建弹层 code 可空、列表标签不再回退 code。**真库已按新语义收口**：停后端 → 整库备份 `data/database/backup-code-cleanup-20261120/butler-pre-code-cleanup-20261120-164445.db` → 删旧唯一索引 + 5 条 code 全清空 → 新代码重启（启动自迁移重建 partial 唯一索引）→ `import-all?include_docked=true` 重扫，账户仍是同 5 个 id（无重复建号），名称已去平台前缀：`逍遥酒鬼` / `xiaoyaojiugui520@sina.com` / `leisure520@sina` / `逍遥酒鬼`(Trae) / `大海`。验证：全量 **860 passed / 2 skipped**、`vue-tsc` + `vite build` 通过、`pnpm gen:sdk` 重生成（指纹 `49a292c9…`）、`scripts/dump_db_schema.py` 重出 `data/sql`。**边界**：Qoder 用量采集仍 `usage HTTP 401`（独立鉴权问题，与账户模型无关）。
 
 **ADR 归档整理（2026-11-20）**：ADR 越积越多（35 篇），用户裁决「可以合并就合并，没用的删除」。三组合并：①命名与表结构演进链 ADR-018/019/020/021/023/024 → **[ADR-018-命名与表结构演进](adr/ADR-018-命名与表结构演进.md)**（现行规则单源仍在 conventions/06）；②账户身份与编址链 ADR-025/030/033/034/035 → **[ADR-034-账户身份与编址](adr/ADR-034-账户身份与编址.md)**（含四版演进史表）；③ADR-017 并入 **[ADR-007](adr/ADR-007-doubao-CDP界面通道与cdp_probe-dock.md) 决策 9**。34 → 24 篇。红线 8 同批回收：conventions/06、A1-03、A2-04、A2-05、A2-09、A4-01、data/sql/README、docs/README 及保留 ADR（008/022/029/031/032）内指向被删编号的**活引用**全部改指合并篇；STATUS 历史日志行保留原编号、死链改指合并篇；代码注释里的历史编号不动（合并篇含「原 ADR-xxx」溯源映射）。
@@ -72,7 +74,7 @@
 
 **Qoder mac 解锁链修复（2026-11-18）**：dock 报「Keychain 未取到 'Qoder Platform Safe Storage'」。真机取证（dump-keychain 元数据）本机 Keychain 仅 `Qoder App Safe Storage` 一条（acct `Qoder App Key`）——qoder PROTOCOL §1 的实测定稿本就是它，unlock.py 常量错名（与 workbuddy `.platform` 同性质的代码/取证记录打架）。修复两处：①[unlock.py](../packages/connectors/src/butler_connectors/unlock.py) 服务名改候选序（`Qoder App Safe Storage` → `Qoder Platform Safe Storage`，第一命中即用，`macos_safe_storage_password` 支持显式 service 覆盖）；Global `com.qoder.app.stable/auth.v1.dat`（547B v10/CBC）用该钥匙端到端解通（token + refreshToken/expiresAt 全键，首读有 Keychain 授权弹窗）。②[dockio.py](../packages/connectors/src/butler_connectors/dockio.py) runtime-info 定位 `_MAC_APP_NAMES` 加 `.app` 形态（`Qoder.app`/`Qoder CN.app` 与 `.platform` 旧形态双兼容，与 workbuddy 同因——本机装的是 `Qoder.app`，arm64 runtime-info 实跑通过）。真机复验：`butler import qoder_cn` → `✔ 已导入 qoder_cn:global-699e39eb`（healthy，kinds = dpapi_gcm_v10 + umid_cosy）、`butler claim qoder_cn --account global-699e39eb` → `ALREADY`。附注：`butler claim qoder_cn` 缺省仍命中旧 `qoder_cn:main`（risk/已撤销）卡——缺省取「第一张卡」按创建序，指定 `--account global-699e39eb` 即可；测试 373 passed（unlock 新增候选序 2 用例）。PROTOCOL §1 已补 Global mac 复核两条。
 
-**WorkBuddy 昵称编址（ADR-025 扩展，2026-11-18）**：用户问「为什么 workbuddy 还在用 main 占位」——查明 ADR-025 排除项写明 workbuddy 属「无身份来源平台」，但真机核实 `account.nickname` 实为加密信封（168 字符 envelope，与 accessToken 同链），排除前提不成立。扩展实施：①helper.js 加可选 `expect:"field"` 分支（跳过明文 token 字符集校验，缺省路径逐字节兼容，reply 形状不变）；②session.py 拆出共享解密循环 `_decrypt_via` + 新增 `decrypt_field`（只校验非空 ≤32768），`decrypt_envelope` 保持 token 契约；③dock 体检四项后追加本地只读身份解密——`account_code=昵称`、`account_name="WorkBuddy CN · 昵称"`，解密失败不阻塞 dock（默认 main + issues 如实记 note，红线 5）；④存量一次性迁移 `workbuddy_cn:main → workbuddy_cn:大海`（acc_account + usage_snapshot 38 行；exe_claim/audit_log 台账审计保留旧 id；迁移前备份 `/tmp/butler-backup-pre-wb-nickname-20261118-214353.db`）。真机复验：CLI import → `workbuddy_cn:大海`、claim → ALREADY（+100 连签 49）、API `POST /platforms/workbuddy_cn/import` → `accounts:["workbuddy_cn:大海"], issues:[]`。workbuddy 四测试套 79 passed（dock 新增 4 用例：明文昵称/信封解密/解密失败回退/缺失默认）。红线 8 同批收编：ADR-025 排除项修订（workbuddy 移出）+ ADR-008 决策 2/4 v1.1 修订 + workbuddy PROTOCOL §1 helper 契约与 dock 落账身份两行 + 本条。
+**WorkBuddy 昵称编址（ADR-025 扩展，已并入 [ADR-034](adr/ADR-034-账户身份与编址.md)，2026-11-18）**：用户问「为什么 workbuddy 还在用 main 占位」——查明 ADR-025 排除项写明 workbuddy 属「无身份来源平台」，但真机核实 `account.nickname` 实为加密信封（168 字符 envelope，与 accessToken 同链），排除前提不成立。扩展实施：①helper.js 加可选 `expect:"field"` 分支（跳过明文 token 字符集校验，缺省路径逐字节兼容，reply 形状不变）；②session.py 拆出共享解密循环 `_decrypt_via` + 新增 `decrypt_field`（只校验非空 ≤32768），`decrypt_envelope` 保持 token 契约；③dock 体检四项后追加本地只读身份解密——`account_code=昵称`、`account_name="WorkBuddy CN · 昵称"`，解密失败不阻塞 dock（默认 main + issues 如实记 note，红线 5）；④存量一次性迁移 `workbuddy_cn:main → workbuddy_cn:大海`（acc_account + usage_snapshot 38 行；exe_claim/audit_log 台账审计保留旧 id；迁移前备份 `/tmp/butler-backup-pre-wb-nickname-20261118-214353.db`）。真机复验：CLI import → `workbuddy_cn:大海`、claim → ALREADY（+100 连签 49）、API `POST /platforms/workbuddy_cn/import` → `accounts:["workbuddy_cn:大海"], issues:[]`。workbuddy 四测试套 79 passed（dock 新增 4 用例：明文昵称/信封解密/解密失败回退/缺失默认）。红线 8 同批收编：ADR-025 排除项修订（workbuddy 移出）+ ADR-008 决策 2/4 v1.1 修订 + workbuddy PROTOCOL §1 helper 契约与 dock 落账身份两行 + 本条。
 
 **WorkBuddy mac runtime 定位修复（2026-11-18）**：真机 dock 报「凭据为加密信封但未定位到客户端 runtime（mac 解锁链待真机取证）」。查明代码 `_MAC_APP_NAMES` 写死 `WorkBuddy.platform` / `WorkBuddyAI.platform`，而本机与 PROTOCOL §1 记录的实测形态均为 `.app`（`/Applications/WorkBuddy.app`，bundle id `com.tencent.workbuddy.mac`，主程序 `Contents/MacOS/Electron`）——代码注释与 PROTOCOL 记录自相矛盾，属代码抄错。修复：`_MAC_APP_NAMES` 改 `.app` 形态，测试 5 处同步（test_workbuddy_localenv.py）。**顺带修掉 import 全阻塞的存量 DB 残留**：`~/Library/Application Support/butler/butler.db` 里 `plat_platform__reorder` 是上次中断迁移留下的——**5 行真实数据在其中、`plat_platform` 为空**（RENAME 后、拷贝前被打断），反向恢复（DROP 空表 + RENAME 回原名）后迁移正常走完；改表前备份 `/tmp/butler-backup-before-reorder-fix.db`。真机复验：`butler import workbuddy_cn` ✔、`butler claim workbuddy_cn` → `ALREADY`（今日 +100，连签 49 天，累计 4900）——mac 解密链端到端通。注：WorkBuddy 凭据零 vault 入库（ADR-008 决策 3），不出现在 `cards list` 属设计使然。
 
@@ -168,7 +170,7 @@ QuickPanel 快捷片、TodoRail/平台页的「去账户」跳转、Dashboard/Tr
 （AppsPage→PlatformsPage、AppBadge→PlatformBadge）、api 函数
 （getApps/importApp/importAllApps→getPlatforms/importPlatform/importAllPlatforms）
 仍留「应用」旧称，已全量同步；server 路由注释、CLI 表头、A1-03 词表与 A3-01
-六页 IA 同批收编（词表口径：app→platform 为退役禁用词，ADR-019）。
+六页 IA 同批收编（词表口径：app→platform 为退役禁用词，ADR-019，已并入 [ADR-018](adr/ADR-018-命名与表结构演进.md)）。
 
 **平台册 client_version（2026-11-18）**：plat_platform 增 client_version
 （列序在 capabilities 之前），组合根同步名册时经 provision 端口
@@ -186,7 +188,7 @@ BUTLER_DB 指定项目内为主库）与旧库半迁移损伤（已修复保留�
 butler-db-fix-backup-20261118.db）。真机验证：豆包双账户导入 issues=[]，
 签到链路 ALREADY（detail 权威判定）。门禁九项 PASS。
 
-**exe_run 改领取记录 exe_claim（2026-11-17，ADR-024）**：领积分/领 token
+**exe_run 改领取记录 exe_claim（2026-11-17，ADR-024，已并入 [ADR-018](adr/ADR-018-命名与表结构演进.md)）**：领积分/领 token
 语义统一为「领取」，表 exe_claim（代理键 + run_id 业务键 UNIQUE + 审计三件，
 幂等回放 ON CONFLICT(run_id) 只刷 updated_at）；老库迁移链 runs → exe_run →
 exe_claim 幂等零丢失；端侧 /runs 契约与 core Run 术语保留，SDK/前端零改动。
@@ -209,18 +211,18 @@ platform_code 排序定序；词表 v2 退役词（泊位/卡位/停靠/卡包�
 显示列业务命名/code 化/幂等自迁移/不删行/分域产物），规范索引与
 AGENTS.md 路由同步。
 
-**platforms 独立第六业务域（2026-11-17，ADR-022，修正 ADR-021 托管方案）**：
+**platforms 独立第六业务域（2026-11-17，ADR-022，修正 ADR-021（已并入 [ADR-018](adr/ADR-018-命名与表结构演进.md)）托管方案）**：
 平台被账户/调度/执行多域引用，独立成域——core 新增 `butler_core/platforms/`
 三件套（PlatformEntry / PlatformRepository / SyncPlatforms），engine 新增
 `butler_engine/platforms/sqlite.py`；表 `acc_platform` → `plat_platform`
 （RENAME 幂等自迁移），分域 schema 产物新增 `platforms.sql`；域图五域 →
 六域（A1-05/A1-02/A2-01/AGENTS/README 同步），A2-04 §2.2 平台册节回收进
-新分册 A2-09。端侧 `/platforms` 契约与路由零改动。显示名称列命名收编（ADR-023）：
+新分册 A2-09。端侧 `/platforms` 契约与路由零改动。显示名称列命名收编（ADR-023，已并入 [ADR-018](adr/ADR-018-命名与表结构演进.md)）：
 plat_platform `display_name` → `platform_name`（自迁移），A2-04 残留
 `display_name` 更正为 `account_name`；分域 schema 产物 `platforms.sql`
 同步重生成。测试 **715 passed + 10 skipped**。
 
-**表名域前缀统一 + 平台落册（2026-11-17，ADR-021）**：全库 11 张表改
+**表名域前缀统一 + 平台落册（2026-11-17，ADR-021，已并入 [ADR-018](adr/ADR-018-命名与表结构演进.md)）**：全库 11 张表改
 「域缩写前缀 + 单数实体」——acc_account / acc_platform / exe_run /
 usage_snapshot / usage_aggregate / usage_quota_ledger / usage_sample /
 health_state / vault_item / vault_history / audit_log（索引随名，老表
@@ -230,14 +232,14 @@ RENAME 幂等自迁移零丢失）。平台不再只活在内存 Registry：新�
 名册表 + 台账并账，删除穿连接器包拼装逻辑；`/platforms` 契约形状不变
 （SDK/web 零改动）。测试 **715 passed + 10 skipped**。
 
-**accounts 列名 code 化（2026-11-17，ADR-020）**：账户域三列再改名
+**accounts 列名 code 化（2026-11-17，ADR-020，已并入 [ADR-018](adr/ADR-018-命名与表结构演进.md)）**：账户域三列再改名
 `account_key`→`account_code`、`platform`→`platform_code`、`display_name`→
 `account_name`（概念术语「平台/Platform」不变，仅列/字段/契约同步）；索引改
 `uq_accounts_platform_code_key` + `idx_accounts_platform_code`；v3 早期形状走
 RENAME COLUMN 自迁移；AccountOut/usage 契约字段与 SDK、web 同步重生成。
 测试 **711 passed + 10 skipped**。
 
-**术语 platform 统一 + accounts 表 v3（2026-11-17，ADR-019）**：全库 app→platform
+**术语 platform 统一 + accounts 表 v3（2026-11-17，ADR-019，已并入 [ADR-018](adr/ADR-018-命名与表结构演进.md)）**：全库 app→platform
 （连接器家族 ConnectorPlatform、accounts.platform 列、server 路由 `/platforms`、
 PlatformOut 契约、SDK 重生成、web 页名「平台」；保留 FastAPI 实例变量 `app`、
 AppBadge、`AppsPage.vue` 文件名、scheduling `Trigger.enabled`、第三方 LLM provider）。
@@ -572,7 +574,7 @@ A2-06 §3·§6 的 `usage_samples` 旧说法改为现状三表（快照/汇总 R
 IGNORE 幂等）+ 时序独立表降级为 R 系列方向；A1-05 目录树 db/ 注释校正。
 
 **旧 kit 历史数据迁移准备（2026-11-15）**：勘察结论 = 本机旧库全表 0 行
-（kabao/ai-marina 平台目录是 butler 自家前代品牌搬迁链，与 auto-signin-kit
+（`ai-marina` 平台目录是 butler 自家前代品牌搬迁链，与 auto-signin-kit
 无关），数据源确认为 Windows 侧旧 kit。落地 `scripts/import_legacy_kit.py`
 （干跑默认 + 备份 + 幂等 + 行数验证 + 源只读；词汇映射逐词核对入 A0-01 §2.4：
 CLAIMED/ALREADY/FAILED 同词直迁、NO_AUTH→EXPIRED、NETWORK→FAILED，无诚实
@@ -607,7 +609,7 @@ Butler 重定位六问裁决全部落地。
 
 **按业务域重写 P0-P6 全部完成（2026-11-14，ADR-002）**：`butler_core` 五业务域
 + shared 内核从零落地（端口随域走、依赖恒等式入门禁机检），`butler_engine` 按同
-域图重写，旧 `kabao_core/butler_engine` 已删除；全库 six 包/CLI/env/db/存储键/
+域图重写，旧 `core/engine` 两包已删除；全库 six 包/CLI/env/db/存储键/
 npm 包名统一 butler（仅 Gitee 远端改名待用户手工）；多账号模型落地
 （首账号键 `main` 兼容存量，幂等键按账号，契约 `account_key`/`account_ids`，
 一键领取逐账户发起）；一次性迁移集中 `butler_engine/db/migrate.py`（旧库四级
@@ -727,7 +729,7 @@ qoder 域已定路径待网络观察；doubao CDP 驱动可行但发消息属写
 ## 环境备忘
 
 - 远端 origin = `git@id_gitee_hiclaw520:hiclaw_520/ai-butler.git`（main；
-  2026-11-14 远端已由 `ai-kabao` 更名 `ai-butler`；2026-11-16 Windows 机
+  2026-11-16 Windows 机
   remote URL 修正并 ls-remote 验证可达）。
   推送口径（2026-11-12 起 SSH 别名直推）：远端 URL 必须用 `~/.ssh/config`
   别名 `id_gitee_hiclaw520`（hiclaw_520 账号专用钥匙）——裸 `git@gitee.com:`

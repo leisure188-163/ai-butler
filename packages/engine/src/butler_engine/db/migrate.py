@@ -17,23 +17,21 @@ from typing import Callable
 
 Logger = Callable[[str], None]
 
-LEGACY_DB_SOURCES = ("kabao", "ai-marina")
 LEGACY_VAULT_PREFIX = "marina.vault"
 
 
 def legacy_db_candidates(root: Path) -> list[Path]:
-    """旧库源优先级（A1-03 §7）：品牌目录 kabao → 上一代 ai-marina。
+    """旧库源（A1-03 §7）：上一代 ai-marina 品牌目录。
 
     **2026-11-16 收窄：CWD 源移除**——本函数在每次 engine 构造时都会跑
     （`default_db_path()`），扫 CWD 并把同名文件**搬走**是隐式破坏性操作：
-    在任何碰巧有 kabao.db / marina.db 的目录里起进程（含网关读 key 路径的
+    在任何碰巧有 marina.db 的目录里起进程（含网关读 key 路径的
     间接触发），文件都会被无声挪走，且与「禁止 CWD 相对默认」的既有裁决相悖。
     存量机器的迁移早已完成；确有 CWD 旧库要迁的，显式移入品牌目录后再跑。
     目录/文件名都是历史字面量，仅此处出现。
     """
     parent = root.parent
     return [
-        parent / "kabao" / "kabao.db",
         parent / "ai-marina" / "marina.db",
     ]
 

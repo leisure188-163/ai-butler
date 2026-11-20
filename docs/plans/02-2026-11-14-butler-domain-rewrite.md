@@ -9,7 +9,7 @@
 `butler_core` / `butler_engine`，并入 ADR-003 多账号模型，P6 收口切流。
 
 **Architecture:** 新旧并行——P1-P5 新建 `butler_core`/`butler_engine` 并自带测试，
-旧 `kabao_core`/`butler_engine` 原样保留供 server 继续使用；P6 一次性切流
+旧 `core`/`engine` 两包原样保留供 server 继续使用；P6 一次性切流
 （apps 改 import、契约再生成、删旧包）。每阶段验收 = 新增测试全绿 + 门禁九项全绿。
 
 **Tech Stack:** Python 3 + uv workspace + pytest；契约 openapi-typescript（P6）；
@@ -23,7 +23,7 @@ conventions/2（八条红线）、conventions/4（一域一模块 600 行）、c
    单行 ≤100 字符、不加句号
 3. 每次 Task 收尾跑门禁：`python scripts/verify_project.py --project . --test` 九项全绿
 4. 新文件单文件 ≤600 行（硬上限）/ 400 行软警戒；一业务域一模块
-5. 禁止 import 旧 `kabao_core`（新代码独立自洽）；禁止从 auto-signin-kit 搬代码
+5. 禁止 import 旧 `core` 包（新代码独立自洽）；禁止从 auto-signin-kit 搬代码
 6. 核心规则出处：A2-01/A2-04..15 是实体与不变量的唯一事实源，本文只给落位与步骤
 
 ---
@@ -36,7 +36,7 @@ conventions/2（八条红线）、conventions/4（一域一模块 600 行）、c
 - Create: `packages/core/src/butler_core/__init__.py`（空 docstring）
 - Create: `packages/core/src/butler_core/shared/__init__.py`
 - Create: `packages/core/src/butler_core/accounts/__init__.py`
-- Modify: `packages/core/pyproject.toml`（确认 hatch/uv 打包 `packages = ["src/kabao_core", "src/butler_core"]` 或等价配置；**不改发行包名**——发行名 `butler-core` 的 pyproject 改名留到 Task 20，避免中途打断 server 依赖图）
+- Modify: `packages/core/pyproject.toml`（确认 hatch/uv 打包 `packages = ["src/<旧包>", "src/butler_core"]` 或等价配置；**不改发行包名**——发行名 `butler-core` 的 pyproject 改名留到 Task 20，避免中途打断 server 依赖图）
 
 **Step 1:** 建目录与空 `__init__.py`（含一行模块 docstring，注明域图出处 A1-05）。
 **Step 2:** `uv run python -c "import butler_core"` 确认可导入。
@@ -49,7 +49,7 @@ conventions/2（八条红线）、conventions/4（一域一模块 600 行）、c
 - Create: `packages/core/src/butler_core/shared/results.py`
 - Test: `packages/core/tests/butler_core/test_shared_results.py`
 
-**Step 1: 失败测试**（语义与旧 `kabao_core/domain/results.py` 对齐，oracle 零损耗）：
+**Step 1: 失败测试**（语义与旧 `core` 包 `domain/results.py` 对齐，oracle 零损耗）：
 
 ```python
 def test_seven_literals_exact(): ...
@@ -65,7 +65,7 @@ def test_repair_hint_carried(): ...
 ```
 
 **Step 2:** 跑测试确认 FAIL（ModuleNotFoundError）。
-**Step 3:** 实现：从旧 `packages/core/src/kabao_core/domain/results.py` 移植
+**Step 3:** 实现：从旧 `packages/core/src/<旧包>/domain/results.py` 移植
 Status/ResultKind/`from_engine`，**删除 legacy 自映射分支**（A1-05 §4——
 方言翻译表保留为纯数据字典，由测试钉死全部条目）。
 **Step 4:** 测试 PASS；门禁绿。
@@ -245,13 +245,13 @@ event/threshold 触发器消费 shared 事件发起 Action；待办去重
 ### Task 13: 一次性数据迁移（历史包袱收口）
 
 **Files:**
-- Create: `packages/engine/src/butler_engine/db/migrate_from_kabao.py`
-- Test: `packages/engine/tests/butler_engine/test_migrate_from_kabao.py`
+- Create: `packages/engine/src/butler_engine/db/migrate_from_legacy.py`
+- Test: `packages/engine/tests/butler_engine/test_migrate_from_legacy.py`
 
 **Step 1: 失败测试**（A1-05 §4 / A1-03 §7 机制逐条）：
 
 ```python
-def test_first_migration_moves_db(): ...      # kabao.db → butler.db 新 schema，account_key="main"
+def test_first_migration_moves_db(): ...      # 旧品牌库 → butler.db 新 schema，account_key="main"
 def test_idempotent_skip_when_migrated(): ...
 def test_explicit_butler_db_env_no_move(): ...
 def test_marina_legacy_prefix_collected_once(): ...  # 旧 marina 凭据前缀读出后写入新键，旧文件保留
@@ -282,7 +282,7 @@ def test_audit_written(): ...
 ### Task 15: 横切运行时与六连接器搬家
 
 **Files:**
-- Modify: `packages/connectors/src/kabao_connectors/` → 目录改名
+- Modify: `packages/connectors/src/<旧 connectors 包>/` → 目录改名
   `butler_connectors/`（registry.py / decl.py / dockio.py / browser.py / cdp.py /
   unlock.py / manifest.py / ssaes.py / native_helper.py 随迁，import 全部切
   butler_core/butler_engine——**此时旧 butler_engine 尚在，注意 connectors
@@ -316,9 +316,9 @@ def test_audit_written(): ...
 
 **Files:**
 - Modify: `apps/server`、`apps/cli`、`apps/mcp`、`apps/desktop` 全部 import
-  kabao_core/butler_engine → butler_core/butler_engine
+  旧 core 包/旧 engine 包 → butler_core/butler_engine
 - Modify: 各 `pyproject.toml` 发行包名 → `butler-core/-engine/-connectors/-server/-cli/-mcp`
-- Delete: `packages/core/src/kabao_core/`、`packages/engine/src/butler_engine/`
+- Delete: `packages/core/src/<旧包>/`、`packages/engine/src/butler_engine/`
 - Modify: `scripts/verify_project.py`（结构期望：butler_core 域图 + 依赖恒等式机检：
   domain.py 禁止 import 其他域）
 - Modify: `docs/conventions/00-项目配置.md`（`{repo-remote}` 等——若 Gitee 已改名）
@@ -342,7 +342,7 @@ web 适配 → `vue-tsc` 绿 → 门禁绿。
 
 ### Task 19: DoD 终验 + 文档收尾
 
-**Step 1:** A1-05 §6 六条逐项验证（grep kabao 仅剩历史文档与迁移脚本字面量）。
+**Step 1:** A1-05 §6 六条逐项验证（grep 前代品牌名仅剩历史文档与迁移脚本字面量）。
 **Step 2:** 更新 `docs/STATUS.md`（重写收官行 + 挂账销账 0③）。
 **Step 3:** 门禁九项绿 + 全量测试绿。
 **Step 4:** `git commit -m "docs:[0]: 按业务域重写收官状态卡更新"`

@@ -14,12 +14,7 @@ export function useSettings() {
 
   function loadSettings(): Settings {
     try {
-      let raw = localStorage.getItem("butler.settings.v1");
-      if (!raw) {
-        /* 一次性迁移（A1-03 §7）：旧品牌键缺失新键时读入并回写，旧键保留不删 */
-        raw = localStorage.getItem("kabao.settings.v1");
-        if (raw) localStorage.setItem("butler.settings.v1", raw);
-      }
+      const raw = localStorage.getItem("butler.settings.v1");
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<Settings>;
         /* 旧主题名迁移（2026-11-18 换肤）：warm（暖纸浅绿）→ mist（晨雾冷蓝）；

@@ -30,7 +30,7 @@ R2 收尾需要把卡包能力暴露给 LLM 客户端（Claude Desktop / Cline �
 1. 落点 `apps/mcp`（包名 `butler-mcp`，src 包 `butler_mcp`——**不得叫 `mcp`**，
    与官方 SDK `import mcp` 冲突）；SDK 用官方 `mcp` 2.x（`MCPServer`，
    stdio transport；v1 的 FastMCP 已更名）。
-2. base URL 取 `KABAO_SERVER_URL`（默认 `http://127.0.0.1:8000`）；
+2. base URL 取 `BUTLER_SERVER_URL`（默认 `http://127.0.0.1:8000`）；
    server 不可达 → 显式报错并附启动命令，绝不内嵌拉起/静默兜底（红线 5）。
 3. 工具集三件（**不含领取扩展、不含用量采集触发**——采集归 server 调度与 web）：
    - `query_quota` 查额度 = GET /usage/radar 的 packages + forecasts + quota_low 投影；

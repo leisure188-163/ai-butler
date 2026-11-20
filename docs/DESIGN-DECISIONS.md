@@ -45,8 +45,7 @@
   默认**跟随系统**（`prefers-color-scheme` 实时跟随）。
   实现纪律：覆盖块只覆写颜色类令牌（含 `--color-on-ink`/`--color-ink-strong`
   随主题翻转），字体尺寸动效继承不复制；小徽身份色跨主题一致；
-  切换 = `<html data-theme>`，设置存 `butler.settings.v1`（读 `kabao.settings.v1`
-  兼容迁移一次；缺省 = 跟随系统）
+  切换 = `<html data-theme>`，设置存 `butler.settings.v1`（缺省 = 跟随系统）
 - **字体/动静**：沿用 D4 纪律（系统栈、数字 `tabular-nums`、标识符 mono）；
   动效仅按压反馈（scale 0.97/110ms），卡扇揭示动效退役，
   全局尊重 `prefers-reduced-motion`；无 ALL-CAPS 眉标/箭头按钮/渐变装饰

@@ -1,5 +1,5 @@
 ---
-name: kabao-adr-029
+name: butler-adr-029
 description: 凭据分层——token 型平台按账户入 vault，会话型平台零凭据走界面通道，不做 token 抓取。TRIGGER when 讨论多账户 token 获取/切换账户后请求为何出错/给豆包抓 Cookie 时
 version: "0.1.0"
 level: must

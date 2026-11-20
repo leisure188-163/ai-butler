@@ -1,4 +1,4 @@
-"""一次性迁移（A1-05 §4）：旧库搬移优先级 / 幂等 / 凭据前缀收口 / 审计。"""
+"""一次性迁移（A1-05 §4）：旧库搬移 / 幂等 / 凭据前缀收口 / 审计。"""
 
 from butler_engine.db.migrate import (
     legacy_db_candidates,
@@ -7,13 +7,10 @@ from butler_engine.db.migrate import (
 )
 
 
-def test_legacy_db_source_priority(tmp_path):
+def test_legacy_db_source_is_marina_only(tmp_path):
     root = tmp_path / "data" / "butler"
     sources = legacy_db_candidates(root)
-    assert sources == [
-        tmp_path / "data" / "kabao" / "kabao.db",
-        tmp_path / "data" / "ai-marina" / "marina.db",
-    ]
+    assert sources == [tmp_path / "data" / "ai-marina" / "marina.db"]
 
 
 def test_cwd_legacy_db_not_migrated(tmp_path):
@@ -22,7 +19,7 @@ def test_cwd_legacy_db_not_migrated(tmp_path):
     root.mkdir(parents=True)
     cwd = tmp_path / "repo"
     cwd.mkdir()
-    legacy = cwd / "kabao.db"
+    legacy = cwd / "stray.db"
     legacy.write_bytes(b"stray")
     target = root / "butler.db"
 
@@ -31,51 +28,37 @@ def test_cwd_legacy_db_not_migrated(tmp_path):
     assert not target.exists()
 
 
-def test_first_migration_moves_kabao_db_and_writes_log(tmp_path):
+def test_first_migration_moves_legacy_db_and_writes_log(tmp_path):
     root = tmp_path / "data" / "butler"
     root.mkdir(parents=True)
-    old = tmp_path / "data" / "kabao"
+    old = tmp_path / "data" / "ai-marina"
     old.mkdir()
-    (old / "kabao.db").write_bytes(b"old")
-    (old / "kabao.db-wal").write_bytes(b"wal")
+    (old / "marina.db").write_bytes(b"old")
+    (old / "marina.db-wal").write_bytes(b"wal")
     logs: list[str] = []
     target = root / "butler.db"
 
     migrated = migrate_legacy_db(target, root, log=logs.append)
 
-    assert migrated == old / "kabao.db"
+    assert migrated == old / "marina.db"
     assert target.read_bytes() == b"old"
     assert (root / "butler.db-wal").read_bytes() == b"wal"
     assert old.is_dir()  # 目录保留
     assert logs and "迁移" in logs[0]  # 审计日志
 
 
-def test_idempotent_skip_and_brand_priority(tmp_path):
+def test_idempotent_skip_when_target_exists(tmp_path):
     root = tmp_path / "data" / "butler"
     root.mkdir(parents=True)
     target = root / "butler.db"
     target.write_bytes(b"current")
-    old = tmp_path / "data" / "kabao"
+    old = tmp_path / "data" / "ai-marina"
     old.mkdir()
-    (old / "kabao.db").write_bytes(b"old")
+    (old / "marina.db").write_bytes(b"old")
 
     assert migrate_legacy_db(target, root) is None
     assert target.read_bytes() == b"current"
-    assert (old / "kabao.db").read_bytes() == b"old"
-
-
-def test_kabao_source_wins_over_marina(tmp_path):
-    root = tmp_path / "data" / "butler"
-    root.mkdir(parents=True)
-    (tmp_path / "data" / "kabao").mkdir()
-    (tmp_path / "data" / "kabao" / "kabao.db").write_bytes(b"kabao")
-    (tmp_path / "data" / "ai-marina").mkdir()
-    (tmp_path / "data" / "ai-marina" / "marina.db").write_bytes(b"marina")
-    target = root / "butler.db"
-
-    migrate_legacy_db(target, root)
-
-    assert target.read_bytes() == b"kabao"
+    assert (old / "marina.db").read_bytes() == b"old"
 
 
 class _FakeBackend:

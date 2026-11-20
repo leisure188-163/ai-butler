@@ -71,8 +71,8 @@ def default_db_path() -> Path:
     macOS ~/Library/Application Support/butler · Windows %APPDATA%/butler ·
     Linux $XDG_DATA_HOME/butler。**绝不落 CWD**；BUTLER_DB 环境变量仍可整体覆盖
     （测试/便携模式，显式指定时不做任何迁移）。
-    旧库源优先级与迁移实现集中在 `butler_engine/db/migrate.py`（A1-05 §4）：
-    kabao 目录/CWD → ai-marina 目录/CWD；幂等、目录保留、写日志。
+    旧库源与迁移实现集中在 `butler_engine/db/migrate.py`（A1-05 §4）：
+    上一代 ai-marina 目录 → butler 目录；幂等、目录保留、写日志。
     """
     override = os.environ.get("BUTLER_DB")
     if override:  # 显式指定时不做任何迁移（测试/便携模式，docstring 承诺口径）
